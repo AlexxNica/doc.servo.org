@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["TimerMode","The `TimerMode` is used to determine what time should the `Timer` return, either a fixed value (in the `Test` mode), or the actual time (in the `Current` mode)."]],"struct":[["Timer","A `Timer` struct that takes care of giving the current time for animations."]]});

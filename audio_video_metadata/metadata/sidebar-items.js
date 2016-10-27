@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["check_mp3",""],["check_mp4",""],["check_ogg",""],["get_format_from_file",""],["get_format_from_slice","It checks audio/video formats. Take a look to the Metadata enum for more information."]]});

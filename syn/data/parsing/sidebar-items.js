@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["enum_body",""],["struct_body",""],["struct_field",""],["struct_like_body",""],["tuple_field",""],["tuple_like_body",""],["variant",""],["visibility",""]]});

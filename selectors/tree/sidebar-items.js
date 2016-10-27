@@ -1,0 +1,1 @@
+initSidebarItems({"static":[["SELECTOR_WHITESPACE","The definition of whitespace per CSS Selectors Level 3 § 4."]],"trait":[["Element",""],["MatchAttr",""],["MatchAttrGeneric",""]]});

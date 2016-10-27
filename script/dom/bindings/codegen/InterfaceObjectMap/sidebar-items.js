@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["DEDICATED_WORKER_GLOBAL_SCOPE",""],["EMPTY",""],["SERVICE_WORKER_GLOBAL_SCOPE",""],["WINDOW",""]],"static":[["MAP",""]],"struct":[["Globals",""]]});

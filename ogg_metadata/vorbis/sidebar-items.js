@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["read_header_ident",""]],"struct":[["IdentHeader",""],["Metadata","Metadata for the Vorbis audio codec."]]});

@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["VariantData",""],["Visibility",""]],"mod":[["parsing",""]],"struct":[["Field",""],["Variant",""]]});

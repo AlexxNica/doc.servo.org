@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["SideOffsets2DSimdI32","A SIMD enabled version of TypedSideOffsets2D specialized for i32."],["TypedSideOffsets2D",""]],"type":[["SideOffsets2D","The default side offset type with no unit."]]});

@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["_IMPL_DESERIALIZE_FOR_Pref",""],["_IMPL_DESERIALIZE_FOR_PrefValue",""],["_IMPL_SERIALIZE_FOR_Pref",""],["_IMPL_SERIALIZE_FOR_PrefValue",""]],"enum":[["Pref",""],["PrefValue",""]],"fn":[["add_user_prefs",""],["init_user_prefs",""],["read_prefs",""],["read_prefs_from_file",""]],"static":[["PREFS",""]],"struct":[["PREFS",""],["Preferences",""]]});

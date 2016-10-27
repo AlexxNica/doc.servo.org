@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["AppendableValue",""],["Importance",""]],"fn":[["append_declaration_value",""],["append_serialization",""],["handle_first_serialization",""],["parse_one_declaration",""],["parse_property_declaration_list",""],["parse_style_attribute",""]],"struct":[["PropertyDeclarationBlock","Overridden declarations are skipped."],["PropertyDeclarationParser",""]]});

@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["CAN_OVERSCROLL",""]],"enum":[["SceneItemKind",""]],"static":[["DEFAULT_SCROLLBAR_COLOR",""]],"struct":[["FlattenContext",""],["FlattenInfo",""],["Frame",""],["FrameId",""],["SceneItemWithZOrder",""]],"trait":[["StackingContextHelpers",""]],"type":[["LayerMap",""]]});

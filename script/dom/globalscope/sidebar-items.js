@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["global_scope_from_global","Returns the Rust global scope from a JS global object."],["timestamp_in_ms",""]],"struct":[["GlobalScope",""]]});

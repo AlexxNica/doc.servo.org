@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["REFLOW_ENTIRE_DOCUMENT","If this flag is set, we need to reflow the entire document. This is more or less a temporary hack to deal with cases that we don't handle incrementally yet."]],"struct":[["SpecialRestyleDamage",""]],"trait":[["LayoutDamageComputation",""]]});
