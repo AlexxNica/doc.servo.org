@@ -426,28 +426,6 @@
 <span id="382">382</span>
 <span id="383">383</span>
 <span id="384">384</span>
-<span id="385">385</span>
-<span id="386">386</span>
-<span id="387">387</span>
-<span id="388">388</span>
-<span id="389">389</span>
-<span id="390">390</span>
-<span id="391">391</span>
-<span id="392">392</span>
-<span id="393">393</span>
-<span id="394">394</span>
-<span id="395">395</span>
-<span id="396">396</span>
-<span id="397">397</span>
-<span id="398">398</span>
-<span id="399">399</span>
-<span id="400">400</span>
-<span id="401">401</span>
-<span id="402">402</span>
-<span id="403">403</span>
-<span id="404">404</span>
-<span id="405">405</span>
-<span id="406">406</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -458,8 +436,8 @@
 <span class='kw'>use</span> <span class='ident'>atomic_refcell</span>::<span class='ident'>AtomicRefCell</span>;
 <span class='kw'>use</span> <span class='ident'>context</span>::{<span class='ident'>LocalStyleContext</span>, <span class='ident'>SharedStyleContext</span>, <span class='ident'>StyleContext</span>};
 <span class='kw'>use</span> <span class='ident'>data</span>::<span class='ident'>NodeData</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>OpaqueNode</span>, <span class='ident'>StylingMode</span>, <span class='ident'>TNode</span>, <span class='ident'>UnsafeNode</span>};
-<span class='kw'>use</span> <span class='ident'>matching</span>::{<span class='ident'>ApplicableDeclarations</span>, <span class='ident'>ElementMatchMethods</span>, <span class='ident'>MatchMethods</span>, <span class='ident'>StyleSharingResult</span>};
+<span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>NodeInfo</span>, <span class='ident'>OpaqueNode</span>, <span class='ident'>StylingMode</span>, <span class='ident'>TElement</span>, <span class='ident'>TNode</span>, <span class='ident'>UnsafeNode</span>};
+<span class='kw'>use</span> <span class='ident'>matching</span>::{<span class='ident'>ApplicableDeclarations</span>, <span class='ident'>MatchMethods</span>, <span class='ident'>StyleSharingResult</span>};
 <span class='kw'>use</span> <span class='ident'>selectors</span>::<span class='ident'>bloom</span>::<span class='ident'>BloomFilter</span>;
 <span class='kw'>use</span> <span class='ident'>selectors</span>::<span class='ident'>matching</span>::<span class='ident'>StyleRelations</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>RefCell</span>;
@@ -513,13 +491,13 @@
 <span class='doccomment'>///</span>
 <span class='doccomment'>/// If one does not exist, a new one will be made for you. If it is out of date,</span>
 <span class='doccomment'>/// it will be cleared and reused.</span>
-<span class='kw'>fn</span> <span class='ident'>take_thread_local_bloom_filter</span><span class='op'>&lt;</span><span class='ident'>N</span><span class='op'>&gt;</span>(<span class='ident'>parent_node</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>N</span><span class='op'>&gt;</span>,
-                                     <span class='ident'>root</span>: <span class='ident'>OpaqueNode</span>,
-                                     <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='ident'>SharedStyleContext</span>)
-                                     <span class='op'>-&gt;</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>BloomFilter</span><span class='op'>&gt;</span>
-                                     <span class='kw'>where</span> <span class='ident'>N</span>: <span class='ident'>TNode</span> {
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>take_thread_local_bloom_filter</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='ident'>parent_element</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>,
+                                         <span class='ident'>root</span>: <span class='ident'>OpaqueNode</span>,
+                                         <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='ident'>SharedStyleContext</span>)
+                                         <span class='op'>-&gt;</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>BloomFilter</span><span class='op'>&gt;</span>
+                                         <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span> {
     <span class='ident'>STYLE_BLOOM</span>.<span class='ident'>with</span>(<span class='op'>|</span><span class='ident'>style_bloom</span><span class='op'>|</span> {
-        <span class='kw'>match</span> (<span class='ident'>parent_node</span>, <span class='ident'>style_bloom</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>take</span>()) {
+        <span class='kw'>match</span> (<span class='ident'>parent_element</span>, <span class='ident'>style_bloom</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>take</span>()) {
             <span class='comment'>// Root node. Needs new bloom filter.</span>
             (<span class='prelude-val'>None</span>,     _  ) <span class='op'>=&gt;</span> {
                 <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;[{}] No parent, but new bloom filter!&quot;</span>, <span class='ident'>tid</span>());
@@ -533,7 +511,7 @@
             }
             <span class='comment'>// Found cached bloom filter.</span>
             (<span class='prelude-val'>Some</span>(<span class='ident'>parent</span>), <span class='prelude-val'>Some</span>((<span class='kw-2'>mut</span> <span class='ident'>bloom_filter</span>, <span class='ident'>old_node</span>, <span class='ident'>old_generation</span>))) <span class='op'>=&gt;</span> {
-                <span class='kw'>if</span> <span class='ident'>old_node</span> <span class='op'>==</span> <span class='ident'>parent</span>.<span class='ident'>to_unsafe</span>() <span class='op'>&amp;&amp;</span>
+                <span class='kw'>if</span> <span class='ident'>old_node</span> <span class='op'>==</span> <span class='ident'>parent</span>.<span class='ident'>as_node</span>().<span class='ident'>to_unsafe</span>() <span class='op'>&amp;&amp;</span>
                     <span class='ident'>old_generation</span> <span class='op'>==</span> <span class='ident'>context</span>.<span class='ident'>generation</span> {
                     <span class='comment'>// Hey, the cached parent is our parent! We can reuse the bloom filter.</span>
                     <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;[{}] Parent matches (={}). Reusing bloom filter.&quot;</span>, <span class='ident'>tid</span>(), <span class='ident'>old_node</span>.<span class='number'>0</span>);
@@ -549,8 +527,8 @@
     })
 }
 
-<span class='kw'>fn</span> <span class='ident'>put_thread_local_bloom_filter</span>(<span class='ident'>bf</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>BloomFilter</span><span class='op'>&gt;</span>, <span class='ident'>unsafe_node</span>: <span class='kw-2'>&amp;</span><span class='ident'>UnsafeNode</span>,
-                                 <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='ident'>SharedStyleContext</span>) {
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>put_thread_local_bloom_filter</span>(<span class='ident'>bf</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>BloomFilter</span><span class='op'>&gt;</span>, <span class='ident'>unsafe_node</span>: <span class='kw-2'>&amp;</span><span class='ident'>UnsafeNode</span>,
+                                     <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='ident'>SharedStyleContext</span>) {
     <span class='ident'>STYLE_BLOOM</span>.<span class='ident'>with</span>(<span class='kw'>move</span> <span class='op'>|</span><span class='ident'>style_bloom</span><span class='op'>|</span> {
         <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>style_bloom</span>.<span class='ident'>borrow</span>().<span class='ident'>is_none</span>(),
                 <span class='string'>&quot;Putting into a never-taken thread-local bloom filter&quot;</span>);
@@ -559,17 +537,17 @@
 }
 
 <span class='doccomment'>/// &quot;Ancestors&quot; in this context is inclusive of ourselves.</span>
-<span class='kw'>fn</span> <span class='ident'>insert_ancestors_into_bloom_filter</span><span class='op'>&lt;</span><span class='ident'>N</span><span class='op'>&gt;</span>(<span class='ident'>bf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>BloomFilter</span><span class='op'>&gt;</span>,
-                                         <span class='kw-2'>mut</span> <span class='ident'>n</span>: <span class='ident'>N</span>,
+<span class='kw'>fn</span> <span class='ident'>insert_ancestors_into_bloom_filter</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='ident'>bf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>BloomFilter</span><span class='op'>&gt;</span>,
+                                         <span class='kw-2'>mut</span> <span class='ident'>el</span>: <span class='ident'>E</span>,
                                          <span class='ident'>root</span>: <span class='ident'>OpaqueNode</span>)
-                                         <span class='kw'>where</span> <span class='ident'>N</span>: <span class='ident'>TNode</span> {
+                                         <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span> {
     <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;[{}] Inserting ancestors.&quot;</span>, <span class='ident'>tid</span>());
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>ancestors</span> <span class='op'>=</span> <span class='number'>0</span>;
     <span class='kw'>loop</span> {
         <span class='ident'>ancestors</span> <span class='op'>+=</span> <span class='number'>1</span>;
 
-        <span class='ident'>n</span>.<span class='ident'>insert_into_bloom_filter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='op'>*</span><span class='ident'>bf</span>);
-        <span class='ident'>n</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>n</span>.<span class='ident'>layout_parent_node</span>(<span class='ident'>root</span>) {
+        <span class='ident'>el</span>.<span class='ident'>insert_into_bloom_filter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='op'>*</span><span class='ident'>bf</span>);
+        <span class='ident'>el</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>el</span>.<span class='ident'>as_node</span>().<span class='ident'>layout_parent_node</span>(<span class='ident'>root</span>).<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>x</span><span class='op'>|</span> <span class='ident'>x</span>.<span class='ident'>as_element</span>()) {
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>break</span>,
             <span class='prelude-val'>Some</span>(<span class='ident'>p</span>) <span class='op'>=&gt;</span> <span class='ident'>p</span>,
         };
@@ -600,7 +578,7 @@
         }
         <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>) <span class='op'>=&gt;</span> {
             <span class='comment'>// Otherwise, put it back, but remove this node.</span>
-            <span class='ident'>node</span>.<span class='ident'>remove_from_bloom_filter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='ident'>bf</span>);
+            <span class='ident'>node</span>.<span class='ident'>as_element</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>x</span><span class='op'>|</span> <span class='ident'>x</span>.<span class='ident'>remove_from_bloom_filter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='ident'>bf</span>));
             <span class='kw'>let</span> <span class='ident'>unsafe_parent</span> <span class='op'>=</span> <span class='ident'>parent</span>.<span class='ident'>to_unsafe</span>();
             <span class='ident'>put_thread_local_bloom_filter</span>(<span class='ident'>bf</span>, <span class='kw-2'>&amp;</span><span class='ident'>unsafe_parent</span>, <span class='kw-2'>&amp;</span><span class='ident'>context</span>.<span class='ident'>shared_context</span>());
         },
@@ -664,20 +642,20 @@
                           <span class='ident'>AFFECTED_BY_PRESENTATIONAL_HINTS</span>)
 }
 
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ensure_node_styled</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>N</span>, <span class='ident'>C</span><span class='op'>&gt;</span>(<span class='ident'>node</span>: <span class='ident'>N</span>,
-                                    <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>C</span>)
-    <span class='kw'>where</span> <span class='ident'>N</span>: <span class='ident'>TNode</span>,
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ensure_element_styled</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>E</span>, <span class='ident'>C</span><span class='op'>&gt;</span>(<span class='ident'>element</span>: <span class='ident'>E</span>,
+                                       <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>C</span>)
+    <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
           <span class='ident'>C</span>: <span class='ident'>StyleContext</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>
 {
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>display_none</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-    <span class='ident'>ensure_node_styled_internal</span>(<span class='ident'>node</span>, <span class='ident'>context</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>display_none</span>);
+    <span class='ident'>ensure_element_styled_internal</span>(<span class='ident'>element</span>, <span class='ident'>context</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>display_none</span>);
 }
 
 <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unsafe_code</span>)]</span>
-<span class='kw'>fn</span> <span class='ident'>ensure_node_styled_internal</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>N</span>, <span class='ident'>C</span><span class='op'>&gt;</span>(<span class='ident'>node</span>: <span class='ident'>N</span>,
-                                         <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>C</span>,
-                                         <span class='ident'>parents_had_display_none</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>bool</span>)
-    <span class='kw'>where</span> <span class='ident'>N</span>: <span class='ident'>TNode</span>,
+<span class='kw'>fn</span> <span class='ident'>ensure_element_styled_internal</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>E</span>, <span class='ident'>C</span><span class='op'>&gt;</span>(<span class='ident'>element</span>: <span class='ident'>E</span>,
+                                            <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>C</span>,
+                                            <span class='ident'>parents_had_display_none</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>bool</span>)
+    <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
           <span class='ident'>C</span>: <span class='ident'>StyleContext</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>
 {
     <span class='kw'>use</span> <span class='ident'>properties</span>::<span class='ident'>longhands</span>::<span class='ident'>display</span>::<span class='ident'>computed_value</span> <span class='kw'>as</span> <span class='ident'>display</span>;
@@ -689,13 +667,9 @@
     <span class='comment'>// This means potentially a bit of wasted work (usually not much). We could</span>
     <span class='comment'>// add a flag at the node at which point we stopped the traversal to know</span>
     <span class='comment'>// where should we stop, but let&#39;s not add that complication unless needed.</span>
-    <span class='kw'>let</span> <span class='ident'>parent</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>node</span>.<span class='ident'>parent_node</span>() {
-        <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>) <span class='kw'>if</span> <span class='ident'>parent</span>.<span class='ident'>is_element</span>() <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>),
-        _ <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
-    };
-
+    <span class='kw'>let</span> <span class='ident'>parent</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>parent_element</span>();
     <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>) <span class='op'>=</span> <span class='ident'>parent</span> {
-        <span class='ident'>ensure_node_styled_internal</span>(<span class='ident'>parent</span>, <span class='ident'>context</span>, <span class='ident'>parents_had_display_none</span>);
+        <span class='ident'>ensure_element_styled_internal</span>(<span class='ident'>parent</span>, <span class='ident'>context</span>, <span class='ident'>parents_had_display_none</span>);
     }
 
     <span class='comment'>// Common case: our style is already resolved and none of our ancestors had</span>
@@ -703,6 +677,7 @@
     <span class='comment'>//</span>
     <span class='comment'>// We only need to mark whether we have display none, and forget about it,</span>
     <span class='comment'>// our style is up to date.</span>
+    <span class='kw'>let</span> <span class='ident'>node</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>as_node</span>();
     <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>data</span>) <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>borrow_data</span>() {
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>style</span>) <span class='op'>=</span> <span class='ident'>data</span>.<span class='ident'>get_current_styles</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>x</span><span class='op'>|</span> <span class='kw-2'>&amp;</span><span class='ident'>x</span>.<span class='ident'>primary</span>) {
             <span class='kw'>if</span> <span class='op'>!</span><span class='op'>*</span><span class='ident'>parents_had_display_none</span> {
@@ -719,55 +694,42 @@
     <span class='comment'>// probably not necessary since we&#39;re likely to be matching only a few</span>
     <span class='comment'>// nodes, at best.</span>
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>applicable_declarations</span> <span class='op'>=</span> <span class='ident'>ApplicableDeclarations</span>::<span class='ident'>new</span>();
-    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>element</span>) <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>as_element</span>() {
-        <span class='kw'>let</span> <span class='ident'>stylist</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>context</span>.<span class='ident'>shared_context</span>().<span class='ident'>stylist</span>;
+    <span class='kw'>let</span> <span class='ident'>stylist</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>context</span>.<span class='ident'>shared_context</span>().<span class='ident'>stylist</span>;
 
-        <span class='ident'>element</span>.<span class='ident'>match_element</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='op'>*</span><span class='ident'>stylist</span>,
-                              <span class='prelude-val'>None</span>,
-                              <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>applicable_declarations</span>);
-    }
+    <span class='ident'>element</span>.<span class='ident'>match_element</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='op'>*</span><span class='ident'>stylist</span>,
+                          <span class='prelude-val'>None</span>,
+                          <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>applicable_declarations</span>);
 
     <span class='kw'>unsafe</span> {
-        <span class='ident'>node</span>.<span class='ident'>cascade_node</span>(<span class='ident'>context</span>, <span class='ident'>parent</span>, <span class='kw-2'>&amp;</span><span class='ident'>applicable_declarations</span>);
+        <span class='ident'>element</span>.<span class='ident'>cascade_node</span>(<span class='ident'>context</span>, <span class='ident'>parent</span>, <span class='kw-2'>&amp;</span><span class='ident'>applicable_declarations</span>);
     }
 }
 
 <span class='doccomment'>/// Calculates the style for a single node.</span>
 <span class='attribute'>#[<span class='ident'>inline</span>]</span>
 <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unsafe_code</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>recalc_style_at</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>N</span>, <span class='ident'>C</span>, <span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>C</span>,
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>recalc_style_at</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>E</span>, <span class='ident'>C</span>, <span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>C</span>,
                                     <span class='ident'>root</span>: <span class='ident'>OpaqueNode</span>,
-                                    <span class='ident'>node</span>: <span class='ident'>N</span>) <span class='op'>-&gt;</span> <span class='ident'>RestyleResult</span>
-    <span class='kw'>where</span> <span class='ident'>N</span>: <span class='ident'>TNode</span>,
+                                    <span class='ident'>element</span>: <span class='ident'>E</span>) <span class='op'>-&gt;</span> <span class='ident'>RestyleResult</span>
+    <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
           <span class='ident'>C</span>: <span class='ident'>StyleContext</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>,
-          <span class='ident'>D</span>: <span class='ident'>DomTraversalContext</span><span class='op'>&lt;</span><span class='ident'>N</span><span class='op'>&gt;</span>
+          <span class='ident'>D</span>: <span class='ident'>DomTraversalContext</span><span class='op'>&lt;</span><span class='ident'>E</span>::<span class='ident'>ConcreteNode</span><span class='op'>&gt;</span>
 {
-    <span class='comment'>// Get the parent node.</span>
-    <span class='kw'>let</span> <span class='ident'>parent_opt</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>node</span>.<span class='ident'>parent_node</span>() {
-        <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>) <span class='kw'>if</span> <span class='ident'>parent</span>.<span class='ident'>is_element</span>() <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>),
-        _ <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
-    };
-
     <span class='comment'>// Get the style bloom filter.</span>
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>bf</span> <span class='op'>=</span> <span class='ident'>take_thread_local_bloom_filter</span>(<span class='ident'>parent_opt</span>, <span class='ident'>root</span>, <span class='ident'>context</span>.<span class='ident'>shared_context</span>());
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>bf</span> <span class='op'>=</span> <span class='ident'>take_thread_local_bloom_filter</span>(<span class='ident'>element</span>.<span class='ident'>parent_element</span>(), <span class='ident'>root</span>, <span class='ident'>context</span>.<span class='ident'>shared_context</span>());
 
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>restyle_result</span> <span class='op'>=</span> <span class='ident'>RestyleResult</span>::<span class='ident'>Continue</span>;
-    <span class='kw'>let</span> <span class='ident'>mode</span> <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>styling_mode</span>();
+    <span class='kw'>let</span> <span class='ident'>mode</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>as_node</span>().<span class='ident'>styling_mode</span>();
     <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>mode</span> <span class='op'>!=</span> <span class='ident'>StylingMode</span>::<span class='ident'>Stop</span>, <span class='string'>&quot;Parent should not have enqueued us&quot;</span>);
     <span class='kw'>if</span> <span class='ident'>mode</span> <span class='op'>!=</span> <span class='ident'>StylingMode</span>::<span class='ident'>Traverse</span> {
         <span class='comment'>// Check to see whether we can share a style with someone.</span>
         <span class='kw'>let</span> <span class='ident'>style_sharing_candidate_cache</span> <span class='op'>=</span>
             <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>context</span>.<span class='ident'>local_context</span>().<span class='ident'>style_sharing_candidate_cache</span>.<span class='ident'>borrow_mut</span>();
 
-        <span class='kw'>let</span> <span class='ident'>sharing_result</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>node</span>.<span class='ident'>as_element</span>() {
-            <span class='prelude-val'>Some</span>(<span class='ident'>element</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>unsafe</span> {
-                    <span class='ident'>element</span>.<span class='ident'>share_style_if_possible</span>(<span class='ident'>style_sharing_candidate_cache</span>,
-                                                    <span class='ident'>context</span>.<span class='ident'>shared_context</span>(),
-                                                    <span class='ident'>parent_opt</span>.<span class='ident'>clone</span>())
-                }
-            },
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='ident'>StyleSharingResult</span>::<span class='ident'>CannotShare</span>,
+        <span class='kw'>let</span> <span class='ident'>sharing_result</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>element</span>.<span class='ident'>parent_element</span>().<span class='ident'>is_none</span>() {
+            <span class='ident'>StyleSharingResult</span>::<span class='ident'>CannotShare</span>
+        } <span class='kw'>else</span> {
+            <span class='kw'>unsafe</span> { <span class='ident'>element</span>.<span class='ident'>share_style_if_possible</span>(<span class='ident'>style_sharing_candidate_cache</span>, <span class='ident'>context</span>.<span class='ident'>shared_context</span>()) }
         };
 
         <span class='comment'>// Otherwise, match and cascade selectors.</span>
@@ -776,38 +738,32 @@
                 <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>applicable_declarations</span> <span class='op'>=</span> <span class='ident'>ApplicableDeclarations</span>::<span class='ident'>new</span>();
 
                 <span class='kw'>let</span> <span class='ident'>relations</span>;
-                <span class='kw'>let</span> <span class='ident'>shareable_element</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>node</span>.<span class='ident'>as_element</span>() {
-                    <span class='prelude-val'>Some</span>(<span class='ident'>element</span>) <span class='op'>=&gt;</span> {
-                        <span class='kw'>if</span> <span class='ident'>opts</span>::<span class='ident'>get</span>().<span class='ident'>style_sharing_stats</span> {
-                            <span class='ident'>STYLE_SHARING_CACHE_MISSES</span>.<span class='ident'>fetch_add</span>(<span class='number'>1</span>, <span class='ident'>Ordering</span>::<span class='ident'>Relaxed</span>);
-                        }
+                <span class='kw'>let</span> <span class='ident'>shareable_element</span> <span class='op'>=</span> {
+                    <span class='kw'>if</span> <span class='ident'>opts</span>::<span class='ident'>get</span>().<span class='ident'>style_sharing_stats</span> {
+                        <span class='ident'>STYLE_SHARING_CACHE_MISSES</span>.<span class='ident'>fetch_add</span>(<span class='number'>1</span>, <span class='ident'>Ordering</span>::<span class='ident'>Relaxed</span>);
+                    }
 
-                        <span class='comment'>// Perform the CSS selector matching.</span>
-                        <span class='kw'>let</span> <span class='ident'>stylist</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>context</span>.<span class='ident'>shared_context</span>().<span class='ident'>stylist</span>;
+                    <span class='comment'>// Perform the CSS selector matching.</span>
+                    <span class='kw'>let</span> <span class='ident'>stylist</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>context</span>.<span class='ident'>shared_context</span>().<span class='ident'>stylist</span>;
 
-                        <span class='ident'>relations</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>match_element</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='op'>*</span><span class='ident'>stylist</span>,
-                                                          <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>bf</span>),
-                                                          <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>applicable_declarations</span>);
+                    <span class='ident'>relations</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>match_element</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='op'>*</span><span class='ident'>stylist</span>,
+                                                      <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>bf</span>),
+                                                      <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>applicable_declarations</span>);
 
-                        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Result of selector matching: {:?}&quot;</span>, <span class='ident'>relations</span>);
+                    <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Result of selector matching: {:?}&quot;</span>, <span class='ident'>relations</span>);
 
-                        <span class='kw'>if</span> <span class='ident'>relations_are_shareable</span>(<span class='kw-2'>&amp;</span><span class='ident'>relations</span>) {
-                            <span class='prelude-val'>Some</span>(<span class='ident'>element</span>)
-                        } <span class='kw'>else</span> {
-                            <span class='prelude-val'>None</span>
-                        }
-                    },
-                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
-                        <span class='ident'>relations</span> <span class='op'>=</span> <span class='ident'>StyleRelations</span>::<span class='ident'>empty</span>();
+                    <span class='kw'>if</span> <span class='ident'>relations_are_shareable</span>(<span class='kw-2'>&amp;</span><span class='ident'>relations</span>) {
+                        <span class='prelude-val'>Some</span>(<span class='ident'>element</span>)
+                    } <span class='kw'>else</span> {
                         <span class='prelude-val'>None</span>
-                    },
+                    }
                 };
 
                 <span class='comment'>// Perform the CSS cascade.</span>
                 <span class='kw'>unsafe</span> {
-                    <span class='ident'>restyle_result</span> <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>cascade_node</span>(<span class='ident'>context</span>,
-                                                       <span class='ident'>parent_opt</span>,
-                                                       <span class='kw-2'>&amp;</span><span class='ident'>applicable_declarations</span>);
+                    <span class='ident'>restyle_result</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>cascade_node</span>(<span class='ident'>context</span>,
+                                                          <span class='ident'>element</span>.<span class='ident'>parent_element</span>(),
+                                                          <span class='kw-2'>&amp;</span><span class='ident'>applicable_declarations</span>);
                 }
 
                 <span class='comment'>// Add ourselves to the LRU cache.</span>
@@ -821,7 +777,7 @@
                     <span class='ident'>STYLE_SHARING_CACHE_HITS</span>.<span class='ident'>fetch_add</span>(<span class='number'>1</span>, <span class='ident'>Ordering</span>::<span class='ident'>Relaxed</span>);
                 }
                 <span class='ident'>style_sharing_candidate_cache</span>.<span class='ident'>touch</span>(<span class='ident'>index</span>);
-                <span class='ident'>node</span>.<span class='ident'>set_restyle_damage</span>(<span class='ident'>damage</span>);
+                <span class='ident'>element</span>.<span class='ident'>set_restyle_damage</span>(<span class='ident'>damage</span>);
             }
         }
     }
@@ -830,7 +786,7 @@
     <span class='comment'>// processing. The eventual algorithm we&#39;re designing does this in a more granular</span>
     <span class='comment'>// fashion.</span>
     <span class='kw'>if</span> <span class='ident'>mode</span> <span class='op'>==</span> <span class='ident'>StylingMode</span>::<span class='ident'>Restyle</span> <span class='op'>&amp;&amp;</span> <span class='ident'>restyle_result</span> <span class='op'>==</span> <span class='ident'>RestyleResult</span>::<span class='ident'>Continue</span> {
-        <span class='kw'>for</span> <span class='ident'>kid</span> <span class='kw'>in</span> <span class='ident'>node</span>.<span class='ident'>children</span>() {
+        <span class='kw'>for</span> <span class='ident'>kid</span> <span class='kw'>in</span> <span class='ident'>element</span>.<span class='ident'>as_node</span>().<span class='ident'>children</span>() {
             <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='ident'>D</span>::<span class='ident'>ensure_node_data</span>(<span class='kw-2'>&amp;</span><span class='ident'>kid</span>).<span class='ident'>borrow_mut</span>();
             <span class='kw'>if</span> <span class='ident'>kid</span>.<span class='ident'>is_text_node</span>() {
                 <span class='ident'>data</span>.<span class='ident'>ensure_restyle_data</span>();
@@ -843,12 +799,12 @@
         }
     }
 
-    <span class='kw'>let</span> <span class='ident'>unsafe_layout_node</span> <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>to_unsafe</span>();
+    <span class='kw'>let</span> <span class='ident'>unsafe_layout_node</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>as_node</span>().<span class='ident'>to_unsafe</span>();
 
     <span class='comment'>// Before running the children, we need to insert our nodes into the bloom</span>
     <span class='comment'>// filter.</span>
     <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;[{}] + {:X}&quot;</span>, <span class='ident'>tid</span>(), <span class='ident'>unsafe_layout_node</span>.<span class='number'>0</span>);
-    <span class='ident'>node</span>.<span class='ident'>insert_into_bloom_filter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='ident'>bf</span>);
+    <span class='ident'>element</span>.<span class='ident'>insert_into_bloom_filter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='ident'>bf</span>);
 
     <span class='comment'>// NB: flow construction updates the bloom filter on the way up.</span>
     <span class='ident'>put_thread_local_bloom_filter</span>(<span class='ident'>bf</span>, <span class='kw-2'>&amp;</span><span class='ident'>unsafe_layout_node</span>, <span class='ident'>context</span>.<span class='ident'>shared_context</span>());
