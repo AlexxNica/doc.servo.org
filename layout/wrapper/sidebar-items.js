@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["TextContent",""]],"trait":[["LayoutNodeLayoutData",""],["ThreadSafeLayoutNodeHelpers",""]],"type":[["NonOpaqueStyleAndLayoutData",""]]});
+initSidebarItems({"enum":[["TextContent",""]],"trait":[["LayoutNodeHelpers",""],["LayoutNodeLayoutData",""],["ThreadSafeLayoutNodeHelpers",""]],"type":[["NonOpaqueStyleAndLayoutData",""]]});
