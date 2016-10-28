@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["WebGLFramebuffer",""]]});
+initSidebarItems({"enum":[["WebGLFramebufferAttachment",""]],"struct":[["WebGLFramebuffer",""]]});
