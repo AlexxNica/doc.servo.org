@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["write_data",""],["write_msg",""]]});
+initSidebarItems({"fn":[["write_data",""],["write_msg",""],["write_payload",""]]});

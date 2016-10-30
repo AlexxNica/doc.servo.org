@@ -609,6 +609,8 @@
 <span id="565">565</span>
 <span id="566">566</span>
 <span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -625,7 +627,7 @@
 <span class='kw'>use</span> <span class='ident'>gfx</span>::<span class='ident'>display_list</span>::{<span class='ident'>BorderRadii</span>, <span class='ident'>BoxShadowClipMode</span>, <span class='ident'>ClippingRegion</span>};
 <span class='kw'>use</span> <span class='ident'>gfx</span>::<span class='ident'>display_list</span>::{<span class='ident'>DisplayItem</span>, <span class='ident'>DisplayList</span>, <span class='ident'>DisplayListTraversal</span>};
 <span class='kw'>use</span> <span class='ident'>gfx</span>::<span class='ident'>display_list</span>::{<span class='ident'>GradientStop</span>, <span class='ident'>StackingContext</span>, <span class='ident'>StackingContextType</span>};
-<span class='kw'>use</span> <span class='ident'>gfx_traits</span>::{<span class='ident'>FragmentType</span>, <span class='ident'>ScrollPolicy</span>, <span class='ident'>StackingContextId</span>};
+<span class='kw'>use</span> <span class='ident'>gfx_traits</span>::{<span class='ident'>FragmentType</span>, <span class='ident'>ScrollPolicy</span>, <span class='ident'>StackingContextId</span>, <span class='ident'>ScrollRootId</span>};
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>computed_values</span>::{<span class='ident'>image_rendering</span>, <span class='ident'>mix_blend_mode</span>};
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>computed_values</span>::<span class='ident'>filter</span>::{<span class='self'>self</span>, <span class='ident'>Filter</span>};
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>values</span>::<span class='ident'>computed</span>::<span class='ident'>BorderStyle</span>;
@@ -899,18 +901,16 @@
             <span class='ident'>ScrollPolicy</span>::<span class='ident'>FixedPosition</span> <span class='op'>=&gt;</span> <span class='ident'>webrender_traits</span>::<span class='ident'>ScrollPolicy</span>::<span class='ident'>Fixed</span>,
         };
 
-        <span class='kw'>let</span> <span class='ident'>webrender_stacking_context_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>id</span>.<span class='ident'>convert_to_webrender</span>();
-
-        <span class='kw'>let</span> <span class='ident'>scroll_layer_id</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>overflow_scroll_id</span>.<span class='ident'>is_some</span>() <span class='op'>||</span>
-                                 <span class='self'>self</span>.<span class='ident'>id</span> <span class='op'>==</span> <span class='ident'>StackingContextId</span>::<span class='ident'>root</span>() {
-            <span class='prelude-val'>Some</span>(<span class='ident'>frame_builder</span>.<span class='ident'>next_scroll_layer_id</span>())
+        <span class='kw'>let</span> <span class='ident'>scroll_layer_id</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>scroll_root_id</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>overflow_scroll_id</span> {
+            <span class='prelude-val'>Some</span>(<span class='ident'>frame_builder</span>.<span class='ident'>next_scroll_layer_id</span>(<span class='ident'>scroll_root_id</span>))
+        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>id</span> <span class='op'>==</span> <span class='ident'>StackingContextId</span>::<span class='ident'>root</span>() {
+            <span class='prelude-val'>Some</span>(<span class='ident'>frame_builder</span>.<span class='ident'>next_scroll_layer_id</span>(<span class='ident'>ScrollRootId</span>::<span class='ident'>root</span>()))
         } <span class='kw'>else</span> {
             <span class='prelude-val'>None</span>
         };
 
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>sc</span> <span class='op'>=</span>
-            <span class='ident'>webrender_traits</span>::<span class='ident'>StackingContext</span>::<span class='ident'>new</span>(<span class='ident'>webrender_stacking_context_id</span>,
-                                                   <span class='ident'>scroll_layer_id</span>,
+            <span class='ident'>webrender_traits</span>::<span class='ident'>StackingContext</span>::<span class='ident'>new</span>(<span class='ident'>scroll_layer_id</span>,
                                                    <span class='ident'>webrender_scroll_policy</span>,
                                                    <span class='self'>self</span>.<span class='ident'>bounds</span>.<span class='ident'>to_rectf</span>(),
                                                    <span class='self'>self</span>.<span class='ident'>overflow</span>.<span class='ident'>to_rectf</span>(),
@@ -1144,21 +1144,25 @@
         <span class='ident'>id</span>
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>next_scroll_layer_id</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>webrender_traits</span>::<span class='ident'>ScrollLayerId</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>next_scroll_layer_id</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                                <span class='ident'>scroll_root_id</span>: <span class='ident'>ScrollRootId</span>)
+                                <span class='op'>-&gt;</span> <span class='ident'>webrender_traits</span>::<span class='ident'>ScrollLayerId</span> {
         <span class='kw'>let</span> <span class='ident'>scroll_layer_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>next_scroll_layer_id</span>;
         <span class='self'>self</span>.<span class='ident'>next_scroll_layer_id</span> <span class='op'>+=</span> <span class='number'>1</span>;
-        <span class='ident'>webrender_traits</span>::<span class='ident'>ScrollLayerId</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>root_pipeline_id</span>, <span class='ident'>scroll_layer_id</span>)
+        <span class='ident'>webrender_traits</span>::<span class='ident'>ScrollLayerId</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>root_pipeline_id</span>,
+                                             <span class='ident'>scroll_layer_id</span>,
+                                             <span class='ident'>scroll_root_id</span>.<span class='ident'>convert_to_webrender</span>())
+
     }
 }
 
-<span class='kw'>trait</span> <span class='ident'>WebRenderStackingContextIdConverter</span> {
-    <span class='kw'>fn</span> <span class='ident'>convert_to_webrender</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>webrender_traits</span>::<span class='ident'>ServoStackingContextId</span>;
+<span class='kw'>trait</span> <span class='ident'>WebRenderScrollRootIdConverter</span> {
+    <span class='kw'>fn</span> <span class='ident'>convert_to_webrender</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>webrender_traits</span>::<span class='ident'>ServoScrollRootId</span>;
 }
 
-<span class='kw'>impl</span> <span class='ident'>WebRenderStackingContextIdConverter</span> <span class='kw'>for</span> <span class='ident'>StackingContextId</span> {
-    <span class='kw'>fn</span> <span class='ident'>convert_to_webrender</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>webrender_traits</span>::<span class='ident'>ServoStackingContextId</span> {
-        <span class='ident'>webrender_traits</span>::<span class='ident'>ServoStackingContextId</span>(<span class='self'>self</span>.<span class='ident'>fragment_type</span>().<span class='ident'>convert_to_webrender</span>(),
-                                                 <span class='self'>self</span>.<span class='ident'>id</span>())
+<span class='kw'>impl</span> <span class='ident'>WebRenderScrollRootIdConverter</span> <span class='kw'>for</span> <span class='ident'>ScrollRootId</span> {
+    <span class='kw'>fn</span> <span class='ident'>convert_to_webrender</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>webrender_traits</span>::<span class='ident'>ServoScrollRootId</span> {
+        <span class='ident'>webrender_traits</span>::<span class='ident'>ServoScrollRootId</span>(<span class='self'>self</span>.<span class='number'>0</span>)
     }
 }
 

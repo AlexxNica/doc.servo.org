@@ -1553,6 +1553,13 @@
 <span id="1509">1509</span>
 <span id="1510">1510</span>
 <span id="1511">1511</span>
+<span id="1512">1512</span>
+<span id="1513">1513</span>
+<span id="1514">1514</span>
+<span id="1515">1515</span>
+<span id="1516">1516</span>
+<span id="1517">1517</span>
+<span id="1518">1518</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1591,7 +1598,7 @@
 <span class='kw'>use</span> <span class='ident'>flow_ref</span>::{<span class='self'>self</span>, <span class='ident'>FlowRef</span>, <span class='ident'>WeakFlowRef</span>};
 <span class='kw'>use</span> <span class='ident'>fragment</span>::{<span class='ident'>Fragment</span>, <span class='ident'>FragmentBorderBoxIterator</span>, <span class='ident'>Overflow</span>};
 <span class='kw'>use</span> <span class='ident'>gfx</span>::<span class='ident'>display_list</span>::{<span class='ident'>ClippingRegion</span>, <span class='ident'>StackingContext</span>};
-<span class='kw'>use</span> <span class='ident'>gfx_traits</span>::<span class='ident'>StackingContextId</span>;
+<span class='kw'>use</span> <span class='ident'>gfx_traits</span>::{<span class='ident'>ScrollRootId</span>, <span class='ident'>StackingContextId</span>};
 <span class='kw'>use</span> <span class='ident'>gfx_traits</span>::<span class='ident'>print_tree</span>::<span class='ident'>PrintTree</span>;
 <span class='kw'>use</span> <span class='ident'>inline</span>::<span class='ident'>InlineFlow</span>;
 <span class='kw'>use</span> <span class='ident'>model</span>::{<span class='ident'>CollapsibleMargins</span>, <span class='ident'>IntrinsicISizes</span>, <span class='ident'>MarginCollapseInfo</span>};
@@ -1779,7 +1786,9 @@
         <span class='prelude-val'>None</span>
     }
 
-    <span class='kw'>fn</span> <span class='ident'>collect_stacking_contexts</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>_parent</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>StackingContext</span>);
+    <span class='kw'>fn</span> <span class='ident'>collect_stacking_contexts</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                                 <span class='ident'>_parent</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>StackingContext</span>,
+                                 <span class='ident'>parent_scroll_root_id</span>: <span class='ident'>ScrollRootId</span>);
 
     <span class='doccomment'>/// If this is a float, places it. The default implementation does nothing.</span>
     <span class='kw'>fn</span> <span class='ident'>place_float_if_applicable</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {}
@@ -2491,6 +2500,8 @@
     <span class='doccomment'>/// to 0, but it assigned during the collect_stacking_contexts phase of display</span>
     <span class='doccomment'>/// list construction.</span>
     <span class='kw'>pub</span> <span class='ident'>stacking_context_id</span>: <span class='ident'>StackingContextId</span>,
+
+    <span class='kw'>pub</span> <span class='ident'>scroll_root_id</span>: <span class='ident'>ScrollRootId</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>fmt</span>::<span class='ident'>Debug</span> <span class='kw'>for</span> <span class='ident'>BaseFlow</span> {
@@ -2661,6 +2672,7 @@
             <span class='ident'>writing_mode</span>: <span class='ident'>writing_mode</span>,
             <span class='ident'>thread_id</span>: <span class='number'>0</span>,
             <span class='ident'>stacking_context_id</span>: <span class='ident'>StackingContextId</span>::<span class='ident'>new</span>(<span class='number'>0</span>),
+            <span class='ident'>scroll_root_id</span>: <span class='ident'>ScrollRootId</span>::<span class='ident'>root</span>(),
         }
     }
 
@@ -2692,9 +2704,11 @@
         <span class='kw'>return</span> <span class='self'>self</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw'>const</span> <span class='ident'>BaseFlow</span> <span class='kw'>as</span> <span class='ident'>usize</span>;
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>collect_stacking_contexts_for_children</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>parent</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>StackingContext</span>) {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>collect_stacking_contexts_for_children</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                                                  <span class='ident'>parent</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>StackingContext</span>,
+                                                  <span class='ident'>parent_scroll_root_id</span>: <span class='ident'>ScrollRootId</span>) {
         <span class='kw'>for</span> <span class='ident'>kid</span> <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>children</span>.<span class='ident'>iter_mut</span>() {
-            <span class='ident'>kid</span>.<span class='ident'>collect_stacking_contexts</span>(<span class='ident'>parent</span>);
+            <span class='ident'>kid</span>.<span class='ident'>collect_stacking_contexts</span>(<span class='ident'>parent</span>, <span class='ident'>parent_scroll_root_id</span>);
         }
     }
 

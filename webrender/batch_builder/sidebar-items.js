@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["BoxShadowMetrics",""]],"trait":[["BorderSideHelpers",""]]});
+initSidebarItems({"trait":[["BorderSideHelpers",""]]});
