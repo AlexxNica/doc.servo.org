@@ -198,6 +198,8 @@
 <span id="154">154</span>
 <span id="155">155</span>
 <span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -209,7 +211,7 @@
 
 <span class='attribute'>#<span class='op'>!</span>[<span class='ident'>allow</span>(<span class='ident'>unsafe_code</span>)]</span>
 
-<span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>OpaqueNode</span>, <span class='ident'>StylingMode</span>, <span class='ident'>TNode</span>, <span class='ident'>UnsafeNode</span>};
+<span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>OpaqueNode</span>, <span class='ident'>StylingMode</span>, <span class='ident'>TElement</span>, <span class='ident'>TNode</span>, <span class='ident'>UnsafeNode</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>atomic</span>::<span class='ident'>Ordering</span>;
 <span class='kw'>use</span> <span class='ident'>traversal</span>::{<span class='ident'>RestyleResult</span>, <span class='ident'>DomTraversalContext</span>};
@@ -248,7 +250,7 @@
     <span class='kw'>where</span> <span class='ident'>N</span>: <span class='ident'>TNode</span>,
           <span class='ident'>C</span>: <span class='ident'>DomTraversalContext</span><span class='op'>&lt;</span><span class='ident'>N</span><span class='op'>&gt;</span>
 {
-    <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>root</span>.<span class='ident'>styling_mode</span>() <span class='op'>!=</span> <span class='ident'>StylingMode</span>::<span class='ident'>Stop</span>);
+    <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>root</span>.<span class='ident'>as_element</span>().<span class='ident'>unwrap</span>().<span class='ident'>styling_mode</span>() <span class='op'>!=</span> <span class='ident'>StylingMode</span>::<span class='ident'>Stop</span>);
     <span class='kw'>if</span> <span class='ident'>opts</span>::<span class='ident'>get</span>().<span class='ident'>style_sharing_stats</span> {
         <span class='ident'>STYLE_SHARING_CACHE_HITS</span>.<span class='ident'>store</span>(<span class='number'>0</span>, <span class='ident'>Ordering</span>::<span class='ident'>SeqCst</span>);
         <span class='ident'>STYLE_SHARING_CACHE_MISSES</span>.<span class='ident'>store</span>(<span class='number'>0</span>, <span class='ident'>Ordering</span>::<span class='ident'>SeqCst</span>);
@@ -285,7 +287,7 @@
         <span class='comment'>// Perform the appropriate traversal.</span>
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>children_to_process</span> <span class='op'>=</span> <span class='number'>0isize</span>;
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>RestyleResult</span>::<span class='ident'>Continue</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>process_preorder</span>(<span class='ident'>node</span>) {
-            <span class='ident'>C</span>::<span class='ident'>traverse_children</span>(<span class='ident'>node</span>, <span class='op'>|</span><span class='ident'>kid</span><span class='op'>|</span> {
+            <span class='ident'>C</span>::<span class='ident'>traverse_children</span>(<span class='ident'>node</span>.<span class='ident'>as_element</span>().<span class='ident'>unwrap</span>(), <span class='op'>|</span><span class='ident'>kid</span><span class='op'>|</span> {
                 <span class='ident'>children_to_process</span> <span class='op'>+=</span> <span class='number'>1</span>;
                 <span class='ident'>discovered_child_nodes</span>.<span class='ident'>push</span>(<span class='ident'>kid</span>.<span class='ident'>to_unsafe</span>())
             });
@@ -294,11 +296,13 @@
         <span class='comment'>// Reset the count of children if we need to do a bottom-up traversal</span>
         <span class='comment'>// after the top up.</span>
         <span class='kw'>if</span> <span class='ident'>context</span>.<span class='ident'>needs_postorder_traversal</span>() {
-            <span class='ident'>node</span>.<span class='ident'>store_children_to_process</span>(<span class='ident'>children_to_process</span>);
-
-            <span class='comment'>// If there were no more children, start walking back up.</span>
             <span class='kw'>if</span> <span class='ident'>children_to_process</span> <span class='op'>==</span> <span class='number'>0</span> {
+                <span class='comment'>// If there were no more children, start walking back up.</span>
                 <span class='ident'>bottom_up_dom</span>::<span class='op'>&lt;</span><span class='ident'>N</span>, <span class='ident'>C</span><span class='op'>&gt;</span>(<span class='ident'>unsafe_nodes</span>.<span class='number'>1</span>, <span class='ident'>unsafe_node</span>, <span class='ident'>proxy</span>)
+            } <span class='kw'>else</span> {
+                <span class='comment'>// Otherwise record the number of children to process when the</span>
+                <span class='comment'>// time comes.</span>
+                <span class='ident'>node</span>.<span class='ident'>as_element</span>().<span class='ident'>unwrap</span>().<span class='ident'>store_children_to_process</span>(<span class='ident'>children_to_process</span>);
             }
         }
     }
@@ -340,7 +344,7 @@
         <span class='comment'>// Perform the appropriate operation.</span>
         <span class='ident'>context</span>.<span class='ident'>process_postorder</span>(<span class='ident'>node</span>);
 
-        <span class='kw'>let</span> <span class='ident'>parent</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>node</span>.<span class='ident'>layout_parent_node</span>(<span class='ident'>root</span>) {
+        <span class='kw'>let</span> <span class='ident'>parent</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>node</span>.<span class='ident'>layout_parent_element</span>(<span class='ident'>root</span>) {
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>break</span>,
             <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>) <span class='op'>=&gt;</span> <span class='ident'>parent</span>,
         };
@@ -352,7 +356,7 @@
         }
 
         <span class='comment'>// We were the last child of our parent. Construct flows for our parent.</span>
-        <span class='ident'>node</span> <span class='op'>=</span> <span class='ident'>parent</span>;
+        <span class='ident'>node</span> <span class='op'>=</span> <span class='ident'>parent</span>.<span class='ident'>as_node</span>();
     }
 }
 </pre>
