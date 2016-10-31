@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Layer",""],["ScrollingState",""]]});
+initSidebarItems({"struct":[["Layer","Contains scroll and transform information for scrollable and root stacking contexts."],["ScrollingState",""]]});

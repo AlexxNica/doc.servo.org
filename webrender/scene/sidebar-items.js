@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["SpecificSceneItem",""]],"struct":[["Scene",""],["SceneDisplayList",""],["SceneItem",""],["ScenePipeline",""],["SceneStackingContext",""]]});
+initSidebarItems({"enum":[["SpecificSceneItem",""]],"struct":[["Scene","A complete representation of the layout bundling visible pipelines together."],["SceneDisplayList","Similar to webrender_traits::DisplayList internal to WebRender."],["SceneItem",""],["ScenePipeline","A representation of the layout within the display port for a given document or iframe."],["SceneStackingContext",""]]});
