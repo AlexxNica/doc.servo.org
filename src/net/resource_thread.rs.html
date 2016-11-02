@@ -641,26 +641,6 @@
 <span id="597">597</span>
 <span id="598">598</span>
 <span id="599">599</span>
-<span id="600">600</span>
-<span id="601">601</span>
-<span id="602">602</span>
-<span id="603">603</span>
-<span id="604">604</span>
-<span id="605">605</span>
-<span id="606">606</span>
-<span id="607">607</span>
-<span id="608">608</span>
-<span id="609">609</span>
-<span id="610">610</span>
-<span id="611">611</span>
-<span id="612">612</span>
-<span id="613">613</span>
-<span id="614">614</span>
-<span id="615">615</span>
-<span id="616">616</span>
-<span id="617">617</span>
-<span id="618">618</span>
-<span id="619">619</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -688,8 +668,8 @@
 <span class='kw'>use</span> <span class='ident'>hyper_serde</span>::<span class='ident'>Serde</span>;
 <span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>::{<span class='self'>self</span>, <span class='ident'>IpcReceiver</span>, <span class='ident'>IpcReceiverSet</span>, <span class='ident'>IpcSender</span>};
 <span class='kw'>use</span> <span class='ident'>mime_classifier</span>::{<span class='ident'>ApacheBugFlag</span>, <span class='ident'>MimeClassifier</span>, <span class='ident'>NoSniffFlag</span>};
-<span class='kw'>use</span> <span class='ident'>net_traits</span>::{<span class='ident'>AsyncResponseTarget</span>, <span class='ident'>CoreResourceThread</span>, <span class='ident'>Metadata</span>, <span class='ident'>ProgressMsg</span>, <span class='ident'>ResponseAction</span>};
-<span class='kw'>use</span> <span class='ident'>net_traits</span>::{<span class='ident'>CookieSource</span>, <span class='ident'>CoreResourceMsg</span>, <span class='ident'>FetchResponseMsg</span>, <span class='ident'>FetchTaskTarget</span>, <span class='ident'>LoadConsumer</span>};
+<span class='kw'>use</span> <span class='ident'>net_traits</span>::{<span class='ident'>CookieSource</span>, <span class='ident'>CoreResourceThread</span>, <span class='ident'>Metadata</span>, <span class='ident'>ProgressMsg</span>};
+<span class='kw'>use</span> <span class='ident'>net_traits</span>::{<span class='ident'>CoreResourceMsg</span>, <span class='ident'>FetchResponseMsg</span>, <span class='ident'>FetchTaskTarget</span>, <span class='ident'>LoadConsumer</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::{<span class='ident'>CustomResponseMediator</span>, <span class='ident'>LoadData</span>, <span class='ident'>LoadResponse</span>, <span class='ident'>NetworkError</span>, <span class='ident'>ResourceId</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::{<span class='ident'>ResourceThreads</span>, <span class='ident'>WebSocketCommunicate</span>, <span class='ident'>WebSocketConnectData</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>LoadContext</span>;
@@ -721,7 +701,6 @@
 
 <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>ProgressSender</span> {
     <span class='ident'>Channel</span>(<span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>ProgressMsg</span><span class='op'>&gt;</span>),
-    <span class='ident'>Listener</span>(<span class='ident'>AsyncResponseTarget</span>),
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>)]</span>
@@ -737,14 +716,6 @@
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>send</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>msg</span>: <span class='ident'>ProgressMsg</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), ()<span class='op'>&gt;</span> {
         <span class='kw'>match</span> <span class='op'>*</span><span class='self'>self</span> {
             <span class='ident'>ProgressSender</span>::<span class='ident'>Channel</span>(<span class='kw-2'>ref</span> <span class='ident'>c</span>) <span class='op'>=&gt;</span> <span class='ident'>c</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>map_err</span>(<span class='op'>|</span>_<span class='op'>|</span> ()),
-            <span class='ident'>ProgressSender</span>::<span class='ident'>Listener</span>(<span class='kw-2'>ref</span> <span class='ident'>b</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>action</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>msg</span> {
-                    <span class='ident'>ProgressMsg</span>::<span class='ident'>Payload</span>(<span class='ident'>buf</span>) <span class='op'>=&gt;</span> <span class='ident'>ResponseAction</span>::<span class='ident'>DataAvailable</span>(<span class='ident'>buf</span>),
-                    <span class='ident'>ProgressMsg</span>::<span class='ident'>Done</span>(<span class='ident'>status</span>) <span class='op'>=&gt;</span> <span class='ident'>ResponseAction</span>::<span class='ident'>ResponseComplete</span>(<span class='ident'>status</span>),
-                };
-                <span class='ident'>b</span>.<span class='ident'>invoke_with_listener</span>(<span class='ident'>action</span>);
-                <span class='prelude-val'>Ok</span>(())
-            }
         }
     }
 }
@@ -753,7 +724,7 @@
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>metadata</span>: <span class='ident'>Metadata</span> <span class='op'>=</span> <span class='ident'>Metadata</span>::<span class='ident'>default</span>(<span class='ident'>url</span>);
     <span class='ident'>metadata</span>.<span class='ident'>status</span> <span class='op'>=</span> <span class='prelude-val'>None</span>;
 
-    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>p</span>) <span class='op'>=</span> <span class='ident'>start_sending_opt</span>(<span class='ident'>start_chan</span>, <span class='ident'>metadata</span>, <span class='prelude-val'>Some</span>(<span class='ident'>err</span>.<span class='ident'>clone</span>())) {
+    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>p</span>) <span class='op'>=</span> <span class='ident'>start_sending_opt</span>(<span class='ident'>start_chan</span>, <span class='ident'>metadata</span>) {
         <span class='ident'>p</span>.<span class='ident'>send</span>(<span class='ident'>Done</span>(<span class='prelude-val'>Err</span>(<span class='ident'>err</span>))).<span class='ident'>unwrap</span>();
     }
 }
@@ -794,14 +765,13 @@
             <span class='prelude-val'>Some</span>(<span class='ident'>Serde</span>(<span class='ident'>ContentType</span>(<span class='ident'>Mime</span>(<span class='ident'>mime_tp</span>, <span class='ident'>mime_sb</span>, <span class='macro'>vec</span><span class='macro'>!</span>[]))));
     }
 
-    <span class='ident'>start_sending_opt</span>(<span class='ident'>start_chan</span>, <span class='ident'>metadata</span>, <span class='prelude-val'>None</span>)
+    <span class='ident'>start_sending_opt</span>(<span class='ident'>start_chan</span>, <span class='ident'>metadata</span>)
 }
 
 <span class='doccomment'>/// For use by loaders in responding to a Load message.</span>
 <span class='doccomment'>/// It takes an optional NetworkError, so that we can extract the SSL Validation errors</span>
 <span class='doccomment'>/// and take it to the HTML parser</span>
-<span class='kw'>fn</span> <span class='ident'>start_sending_opt</span>(<span class='ident'>start_chan</span>: <span class='ident'>LoadConsumer</span>, <span class='ident'>metadata</span>: <span class='ident'>Metadata</span>,
-                     <span class='ident'>network_error</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>NetworkError</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ProgressSender</span>, ()<span class='op'>&gt;</span> {
+<span class='kw'>fn</span> <span class='ident'>start_sending_opt</span>(<span class='ident'>start_chan</span>: <span class='ident'>LoadConsumer</span>, <span class='ident'>metadata</span>: <span class='ident'>Metadata</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ProgressSender</span>, ()<span class='op'>&gt;</span> {
     <span class='kw'>match</span> <span class='ident'>start_chan</span> {
         <span class='ident'>LoadConsumer</span>::<span class='ident'>Channel</span>(<span class='ident'>start_chan</span>) <span class='op'>=&gt;</span> {
             <span class='kw'>let</span> (<span class='ident'>progress_chan</span>, <span class='ident'>progress_port</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
@@ -813,16 +783,6 @@
                 <span class='prelude-val'>Ok</span>(_) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>ProgressSender</span>::<span class='ident'>Channel</span>(<span class='ident'>progress_chan</span>)),
                 <span class='prelude-val'>Err</span>(_) <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
             }
-        }
-        <span class='ident'>LoadConsumer</span>::<span class='ident'>Listener</span>(<span class='ident'>target</span>) <span class='op'>=&gt;</span> {
-            <span class='kw'>match</span> <span class='ident'>network_error</span> {
-                <span class='prelude-val'>Some</span>(<span class='ident'>NetworkError</span>::<span class='ident'>SslValidation</span>(<span class='ident'>url</span>, <span class='ident'>reason</span>)) <span class='op'>=&gt;</span> {
-                    <span class='kw'>let</span> <span class='ident'>error</span> <span class='op'>=</span> <span class='ident'>NetworkError</span>::<span class='ident'>SslValidation</span>(<span class='ident'>url</span>, <span class='ident'>reason</span>);
-                    <span class='ident'>target</span>.<span class='ident'>invoke_with_listener</span>(<span class='ident'>ResponseAction</span>::<span class='ident'>HeadersAvailable</span>(<span class='prelude-val'>Err</span>(<span class='ident'>error</span>)));
-                }
-                _ <span class='op'>=&gt;</span> <span class='ident'>target</span>.<span class='ident'>invoke_with_listener</span>(<span class='ident'>ResponseAction</span>::<span class='ident'>HeadersAvailable</span>(<span class='prelude-val'>Ok</span>(<span class='ident'>metadata</span>))),
-            }
-            <span class='prelude-val'>Ok</span>(<span class='ident'>ProgressSender</span>::<span class='ident'>Listener</span>(<span class='ident'>target</span>))
         }
     }
 }
