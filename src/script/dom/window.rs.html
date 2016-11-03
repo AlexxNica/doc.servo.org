@@ -1722,12 +1722,38 @@
 <span id="1678">1678</span>
 <span id="1679">1679</span>
 <span id="1680">1680</span>
+<span id="1681">1681</span>
+<span id="1682">1682</span>
+<span id="1683">1683</span>
+<span id="1684">1684</span>
+<span id="1685">1685</span>
+<span id="1686">1686</span>
+<span id="1687">1687</span>
+<span id="1688">1688</span>
+<span id="1689">1689</span>
+<span id="1690">1690</span>
+<span id="1691">1691</span>
+<span id="1692">1692</span>
+<span id="1693">1693</span>
+<span id="1694">1694</span>
+<span id="1695">1695</span>
+<span id="1696">1696</span>
+<span id="1697">1697</span>
+<span id="1698">1698</span>
+<span id="1699">1699</span>
+<span id="1700">1700</span>
+<span id="1701">1701</span>
+<span id="1702">1702</span>
+<span id="1703">1703</span>
+<span id="1704">1704</span>
+<span id="1705">1705</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
 <span class='kw'>use</span> <span class='ident'>app_units</span>::<span class='ident'>Au</span>;
+<span class='kw'>use</span> <span class='ident'>cssparser</span>::<span class='ident'>Parser</span>;
 <span class='kw'>use</span> <span class='ident'>devtools_traits</span>::{<span class='ident'>ScriptToDevtoolsControlMsg</span>, <span class='ident'>TimelineMarker</span>, <span class='ident'>TimelineMarkerType</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>callback</span>::<span class='ident'>ExceptionHandling</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>cell</span>::<span class='ident'>DOMRefCell</span>;
@@ -1760,6 +1786,7 @@
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>history</span>::<span class='ident'>History</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>htmliframeelement</span>::<span class='ident'>build_mozbrowser_custom_event</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>location</span>::<span class='ident'>Location</span>;
+<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>mediaquerylist</span>::{<span class='ident'>MediaQueryList</span>, <span class='ident'>WeakMediaQueryListVec</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>messageevent</span>::<span class='ident'>MessageEvent</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>navigator</span>::<span class='ident'>Navigator</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>node</span>::{<span class='ident'>Node</span>, <span class='ident'>from_untrusted_node_address</span>, <span class='ident'>window_from_node</span>};
@@ -1811,6 +1838,7 @@
 <span class='kw'>use</span> <span class='ident'>string_cache</span>::<span class='ident'>Atom</span>;
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>context</span>::<span class='ident'>ReflowGoal</span>;
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>error_reporting</span>::<span class='ident'>ParseErrorReporter</span>;
+<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>media_queries</span>;
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>properties</span>::<span class='ident'>longhands</span>::<span class='ident'>overflow_x</span>;
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>selector_impl</span>::<span class='ident'>PseudoElement</span>;
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>str</span>::<span class='ident'>HTML_SPACE_CHARACTERS</span>;
@@ -1958,6 +1986,9 @@
 
     <span class='doccomment'>/// A list of scroll offsets for each scrollable element.</span>
     <span class='ident'>scroll_offsets</span>: <span class='ident'>DOMRefCell</span><span class='op'>&lt;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>UntrustedNodeAddress</span>, <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>,
+
+    <span class='doccomment'>/// All the MediaQueryLists we need to update</span>
+    <span class='ident'>media_query_lists</span>: <span class='ident'>WeakMediaQueryListVec</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>Window</span> {
@@ -2033,6 +2064,10 @@
     <span class='doccomment'>/// This is called when layout gives us new ones and WebRender is in use.</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_scroll_offsets</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>offsets</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>UntrustedNodeAddress</span>, <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;&gt;</span>) {
         <span class='op'>*</span><span class='self'>self</span>.<span class='ident'>scroll_offsets</span>.<span class='ident'>borrow_mut</span>() <span class='op'>=</span> <span class='ident'>offsets</span>
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>current_viewport</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>Au</span><span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>current_viewport</span>.<span class='ident'>clone</span>().<span class='ident'>get</span>()
     }
 }
 
@@ -2579,6 +2614,16 @@
             <span class='prelude-val'>Ok</span>(_) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(()),
             <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>Type</span>(<span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;Couldn&#39;t open URL: {}&quot;</span>, <span class='ident'>e</span>))),
         }
+    }
+
+    <span class='comment'>// https://drafts.csswg.org/cssom-view/#dom-window-matchmedia</span>
+    <span class='kw'>fn</span> <span class='ident'>MatchMedia</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>query</span>: <span class='ident'>DOMString</span>) <span class='op'>-&gt;</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>MediaQueryList</span><span class='op'>&gt;</span> {
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>Parser</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>query</span>);
+        <span class='kw'>let</span> <span class='ident'>media_query_list</span> <span class='op'>=</span> <span class='ident'>media_queries</span>::<span class='ident'>parse_media_query_list</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>parser</span>);
+        <span class='kw'>let</span> <span class='ident'>document</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>Document</span>();
+        <span class='kw'>let</span> <span class='ident'>mql</span> <span class='op'>=</span> <span class='ident'>MediaQueryList</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>document</span>, <span class='ident'>media_query_list</span>);
+        <span class='self'>self</span>.<span class='ident'>media_query_lists</span>.<span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>mql</span>);
+        <span class='ident'>mql</span>
     }
 
     <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unrooted_must_root</span>)]</span>
@@ -3202,6 +3247,10 @@
         <span class='kw'>let</span> <span class='ident'>custom_event</span> <span class='op'>=</span> <span class='ident'>build_mozbrowser_custom_event</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>event</span>);
         <span class='ident'>custom_event</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Event</span><span class='op'>&gt;</span>().<span class='ident'>fire</span>(<span class='self'>self</span>.<span class='ident'>upcast</span>());
     }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>evaluate_media_queries_and_report_changes</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
+        <span class='self'>self</span>.<span class='ident'>media_query_lists</span>.<span class='ident'>evaluate_and_report_changes</span>();
+    }
 }
 
 <span class='kw'>impl</span> <span class='ident'>Window</span> {
@@ -3288,6 +3337,7 @@
             <span class='ident'>ignore_further_async_events</span>: <span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>AtomicBool</span>::<span class='ident'>new</span>(<span class='bool-val'>false</span>)),
             <span class='ident'>error_reporter</span>: <span class='ident'>error_reporter</span>,
             <span class='ident'>scroll_offsets</span>: <span class='ident'>DOMRefCell</span>::<span class='ident'>new</span>(<span class='ident'>HashMap</span>::<span class='ident'>new</span>()),
+            <span class='ident'>media_query_lists</span>: <span class='ident'>WeakMediaQueryListVec</span>::<span class='ident'>new</span>(),
         };
 
         <span class='ident'>WindowBinding</span>::<span class='ident'>Wrap</span>(<span class='ident'>runtime</span>.<span class='ident'>cx</span>(), <span class='ident'>win</span>)

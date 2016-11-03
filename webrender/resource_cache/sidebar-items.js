@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["run_raster_jobs",""]],"static":[["FONT_CONTEXT",""]],"struct":[["CachedImageInfo",""],["DummyResources",""],["GlyphRasterJob",""],["ImageResource",""],["ResourceCache",""],["ResourceClassCache",""]],"trait":[["Resource",""]]});
+initSidebarItems({"fn":[["is_image_opaque",""],["run_raster_jobs",""]],"static":[["FONT_CONTEXT",""]],"struct":[["CachedImageInfo",""],["DummyResources",""],["GlyphRasterJob",""],["ImageProperties",""],["ImageResource",""],["ResourceCache",""],["ResourceClassCache",""]],"trait":[["Resource",""]]});

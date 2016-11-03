@@ -2278,34 +2278,6 @@
 <span id="2234">2234</span>
 <span id="2235">2235</span>
 <span id="2236">2236</span>
-<span id="2237">2237</span>
-<span id="2238">2238</span>
-<span id="2239">2239</span>
-<span id="2240">2240</span>
-<span id="2241">2241</span>
-<span id="2242">2242</span>
-<span id="2243">2243</span>
-<span id="2244">2244</span>
-<span id="2245">2245</span>
-<span id="2246">2246</span>
-<span id="2247">2247</span>
-<span id="2248">2248</span>
-<span id="2249">2249</span>
-<span id="2250">2250</span>
-<span id="2251">2251</span>
-<span id="2252">2252</span>
-<span id="2253">2253</span>
-<span id="2254">2254</span>
-<span id="2255">2255</span>
-<span id="2256">2256</span>
-<span id="2257">2257</span>
-<span id="2258">2258</span>
-<span id="2259">2259</span>
-<span id="2260">2260</span>
-<span id="2261">2261</span>
-<span id="2262">2262</span>
-<span id="2263">2263</span>
-<span id="2264">2264</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -2329,6 +2301,7 @@
 <span class='kw'>use</span> <span class='ident'>prim_store</span>::{<span class='ident'>PrimitiveCacheKey</span>, <span class='ident'>TextRunPrimitiveGpu</span>, <span class='ident'>TextRunPrimitiveCpu</span>};
 <span class='kw'>use</span> <span class='ident'>prim_store</span>::{<span class='ident'>PrimitiveStore</span>, <span class='ident'>GpuBlock16</span>, <span class='ident'>GpuBlock32</span>, <span class='ident'>GpuBlock64</span>, <span class='ident'>GpuBlock128</span>};
 <span class='kw'>use</span> <span class='ident'>profiler</span>::<span class='ident'>FrameProfileCounters</span>;
+<span class='kw'>use</span> <span class='ident'>renderer</span>::<span class='ident'>BlendMode</span>;
 <span class='kw'>use</span> <span class='ident'>resource_cache</span>::<span class='ident'>ResourceCache</span>;
 <span class='kw'>use</span> <span class='ident'>resource_list</span>::<span class='ident'>ResourceList</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cmp</span>;
@@ -2348,7 +2321,7 @@
 <span class='kw'>const</span> <span class='ident'>FLOATS_PER_RENDER_TASK_INFO</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='number'>8</span>;
 
 <span class='kw'>trait</span> <span class='ident'>AlphaBatchHelpers</span> {
-    <span class='kw'>fn</span> <span class='ident'>get_batch_info</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>metadata</span>: <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveMetadata</span>) <span class='op'>-&gt;</span> (<span class='ident'>AlphaBatchKind</span>, <span class='ident'>TextureId</span>, <span class='ident'>TextureId</span>);
+    <span class='kw'>fn</span> <span class='ident'>get_batch_kind</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>metadata</span>: <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveMetadata</span>) <span class='op'>-&gt;</span> <span class='ident'>AlphaBatchKind</span>;
     <span class='kw'>fn</span> <span class='ident'>prim_affects_tile</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
                          <span class='ident'>prim_index</span>: <span class='ident'>PrimitiveIndex</span>,
                          <span class='ident'>tile_rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>DeviceRect</span>,
@@ -2359,14 +2332,12 @@
                          <span class='ident'>batch</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>PrimitiveBatch</span>,
                          <span class='ident'>layer_index</span>: <span class='ident'>StackingContextIndex</span>,
                          <span class='ident'>task_id</span>: <span class='ident'>i32</span>,
-                         <span class='ident'>transform_kind</span>: <span class='ident'>TransformedRectKind</span>,
-                         <span class='ident'>needs_blending</span>: <span class='ident'>bool</span>,
                          <span class='ident'>render_tasks</span>: <span class='kw-2'>&amp;</span><span class='ident'>RenderTaskCollection</span>,
                          <span class='ident'>pass_index</span>: <span class='ident'>RenderPassIndex</span>);
 }
 
 <span class='kw'>impl</span> <span class='ident'>AlphaBatchHelpers</span> <span class='kw'>for</span> <span class='ident'>PrimitiveStore</span> {
-    <span class='kw'>fn</span> <span class='ident'>get_batch_info</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>metadata</span>: <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveMetadata</span>) <span class='op'>-&gt;</span> (<span class='ident'>AlphaBatchKind</span>, <span class='ident'>TextureId</span>, <span class='ident'>TextureId</span>) {
+    <span class='kw'>fn</span> <span class='ident'>get_batch_kind</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>metadata</span>: <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveMetadata</span>) <span class='op'>-&gt;</span> <span class='ident'>AlphaBatchKind</span> {
         <span class='kw'>let</span> <span class='ident'>batch_kind</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>metadata</span>.<span class='ident'>prim_kind</span> {
             <span class='ident'>PrimitiveKind</span>::<span class='ident'>Border</span> <span class='op'>=&gt;</span> <span class='ident'>AlphaBatchKind</span>::<span class='ident'>Border</span>,
             <span class='ident'>PrimitiveKind</span>::<span class='ident'>BoxShadow</span> <span class='op'>=&gt;</span> <span class='ident'>AlphaBatchKind</span>::<span class='ident'>BoxShadow</span>,
@@ -2386,7 +2357,7 @@
             }
         };
 
-        (<span class='ident'>batch_kind</span>, <span class='ident'>metadata</span>.<span class='ident'>color_texture_id</span>, <span class='ident'>metadata</span>.<span class='ident'>mask_texture_id</span>)
+        <span class='ident'>batch_kind</span>
     }
 
     <span class='comment'>// Optional narrow phase intersection test, depending on primitive type.</span>
@@ -2420,13 +2391,8 @@
                          <span class='ident'>batch</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>PrimitiveBatch</span>,
                          <span class='ident'>layer_index</span>: <span class='ident'>StackingContextIndex</span>,
                          <span class='ident'>task_id</span>: <span class='ident'>i32</span>,
-                         <span class='ident'>transform_kind</span>: <span class='ident'>TransformedRectKind</span>,
-                         <span class='ident'>needs_blending</span>: <span class='ident'>bool</span>,
                          <span class='ident'>render_tasks</span>: <span class='kw-2'>&amp;</span><span class='ident'>RenderTaskCollection</span>,
                          <span class='ident'>child_pass_index</span>: <span class='ident'>RenderPassIndex</span>) {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>transform_kind</span> <span class='op'>==</span> <span class='ident'>batch</span>.<span class='ident'>transform_kind</span>);
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>needs_blending</span> <span class='op'>==</span> <span class='ident'>batch</span>.<span class='ident'>blending_enabled</span>);
-
         <span class='kw'>let</span> <span class='ident'>metadata</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>get_metadata</span>(<span class='ident'>prim_index</span>);
         <span class='kw'>let</span> <span class='ident'>layer_index</span> <span class='op'>=</span> <span class='ident'>layer_index</span>.<span class='number'>0</span> <span class='kw'>as</span> <span class='ident'>i32</span>;
         <span class='kw'>let</span> <span class='ident'>global_prim_id</span> <span class='op'>=</span> <span class='ident'>prim_index</span>.<span class='number'>0</span> <span class='kw'>as</span> <span class='ident'>i32</span>;
@@ -2679,7 +2645,7 @@
              <span class='ident'>ctx</span>: <span class='kw-2'>&amp;</span><span class='ident'>RenderTargetContext</span>,
              <span class='ident'>render_tasks</span>: <span class='kw-2'>&amp;</span><span class='ident'>RenderTaskCollection</span>,
              <span class='ident'>child_pass_index</span>: <span class='ident'>RenderPassIndex</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>batches</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span>(<span class='ident'>AlphaBatchKey</span>, <span class='ident'>PrimitiveBatch</span>)<span class='op'>&gt;</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>batches</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>PrimitiveBatch</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
         <span class='kw'>for</span> <span class='ident'>task</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>tasks</span> {
             <span class='kw'>let</span> <span class='ident'>task_index</span> <span class='op'>=</span> <span class='ident'>render_tasks</span>.<span class='ident'>get_static_task_index</span>(<span class='kw-2'>&amp;</span><span class='ident'>task</span>.<span class='ident'>task_id</span>);
             <span class='kw'>let</span> <span class='ident'>task_index</span> <span class='op'>=</span> <span class='ident'>task_index</span>.<span class='number'>0</span> <span class='kw'>as</span> <span class='ident'>i32</span>;
@@ -2704,19 +2670,23 @@
                                              <span class='op'>!</span><span class='ident'>prim_metadata</span>.<span class='ident'>is_opaque</span> <span class='op'>||</span>
                                              <span class='ident'>needs_clipping</span>;
                         <span class='kw'>let</span> <span class='ident'>flags</span> <span class='op'>=</span> <span class='ident'>AlphaBatchKeyFlags</span>::<span class='ident'>new</span>(<span class='ident'>transform_kind</span>,
-                                                            <span class='ident'>needs_blending</span>,
                                                             <span class='ident'>needs_clipping</span>);
-                        <span class='kw'>let</span> (<span class='ident'>batch_kind</span>, <span class='ident'>color_texture_id</span>, <span class='ident'>mask_texture_id</span>) <span class='op'>=</span> <span class='ident'>ctx</span>.<span class='ident'>prim_store</span>
-                                                                                 .<span class='ident'>get_batch_info</span>(<span class='ident'>prim_metadata</span>);
+                        <span class='kw'>let</span> <span class='ident'>blend_mode</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>needs_blending</span> {
+                            <span class='ident'>BlendMode</span>::<span class='ident'>Alpha</span>
+                        } <span class='kw'>else</span> {
+                            <span class='ident'>BlendMode</span>::<span class='prelude-val'>None</span>
+                        };
+                        <span class='kw'>let</span> <span class='ident'>batch_kind</span> <span class='op'>=</span> <span class='ident'>ctx</span>.<span class='ident'>prim_store</span>.<span class='ident'>get_batch_kind</span>(<span class='ident'>prim_metadata</span>);
                         <span class='ident'>batch_key</span> <span class='op'>=</span> <span class='ident'>AlphaBatchKey</span>::<span class='ident'>primitive</span>(<span class='ident'>batch_kind</span>,
                                                              <span class='ident'>flags</span>,
-                                                             <span class='ident'>color_texture_id</span>,
-                                                             <span class='ident'>mask_texture_id</span>);
+                                                             <span class='ident'>blend_mode</span>,
+                                                             <span class='ident'>prim_metadata</span>.<span class='ident'>color_texture_id</span>,
+                                                             <span class='ident'>prim_metadata</span>.<span class='ident'>mask_texture_id</span>);
                     }
                 }
 
                 <span class='kw'>while</span> <span class='ident'>existing_batch_index</span> <span class='op'>&lt;</span> <span class='ident'>batches</span>.<span class='ident'>len</span>() <span class='op'>&amp;&amp;</span>
-                        <span class='op'>!</span><span class='ident'>batches</span>[<span class='ident'>existing_batch_index</span>].<span class='number'>0</span>.<span class='ident'>is_compatible_with</span>(<span class='kw-2'>&amp;</span><span class='ident'>batch_key</span>) {
+                        <span class='op'>!</span><span class='ident'>batches</span>[<span class='ident'>existing_batch_index</span>].<span class='ident'>key</span>.<span class='ident'>is_compatible_with</span>(<span class='kw-2'>&amp;</span><span class='ident'>batch_key</span>) {
                     <span class='ident'>existing_batch_index</span> <span class='op'>+=</span> <span class='number'>1</span>
                 }
 
@@ -2731,20 +2701,14 @@
                         <span class='ident'>AlphaRenderItem</span>::<span class='ident'>Primitive</span>(_, <span class='ident'>prim_index</span>) <span class='op'>=&gt;</span> {
                             <span class='comment'>// See if this task fits into the tile UBO</span>
                             <span class='kw'>let</span> <span class='ident'>prim_metadata</span> <span class='op'>=</span> <span class='ident'>ctx</span>.<span class='ident'>prim_store</span>.<span class='ident'>get_metadata</span>(<span class='ident'>prim_index</span>);
-                            <span class='kw'>let</span> (<span class='ident'>batch_kind</span>, <span class='ident'>color_texture_id</span>, <span class='ident'>mask_texture_id</span>) <span class='op'>=</span> <span class='ident'>ctx</span>.<span class='ident'>prim_store</span>
-                                                                                     .<span class='ident'>get_batch_info</span>(<span class='ident'>prim_metadata</span>);
-                            <span class='ident'>PrimitiveBatch</span>::<span class='ident'>new</span>(<span class='ident'>batch_kind</span>,
-                                                <span class='ident'>batch_key</span>.<span class='ident'>flags</span>.<span class='ident'>transform_kind</span>(),
-                                                <span class='ident'>batch_key</span>.<span class='ident'>flags</span>.<span class='ident'>needs_blending</span>(),
-                                                <span class='ident'>batch_key</span>.<span class='ident'>flags</span>.<span class='ident'>needs_clipping</span>(),
-                                                <span class='ident'>color_texture_id</span>,
-                                                <span class='ident'>mask_texture_id</span>)
+                            <span class='kw'>let</span> <span class='ident'>batch_kind</span> <span class='op'>=</span> <span class='ident'>ctx</span>.<span class='ident'>prim_store</span>.<span class='ident'>get_batch_kind</span>(<span class='ident'>prim_metadata</span>);
+                            <span class='ident'>PrimitiveBatch</span>::<span class='ident'>new</span>(<span class='ident'>batch_kind</span>, <span class='ident'>batch_key</span>)
                         }
                     };
-                    <span class='ident'>batches</span>.<span class='ident'>push</span>((<span class='ident'>batch_key</span>, <span class='ident'>new_batch</span>))
+                    <span class='ident'>batches</span>.<span class='ident'>push</span>(<span class='ident'>new_batch</span>)
                 }
 
-                <span class='kw'>let</span> <span class='ident'>batch</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>batches</span>[<span class='ident'>existing_batch_index</span>].<span class='number'>1</span>;
+                <span class='kw'>let</span> <span class='ident'>batch</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>batches</span>[<span class='ident'>existing_batch_index</span>];
                 <span class='kw'>match</span> <span class='ident'>item</span> {
                     <span class='ident'>AlphaRenderItem</span>::<span class='ident'>Composite</span>(<span class='ident'>src0_id</span>, <span class='ident'>src1_id</span>, <span class='ident'>info</span>) <span class='op'>=&gt;</span> {
                         <span class='kw'>let</span> <span class='ident'>ok</span> <span class='op'>=</span> <span class='ident'>batch</span>.<span class='ident'>pack_composite</span>(<span class='ident'>render_tasks</span>.<span class='ident'>get_static_task_index</span>(<span class='kw-2'>&amp;</span><span class='ident'>src0_id</span>),
@@ -2764,8 +2728,6 @@
                                                          <span class='ident'>batch</span>,
                                                          <span class='ident'>sc_index</span>,
                                                          <span class='ident'>task_index</span>,
-                                                         <span class='ident'>batch_key</span>.<span class='ident'>flags</span>.<span class='ident'>transform_kind</span>(),
-                                                         <span class='ident'>batch_key</span>.<span class='ident'>flags</span>.<span class='ident'>needs_blending</span>(),
                                                          <span class='ident'>render_tasks</span>,
                                                          <span class='ident'>child_pass_index</span>);
                     }
@@ -2773,7 +2735,7 @@
             }
         }
 
-        <span class='self'>self</span>.<span class='ident'>batches</span>.<span class='ident'>extend</span>(<span class='ident'>batches</span>.<span class='ident'>into_iter</span>().<span class='ident'>map</span>(<span class='op'>|</span>(_, <span class='ident'>batch</span>)<span class='op'>|</span> <span class='ident'>batch</span>))
+        <span class='self'>self</span>.<span class='ident'>batches</span>.<span class='ident'>extend</span>(<span class='ident'>batches</span>.<span class='ident'>into_iter</span>())
     }
 }
 
@@ -3127,18 +3089,21 @@
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>struct</span> <span class='ident'>AlphaBatchKey</span> {
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>AlphaBatchKey</span> {
     <span class='ident'>kind</span>: <span class='ident'>AlphaBatchKind</span>,
-    <span class='ident'>flags</span>: <span class='ident'>AlphaBatchKeyFlags</span>,
-    <span class='ident'>color_texture_id</span>: <span class='ident'>TextureId</span>,
-    <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>,
+    <span class='kw'>pub</span> <span class='ident'>flags</span>: <span class='ident'>AlphaBatchKeyFlags</span>,
+    <span class='kw'>pub</span> <span class='ident'>blend_mode</span>: <span class='ident'>BlendMode</span>,
+    <span class='kw'>pub</span> <span class='ident'>color_texture_id</span>: <span class='ident'>TextureId</span>,
+    <span class='kw'>pub</span> <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>AlphaBatchKey</span> {
     <span class='kw'>fn</span> <span class='ident'>blend</span>() <span class='op'>-&gt;</span> <span class='ident'>AlphaBatchKey</span> {
         <span class='ident'>AlphaBatchKey</span> {
             <span class='ident'>kind</span>: <span class='ident'>AlphaBatchKind</span>::<span class='ident'>Blend</span>,
-            <span class='ident'>flags</span>: <span class='ident'>AlphaBatchKeyFlags</span>(<span class='number'>0</span>),
+            <span class='ident'>flags</span>: <span class='ident'>AlphaBatchKeyFlags</span>::<span class='ident'>new</span>(<span class='ident'>TransformedRectKind</span>::<span class='ident'>AxisAligned</span>,
+                                           <span class='bool-val'>false</span>),
+            <span class='ident'>blend_mode</span>: <span class='ident'>BlendMode</span>::<span class='ident'>Alpha</span>,
             <span class='ident'>color_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
             <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
         }
@@ -3147,7 +3112,9 @@
     <span class='kw'>fn</span> <span class='ident'>composite</span>() <span class='op'>-&gt;</span> <span class='ident'>AlphaBatchKey</span> {
         <span class='ident'>AlphaBatchKey</span> {
             <span class='ident'>kind</span>: <span class='ident'>AlphaBatchKind</span>::<span class='ident'>Composite</span>,
-            <span class='ident'>flags</span>: <span class='ident'>AlphaBatchKeyFlags</span>(<span class='number'>0</span>),
+            <span class='ident'>flags</span>: <span class='ident'>AlphaBatchKeyFlags</span>::<span class='ident'>new</span>(<span class='ident'>TransformedRectKind</span>::<span class='ident'>AxisAligned</span>,
+                                           <span class='bool-val'>false</span>),
+            <span class='ident'>blend_mode</span>: <span class='ident'>BlendMode</span>::<span class='ident'>Alpha</span>,
             <span class='ident'>color_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
             <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
         }
@@ -3155,12 +3122,14 @@
 
     <span class='kw'>fn</span> <span class='ident'>primitive</span>(<span class='ident'>kind</span>: <span class='ident'>AlphaBatchKind</span>,
                  <span class='ident'>flags</span>: <span class='ident'>AlphaBatchKeyFlags</span>,
+                 <span class='ident'>blend_mode</span>: <span class='ident'>BlendMode</span>,
                  <span class='ident'>color_texture_id</span>: <span class='ident'>TextureId</span>,
                  <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>)
                  <span class='op'>-&gt;</span> <span class='ident'>AlphaBatchKey</span> {
         <span class='ident'>AlphaBatchKey</span> {
             <span class='ident'>kind</span>: <span class='ident'>kind</span>,
             <span class='ident'>flags</span>: <span class='ident'>flags</span>,
+            <span class='ident'>blend_mode</span>: <span class='ident'>blend_mode</span>,
             <span class='ident'>color_texture_id</span>: <span class='ident'>color_texture_id</span>,
             <span class='ident'>mask_texture_id</span>: <span class='ident'>mask_texture_id</span>,
         }
@@ -3169,6 +3138,7 @@
     <span class='kw'>fn</span> <span class='ident'>is_compatible_with</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>other</span>: <span class='kw-2'>&amp;</span><span class='ident'>AlphaBatchKey</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
         <span class='self'>self</span>.<span class='ident'>kind</span> <span class='op'>==</span> <span class='ident'>other</span>.<span class='ident'>kind</span> <span class='op'>&amp;&amp;</span>
             <span class='self'>self</span>.<span class='ident'>flags</span> <span class='op'>==</span> <span class='ident'>other</span>.<span class='ident'>flags</span> <span class='op'>&amp;&amp;</span>
+            <span class='self'>self</span>.<span class='ident'>blend_mode</span> <span class='op'>==</span> <span class='ident'>other</span>.<span class='ident'>blend_mode</span> <span class='op'>&amp;&amp;</span>
         (<span class='self'>self</span>.<span class='ident'>color_texture_id</span> <span class='op'>==</span> <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>() <span class='op'>||</span> <span class='ident'>other</span>.<span class='ident'>color_texture_id</span> <span class='op'>==</span> <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>() <span class='op'>||</span>
              <span class='self'>self</span>.<span class='ident'>color_texture_id</span> <span class='op'>==</span> <span class='ident'>other</span>.<span class='ident'>color_texture_id</span>) <span class='op'>&amp;&amp;</span>
             (<span class='self'>self</span>.<span class='ident'>mask_texture_id</span> <span class='op'>==</span> <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>() <span class='op'>||</span> <span class='ident'>other</span>.<span class='ident'>mask_texture_id</span> <span class='op'>==</span> <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>() <span class='op'>||</span>
@@ -3179,18 +3149,16 @@
 <span class='comment'>// FIXME(gw): Change these to use the bitflags!()</span>
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Hash</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>struct</span> <span class='ident'>AlphaBatchKeyFlags</span>(<span class='ident'>u8</span>);
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>AlphaBatchKeyFlags</span>(<span class='ident'>u8</span>);
 
 <span class='kw'>impl</span> <span class='ident'>AlphaBatchKeyFlags</span> {
     <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>transform_kind</span>: <span class='ident'>TransformedRectKind</span>,
-           <span class='ident'>needs_blending</span>: <span class='ident'>bool</span>,
            <span class='ident'>needs_clipping</span>: <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='ident'>AlphaBatchKeyFlags</span> {
-        <span class='ident'>AlphaBatchKeyFlags</span>( ((<span class='ident'>needs_clipping</span> <span class='kw'>as</span> <span class='ident'>u8</span>) <span class='op'>&lt;&lt;</span> <span class='number'>2</span>) <span class='op'>|</span>
-                            ((<span class='ident'>transform_kind</span> <span class='kw'>as</span> <span class='ident'>u8</span>) <span class='op'>&lt;&lt;</span> <span class='number'>1</span>) <span class='op'>|</span>
-                            ((<span class='ident'>needs_blending</span> <span class='kw'>as</span> <span class='ident'>u8</span>) <span class='op'>&lt;&lt;</span> <span class='number'>0</span>) )
+        <span class='ident'>AlphaBatchKeyFlags</span>( ((<span class='ident'>transform_kind</span> <span class='kw'>as</span> <span class='ident'>u8</span>) <span class='op'>&lt;&lt;</span> <span class='number'>1</span>) <span class='op'>|</span>
+                            ((<span class='ident'>needs_clipping</span> <span class='kw'>as</span> <span class='ident'>u8</span>) <span class='op'>&lt;&lt;</span> <span class='number'>0</span>) )
     }
 
-    <span class='kw'>fn</span> <span class='ident'>transform_kind</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>TransformedRectKind</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>transform_kind</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>TransformedRectKind</span> {
         <span class='kw'>if</span> ((<span class='self'>self</span>.<span class='number'>0</span> <span class='op'>&gt;&gt;</span> <span class='number'>1</span>) <span class='kw-2'>&amp;</span> <span class='number'>1</span>) <span class='op'>==</span> <span class='number'>0</span> {
             <span class='ident'>TransformedRectKind</span>::<span class='ident'>AxisAligned</span>
         } <span class='kw'>else</span> {
@@ -3198,12 +3166,8 @@
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>needs_blending</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>needs_clipping</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
         (<span class='self'>self</span>.<span class='number'>0</span> <span class='kw-2'>&amp;</span> <span class='number'>1</span>) <span class='op'>!=</span> <span class='number'>0</span>
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>needs_clipping</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        (<span class='self'>self</span>.<span class='number'>0</span> <span class='kw-2'>&amp;</span> <span class='number'>4</span>) <span class='op'>!=</span> <span class='number'>0</span>
     }
 }
 
@@ -3257,33 +3221,21 @@
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>PrimitiveBatch</span> {
-    <span class='kw'>pub</span> <span class='ident'>transform_kind</span>: <span class='ident'>TransformedRectKind</span>,
-    <span class='kw'>pub</span> <span class='ident'>has_complex_clip</span>: <span class='ident'>bool</span>,
-    <span class='kw'>pub</span> <span class='ident'>color_texture_id</span>: <span class='ident'>TextureId</span>,        <span class='comment'>// TODO(gw): Expand to sampler array to handle all glyphs!</span>
-    <span class='kw'>pub</span> <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>,
-    <span class='kw'>pub</span> <span class='ident'>blending_enabled</span>: <span class='ident'>bool</span>,
+    <span class='kw'>pub</span> <span class='ident'>key</span>: <span class='ident'>AlphaBatchKey</span>,
     <span class='kw'>pub</span> <span class='ident'>data</span>: <span class='ident'>PrimitiveBatchData</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>PrimitiveBatch</span> {
     <span class='kw'>fn</span> <span class='ident'>blend</span>() <span class='op'>-&gt;</span> <span class='ident'>PrimitiveBatch</span> {
         <span class='ident'>PrimitiveBatch</span> {
-            <span class='ident'>color_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
-            <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
-            <span class='ident'>transform_kind</span>: <span class='ident'>TransformedRectKind</span>::<span class='ident'>AxisAligned</span>,
-            <span class='ident'>has_complex_clip</span>: <span class='bool-val'>false</span>,
-            <span class='ident'>blending_enabled</span>: <span class='bool-val'>true</span>,
+            <span class='ident'>key</span>: <span class='ident'>AlphaBatchKey</span>::<span class='ident'>blend</span>(),
             <span class='ident'>data</span>: <span class='ident'>PrimitiveBatchData</span>::<span class='ident'>Blend</span>(<span class='ident'>Vec</span>::<span class='ident'>new</span>()),
         }
     }
 
     <span class='kw'>fn</span> <span class='ident'>composite</span>() <span class='op'>-&gt;</span> <span class='ident'>PrimitiveBatch</span> {
         <span class='ident'>PrimitiveBatch</span> {
-            <span class='ident'>color_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
-            <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
-            <span class='ident'>transform_kind</span>: <span class='ident'>TransformedRectKind</span>::<span class='ident'>AxisAligned</span>,
-            <span class='ident'>has_complex_clip</span>: <span class='bool-val'>false</span>,
-            <span class='ident'>blending_enabled</span>: <span class='bool-val'>true</span>,
+            <span class='ident'>key</span>: <span class='ident'>AlphaBatchKey</span>::<span class='ident'>composite</span>(),
             <span class='ident'>data</span>: <span class='ident'>PrimitiveBatchData</span>::<span class='ident'>Composite</span>(<span class='ident'>Vec</span>::<span class='ident'>new</span>()),
         }
     }
@@ -3340,11 +3292,7 @@
     }
 
     <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>batch_kind</span>: <span class='ident'>AlphaBatchKind</span>,
-           <span class='ident'>transform_kind</span>: <span class='ident'>TransformedRectKind</span>,
-           <span class='ident'>blending_enabled</span>: <span class='ident'>bool</span>,
-           <span class='ident'>has_complex_clip</span>: <span class='ident'>bool</span>,
-           <span class='ident'>color_texture_id</span>: <span class='ident'>TextureId</span>,
-           <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>) <span class='op'>-&gt;</span> <span class='ident'>PrimitiveBatch</span> {
+           <span class='ident'>key</span>: <span class='ident'>AlphaBatchKey</span>) <span class='op'>-&gt;</span> <span class='ident'>PrimitiveBatch</span> {
         <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>batch_kind</span> {
             <span class='ident'>AlphaBatchKind</span>::<span class='ident'>Rectangle</span> <span class='op'>=&gt;</span> <span class='ident'>PrimitiveBatchData</span>::<span class='ident'>Rectangles</span>(<span class='ident'>Vec</span>::<span class='ident'>new</span>()),
             <span class='ident'>AlphaBatchKind</span>::<span class='ident'>TextRun</span> <span class='op'>=&gt;</span> <span class='ident'>PrimitiveBatchData</span>::<span class='ident'>TextRun</span>(<span class='ident'>Vec</span>::<span class='ident'>new</span>()),
@@ -3357,11 +3305,7 @@
         };
 
         <span class='ident'>PrimitiveBatch</span> {
-            <span class='ident'>color_texture_id</span>: <span class='ident'>color_texture_id</span>,
-            <span class='ident'>mask_texture_id</span>: <span class='ident'>mask_texture_id</span>,
-            <span class='ident'>transform_kind</span>: <span class='ident'>transform_kind</span>,
-            <span class='ident'>blending_enabled</span>: <span class='ident'>blending_enabled</span>,
-            <span class='ident'>has_complex_clip</span>: <span class='ident'>has_complex_clip</span>,
+            <span class='ident'>key</span>: <span class='ident'>key</span>,
             <span class='ident'>data</span>: <span class='ident'>data</span>,
         }
     }
