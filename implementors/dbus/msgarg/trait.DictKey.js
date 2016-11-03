@@ -1,5 +1,5 @@
 (function() {var implementors = {};
-implementors["dbus"] = [];implementors["net"] = [];implementors["servo"] = [];
+implementors["dbus"] = [];implementors["servo"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);
