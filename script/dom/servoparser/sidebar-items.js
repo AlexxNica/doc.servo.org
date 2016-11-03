@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["LastChunkState",""],["Tokenizer",""]],"mod":[["html",""],["xml",""]],"struct":[["ParserContext","The context required for asynchronously fetching a document and parsing it progressively."],["ServoParser",""],["Sink",""]]});
+initSidebarItems({"enum":[["LastChunkState",""],["Tokenizer",""]],"mod":[["html",""],["xml",""]],"struct":[["HtmlTokenizer",""],["ParserContext","The context required for asynchronously fetching a document and parsing it progressively."],["ServoParser",""],["Sink",""]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["SingleComputedValue",""],["T",""]]});
+initSidebarItems({"struct":[["T",""]],"type":[["SingleComputedValue",""]]});

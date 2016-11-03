@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/registry/src/github.com-1ecc6299db9ec823/html5ever-0.5.5/src/driver.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/registry/src/github.com-1ecc6299db9ec823/html5ever-0.9.0/src/driver.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>driver.rs.html -- source</title>
@@ -371,6 +371,10 @@
 <span id="327">327</span>
 <span id="328">328</span>
 <span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
 </pre><pre class='rust '>
 <span class='comment'>// Copyright 2014 The html5ever Project Developers. See the</span>
 <span class='comment'>// COPYRIGHT file at the top-level directory of this distribution.</span>
@@ -384,13 +388,14 @@
 <span class='doccomment'>//! High-level interface to the parser.</span>
 
 <span class='kw'>use</span> <span class='ident'>tokenizer</span>::{<span class='ident'>Attribute</span>, <span class='ident'>Tokenizer</span>, <span class='ident'>TokenizerOpts</span>};
+<span class='kw'>use</span> <span class='ident'>tokenizer</span>::<span class='ident'>buffer_queue</span>::<span class='ident'>BufferQueue</span>;
 <span class='kw'>use</span> <span class='ident'>tree_builder</span>::{<span class='ident'>TreeBuilderOpts</span>, <span class='ident'>TreeBuilder</span>, <span class='ident'>TreeSink</span>};
 
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>Cow</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
 
 <span class='kw'>use</span> <span class='ident'>encoding</span>::{<span class='self'>self</span>, <span class='ident'>EncodingRef</span>};
-<span class='kw'>use</span> <span class='ident'>string_cache</span>::<span class='ident'>QualName</span>;
+<span class='kw'>use</span> <span class='ident'>QualName</span>;
 <span class='kw'>use</span> <span class='ident'>tendril</span>;
 <span class='kw'>use</span> <span class='ident'>tendril</span>::{<span class='ident'>StrTendril</span>, <span class='ident'>ByteTendril</span>};
 <span class='kw'>use</span> <span class='ident'>tendril</span>::<span class='ident'>stream</span>::{<span class='ident'>TendrilSink</span>, <span class='ident'>Utf8LossyDecoder</span>, <span class='ident'>LossyDecoder</span>};
@@ -415,7 +420,7 @@
 <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_document</span><span class='op'>&lt;</span><span class='ident'>Sink</span><span class='op'>&gt;</span>(<span class='ident'>sink</span>: <span class='ident'>Sink</span>, <span class='ident'>opts</span>: <span class='ident'>ParseOpts</span>) <span class='op'>-&gt;</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='ident'>Sink</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>Sink</span>: <span class='ident'>TreeSink</span> {
     <span class='kw'>let</span> <span class='ident'>tb</span> <span class='op'>=</span> <span class='ident'>TreeBuilder</span>::<span class='ident'>new</span>(<span class='ident'>sink</span>, <span class='ident'>opts</span>.<span class='ident'>tree_builder</span>);
     <span class='kw'>let</span> <span class='ident'>tok</span> <span class='op'>=</span> <span class='ident'>Tokenizer</span>::<span class='ident'>new</span>(<span class='ident'>tb</span>, <span class='ident'>opts</span>.<span class='ident'>tokenizer</span>);
-    <span class='ident'>Parser</span> { <span class='ident'>tokenizer</span>: <span class='ident'>tok</span> }
+    <span class='ident'>Parser</span> { <span class='ident'>tokenizer</span>: <span class='ident'>tok</span>, <span class='ident'>input_buffer</span>: <span class='ident'>BufferQueue</span>::<span class='ident'>new</span>() }
 }
 
 <span class='doccomment'>/// Parse an HTML fragment</span>
@@ -446,18 +451,20 @@
         .. <span class='ident'>opts</span>.<span class='ident'>tokenizer</span>
     };
     <span class='kw'>let</span> <span class='ident'>tok</span> <span class='op'>=</span> <span class='ident'>Tokenizer</span>::<span class='ident'>new</span>(<span class='ident'>tb</span>, <span class='ident'>tok_opts</span>);
-    <span class='ident'>Parser</span> { <span class='ident'>tokenizer</span>: <span class='ident'>tok</span> }
+    <span class='ident'>Parser</span> { <span class='ident'>tokenizer</span>: <span class='ident'>tok</span>, <span class='ident'>input_buffer</span>: <span class='ident'>BufferQueue</span>::<span class='ident'>new</span>() }
 }
 
 <span class='doccomment'>/// An HTML parser,</span>
 <span class='doccomment'>/// ready to recieve Unicode input through the `tendril::TendrilSink` trait’s methods.</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='ident'>Sink</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>Sink</span>: <span class='ident'>TreeSink</span> {
     <span class='kw'>pub</span> <span class='ident'>tokenizer</span>: <span class='ident'>Tokenizer</span><span class='op'>&lt;</span><span class='ident'>TreeBuilder</span><span class='op'>&lt;</span><span class='ident'>Sink</span>::<span class='ident'>Handle</span>, <span class='ident'>Sink</span><span class='op'>&gt;&gt;</span>,
+    <span class='kw'>pub</span> <span class='ident'>input_buffer</span>: <span class='ident'>BufferQueue</span>,
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>Sink</span>: <span class='ident'>TreeSink</span><span class='op'>&gt;</span> <span class='ident'>TendrilSink</span><span class='op'>&lt;</span><span class='ident'>tendril</span>::<span class='ident'>fmt</span>::<span class='ident'>UTF8</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='ident'>Sink</span><span class='op'>&gt;</span> {
     <span class='kw'>fn</span> <span class='ident'>process</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>t</span>: <span class='ident'>StrTendril</span>) {
-        <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>feed</span>(<span class='ident'>t</span>)
+        <span class='self'>self</span>.<span class='ident'>input_buffer</span>.<span class='ident'>push_front</span>(<span class='ident'>t</span>);
+        <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>feed</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>input_buffer</span>)
     }
 
     <span class='comment'>// FIXME: Is it too noisy to report every character decoding error?</span>
@@ -468,6 +475,7 @@
     <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>Sink</span>::<span class='ident'>Output</span>;
 
     <span class='kw'>fn</span> <span class='ident'>finish</span>(<span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span>::<span class='ident'>Output</span> {
+        <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>feed</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>input_buffer</span>);
         <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>end</span>();
         <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>unwrap</span>().<span class='ident'>unwrap</span>().<span class='ident'>finish</span>()
     }

@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["byte_string",""],["digits",""],["int",""],["lit",""],["quoted_string",""],["string",""]]});
+initSidebarItems({"fn":[["byte",""],["byte_string",""],["character",""],["digits",""],["int",""],["lit",""],["quoted_string",""],["string",""]]});

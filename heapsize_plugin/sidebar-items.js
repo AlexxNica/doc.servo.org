@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["plugin_registrar",""]],"mod":[["heap_size","Handles the auto-deriving for `#[derive(HeapSizeOf)]` Handles the auto-deriving for `#[derive(HeapSizeOf)]`"]]});

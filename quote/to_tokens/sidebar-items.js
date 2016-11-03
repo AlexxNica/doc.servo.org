@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["ByteStr",""]],"trait":[["ToTokens",""]]});
+initSidebarItems({"fn":[["escape_str",""]],"struct":[["ByteStr",""]],"trait":[["ToTokens",""]]});
