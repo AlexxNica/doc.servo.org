@@ -3164,13 +3164,16 @@
     <span class='comment'>// Create a new frame and update the internal bookkeeping.</span>
     <span class='kw'>fn</span> <span class='ident'>new_frame</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>frame_id</span>: <span class='ident'>FrameId</span>, <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>) {
         <span class='kw'>let</span> <span class='ident'>frame</span> <span class='op'>=</span> <span class='ident'>Frame</span>::<span class='ident'>new</span>(<span class='ident'>frame_id</span>, <span class='ident'>pipeline_id</span>);
-
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>) {
-            <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=&gt;</span> <span class='ident'>pipeline</span>.<span class='ident'>is_mature</span> <span class='op'>=</span> <span class='bool-val'>true</span>,
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;Pipeline {} matured after closure.&quot;</span>, <span class='ident'>pipeline_id</span>),
-        };
-
         <span class='self'>self</span>.<span class='ident'>frames</span>.<span class='ident'>insert</span>(<span class='ident'>frame_id</span>, <span class='ident'>frame</span>);
+
+        <span class='comment'>// If a child frame, add it to the parent pipeline.</span>
+        <span class='kw'>let</span> <span class='ident'>parent_info</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>)
+            .<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>pipeline</span><span class='op'>|</span> <span class='ident'>pipeline</span>.<span class='ident'>parent_info</span>);
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>((<span class='ident'>parent_id</span>, _)) <span class='op'>=</span> <span class='ident'>parent_info</span> {
+            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>parent_id</span>) {
+                <span class='ident'>parent</span>.<span class='ident'>add_child</span>(<span class='ident'>frame_id</span>);
+            }
+        }
     }
 
     <span class='doccomment'>/// Handles loading pages, navigation, and granting access to the compositor</span>
@@ -3273,6 +3276,7 @@
             }
             <span class='ident'>FromCompositorMsg</span>::<span class='ident'>IsReadyToSaveImage</span>(<span class='ident'>pipeline_states</span>) <span class='op'>=&gt;</span> {
                 <span class='kw'>let</span> <span class='ident'>is_ready</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>handle_is_ready_to_save_image</span>(<span class='ident'>pipeline_states</span>);
+                <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Ready to save image {:?}.&quot;</span>, <span class='ident'>is_ready</span>);
                 <span class='kw'>if</span> <span class='ident'>opts</span>::<span class='ident'>get</span>().<span class='ident'>is_running_problem_test</span> {
                     <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;got ready to save image query, result is {:?}&quot;</span>, <span class='ident'>is_ready</span>);
                 }
@@ -3518,8 +3522,31 @@
         <span class='self'>self</span>.<span class='ident'>shutting_down</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
 
         <span class='comment'>// TODO: exit before the root frame is initialized?</span>
+        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Removing root frame.&quot;</span>);
         <span class='kw'>let</span> <span class='ident'>root_frame_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>root_frame_id</span>;
         <span class='self'>self</span>.<span class='ident'>close_frame</span>(<span class='ident'>root_frame_id</span>, <span class='ident'>ExitPipelineMode</span>::<span class='ident'>Normal</span>);
+
+        <span class='comment'>// Close any pending frames and pipelines</span>
+        <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>pending</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pending_frames</span>.<span class='ident'>pop</span>() {
+            <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Removing pending frame {}.&quot;</span>, <span class='ident'>pending</span>.<span class='ident'>frame_id</span>);
+            <span class='self'>self</span>.<span class='ident'>close_frame</span>(<span class='ident'>pending</span>.<span class='ident'>frame_id</span>, <span class='ident'>ExitPipelineMode</span>::<span class='ident'>Normal</span>);
+            <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Removing pending pipeline {}.&quot;</span>, <span class='ident'>pending</span>.<span class='ident'>new_pipeline_id</span>);
+            <span class='self'>self</span>.<span class='ident'>close_pipeline</span>(<span class='ident'>pending</span>.<span class='ident'>new_pipeline_id</span>, <span class='ident'>ExitPipelineMode</span>::<span class='ident'>Normal</span>);
+        }
+
+        <span class='comment'>// In case there are frames which weren&#39;t attached to the frame tree, we close them.</span>
+        <span class='kw'>let</span> <span class='ident'>frame_ids</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>FrameId</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>frames</span>.<span class='ident'>keys</span>().<span class='ident'>cloned</span>().<span class='ident'>collect</span>();
+        <span class='kw'>for</span> <span class='ident'>frame_id</span> <span class='kw'>in</span> <span class='ident'>frame_ids</span> {
+            <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Removing detached frame {}.&quot;</span>, <span class='ident'>frame_id</span>);
+            <span class='self'>self</span>.<span class='ident'>close_frame</span>(<span class='ident'>frame_id</span>, <span class='ident'>ExitPipelineMode</span>::<span class='ident'>Normal</span>);
+        }
+
+        <span class='comment'>// In case there are pipelines which weren&#39;t attached to the pipeline tree, we close them.</span>
+        <span class='kw'>let</span> <span class='ident'>pipeline_ids</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>PipelineId</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>keys</span>().<span class='ident'>cloned</span>().<span class='ident'>collect</span>();
+        <span class='kw'>for</span> <span class='ident'>pipeline_id</span> <span class='kw'>in</span> <span class='ident'>pipeline_ids</span> {
+            <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Removing detached pipeline {}.&quot;</span>, <span class='ident'>pipeline_id</span>);
+            <span class='self'>self</span>.<span class='ident'>close_pipeline</span>(<span class='ident'>pipeline_id</span>, <span class='ident'>ExitPipelineMode</span>::<span class='ident'>Normal</span>);
+        }
     }
 
     <span class='kw'>fn</span> <span class='ident'>handle_shutdown</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
@@ -3704,8 +3731,8 @@
     }
 
     <span class='kw'>fn</span> <span class='ident'>handle_subframe_loaded</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>) {
-        <span class='kw'>let</span> <span class='ident'>parent_info</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>) {
-            <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=&gt;</span> <span class='ident'>pipeline</span>.<span class='ident'>parent_info</span>,
+        <span class='kw'>let</span> (<span class='ident'>frame_id</span>, <span class='ident'>parent_info</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>) {
+            <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=&gt;</span> (<span class='ident'>pipeline</span>.<span class='ident'>frame_id</span>, <span class='ident'>pipeline</span>.<span class='ident'>parent_info</span>),
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;Pipeline {:?} loaded after closure.&quot;</span>, <span class='ident'>pipeline_id</span>),
         };
         <span class='kw'>let</span> <span class='ident'>subframe_parent_id</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>parent_info</span> {
@@ -3713,8 +3740,9 @@
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;Pipeline {:?} has no parent.&quot;</span>, <span class='ident'>pipeline_id</span>),
         };
         <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ConstellationControlMsg</span>::<span class='ident'>DispatchFrameLoadEvent</span> {
-            <span class='ident'>target</span>: <span class='ident'>pipeline_id</span>,
+            <span class='ident'>target</span>: <span class='ident'>frame_id</span>,
             <span class='ident'>parent</span>: <span class='ident'>subframe_parent_id</span>,
+            <span class='ident'>child</span>: <span class='ident'>pipeline_id</span>,
         };
         <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>subframe_parent_id</span>) {
             <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=&gt;</span> <span class='ident'>pipeline</span>.<span class='ident'>script_chan</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>),
@@ -3888,13 +3916,19 @@
         <span class='comment'>// requested change so it can update its internal state.</span>
         <span class='comment'>//</span>
         <span class='comment'>// If replace is true, the current entry is replaced instead of a new entry being added.</span>
-        <span class='kw'>let</span> <span class='ident'>parent_info</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>source_id</span>).<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>source</span><span class='op'>|</span> <span class='ident'>source</span>.<span class='ident'>parent_info</span>);
+        <span class='kw'>let</span> (<span class='ident'>frame_id</span>, <span class='ident'>parent_info</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>source_id</span>) {
+            <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=&gt;</span> (<span class='ident'>pipeline</span>.<span class='ident'>frame_id</span>, <span class='ident'>pipeline</span>.<span class='ident'>parent_info</span>),
+            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
+                <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;Pipeline {:?} loaded after closure.&quot;</span>, <span class='ident'>source_id</span>);
+                <span class='kw'>return</span> <span class='prelude-val'>None</span>;
+            }
+        };
         <span class='kw'>match</span> <span class='ident'>parent_info</span> {
             <span class='prelude-val'>Some</span>((<span class='ident'>parent_pipeline_id</span>, _)) <span class='op'>=&gt;</span> {
                 <span class='self'>self</span>.<span class='ident'>handle_load_start_msg</span>(<span class='ident'>source_id</span>);
                 <span class='comment'>// Message the constellation to find the script thread for this iframe</span>
                 <span class='comment'>// and issue an iframe load through there.</span>
-                <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ConstellationControlMsg</span>::<span class='ident'>Navigate</span>(<span class='ident'>parent_pipeline_id</span>, <span class='ident'>source_id</span>, <span class='ident'>load_data</span>, <span class='ident'>replace</span>);
+                <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ConstellationControlMsg</span>::<span class='ident'>Navigate</span>(<span class='ident'>parent_pipeline_id</span>, <span class='ident'>frame_id</span>, <span class='ident'>load_data</span>, <span class='ident'>replace</span>);
                 <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>parent_pipeline_id</span>) {
                     <span class='prelude-val'>Some</span>(<span class='ident'>parent_pipeline</span>) <span class='op'>=&gt;</span> <span class='ident'>parent_pipeline</span>.<span class='ident'>script_chan</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>),
                     <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
@@ -4082,16 +4116,17 @@
 
     <span class='kw'>fn</span> <span class='ident'>handle_mozbrowser_event_msg</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
                                    <span class='ident'>parent_pipeline_id</span>: <span class='ident'>PipelineId</span>,
-                                   <span class='ident'>pipeline_id</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>PipelineId</span><span class='op'>&gt;</span>,
+                                   <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
                                    <span class='ident'>event</span>: <span class='ident'>MozBrowserEvent</span>) {
         <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>PREFS</span>.<span class='ident'>is_mozbrowser_enabled</span>());
+        <span class='kw'>let</span> <span class='ident'>frame_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>).<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>pipeline</span><span class='op'>|</span> <span class='ident'>pipeline</span>.<span class='ident'>frame_id</span>);
 
         <span class='comment'>// Find the script channel for the given parent pipeline,</span>
         <span class='comment'>// and pass the event to that script thread.</span>
         <span class='comment'>// If the pipeline lookup fails, it is because we have torn down the pipeline,</span>
         <span class='comment'>// so it is reasonable to silently ignore the event.</span>
         <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>parent_pipeline_id</span>) {
-            <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=&gt;</span> <span class='ident'>pipeline</span>.<span class='ident'>trigger_mozbrowser_event</span>(<span class='ident'>pipeline_id</span>, <span class='ident'>event</span>),
+            <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=&gt;</span> <span class='ident'>pipeline</span>.<span class='ident'>trigger_mozbrowser_event</span>(<span class='ident'>frame_id</span>, <span class='ident'>event</span>),
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;Pipeline {:?} handling mozbrowser event after closure.&quot;</span>, <span class='ident'>parent_pipeline_id</span>),
         }
     }
@@ -4122,8 +4157,8 @@
     }
 
     <span class='kw'>fn</span> <span class='ident'>focus_parent_pipeline</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>) {
-        <span class='kw'>let</span> <span class='ident'>parent_info</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>) {
-            <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=&gt;</span> <span class='ident'>pipeline</span>.<span class='ident'>parent_info</span>,
+        <span class='kw'>let</span> (<span class='ident'>frame_id</span>, <span class='ident'>parent_info</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>) {
+            <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=&gt;</span> (<span class='ident'>pipeline</span>.<span class='ident'>frame_id</span>, <span class='ident'>pipeline</span>.<span class='ident'>parent_info</span>),
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;Pipeline {:?} focus parent after closure.&quot;</span>, <span class='ident'>pipeline_id</span>),
         };
         <span class='kw'>let</span> (<span class='ident'>parent_pipeline_id</span>, _) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>parent_info</span> {
@@ -4133,7 +4168,7 @@
 
         <span class='comment'>// Send a message to the parent of the provided pipeline (if it exists)</span>
         <span class='comment'>// telling it to mark the iframe element as focused.</span>
-        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ConstellationControlMsg</span>::<span class='ident'>FocusIFrame</span>(<span class='ident'>parent_pipeline_id</span>, <span class='ident'>pipeline_id</span>);
+        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ConstellationControlMsg</span>::<span class='ident'>FocusIFrame</span>(<span class='ident'>parent_pipeline_id</span>, <span class='ident'>frame_id</span>);
         <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>parent_pipeline_id</span>) {
             <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=&gt;</span> <span class='ident'>pipeline</span>.<span class='ident'>script_chan</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>),
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;Pipeline {:?} focus after closure.&quot;</span>, <span class='ident'>parent_pipeline_id</span>),
@@ -4187,10 +4222,13 @@
     }
 
     <span class='kw'>fn</span> <span class='ident'>handle_visibility_change_complete</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>, <span class='ident'>visibility</span>: <span class='ident'>bool</span>) {
-        <span class='kw'>let</span> <span class='ident'>parent_pipeline_info</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>).<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>source</span><span class='op'>|</span> <span class='ident'>source</span>.<span class='ident'>parent_info</span>);
+        <span class='kw'>let</span> (<span class='ident'>frame_id</span>, <span class='ident'>parent_pipeline_info</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>) {
+            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;Visibity change for closed pipeline {:?}.&quot;</span>, <span class='ident'>pipeline_id</span>),
+            <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=&gt;</span> (<span class='ident'>pipeline</span>.<span class='ident'>frame_id</span>, <span class='ident'>pipeline</span>.<span class='ident'>parent_info</span>),
+        };
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>((<span class='ident'>parent_pipeline_id</span>, _)) <span class='op'>=</span> <span class='ident'>parent_pipeline_info</span> {
             <span class='kw'>let</span> <span class='ident'>visibility_msg</span> <span class='op'>=</span> <span class='ident'>ConstellationControlMsg</span>::<span class='ident'>NotifyVisibilityChange</span>(<span class='ident'>parent_pipeline_id</span>,
-                                                                                 <span class='ident'>pipeline_id</span>,
+                                                                                 <span class='ident'>frame_id</span>,
                                                                                  <span class='ident'>visibility</span>);
             <span class='kw'>let</span>  <span class='ident'>result</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>parent_pipeline_id</span>) {
                 <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;Parent pipeline {:?} closed&quot;</span>, <span class='ident'>parent_pipeline_id</span>),
@@ -4352,7 +4390,7 @@
         <span class='comment'>// This makes things like contentDocument work correctly.</span>
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>((<span class='ident'>parent_pipeline_id</span>, _)) <span class='op'>=</span> <span class='ident'>pipeline_info</span> {
             <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ConstellationControlMsg</span>::<span class='ident'>UpdatePipelineId</span>(<span class='ident'>parent_pipeline_id</span>,
-                                                                <span class='ident'>prev_pipeline_id</span>,
+                                                                <span class='ident'>frame_id</span>,
                                                                 <span class='ident'>next_pipeline_id</span>);
             <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>parent_pipeline_id</span>) {
                 <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;Pipeline {:?} child traversed after closure.&quot;</span>, <span class='ident'>parent_pipeline_id</span>),
@@ -4371,8 +4409,7 @@
     <span class='kw'>fn</span> <span class='ident'>get_top_level_frame_for_pipeline</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>pipeline_id</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>PipelineId</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>FrameId</span> {
         <span class='kw'>if</span> <span class='ident'>PREFS</span>.<span class='ident'>is_mozbrowser_enabled</span>() {
             <span class='ident'>pipeline_id</span>.<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>id</span><span class='op'>|</span> <span class='self'>self</span>.<span class='ident'>get_mozbrowser_ancestor_info</span>(<span class='ident'>id</span>))
-                       .<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>pipeline_info</span><span class='op'>|</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_info</span>.<span class='number'>1</span>))
-                       .<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>pipeline</span><span class='op'>|</span> <span class='ident'>pipeline</span>.<span class='ident'>frame_id</span>)
+                       .<span class='ident'>map</span>(<span class='op'>|</span>(_, <span class='ident'>mozbrowser_iframe_id</span>)<span class='op'>|</span> <span class='ident'>mozbrowser_iframe_id</span>)
                        .<span class='ident'>unwrap_or</span>(<span class='self'>self</span>.<span class='ident'>root_frame_id</span>)
         } <span class='kw'>else</span> {
             <span class='comment'>// If mozbrowser is not enabled, the root frame is the only top-level frame</span>
@@ -4406,11 +4443,6 @@
         }
 
         <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>frames</span>.<span class='ident'>contains_key</span>(<span class='kw-2'>&amp;</span><span class='ident'>frame_change</span>.<span class='ident'>frame_id</span>) {
-            <span class='comment'>// Mature the new pipeline, and return frames evicted from history.</span>
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>pipeline</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>frame_change</span>.<span class='ident'>new_pipeline_id</span>) {
-                <span class='ident'>pipeline</span>.<span class='ident'>is_mature</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
-            }
-
             <span class='kw'>if</span> <span class='ident'>frame_change</span>.<span class='ident'>replace</span> {
                 <span class='kw'>let</span> <span class='ident'>evicted</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>frames</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>frame_change</span>.<span class='ident'>frame_id</span>).<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>frame</span><span class='op'>|</span> {
                     <span class='ident'>frame</span>.<span class='ident'>replace_current</span>(<span class='ident'>frame_change</span>.<span class='ident'>new_pipeline_id</span>)
@@ -4426,16 +4458,6 @@
         } <span class='kw'>else</span> {
             <span class='comment'>// The new pipeline is in a new frame with no history</span>
             <span class='self'>self</span>.<span class='ident'>new_frame</span>(<span class='ident'>frame_change</span>.<span class='ident'>frame_id</span>, <span class='ident'>frame_change</span>.<span class='ident'>new_pipeline_id</span>);
-
-            <span class='comment'>// If a child frame, add it to the parent pipeline. Otherwise</span>
-            <span class='comment'>// it must surely be the root frame being created!</span>
-            <span class='kw'>let</span> <span class='ident'>parent_info</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>frame_change</span>.<span class='ident'>new_pipeline_id</span>)
-                .<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>pipeline</span><span class='op'>|</span> <span class='ident'>pipeline</span>.<span class='ident'>parent_info</span>);
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>((<span class='ident'>parent_id</span>, _)) <span class='op'>=</span> <span class='ident'>parent_info</span> {
-                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>parent_id</span>) {
-                    <span class='ident'>parent</span>.<span class='ident'>add_child</span>(<span class='ident'>frame_change</span>.<span class='ident'>frame_id</span>);
-                }
-            }
         }
 
         <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>frame_change</span>.<span class='ident'>replace</span> {
@@ -4454,49 +4476,25 @@
     <span class='kw'>fn</span> <span class='ident'>handle_activate_document_msg</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>) {
         <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Document ready to activate {:?}&quot;</span>, <span class='ident'>pipeline_id</span>);
 
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>child_pipeline</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>) {
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>parent_info</span>) <span class='op'>=</span> <span class='ident'>child_pipeline</span>.<span class='ident'>parent_info</span> {
-                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>parent_pipeline</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>parent_info</span>.<span class='number'>0</span>) {
-                    <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>parent_pipeline</span>.<span class='ident'>script_chan</span>
-                                           .<span class='ident'>send</span>(<span class='ident'>ConstellationControlMsg</span>::<span class='ident'>FramedContentChanged</span>(
-                                               <span class='ident'>parent_info</span>.<span class='number'>0</span>,
-                                               <span class='ident'>pipeline_id</span>));
+        <span class='comment'>// Notify the parent (if there is one).</span>
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>) {
+            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>((<span class='ident'>parent_pipeline_id</span>, _)) <span class='op'>=</span> <span class='ident'>pipeline</span>.<span class='ident'>parent_info</span> {
+                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>parent_pipeline</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>parent_pipeline_id</span>) {
+                    <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ConstellationControlMsg</span>::<span class='ident'>FramedContentChanged</span>(<span class='ident'>parent_pipeline_id</span>, <span class='ident'>pipeline</span>.<span class='ident'>frame_id</span>);
+                    <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>parent_pipeline</span>.<span class='ident'>script_chan</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>);
                 }
             }
         }
 
-        <span class='comment'>// If this pipeline is already part of the current frame tree,</span>
-        <span class='comment'>// we don&#39;t need to do anything.</span>
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>pipeline_is_in_current_frame</span>(<span class='ident'>pipeline_id</span>) {
-            <span class='kw'>return</span>;
-        }
-
         <span class='comment'>// Find the pending frame change whose new pipeline id is pipeline_id.</span>
-        <span class='comment'>// If it is found, mark this pending frame as ready to be enabled.</span>
         <span class='kw'>let</span> <span class='ident'>pending_index</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pending_frames</span>.<span class='ident'>iter</span>().<span class='ident'>rposition</span>(<span class='op'>|</span><span class='ident'>frame_change</span><span class='op'>|</span> {
             <span class='ident'>frame_change</span>.<span class='ident'>new_pipeline_id</span> <span class='op'>==</span> <span class='ident'>pipeline_id</span>
         });
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>pending_index</span>) <span class='op'>=</span> <span class='ident'>pending_index</span> {
-            <span class='self'>self</span>.<span class='ident'>pending_frames</span>[<span class='ident'>pending_index</span>].<span class='ident'>document_ready</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
-        }
 
-        <span class='comment'>// This is a bit complex. We need to loop through pending frames and find</span>
-        <span class='comment'>// ones that can be swapped. A frame can be swapped (enabled) once it is</span>
-        <span class='comment'>// ready to layout (has document_ready set), and also is mature</span>
-        <span class='comment'>// (i.e. the pipeline it is replacing has been enabled and now has a frame).</span>
-        <span class='comment'>// The outer loop is required because any time a pipeline is enabled, that</span>
-        <span class='comment'>// may affect whether other pending frames are now able to be enabled. On the</span>
-        <span class='comment'>// other hand, if no frames can be enabled after looping through all pending</span>
-        <span class='comment'>// frames, we can safely exit the loop, knowing that we will need to wait on</span>
-        <span class='comment'>// a dependent pipeline to be ready to paint.</span>
-        <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>valid_frame_change</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pending_frames</span>.<span class='ident'>iter</span>().<span class='ident'>rposition</span>(<span class='op'>|</span><span class='ident'>frame_change</span><span class='op'>|</span> {
-            <span class='kw'>let</span> <span class='ident'>frame_is_mature</span> <span class='op'>=</span> <span class='ident'>frame_change</span>.<span class='ident'>old_pipeline_id</span>
-                .<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>old_pipeline_id</span><span class='op'>|</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>old_pipeline_id</span>))
-                .<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>old_pipeline</span><span class='op'>|</span> <span class='ident'>old_pipeline</span>.<span class='ident'>is_mature</span>)
-                .<span class='ident'>unwrap_or</span>(<span class='bool-val'>true</span>);
-            <span class='ident'>frame_change</span>.<span class='ident'>document_ready</span> <span class='op'>&amp;&amp;</span> <span class='ident'>frame_is_mature</span>
-        }) {
-            <span class='kw'>let</span> <span class='ident'>frame_change</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pending_frames</span>.<span class='ident'>swap_remove</span>(<span class='ident'>valid_frame_change</span>);
+        <span class='comment'>// If it is found, remove it from the pending frames, and make it</span>
+        <span class='comment'>// the active document of its frame.</span>
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>pending_index</span>) <span class='op'>=</span> <span class='ident'>pending_index</span> {
+            <span class='kw'>let</span> <span class='ident'>frame_change</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pending_frames</span>.<span class='ident'>swap_remove</span>(<span class='ident'>pending_index</span>);
             <span class='self'>self</span>.<span class='ident'>add_or_replace_pipeline_in_frame_tree</span>(<span class='ident'>frame_change</span>);
         }
     }
@@ -4596,6 +4594,7 @@
         <span class='comment'>// screenshot can safely be written.</span>
         <span class='kw'>for</span> <span class='ident'>frame</span> <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>current_frame_tree_iter</span>(<span class='self'>self</span>.<span class='ident'>root_frame_id</span>) {
             <span class='kw'>let</span> <span class='ident'>pipeline_id</span> <span class='op'>=</span> <span class='ident'>frame</span>.<span class='ident'>current</span>.<span class='ident'>pipeline_id</span>;
+            <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Checking readiness of frame {}, pipeline {}.&quot;</span>, <span class='ident'>frame</span>.<span class='ident'>id</span>, <span class='ident'>pipeline_id</span>);
 
             <span class='kw'>let</span> <span class='ident'>pipeline</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>) {
                 <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
@@ -4761,7 +4760,9 @@
             <span class='self'>self</span>.<span class='ident'>close_frame</span>(<span class='op'>*</span><span class='ident'>child_frame</span>, <span class='ident'>exit_mode</span>);
         }
 
-        <span class='kw'>let</span> <span class='ident'>pipeline</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>) {
+        <span class='comment'>// Note, we don&#39;t remove the pipeline now, we wait for the message to come back from</span>
+        <span class='comment'>// the pipeline.</span>
+        <span class='kw'>let</span> <span class='ident'>pipeline</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>) {
             <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=&gt;</span> <span class='ident'>pipeline</span>,
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;Closing pipeline {:?} twice.&quot;</span>, <span class='ident'>pipeline_id</span>),
         };
@@ -4833,6 +4834,7 @@
         <span class='comment'>// Note that this function can panic, due to ipc-channel creation failure.</span>
         <span class='comment'>// avoiding this panic would require a mechanism for dealing</span>
         <span class='comment'>// with low-resource scenarios.</span>
+        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Sending frame tree for frame {}.&quot;</span>, <span class='self'>self</span>.<span class='ident'>root_frame_id</span>);
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>frame_tree</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>frame_to_sendable</span>(<span class='self'>self</span>.<span class='ident'>root_frame_id</span>) {
             <span class='kw'>let</span> (<span class='ident'>chan</span>, <span class='ident'>port</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>expect</span>(<span class='string'>&quot;Failed to create IPC channel!&quot;</span>);
             <span class='self'>self</span>.<span class='ident'>compositor_proxy</span>.<span class='ident'>send</span>(<span class='ident'>ToCompositorMsg</span>::<span class='ident'>SetFrameTree</span>(<span class='ident'>frame_tree</span>,
@@ -4846,12 +4848,12 @@
 
     <span class='doccomment'>/// For a given pipeline, determine the mozbrowser iframe that transitively contains</span>
     <span class='doccomment'>/// it. There could be arbitrary levels of nested iframes in between them.</span>
-    <span class='kw'>fn</span> <span class='ident'>get_mozbrowser_ancestor_info</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>original_pipeline_id</span>: <span class='ident'>PipelineId</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span>(<span class='ident'>PipelineId</span>, <span class='ident'>PipelineId</span>)<span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>get_mozbrowser_ancestor_info</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>original_pipeline_id</span>: <span class='ident'>PipelineId</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span>(<span class='ident'>PipelineId</span>, <span class='ident'>FrameId</span>)<span class='op'>&gt;</span> {
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>pipeline_id</span> <span class='op'>=</span> <span class='ident'>original_pipeline_id</span>;
         <span class='kw'>loop</span> {
             <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>) {
                 <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=&gt;</span> <span class='kw'>match</span> <span class='ident'>pipeline</span>.<span class='ident'>parent_info</span> {
-                    <span class='prelude-val'>Some</span>((<span class='ident'>parent_id</span>, <span class='ident'>FrameType</span>::<span class='ident'>MozBrowserIFrame</span>)) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Some</span>((<span class='ident'>parent_id</span>, <span class='ident'>pipeline_id</span>)),
+                    <span class='prelude-val'>Some</span>((<span class='ident'>parent_id</span>, <span class='ident'>FrameType</span>::<span class='ident'>MozBrowserIFrame</span>)) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Some</span>((<span class='ident'>parent_id</span>, <span class='ident'>pipeline</span>.<span class='ident'>frame_id</span>)),
                     <span class='prelude-val'>Some</span>((<span class='ident'>parent_id</span>, _)) <span class='op'>=&gt;</span> <span class='ident'>pipeline_id</span> <span class='op'>=</span> <span class='ident'>parent_id</span>,
                     <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>None</span>,
                 },
@@ -4874,14 +4876,12 @@
         };
 
         <span class='comment'>// If this is a mozbrowser iframe, then send the event with new url</span>
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>((<span class='ident'>ancestor_id</span>, <span class='ident'>mozbrowser_iframe_id</span>)) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>get_mozbrowser_ancestor_info</span>(<span class='ident'>pipeline_id</span>) {
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>((<span class='ident'>ancestor_id</span>, <span class='ident'>mozbrowser_frame_id</span>)) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>get_mozbrowser_ancestor_info</span>(<span class='ident'>pipeline_id</span>) {
             <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>ancestor</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>ancestor_id</span>) {
-                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipelines</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>mozbrowser_iframe_id</span>) {
-                    <span class='kw'>let</span> <span class='ident'>can_go_forward</span> <span class='op'>=</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>joint_session_future</span>(<span class='ident'>pipeline</span>.<span class='ident'>frame_id</span>).<span class='ident'>is_empty</span>();
-                    <span class='kw'>let</span> <span class='ident'>can_go_back</span> <span class='op'>=</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>joint_session_past</span>(<span class='ident'>pipeline</span>.<span class='ident'>frame_id</span>).<span class='ident'>is_empty</span>();
-                    <span class='kw'>let</span> <span class='ident'>event</span> <span class='op'>=</span> <span class='ident'>MozBrowserEvent</span>::<span class='ident'>LocationChange</span>(<span class='ident'>url</span>, <span class='ident'>can_go_back</span>, <span class='ident'>can_go_forward</span>);
-                    <span class='ident'>ancestor</span>.<span class='ident'>trigger_mozbrowser_event</span>(<span class='prelude-val'>Some</span>(<span class='ident'>mozbrowser_iframe_id</span>), <span class='ident'>event</span>);
-                }
+                <span class='kw'>let</span> <span class='ident'>can_go_forward</span> <span class='op'>=</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>joint_session_future</span>(<span class='ident'>mozbrowser_frame_id</span>).<span class='ident'>is_empty</span>();
+                <span class='kw'>let</span> <span class='ident'>can_go_back</span> <span class='op'>=</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>joint_session_past</span>(<span class='ident'>mozbrowser_frame_id</span>).<span class='ident'>is_empty</span>();
+                <span class='kw'>let</span> <span class='ident'>event</span> <span class='op'>=</span> <span class='ident'>MozBrowserEvent</span>::<span class='ident'>LocationChange</span>(<span class='ident'>url</span>, <span class='ident'>can_go_back</span>, <span class='ident'>can_go_forward</span>);
+                <span class='ident'>ancestor</span>.<span class='ident'>trigger_mozbrowser_event</span>(<span class='prelude-val'>Some</span>(<span class='ident'>mozbrowser_frame_id</span>), <span class='ident'>event</span>);
             }
         }
     }

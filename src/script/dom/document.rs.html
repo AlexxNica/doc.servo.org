@@ -3130,6 +3130,8 @@
 <span id="3086">3086</span>
 <span id="3087">3087</span>
 <span id="3088">3088</span>
+<span id="3089">3089</span>
+<span id="3090">3090</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -3229,8 +3231,8 @@
 <span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>JSContext</span>, <span class='ident'>JSObject</span>, <span class='ident'>JSRuntime</span>};
 <span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::<span class='ident'>JS_GetRuntime</span>;
 <span class='kw'>use</span> <span class='ident'>msg</span>::<span class='ident'>constellation_msg</span>::{<span class='ident'>ALT</span>, <span class='ident'>CONTROL</span>, <span class='ident'>SHIFT</span>, <span class='ident'>SUPER</span>};
+<span class='kw'>use</span> <span class='ident'>msg</span>::<span class='ident'>constellation_msg</span>::{<span class='ident'>FrameId</span>, <span class='ident'>ReferrerPolicy</span>};
 <span class='kw'>use</span> <span class='ident'>msg</span>::<span class='ident'>constellation_msg</span>::{<span class='ident'>Key</span>, <span class='ident'>KeyModifiers</span>, <span class='ident'>KeyState</span>};
-<span class='kw'>use</span> <span class='ident'>msg</span>::<span class='ident'>constellation_msg</span>::{<span class='ident'>PipelineId</span>, <span class='ident'>ReferrerPolicy</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::{<span class='ident'>FetchResponseMsg</span>, <span class='ident'>IpcSend</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>CookieSource</span>::<span class='ident'>NonHTTP</span>;
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>CoreResourceMsg</span>::{<span class='ident'>GetCookiesForUrl</span>, <span class='ident'>SetCookiesForUrl</span>};
@@ -4533,7 +4535,7 @@
             <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>((<span class='ident'>parent_pipeline_id</span>, _)) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>window</span>.<span class='ident'>parent_info</span>() {
                 <span class='kw'>let</span> <span class='ident'>global_scope</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>window</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>GlobalScope</span><span class='op'>&gt;</span>();
                 <span class='kw'>let</span> <span class='ident'>event</span> <span class='op'>=</span> <span class='ident'>ConstellationMsg</span>::<span class='ident'>MozBrowserEvent</span>(<span class='ident'>parent_pipeline_id</span>,
-                                                              <span class='prelude-val'>Some</span>(<span class='ident'>global_scope</span>.<span class='ident'>pipeline_id</span>()),
+                                                              <span class='ident'>global_scope</span>.<span class='ident'>pipeline_id</span>(),
                                                               <span class='ident'>event</span>);
                 <span class='ident'>global_scope</span>.<span class='ident'>constellation_chan</span>().<span class='ident'>send</span>(<span class='ident'>event</span>).<span class='ident'>unwrap</span>();
             }
@@ -4646,8 +4648,10 @@
             }
         }
 
-        <span class='kw'>let</span> <span class='ident'>loader</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>loader</span>.<span class='ident'>borrow</span>();
-        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>loader</span>.<span class='ident'>is_blocked</span>() <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='ident'>loader</span>.<span class='ident'>events_inhibited</span>() {
+        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>loader</span>.<span class='ident'>borrow</span>().<span class='ident'>is_blocked</span>() <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>loader</span>.<span class='ident'>borrow</span>().<span class='ident'>events_inhibited</span>() {
+            <span class='comment'>// Schedule a task to fire a &quot;load&quot; event (if no blocking loads have arrived in the mean time)</span>
+            <span class='comment'>// NOTE: we can end up executing this code more than once, in case more blocking loads arrive.</span>
+            <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Document loads are complete.&quot;</span>);
             <span class='kw'>let</span> <span class='ident'>win</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>window</span>();
             <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>MainThreadScriptMsg</span>::<span class='ident'>DocumentLoadsComplete</span>(
                 <span class='ident'>win</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>GlobalScope</span><span class='op'>&gt;</span>().<span class='ident'>pipeline_id</span>());
@@ -4763,11 +4767,11 @@
     }
 
     <span class='doccomment'>/// Find an iframe element in the document.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>find_iframe</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>pipeline</span>: <span class='ident'>PipelineId</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>HTMLIFrameElement</span><span class='op'>&gt;&gt;</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>find_iframe</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>frame_id</span>: <span class='ident'>FrameId</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>HTMLIFrameElement</span><span class='op'>&gt;&gt;</span> {
         <span class='self'>self</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Node</span><span class='op'>&gt;</span>()
             .<span class='ident'>traverse_preorder</span>()
             .<span class='ident'>filter_map</span>(<span class='ident'>Root</span>::<span class='ident'>downcast</span>::<span class='op'>&lt;</span><span class='ident'>HTMLIFrameElement</span><span class='op'>&gt;</span>)
-            .<span class='ident'>find</span>(<span class='op'>|</span><span class='ident'>node</span><span class='op'>|</span> <span class='ident'>node</span>.<span class='ident'>pipeline_id</span>() <span class='op'>==</span> <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>))
+            .<span class='ident'>find</span>(<span class='op'>|</span><span class='ident'>node</span><span class='op'>|</span> <span class='ident'>node</span>.<span class='ident'>frame_id</span>() <span class='op'>==</span> <span class='ident'>frame_id</span>)
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_dom_loading</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>u64</span> {
