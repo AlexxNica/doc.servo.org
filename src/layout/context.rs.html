@@ -259,6 +259,9 @@
 <span id="215">215</span>
 <span id="216">216</span>
 <span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -339,7 +342,7 @@
     <span class='kw'>pub</span> <span class='ident'>style_context</span>: <span class='ident'>SharedStyleContext</span>,
 
     <span class='doccomment'>/// The shared image cache thread.</span>
-    <span class='kw'>pub</span> <span class='ident'>image_cache_thread</span>: <span class='ident'>ImageCacheThread</span>,
+    <span class='kw'>pub</span> <span class='ident'>image_cache_thread</span>: <span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>ImageCacheThread</span><span class='op'>&gt;</span>,
 
     <span class='doccomment'>/// A channel for the image cache to send responses to.</span>
     <span class='kw'>pub</span> <span class='ident'>image_cache_sender</span>: <span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>ImageCacheChan</span><span class='op'>&gt;</span>,
@@ -395,7 +398,8 @@
         <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>opts</span>::<span class='ident'>get</span>().<span class='ident'>output_file</span>.<span class='ident'>is_some</span>() <span class='op'>||</span> <span class='ident'>opts</span>::<span class='ident'>get</span>().<span class='ident'>exit_after_load</span>);
 
         <span class='comment'>// See if the image is already available</span>
-        <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>image_cache_thread</span>.<span class='ident'>find_image</span>(<span class='ident'>url</span>.<span class='ident'>clone</span>(), <span class='ident'>use_placeholder</span>);
+        <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>image_cache_thread</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>()
+                                            .<span class='ident'>find_image</span>(<span class='ident'>url</span>.<span class='ident'>clone</span>(), <span class='ident'>use_placeholder</span>);
 
         <span class='kw'>match</span> <span class='ident'>result</span> {
             <span class='prelude-val'>Ok</span>(<span class='ident'>image</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Some</span>(<span class='ident'>image</span>),
@@ -409,7 +413,7 @@
         <span class='comment'>// If we are emitting an output file, then we need to block on</span>
         <span class='comment'>// image load or we risk emitting an output file missing the image.</span>
         <span class='kw'>let</span> (<span class='ident'>sync_tx</span>, <span class='ident'>sync_rx</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
-        <span class='self'>self</span>.<span class='ident'>image_cache_thread</span>.<span class='ident'>request_image</span>(<span class='ident'>url</span>, <span class='ident'>ImageCacheChan</span>(<span class='ident'>sync_tx</span>), <span class='prelude-val'>None</span>);
+        <span class='self'>self</span>.<span class='ident'>image_cache_thread</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>().<span class='ident'>request_image</span>(<span class='ident'>url</span>, <span class='ident'>ImageCacheChan</span>(<span class='ident'>sync_tx</span>), <span class='prelude-val'>None</span>);
         <span class='kw'>loop</span> {
             <span class='kw'>match</span> <span class='ident'>sync_rx</span>.<span class='ident'>recv</span>() {
                 <span class='prelude-val'>Err</span>(_) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>None</span>,
@@ -433,7 +437,8 @@
                        .<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>img</span><span class='op'>|</span> <span class='ident'>ImageOrMetadataAvailable</span>::<span class='ident'>ImageAvailable</span>(<span class='ident'>img</span>));
         }
         <span class='comment'>// See if the image is already available</span>
-        <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>image_cache_thread</span>.<span class='ident'>find_image_or_metadata</span>(<span class='ident'>url</span>.<span class='ident'>clone</span>(),
+        <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>image_cache_thread</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>()
+                                            .<span class='ident'>find_image_or_metadata</span>(<span class='ident'>url</span>.<span class='ident'>clone</span>(),
                                                                     <span class='ident'>use_placeholder</span>);
         <span class='kw'>match</span> <span class='ident'>result</span> {
             <span class='prelude-val'>Ok</span>(<span class='ident'>image_or_metadata</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>image_or_metadata</span>),
@@ -442,7 +447,8 @@
             <span class='comment'>// Not yet requested, async mode - request image or metadata from the cache</span>
             <span class='prelude-val'>Err</span>(<span class='ident'>ImageState</span>::<span class='ident'>NotRequested</span>) <span class='op'>=&gt;</span> {
                 <span class='kw'>let</span> <span class='ident'>sender</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>image_cache_sender</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>().<span class='ident'>clone</span>();
-                <span class='self'>self</span>.<span class='ident'>image_cache_thread</span>.<span class='ident'>request_image_and_metadata</span>(<span class='ident'>url</span>, <span class='ident'>sender</span>, <span class='prelude-val'>None</span>);
+                <span class='self'>self</span>.<span class='ident'>image_cache_thread</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>()
+                                       .<span class='ident'>request_image_and_metadata</span>(<span class='ident'>url</span>, <span class='ident'>sender</span>, <span class='prelude-val'>None</span>);
                 <span class='prelude-val'>None</span>
             }
             <span class='comment'>// Image has been requested, is still pending. Return no image for this paint loop.</span>
