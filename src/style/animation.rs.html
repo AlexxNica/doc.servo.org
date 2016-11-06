@@ -735,6 +735,8 @@
 <span id="691">691</span>
 <span id="692">692</span>
 <span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -755,7 +757,6 @@
 <span class='kw'>use</span> <span class='ident'>properties</span>::<span class='ident'>longhands</span>::<span class='ident'>animation_play_state</span>::<span class='ident'>computed_value</span>::<span class='ident'>AnimationPlayState</span>;
 <span class='kw'>use</span> <span class='ident'>properties</span>::<span class='ident'>longhands</span>::<span class='ident'>transition_timing_function</span>::<span class='ident'>computed_value</span>::<span class='ident'>StartEnd</span>;
 <span class='kw'>use</span> <span class='ident'>properties</span>::<span class='ident'>longhands</span>::<span class='ident'>transition_timing_function</span>::<span class='ident'>computed_value</span>::<span class='ident'>TransitionTimingFunction</span>;
-<span class='kw'>use</span> <span class='ident'>selector_matching</span>::<span class='ident'>ApplicableDeclarationBlock</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>Arc</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::<span class='ident'>Sender</span>;
 <span class='kw'>use</span> <span class='ident'>timer</span>::<span class='ident'>Timer</span>;
@@ -1123,23 +1124,26 @@
                                     <span class='ident'>style_from_cascade</span>: <span class='kw-2'>&amp;</span><span class='ident'>ComputedValues</span>)
                                     <span class='op'>-&gt;</span> <span class='ident'>ComputedValues</span> {
     <span class='kw'>match</span> <span class='ident'>step</span>.<span class='ident'>value</span> {
-        <span class='comment'>// TODO: avoiding this spurious clone might involve having to create</span>
-        <span class='comment'>// an Arc in the below (more common case).</span>
         <span class='ident'>KeyframesStepValue</span>::<span class='ident'>ComputedValues</span> <span class='op'>=&gt;</span> <span class='ident'>style_from_cascade</span>.<span class='ident'>clone</span>(),
         <span class='ident'>KeyframesStepValue</span>::<span class='ident'>Declarations</span> { <span class='ident'>block</span>: <span class='kw-2'>ref</span> <span class='ident'>declarations</span> } <span class='op'>=&gt;</span> {
-            <span class='kw'>let</span> <span class='ident'>declaration_block</span> <span class='op'>=</span> <span class='ident'>ApplicableDeclarationBlock</span> {
-                <span class='ident'>mixed_declarations</span>: <span class='ident'>declarations</span>.<span class='ident'>clone</span>(),
-                <span class='ident'>importance</span>: <span class='ident'>Importance</span>::<span class='ident'>Normal</span>,
-                <span class='ident'>source_order</span>: <span class='number'>0</span>,
-                <span class='ident'>specificity</span>: ::<span class='ident'>std</span>::<span class='ident'>u32</span>::<span class='ident'>MAX</span>,
+            <span class='kw'>let</span> <span class='ident'>guard</span> <span class='op'>=</span> <span class='ident'>declarations</span>.<span class='ident'>read</span>();
+
+            <span class='comment'>// No !important in keyframes.</span>
+            <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>guard</span>.<span class='ident'>declarations</span>.<span class='ident'>iter</span>()
+                            .<span class='ident'>all</span>(<span class='op'>|</span><span class='kw-2'>&amp;</span>(_, <span class='ident'>importance</span>)<span class='op'>|</span> <span class='ident'>importance</span> <span class='op'>==</span> <span class='ident'>Importance</span>::<span class='ident'>Normal</span>));
+
+            <span class='kw'>let</span> <span class='ident'>iter</span> <span class='op'>=</span> <span class='op'>||</span> {
+                <span class='ident'>guard</span>.<span class='ident'>declarations</span>.<span class='ident'>iter</span>().<span class='ident'>rev</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='kw-2'>&amp;</span>(<span class='kw-2'>ref</span> <span class='ident'>decl</span>, <span class='ident'>_importance</span>)<span class='op'>|</span> <span class='ident'>decl</span>)
             };
-            <span class='kw'>let</span> (<span class='ident'>computed</span>, _) <span class='op'>=</span> <span class='ident'>properties</span>::<span class='ident'>cascade</span>(<span class='ident'>context</span>.<span class='ident'>viewport_size</span>,
-                                                    <span class='kw-2'>&amp;</span>[<span class='ident'>declaration_block</span>],
-                                                    <span class='prelude-val'>Some</span>(<span class='ident'>previous_style</span>),
-                                                    <span class='prelude-val'>None</span>,
-                                                    <span class='prelude-val'>None</span>,
-                                                    <span class='ident'>context</span>.<span class='ident'>error_reporter</span>.<span class='ident'>clone</span>(),
-                                                    <span class='ident'>CascadeFlags</span>::<span class='ident'>empty</span>());
+
+            <span class='kw'>let</span> <span class='ident'>computed</span> <span class='op'>=</span>
+                <span class='ident'>properties</span>::<span class='ident'>apply_declarations</span>(<span class='ident'>context</span>.<span class='ident'>viewport_size</span>,
+                                               <span class='comment'>/* is_root = */</span> <span class='bool-val'>false</span>,
+                                               <span class='ident'>iter</span>,
+                                               <span class='ident'>previous_style</span>,
+                                               <span class='comment'>/* cascade_info = */</span> <span class='prelude-val'>None</span>,
+                                               <span class='ident'>context</span>.<span class='ident'>error_reporter</span>.<span class='ident'>clone</span>(),
+                                               <span class='ident'>CascadeFlags</span>::<span class='ident'>empty</span>());
             <span class='ident'>computed</span>
         }
     }
