@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["CSSColor","A <color> value."],["LengthOrNone",""],["LengthOrPercentage",""],["LengthOrPercentageOrAuto",""],["LengthOrPercentageOrAutoOrContent",""],["LengthOrPercentageOrNone",""]],"struct":[["CalcLengthOrPercentage",""]]});
+initSidebarItems({"enum":[["CSSColor","A <color> value."],["LengthOrNone",""],["LengthOrNumber",""],["LengthOrPercentage",""],["LengthOrPercentageOrAuto",""],["LengthOrPercentageOrAutoOrContent",""],["LengthOrPercentageOrNone",""]],"struct":[["CalcLengthOrPercentage",""]],"type":[["Length",""]]});
