@@ -1,5 +1,5 @@
 (function() {var implementors = {};
-implementors["util"] = [];implementors["style"] = [];implementors["net_traits"] = [];implementors["net"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["util"] = [];implementors["net_traits"] = [];implementors["net"] = [];implementors["style"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

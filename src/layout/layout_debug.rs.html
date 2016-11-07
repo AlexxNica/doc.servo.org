@@ -188,7 +188,7 @@
 
 <span class='kw'>use</span> <span class='ident'>flow</span>;
 <span class='kw'>use</span> <span class='ident'>flow_ref</span>::<span class='ident'>FlowRef</span>;
-<span class='kw'>use</span> <span class='ident'>rustc_serialize</span>::<span class='ident'>json</span>;
+<span class='kw'>use</span> <span class='ident'>serde_json</span>::{<span class='ident'>to_string</span>, <span class='ident'>to_value</span>, <span class='ident'>Value</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>ToOwned</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>RefCell</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fs</span>::<span class='ident'>File</span>;
@@ -214,20 +214,20 @@
     )
 );
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>RustcEncodable</span>)]</span>
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Serialize</span>)]</span>
 <span class='kw'>struct</span> <span class='ident'>ScopeData</span> {
     <span class='ident'>name</span>: <span class='ident'>String</span>,
-    <span class='ident'>pre</span>: <span class='ident'>String</span>,
-    <span class='ident'>post</span>: <span class='ident'>String</span>,
+    <span class='ident'>pre</span>: <span class='ident'>Value</span>,
+    <span class='ident'>post</span>: <span class='ident'>Value</span>,
     <span class='ident'>children</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ScopeData</span><span class='op'>&gt;&gt;</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>ScopeData</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>name</span>: <span class='ident'>String</span>, <span class='ident'>pre</span>: <span class='ident'>String</span>) <span class='op'>-&gt;</span> <span class='ident'>ScopeData</span> {
+    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>name</span>: <span class='ident'>String</span>, <span class='ident'>pre</span>: <span class='ident'>Value</span>) <span class='op'>-&gt;</span> <span class='ident'>ScopeData</span> {
         <span class='ident'>ScopeData</span> {
             <span class='ident'>name</span>: <span class='ident'>name</span>,
             <span class='ident'>pre</span>: <span class='ident'>pre</span>,
-            <span class='ident'>post</span>: <span class='ident'>String</span>::<span class='ident'>new</span>(),
+            <span class='ident'>post</span>: <span class='ident'>Value</span>::<span class='ident'>Null</span>,
             <span class='ident'>children</span>: <span class='macro'>vec</span><span class='macro'>!</span>(),
         }
     }
@@ -245,7 +245,7 @@
         <span class='ident'>STATE_KEY</span>.<span class='ident'>with</span>(<span class='op'>|</span><span class='kw-2'>ref</span> <span class='ident'>r</span><span class='op'>|</span> {
             <span class='kw'>match</span> <span class='op'>*</span><span class='ident'>r</span>.<span class='ident'>borrow_mut</span>() {
                 <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>state</span>) <span class='op'>=&gt;</span> {
-                    <span class='kw'>let</span> <span class='ident'>flow_trace</span> <span class='op'>=</span> <span class='ident'>json</span>::<span class='ident'>encode</span>(<span class='kw-2'>&amp;</span><span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>state</span>.<span class='ident'>flow_root</span>)).<span class='ident'>unwrap</span>();
+                    <span class='kw'>let</span> <span class='ident'>flow_trace</span> <span class='op'>=</span> <span class='ident'>to_value</span>(<span class='kw-2'>&amp;</span><span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>state</span>.<span class='ident'>flow_root</span>));
                     <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='kw'>box</span> <span class='ident'>ScopeData</span>::<span class='ident'>new</span>(<span class='ident'>name</span>.<span class='ident'>clone</span>(), <span class='ident'>flow_trace</span>);
                     <span class='ident'>state</span>.<span class='ident'>scope_stack</span>.<span class='ident'>push</span>(<span class='ident'>data</span>);
                 }
@@ -263,7 +263,7 @@
             <span class='kw'>match</span> <span class='op'>*</span><span class='ident'>r</span>.<span class='ident'>borrow_mut</span>() {
                  <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>state</span>) <span class='op'>=&gt;</span> {
                     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>current_scope</span> <span class='op'>=</span> <span class='ident'>state</span>.<span class='ident'>scope_stack</span>.<span class='ident'>pop</span>().<span class='ident'>unwrap</span>();
-                    <span class='ident'>current_scope</span>.<span class='ident'>post</span> <span class='op'>=</span> <span class='ident'>json</span>::<span class='ident'>encode</span>(<span class='kw-2'>&amp;</span><span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>state</span>.<span class='ident'>flow_root</span>)).<span class='ident'>unwrap</span>();
+                    <span class='ident'>current_scope</span>.<span class='ident'>post</span> <span class='op'>=</span> <span class='ident'>to_value</span>(<span class='kw-2'>&amp;</span><span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>state</span>.<span class='ident'>flow_root</span>));
                     <span class='kw'>let</span> <span class='ident'>previous_scope</span> <span class='op'>=</span> <span class='ident'>state</span>.<span class='ident'>scope_stack</span>.<span class='ident'>last_mut</span>().<span class='ident'>unwrap</span>();
                     <span class='ident'>previous_scope</span>.<span class='ident'>children</span>.<span class='ident'>push</span>(<span class='ident'>current_scope</span>);
                 }
@@ -287,7 +287,7 @@
     <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>STATE_KEY</span>.<span class='ident'>with</span>(<span class='op'>|</span><span class='kw-2'>ref</span> <span class='ident'>r</span><span class='op'>|</span> <span class='ident'>r</span>.<span class='ident'>borrow</span>().<span class='ident'>is_none</span>()));
 
     <span class='ident'>STATE_KEY</span>.<span class='ident'>with</span>(<span class='op'>|</span><span class='kw-2'>ref</span> <span class='ident'>r</span><span class='op'>|</span> {
-        <span class='kw'>let</span> <span class='ident'>flow_trace</span> <span class='op'>=</span> <span class='ident'>json</span>::<span class='ident'>encode</span>(<span class='kw-2'>&amp;</span><span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>flow_root</span>)).<span class='ident'>unwrap</span>();
+        <span class='kw'>let</span> <span class='ident'>flow_trace</span> <span class='op'>=</span> <span class='ident'>to_value</span>(<span class='kw-2'>&amp;</span><span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>flow_root</span>));
         <span class='kw'>let</span> <span class='ident'>state</span> <span class='op'>=</span> <span class='ident'>State</span> {
             <span class='ident'>scope_stack</span>: <span class='macro'>vec</span><span class='macro'>!</span>[<span class='kw'>box</span> <span class='ident'>ScopeData</span>::<span class='ident'>new</span>(<span class='string'>&quot;root&quot;</span>.<span class='ident'>to_owned</span>(), <span class='ident'>flow_trace</span>)],
             <span class='ident'>flow_root</span>: <span class='ident'>flow_root</span>.<span class='ident'>clone</span>(),
@@ -303,9 +303,9 @@
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>thread_state</span> <span class='op'>=</span> <span class='ident'>STATE_KEY</span>.<span class='ident'>with</span>(<span class='op'>|</span><span class='kw-2'>ref</span> <span class='ident'>r</span><span class='op'>|</span> <span class='ident'>r</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>take</span>().<span class='ident'>unwrap</span>());
     <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>.<span class='ident'>scope_stack</span>.<span class='ident'>len</span>() <span class='op'>==</span> <span class='number'>1</span>);
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>root_scope</span> <span class='op'>=</span> <span class='ident'>thread_state</span>.<span class='ident'>scope_stack</span>.<span class='ident'>pop</span>().<span class='ident'>unwrap</span>();
-    <span class='ident'>root_scope</span>.<span class='ident'>post</span> <span class='op'>=</span> <span class='ident'>json</span>::<span class='ident'>encode</span>(<span class='kw-2'>&amp;</span><span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>thread_state</span>.<span class='ident'>flow_root</span>)).<span class='ident'>unwrap</span>();
+    <span class='ident'>root_scope</span>.<span class='ident'>post</span> <span class='op'>=</span> <span class='ident'>to_value</span>(<span class='kw-2'>&amp;</span><span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>thread_state</span>.<span class='ident'>flow_root</span>));
 
-    <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>json</span>::<span class='ident'>encode</span>(<span class='kw-2'>&amp;</span><span class='ident'>root_scope</span>).<span class='ident'>unwrap</span>();
+    <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>to_string</span>(<span class='kw-2'>&amp;</span><span class='ident'>root_scope</span>).<span class='ident'>unwrap</span>();
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>file</span> <span class='op'>=</span> <span class='ident'>File</span>::<span class='ident'>create</span>(<span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;layout_trace-{}.json&quot;</span>, <span class='ident'>generation</span>)).<span class='ident'>unwrap</span>();
     <span class='ident'>file</span>.<span class='ident'>write_all</span>(<span class='ident'>result</span>.<span class='ident'>as_bytes</span>()).<span class='ident'>unwrap</span>();
 }
