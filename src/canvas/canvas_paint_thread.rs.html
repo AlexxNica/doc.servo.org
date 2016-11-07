@@ -897,6 +897,17 @@
 <span id="853">853</span>
 <span id="854">854</span>
 <span id="855">855</span>
+<span id="856">856</span>
+<span id="857">857</span>
+<span id="858">858</span>
+<span id="859">859</span>
+<span id="860">860</span>
+<span id="861">861</span>
+<span id="862">862</span>
+<span id="863">863</span>
+<span id="864">864</span>
+<span id="865">865</span>
+<span id="866">866</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -912,7 +923,6 @@
 <span class='kw'>use</span> <span class='ident'>euclid</span>::<span class='ident'>rect</span>::<span class='ident'>Rect</span>;
 <span class='kw'>use</span> <span class='ident'>euclid</span>::<span class='ident'>size</span>::<span class='ident'>Size2D</span>;
 <span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>::{<span class='self'>self</span>, <span class='ident'>IpcSender</span>};
-<span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>::<span class='ident'>IpcSharedMemory</span>;
 <span class='kw'>use</span> <span class='ident'>num_traits</span>::<span class='ident'>ToPrimitive</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>ToOwned</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
@@ -1095,6 +1105,13 @@
                             <span class='ident'>CanvasCommonMsg</span>::<span class='ident'>Recreate</span>(<span class='ident'>size</span>) <span class='op'>=&gt;</span> <span class='ident'>painter</span>.<span class='ident'>recreate</span>(<span class='ident'>size</span>),
                         }
                     },
+                    <span class='ident'>CanvasMsg</span>::<span class='ident'>FromScript</span>(<span class='ident'>message</span>) <span class='op'>=&gt;</span> {
+                        <span class='kw'>match</span> <span class='ident'>message</span> {
+                            <span class='ident'>FromScriptMsg</span>::<span class='ident'>SendPixels</span>(<span class='ident'>chan</span>) <span class='op'>=&gt;</span> {
+                                <span class='ident'>painter</span>.<span class='ident'>send_pixels</span>(<span class='ident'>chan</span>)
+                            }
+                        }
+                    }
                     <span class='ident'>CanvasMsg</span>::<span class='ident'>FromLayout</span>(<span class='ident'>message</span>) <span class='op'>=&gt;</span> {
                         <span class='kw'>match</span> <span class='ident'>message</span> {
                             <span class='ident'>FromLayoutMsg</span>::<span class='ident'>SendData</span>(<span class='ident'>chan</span>) <span class='op'>=&gt;</span> {
@@ -1439,6 +1456,12 @@
         <span class='self'>self</span>.<span class='ident'>drawtarget</span> <span class='op'>=</span> <span class='ident'>CanvasPaintThread</span>::<span class='ident'>create</span>(<span class='ident'>size</span>);
     }
 
+    <span class='kw'>fn</span> <span class='ident'>send_pixels</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>chan</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>) {
+        <span class='self'>self</span>.<span class='ident'>drawtarget</span>.<span class='ident'>snapshot</span>().<span class='ident'>get_data_surface</span>().<span class='ident'>with_data</span>(<span class='op'>|</span><span class='ident'>element</span><span class='op'>|</span> {
+            <span class='ident'>chan</span>.<span class='ident'>send</span>(<span class='prelude-val'>Some</span>(<span class='ident'>element</span>.<span class='ident'>into</span>())).<span class='ident'>unwrap</span>();
+        })
+    }
+
     <span class='kw'>fn</span> <span class='ident'>send_data</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>chan</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>CanvasData</span><span class='op'>&gt;</span>) {
         <span class='self'>self</span>.<span class='ident'>drawtarget</span>.<span class='ident'>snapshot</span>().<span class='ident'>get_data_surface</span>().<span class='ident'>with_data</span>(<span class='op'>|</span><span class='ident'>element</span><span class='op'>|</span> {
             <span class='kw'>let</span> <span class='ident'>size</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>drawtarget</span>.<span class='ident'>get_size</span>();
@@ -1448,11 +1471,10 @@
                                             <span class='ident'>webrender_traits</span>::<span class='ident'>ImageFormat</span>::<span class='ident'>RGBA8</span>,
                                             <span class='ident'>element</span>.<span class='ident'>into</span>());
 
-            <span class='kw'>let</span> <span class='ident'>pixel_data</span> <span class='op'>=</span> <span class='ident'>CanvasPixelData</span> {
-                <span class='ident'>image_data</span>: <span class='ident'>IpcSharedMemory</span>::<span class='ident'>from_bytes</span>(<span class='ident'>element</span>),
+            <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='ident'>CanvasImageData</span> {
                 <span class='ident'>image_key</span>: <span class='self'>self</span>.<span class='ident'>webrender_image_key</span>,
             };
-            <span class='ident'>chan</span>.<span class='ident'>send</span>(<span class='ident'>CanvasData</span>::<span class='ident'>Pixels</span>(<span class='ident'>pixel_data</span>)).<span class='ident'>unwrap</span>();
+            <span class='ident'>chan</span>.<span class='ident'>send</span>(<span class='ident'>CanvasData</span>::<span class='ident'>Image</span>(<span class='ident'>data</span>)).<span class='ident'>unwrap</span>();
         })
     }
 
