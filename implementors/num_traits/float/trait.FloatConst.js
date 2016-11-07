@@ -1,5 +1,5 @@
 (function() {var implementors = {};
-implementors["num_traits"] = [];implementors["num"] = [];implementors["enum_primitive"] = [];implementors["image"] = [];implementors["offscreen_gl_context"] = [];implementors["glutin"] = [];implementors["util"] = [];implementors["webrender"] = [];implementors["net_traits"] = [];implementors["azure"] = [];implementors["net"] = [];implementors["style"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["num_traits"] = [];implementors["offscreen_gl_context"] = [];implementors["num"] = [];implementors["enum_primitive"] = [];implementors["util"] = [];implementors["image"] = [];implementors["webrender"] = [];implementors["style"] = [];implementors["glutin"] = [];implementors["net_traits"] = [];implementors["azure"] = [];implementors["net"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);
