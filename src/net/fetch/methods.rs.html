@@ -2427,88 +2427,8 @@
                                            <span class='ident'>request_id</span>.<span class='ident'>as_ref</span>().<span class='ident'>map</span>(<span class='ident'>Deref</span>::<span class='ident'>deref</span>), <span class='ident'>is_xhr</span>);
 
     <span class='kw'>let</span> <span class='ident'>pipeline_id</span> <span class='op'>=</span> <span class='ident'>request</span>.<span class='ident'>pipeline_id</span>.<span class='ident'>get</span>();
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>response</span> <span class='op'>=</span> <span class='ident'>Response</span>::<span class='ident'>new</span>();
-    <span class='kw'>match</span> <span class='ident'>wrapped_response</span> {
-        <span class='prelude-val'>Ok</span>((<span class='ident'>res</span>, <span class='ident'>msg</span>)) <span class='op'>=&gt;</span> {
-            <span class='ident'>response</span>.<span class='ident'>url</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>url</span>.<span class='ident'>clone</span>());
-            <span class='ident'>response</span>.<span class='ident'>status</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>res</span>.<span class='ident'>response</span>.<span class='ident'>status</span>);
-            <span class='ident'>response</span>.<span class='ident'>raw_status</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>((<span class='ident'>res</span>.<span class='ident'>response</span>.<span class='ident'>status_raw</span>().<span class='number'>0</span>,
-                                        <span class='ident'>res</span>.<span class='ident'>response</span>.<span class='ident'>status_raw</span>().<span class='number'>1</span>.<span class='ident'>as_bytes</span>().<span class='ident'>to_vec</span>()));
-            <span class='ident'>response</span>.<span class='ident'>headers</span> <span class='op'>=</span> <span class='ident'>res</span>.<span class='ident'>response</span>.<span class='ident'>headers</span>.<span class='ident'>clone</span>();
-            <span class='ident'>response</span>.<span class='ident'>referrer</span> <span class='op'>=</span> <span class='ident'>request</span>.<span class='ident'>referrer</span>.<span class='ident'>borrow</span>().<span class='ident'>to_url</span>().<span class='ident'>cloned</span>();
-
-            <span class='kw'>let</span> <span class='ident'>res_body</span> <span class='op'>=</span> <span class='ident'>response</span>.<span class='ident'>body</span>.<span class='ident'>clone</span>();
-
-            <span class='comment'>// We&#39;re about to spawn a thread to be waited on here</span>
-            <span class='op'>*</span><span class='ident'>done_chan</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>channel</span>());
-            <span class='kw'>let</span> <span class='ident'>meta</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>response</span>.<span class='ident'>metadata</span>().<span class='ident'>expect</span>(<span class='string'>&quot;Response metadata should exist at this stage&quot;</span>) {
-                <span class='ident'>FetchMetadata</span>::<span class='ident'>Unfiltered</span>(<span class='ident'>m</span>) <span class='op'>=&gt;</span> <span class='ident'>m</span>,
-                <span class='ident'>FetchMetadata</span>::<span class='ident'>Filtered</span> { <span class='ident'>unsafe_</span>, .. } <span class='op'>=&gt;</span> <span class='ident'>unsafe_</span>
-            };
-            <span class='kw'>let</span> <span class='ident'>done_sender</span> <span class='op'>=</span> <span class='ident'>done_chan</span>.<span class='ident'>as_ref</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>ch</span><span class='op'>|</span> <span class='ident'>ch</span>.<span class='number'>0</span>.<span class='ident'>clone</span>());
-            <span class='kw'>let</span> <span class='ident'>devtools_sender</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>devtools_chan</span>.<span class='ident'>clone</span>();
-            <span class='kw'>let</span> <span class='ident'>meta_status</span> <span class='op'>=</span> <span class='ident'>meta</span>.<span class='ident'>status</span>.<span class='ident'>clone</span>();
-            <span class='kw'>let</span> <span class='ident'>meta_headers</span> <span class='op'>=</span> <span class='ident'>meta</span>.<span class='ident'>headers</span>.<span class='ident'>clone</span>();
-            <span class='ident'>spawn_named</span>(<span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;fetch worker thread&quot;</span>), <span class='kw'>move</span> <span class='op'>||</span> {
-                <span class='kw'>match</span> <span class='ident'>StreamedResponse</span>::<span class='ident'>from_http_response</span>(<span class='kw'>box</span> <span class='ident'>res</span>, <span class='ident'>meta</span>) {
-                    <span class='prelude-val'>Ok</span>(<span class='kw-2'>mut</span> <span class='ident'>res</span>) <span class='op'>=&gt;</span> {
-                        <span class='op'>*</span><span class='ident'>res_body</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>() <span class='op'>=</span> <span class='ident'>ResponseBody</span>::<span class='ident'>Receiving</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]);
-
-                        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>sender</span>) <span class='op'>=</span> <span class='ident'>devtools_sender</span> {
-                            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>m</span>) <span class='op'>=</span> <span class='ident'>msg</span> {
-                                <span class='ident'>send_request_to_devtools</span>(<span class='ident'>m</span>, <span class='kw-2'>&amp;</span><span class='ident'>sender</span>);
-                            }
-
-                            <span class='comment'>// --- Tell devtools that we got a response</span>
-                            <span class='comment'>// Send an HttpResponse message to devtools with the corresponding request_id</span>
-                            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>pipeline_id</span>) <span class='op'>=</span> <span class='ident'>pipeline_id</span> {
-                                <span class='ident'>send_response_to_devtools</span>(
-                                    <span class='kw-2'>&amp;</span><span class='ident'>sender</span>, <span class='ident'>request_id</span>.<span class='ident'>unwrap</span>(),
-                                    <span class='ident'>meta_headers</span>.<span class='ident'>map</span>(<span class='ident'>Serde</span>::<span class='ident'>into_inner</span>),
-                                    <span class='ident'>meta_status</span>,
-                                    <span class='ident'>pipeline_id</span>);
-                            }
-                        }
-
-                        <span class='kw'>loop</span> {
-                            <span class='kw'>match</span> <span class='ident'>read_block</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>res</span>) {
-                                <span class='prelude-val'>Ok</span>(<span class='ident'>ReadResult</span>::<span class='ident'>Payload</span>(<span class='ident'>chunk</span>)) <span class='op'>=&gt;</span> {
-                                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>ResponseBody</span>::<span class='ident'>Receiving</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>body</span>) <span class='op'>=</span> <span class='op'>*</span><span class='ident'>res_body</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>() {
-                                        <span class='ident'>body</span>.<span class='ident'>extend_from_slice</span>(<span class='kw-2'>&amp;</span><span class='ident'>chunk</span>);
-                                        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>sender</span>) <span class='op'>=</span> <span class='ident'>done_sender</span> {
-                                            <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='ident'>Data</span>::<span class='ident'>Payload</span>(<span class='ident'>chunk</span>));
-                                        }
-                                    }
-                                },
-                                <span class='prelude-val'>Ok</span>(<span class='ident'>ReadResult</span>::<span class='ident'>EOF</span>) <span class='op'>|</span> <span class='prelude-val'>Err</span>(_) <span class='op'>=&gt;</span> {
-                                    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>empty_vec</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
-                                    <span class='kw'>let</span> <span class='ident'>completed_body</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='op'>*</span><span class='ident'>res_body</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>() {
-                                        <span class='ident'>ResponseBody</span>::<span class='ident'>Receiving</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>body</span>) <span class='op'>=&gt;</span> {
-                                            <span class='comment'>// avoid cloning the body</span>
-                                            <span class='ident'>swap</span>(<span class='ident'>body</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>empty_vec</span>);
-                                            <span class='ident'>empty_vec</span>
-                                        },
-                                        _ <span class='op'>=&gt;</span> <span class='ident'>empty_vec</span>,
-                                    };
-                                    <span class='op'>*</span><span class='ident'>res_body</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>() <span class='op'>=</span> <span class='ident'>ResponseBody</span>::<span class='ident'>Done</span>(<span class='ident'>completed_body</span>);
-                                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>sender</span>) <span class='op'>=</span> <span class='ident'>done_sender</span> {
-                                        <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='ident'>Data</span>::<span class='ident'>Done</span>);
-                                    }
-                                    <span class='kw'>break</span>;
-                                }
-                            }
-                        }
-                    }
-                    <span class='prelude-val'>Err</span>(_) <span class='op'>=&gt;</span> {
-                        <span class='comment'>// XXXManishearth we should propagate this error somehow</span>
-                        <span class='op'>*</span><span class='ident'>res_body</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>() <span class='op'>=</span> <span class='ident'>ResponseBody</span>::<span class='ident'>Done</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]);
-                        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>sender</span>) <span class='op'>=</span> <span class='ident'>done_sender</span> {
-                            <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='ident'>Data</span>::<span class='ident'>Done</span>);
-                        }
-                    }
-                }
-            });
-        },
+    <span class='kw'>let</span> (<span class='ident'>res</span>, <span class='ident'>msg</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>wrapped_response</span> {
+        <span class='prelude-val'>Ok</span>(<span class='ident'>wrapped_response</span>) <span class='op'>=&gt;</span> <span class='ident'>wrapped_response</span>,
         <span class='prelude-val'>Err</span>(<span class='ident'>error</span>) <span class='op'>=&gt;</span> {
             <span class='kw'>let</span> <span class='ident'>error</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>error</span>.<span class='ident'>error</span> {
                 <span class='ident'>LoadErrorType</span>::<span class='ident'>ConnectionAborted</span> { .. } <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(),
@@ -2519,6 +2439,86 @@
             <span class='kw'>return</span> <span class='ident'>Response</span>::<span class='ident'>network_error</span>(<span class='ident'>error</span>);
         }
     };
+
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>response</span> <span class='op'>=</span> <span class='ident'>Response</span>::<span class='ident'>new</span>();
+    <span class='ident'>response</span>.<span class='ident'>url</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>url</span>.<span class='ident'>clone</span>());
+    <span class='ident'>response</span>.<span class='ident'>status</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>res</span>.<span class='ident'>response</span>.<span class='ident'>status</span>);
+    <span class='ident'>response</span>.<span class='ident'>raw_status</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>((<span class='ident'>res</span>.<span class='ident'>response</span>.<span class='ident'>status_raw</span>().<span class='number'>0</span>,
+                                <span class='ident'>res</span>.<span class='ident'>response</span>.<span class='ident'>status_raw</span>().<span class='number'>1</span>.<span class='ident'>as_bytes</span>().<span class='ident'>to_vec</span>()));
+    <span class='ident'>response</span>.<span class='ident'>headers</span> <span class='op'>=</span> <span class='ident'>res</span>.<span class='ident'>response</span>.<span class='ident'>headers</span>.<span class='ident'>clone</span>();
+    <span class='ident'>response</span>.<span class='ident'>referrer</span> <span class='op'>=</span> <span class='ident'>request</span>.<span class='ident'>referrer</span>.<span class='ident'>borrow</span>().<span class='ident'>to_url</span>().<span class='ident'>cloned</span>();
+
+    <span class='kw'>let</span> <span class='ident'>res_body</span> <span class='op'>=</span> <span class='ident'>response</span>.<span class='ident'>body</span>.<span class='ident'>clone</span>();
+
+    <span class='comment'>// We&#39;re about to spawn a thread to be waited on here</span>
+    <span class='op'>*</span><span class='ident'>done_chan</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>channel</span>());
+    <span class='kw'>let</span> <span class='ident'>meta</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>response</span>.<span class='ident'>metadata</span>().<span class='ident'>expect</span>(<span class='string'>&quot;Response metadata should exist at this stage&quot;</span>) {
+        <span class='ident'>FetchMetadata</span>::<span class='ident'>Unfiltered</span>(<span class='ident'>m</span>) <span class='op'>=&gt;</span> <span class='ident'>m</span>,
+        <span class='ident'>FetchMetadata</span>::<span class='ident'>Filtered</span> { <span class='ident'>unsafe_</span>, .. } <span class='op'>=&gt;</span> <span class='ident'>unsafe_</span>
+    };
+    <span class='kw'>let</span> <span class='ident'>done_sender</span> <span class='op'>=</span> <span class='ident'>done_chan</span>.<span class='ident'>as_ref</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>ch</span><span class='op'>|</span> <span class='ident'>ch</span>.<span class='number'>0</span>.<span class='ident'>clone</span>());
+    <span class='kw'>let</span> <span class='ident'>devtools_sender</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>devtools_chan</span>.<span class='ident'>clone</span>();
+    <span class='kw'>let</span> <span class='ident'>meta_status</span> <span class='op'>=</span> <span class='ident'>meta</span>.<span class='ident'>status</span>.<span class='ident'>clone</span>();
+    <span class='kw'>let</span> <span class='ident'>meta_headers</span> <span class='op'>=</span> <span class='ident'>meta</span>.<span class='ident'>headers</span>.<span class='ident'>clone</span>();
+    <span class='ident'>spawn_named</span>(<span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;fetch worker thread&quot;</span>), <span class='kw'>move</span> <span class='op'>||</span> {
+        <span class='kw'>match</span> <span class='ident'>StreamedResponse</span>::<span class='ident'>from_http_response</span>(<span class='kw'>box</span> <span class='ident'>res</span>, <span class='ident'>meta</span>) {
+            <span class='prelude-val'>Ok</span>(<span class='kw-2'>mut</span> <span class='ident'>res</span>) <span class='op'>=&gt;</span> {
+                <span class='op'>*</span><span class='ident'>res_body</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>() <span class='op'>=</span> <span class='ident'>ResponseBody</span>::<span class='ident'>Receiving</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]);
+
+                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>sender</span>) <span class='op'>=</span> <span class='ident'>devtools_sender</span> {
+                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>m</span>) <span class='op'>=</span> <span class='ident'>msg</span> {
+                        <span class='ident'>send_request_to_devtools</span>(<span class='ident'>m</span>, <span class='kw-2'>&amp;</span><span class='ident'>sender</span>);
+                    }
+
+                    <span class='comment'>// --- Tell devtools that we got a response</span>
+                    <span class='comment'>// Send an HttpResponse message to devtools with the corresponding request_id</span>
+                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>pipeline_id</span>) <span class='op'>=</span> <span class='ident'>pipeline_id</span> {
+                        <span class='ident'>send_response_to_devtools</span>(
+                            <span class='kw-2'>&amp;</span><span class='ident'>sender</span>, <span class='ident'>request_id</span>.<span class='ident'>unwrap</span>(),
+                            <span class='ident'>meta_headers</span>.<span class='ident'>map</span>(<span class='ident'>Serde</span>::<span class='ident'>into_inner</span>),
+                            <span class='ident'>meta_status</span>,
+                            <span class='ident'>pipeline_id</span>);
+                    }
+                }
+
+                <span class='kw'>loop</span> {
+                    <span class='kw'>match</span> <span class='ident'>read_block</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>res</span>) {
+                        <span class='prelude-val'>Ok</span>(<span class='ident'>ReadResult</span>::<span class='ident'>Payload</span>(<span class='ident'>chunk</span>)) <span class='op'>=&gt;</span> {
+                            <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>ResponseBody</span>::<span class='ident'>Receiving</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>body</span>) <span class='op'>=</span> <span class='op'>*</span><span class='ident'>res_body</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>() {
+                                <span class='ident'>body</span>.<span class='ident'>extend_from_slice</span>(<span class='kw-2'>&amp;</span><span class='ident'>chunk</span>);
+                                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>sender</span>) <span class='op'>=</span> <span class='ident'>done_sender</span> {
+                                    <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='ident'>Data</span>::<span class='ident'>Payload</span>(<span class='ident'>chunk</span>));
+                                }
+                            }
+                        },
+                        <span class='prelude-val'>Ok</span>(<span class='ident'>ReadResult</span>::<span class='ident'>EOF</span>) <span class='op'>|</span> <span class='prelude-val'>Err</span>(_) <span class='op'>=&gt;</span> {
+                            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>empty_vec</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
+                            <span class='kw'>let</span> <span class='ident'>completed_body</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='op'>*</span><span class='ident'>res_body</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>() {
+                                <span class='ident'>ResponseBody</span>::<span class='ident'>Receiving</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>body</span>) <span class='op'>=&gt;</span> {
+                                    <span class='comment'>// avoid cloning the body</span>
+                                    <span class='ident'>swap</span>(<span class='ident'>body</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>empty_vec</span>);
+                                    <span class='ident'>empty_vec</span>
+                                },
+                                _ <span class='op'>=&gt;</span> <span class='ident'>empty_vec</span>,
+                            };
+                            <span class='op'>*</span><span class='ident'>res_body</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>() <span class='op'>=</span> <span class='ident'>ResponseBody</span>::<span class='ident'>Done</span>(<span class='ident'>completed_body</span>);
+                            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>sender</span>) <span class='op'>=</span> <span class='ident'>done_sender</span> {
+                                <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='ident'>Data</span>::<span class='ident'>Done</span>);
+                            }
+                            <span class='kw'>break</span>;
+                        }
+                    }
+                }
+            }
+            <span class='prelude-val'>Err</span>(_) <span class='op'>=&gt;</span> {
+                <span class='comment'>// XXXManishearth we should propagate this error somehow</span>
+                <span class='op'>*</span><span class='ident'>res_body</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>() <span class='op'>=</span> <span class='ident'>ResponseBody</span>::<span class='ident'>Done</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]);
+                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>sender</span>) <span class='op'>=</span> <span class='ident'>done_sender</span> {
+                    <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='ident'>Data</span>::<span class='ident'>Done</span>);
+                }
+            }
+        }
+    });
 
         <span class='comment'>// TODO these substeps aren&#39;t possible yet</span>
         <span class='comment'>// Substep 1</span>
