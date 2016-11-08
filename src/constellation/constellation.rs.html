@@ -2495,6 +2495,17 @@
 <span id="2451">2451</span>
 <span id="2452">2452</span>
 <span id="2453">2453</span>
+<span id="2454">2454</span>
+<span id="2455">2455</span>
+<span id="2456">2456</span>
+<span id="2457">2457</span>
+<span id="2458">2458</span>
+<span id="2459">2459</span>
+<span id="2460">2460</span>
+<span id="2461">2461</span>
+<span id="2462">2462</span>
+<span id="2463">2463</span>
+<span id="2464">2464</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -2515,6 +2526,7 @@
 <span class='kw'>use</span> <span class='ident'>compositing</span>::<span class='ident'>SendableFrameTree</span>;
 <span class='kw'>use</span> <span class='ident'>compositing</span>::<span class='ident'>compositor_thread</span>::<span class='ident'>CompositorProxy</span>;
 <span class='kw'>use</span> <span class='ident'>compositing</span>::<span class='ident'>compositor_thread</span>::<span class='ident'>Msg</span> <span class='kw'>as</span> <span class='ident'>ToCompositorMsg</span>;
+<span class='kw'>use</span> <span class='ident'>debugger</span>;
 <span class='kw'>use</span> <span class='ident'>devtools_traits</span>::{<span class='ident'>ChromeToDevtoolsControlMsg</span>, <span class='ident'>DevtoolsControlMsg</span>};
 <span class='kw'>use</span> <span class='ident'>euclid</span>::<span class='ident'>scale_factor</span>::<span class='ident'>ScaleFactor</span>;
 <span class='kw'>use</span> <span class='ident'>euclid</span>::<span class='ident'>size</span>::{<span class='ident'>Size2D</span>, <span class='ident'>TypedSize2D</span>};
@@ -2611,6 +2623,9 @@
     <span class='doccomment'>/// A channel through which messages can be sent to the image cache thread.</span>
     <span class='ident'>image_cache_thread</span>: <span class='ident'>ImageCacheThread</span>,
 
+    <span class='doccomment'>/// A channel through which messages can be sent to the debugger.</span>
+    <span class='ident'>debugger_chan</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>debugger</span>::<span class='ident'>Sender</span><span class='op'>&gt;</span>,
+
     <span class='doccomment'>/// A channel through which messages can be sent to the developer tools.</span>
     <span class='ident'>devtools_chan</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>DevtoolsControlMsg</span><span class='op'>&gt;&gt;</span>,
 
@@ -2688,6 +2703,8 @@
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>InitialConstellationState</span> {
     <span class='doccomment'>/// A channel through which messages can be sent to the compositor.</span>
     <span class='kw'>pub</span> <span class='ident'>compositor_proxy</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>CompositorProxy</span> <span class='op'>+</span> <span class='ident'>Send</span><span class='op'>&gt;</span>,
+    <span class='doccomment'>/// A channel to the debugger, if applicable.</span>
+    <span class='kw'>pub</span> <span class='ident'>debugger_chan</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>debugger</span>::<span class='ident'>Sender</span><span class='op'>&gt;</span>,
     <span class='doccomment'>/// A channel to the developer tools, if applicable.</span>
     <span class='kw'>pub</span> <span class='ident'>devtools_chan</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>DevtoolsControlMsg</span><span class='op'>&gt;&gt;</span>,
     <span class='doccomment'>/// A channel to the bluetooth thread.</span>
@@ -2980,6 +2997,7 @@
                 <span class='ident'>compositor_receiver</span>: <span class='ident'>compositor_receiver</span>,
                 <span class='ident'>layout_receiver</span>: <span class='ident'>layout_receiver</span>,
                 <span class='ident'>compositor_proxy</span>: <span class='ident'>state</span>.<span class='ident'>compositor_proxy</span>,
+                <span class='ident'>debugger_chan</span>: <span class='ident'>state</span>.<span class='ident'>debugger_chan</span>,
                 <span class='ident'>devtools_chan</span>: <span class='ident'>state</span>.<span class='ident'>devtools_chan</span>,
                 <span class='ident'>bluetooth_thread</span>: <span class='ident'>state</span>.<span class='ident'>bluetooth_thread</span>,
                 <span class='ident'>public_resource_threads</span>: <span class='ident'>state</span>.<span class='ident'>public_resource_threads</span>,
@@ -3566,6 +3584,10 @@
         <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Exiting core resource threads.&quot;</span>);
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>public_resource_threads</span>.<span class='ident'>send</span>(<span class='ident'>net_traits</span>::<span class='ident'>CoreResourceMsg</span>::<span class='ident'>Exit</span>(<span class='ident'>core_sender</span>)) {
             <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;Exit resource thread failed ({})&quot;</span>, <span class='ident'>e</span>);
+        }
+
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>chan</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>debugger_chan</span> {
+            <span class='ident'>debugger</span>::<span class='ident'>shutdown_server</span>(<span class='ident'>chan</span>);
         }
 
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>chan</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>devtools_chan</span> {

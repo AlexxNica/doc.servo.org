@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["NOTIFY",""]],"struct":[["EventLoop","Single threaded IO event loop."],["EventLoopConfig","Configure EventLoop runtime details"],["Sender","Sends messages to the EventLoop from other threads."]]});

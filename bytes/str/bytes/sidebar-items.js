@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["INLINE",""]],"fn":[["inline",""]],"struct":[["Bytes","A specialized `ByteStr` box."],["TraitObject",""]],"trait":[["ByteStrPriv",""]]});
