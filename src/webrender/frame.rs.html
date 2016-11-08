@@ -908,22 +908,6 @@
 <span id="864">864</span>
 <span id="865">865</span>
 <span id="866">866</span>
-<span id="867">867</span>
-<span id="868">868</span>
-<span id="869">869</span>
-<span id="870">870</span>
-<span id="871">871</span>
-<span id="872">872</span>
-<span id="873">873</span>
-<span id="874">874</span>
-<span id="875">875</span>
-<span id="876">876</span>
-<span id="877">877</span>
-<span id="878">878</span>
-<span id="879">879</span>
-<span id="880">880</span>
-<span id="881">881</span>
-<span id="882">882</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -938,16 +922,14 @@
 <span class='kw'>use</span> <span class='ident'>internal_types</span>::{<span class='ident'>LowLevelFilterOp</span>};
 <span class='kw'>use</span> <span class='ident'>internal_types</span>::{<span class='ident'>RendererFrame</span>};
 <span class='kw'>use</span> <span class='ident'>layer</span>::{<span class='ident'>Layer</span>, <span class='ident'>ScrollingState</span>};
-<span class='kw'>use</span> <span class='ident'>prim_store</span>::<span class='ident'>ClipInfo</span>;
 <span class='kw'>use</span> <span class='ident'>resource_cache</span>::{<span class='ident'>DummyResources</span>, <span class='ident'>ResourceCache</span>};
 <span class='kw'>use</span> <span class='ident'>scene</span>::{<span class='ident'>SceneStackingContext</span>, <span class='ident'>ScenePipeline</span>, <span class='ident'>Scene</span>, <span class='ident'>SceneItem</span>, <span class='ident'>SpecificSceneItem</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::{<span class='ident'>HashMap</span>, <span class='ident'>HashSet</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>hash</span>::<span class='ident'>BuildHasherDefault</span>;
-<span class='kw'>use</span> <span class='ident'>tiling</span>::{<span class='ident'>FrameBuilder</span>, <span class='ident'>FrameBuilderConfig</span>, <span class='ident'>InsideTest</span>, <span class='ident'>Clip</span>, <span class='ident'>MaskImageSource</span>};
-<span class='kw'>use</span> <span class='ident'>tiling</span>::<span class='ident'>PrimitiveFlags</span>;
+<span class='kw'>use</span> <span class='ident'>tiling</span>::{<span class='ident'>AuxiliaryListsMap</span>, <span class='ident'>FrameBuilder</span>, <span class='ident'>FrameBuilderConfig</span>, <span class='ident'>PrimitiveFlags</span>};
 <span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>MatrixHelpers</span>;
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>AuxiliaryLists</span>, <span class='ident'>PipelineId</span>, <span class='ident'>Epoch</span>, <span class='ident'>ScrollPolicy</span>, <span class='ident'>ScrollLayerId</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ColorF</span>, <span class='ident'>StackingContext</span>, <span class='ident'>FilterOp</span>, <span class='ident'>MixBlendMode</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ClipRegion</span>, <span class='ident'>ColorF</span>, <span class='ident'>StackingContext</span>, <span class='ident'>FilterOp</span>, <span class='ident'>MixBlendMode</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ScrollEventPhase</span>, <span class='ident'>ScrollLayerInfo</span>, <span class='ident'>SpecificDisplayItem</span>, <span class='ident'>ScrollLayerState</span>};
 
 <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;macos&quot;</span>)]</span>
@@ -963,7 +945,6 @@
 
 <span class='kw'>struct</span> <span class='ident'>FlattenContext</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
     <span class='ident'>resource_cache</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>ResourceCache</span>,
-    <span class='ident'>dummy_resources</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>DummyResources</span>,
     <span class='ident'>scene</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Scene</span>,
     <span class='ident'>pipeline_sizes</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>PipelineId</span>, <span class='ident'>Size2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;&gt;</span>,
     <span class='ident'>builder</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>FrameBuilder</span>,
@@ -1228,65 +1209,86 @@
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='bool-val'>false</span>,
         };
 
-        <span class='kw'>let</span> <span class='ident'>layer</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>scroll_layer_id</span>).<span class='ident'>unwrap</span>();
-        <span class='kw'>if</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>started_bouncing_back</span> <span class='op'>&amp;&amp;</span> <span class='ident'>phase</span> <span class='op'>==</span> <span class='ident'>ScrollEventPhase</span>::<span class='ident'>Move</span>(<span class='bool-val'>false</span>) {
-            <span class='kw'>return</span> <span class='bool-val'>false</span>
-        }
+        <span class='kw'>let</span> <span class='ident'>scroll_root_id</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>scroll_layer_id</span>.<span class='ident'>info</span> {
+            <span class='ident'>ScrollLayerInfo</span>::<span class='ident'>Scrollable</span>(_, <span class='ident'>scroll_root_id</span>) <span class='op'>=&gt;</span> <span class='ident'>scroll_root_id</span>,
+            <span class='ident'>ScrollLayerInfo</span>::<span class='ident'>Fixed</span> <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(<span class='string'>&quot;Tried to scroll a fixed position layer.&quot;</span>),
+        };
 
-        <span class='kw'>let</span> <span class='ident'>overscroll_amount</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>overscroll_amount</span>();
-        <span class='kw'>let</span> <span class='ident'>overscrolling</span> <span class='op'>=</span> <span class='ident'>CAN_OVERSCROLL</span> <span class='op'>&amp;&amp;</span> (<span class='ident'>overscroll_amount</span>.<span class='ident'>width</span> <span class='op'>!=</span> <span class='number'>0.0</span> <span class='op'>||</span>
-                                               <span class='ident'>overscroll_amount</span>.<span class='ident'>height</span> <span class='op'>!=</span> <span class='number'>0.0</span>);
-        <span class='kw'>if</span> <span class='ident'>overscrolling</span> {
-            <span class='kw'>if</span> <span class='ident'>overscroll_amount</span>.<span class='ident'>width</span> <span class='op'>!=</span> <span class='number'>0.0</span> {
-                <span class='ident'>delta</span>.<span class='ident'>x</span> <span class='op'>/=</span> <span class='ident'>overscroll_amount</span>.<span class='ident'>width</span>.<span class='ident'>abs</span>()
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>scrolled_a_layer</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
+        <span class='kw'>for</span> (<span class='ident'>layer_id</span>, <span class='ident'>layer</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>iter_mut</span>() {
+            <span class='kw'>if</span> <span class='ident'>layer_id</span>.<span class='ident'>pipeline_id</span> <span class='op'>!=</span> <span class='ident'>scroll_layer_id</span>.<span class='ident'>pipeline_id</span> {
+                <span class='kw'>continue</span>;
             }
-            <span class='kw'>if</span> <span class='ident'>overscroll_amount</span>.<span class='ident'>height</span> <span class='op'>!=</span> <span class='number'>0.0</span> {
-                <span class='ident'>delta</span>.<span class='ident'>y</span> <span class='op'>/=</span> <span class='ident'>overscroll_amount</span>.<span class='ident'>height</span>.<span class='ident'>abs</span>()
+
+            <span class='kw'>match</span> <span class='ident'>layer_id</span>.<span class='ident'>info</span> {
+                <span class='ident'>ScrollLayerInfo</span>::<span class='ident'>Scrollable</span>(_, <span class='ident'>id</span>) <span class='kw'>if</span> <span class='ident'>id</span> <span class='op'>!=</span> <span class='ident'>scroll_root_id</span> <span class='op'>=&gt;</span> <span class='kw'>continue</span>,
+                <span class='ident'>ScrollLayerInfo</span>::<span class='ident'>Fixed</span> <span class='op'>=&gt;</span> <span class='kw'>continue</span>,
+                _ <span class='op'>=&gt;</span> {}
             }
-        }
 
-        <span class='kw'>let</span> <span class='ident'>is_unscrollable</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>content_size</span>.<span class='ident'>width</span> <span class='op'>&lt;=</span> <span class='ident'>layer</span>.<span class='ident'>local_viewport_rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>&amp;&amp;</span>
-            <span class='ident'>layer</span>.<span class='ident'>content_size</span>.<span class='ident'>height</span> <span class='op'>&lt;=</span> <span class='ident'>layer</span>.<span class='ident'>local_viewport_rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span>;
-
-        <span class='kw'>let</span> <span class='ident'>original_layer_scroll_offset</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>;
-
-        <span class='kw'>if</span> <span class='ident'>layer</span>.<span class='ident'>content_size</span>.<span class='ident'>width</span> <span class='op'>&gt;</span> <span class='ident'>layer</span>.<span class='ident'>local_viewport_rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> {
-            <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>delta</span>.<span class='ident'>x</span>;
-            <span class='kw'>if</span> <span class='ident'>is_unscrollable</span> <span class='op'>||</span> <span class='op'>!</span><span class='ident'>CAN_OVERSCROLL</span> {
-                <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span>.<span class='ident'>min</span>(<span class='number'>0.0</span>);
-                <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span> <span class='op'>=</span>
-                    <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span>.<span class='ident'>max</span>(<span class='op'>-</span><span class='ident'>layer</span>.<span class='ident'>content_size</span>.<span class='ident'>width</span> <span class='op'>+</span>
-                                                 <span class='ident'>layer</span>.<span class='ident'>local_viewport_rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span>);
+            <span class='kw'>if</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>started_bouncing_back</span> <span class='op'>&amp;&amp;</span> <span class='ident'>phase</span> <span class='op'>==</span> <span class='ident'>ScrollEventPhase</span>::<span class='ident'>Move</span>(<span class='bool-val'>false</span>) {
+                <span class='kw'>continue</span>;
             }
-        }
 
-        <span class='kw'>if</span> <span class='ident'>layer</span>.<span class='ident'>content_size</span>.<span class='ident'>height</span> <span class='op'>&gt;</span> <span class='ident'>layer</span>.<span class='ident'>local_viewport_rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> {
-            <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>delta</span>.<span class='ident'>y</span>;
-            <span class='kw'>if</span> <span class='ident'>is_unscrollable</span> <span class='op'>||</span> <span class='op'>!</span><span class='ident'>CAN_OVERSCROLL</span> {
-                <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span>.<span class='ident'>min</span>(<span class='number'>0.0</span>);
-                <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span> <span class='op'>=</span>
-                    <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span>.<span class='ident'>max</span>(<span class='op'>-</span><span class='ident'>layer</span>.<span class='ident'>content_size</span>.<span class='ident'>height</span> <span class='op'>+</span>
-                                                 <span class='ident'>layer</span>.<span class='ident'>local_viewport_rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span>);
+            <span class='kw'>let</span> <span class='ident'>overscroll_amount</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>overscroll_amount</span>();
+            <span class='kw'>let</span> <span class='ident'>overscrolling</span> <span class='op'>=</span> <span class='ident'>CAN_OVERSCROLL</span> <span class='op'>&amp;&amp;</span> (<span class='ident'>overscroll_amount</span>.<span class='ident'>width</span> <span class='op'>!=</span> <span class='number'>0.0</span> <span class='op'>||</span>
+                                                   <span class='ident'>overscroll_amount</span>.<span class='ident'>height</span> <span class='op'>!=</span> <span class='number'>0.0</span>);
+            <span class='kw'>if</span> <span class='ident'>overscrolling</span> {
+                <span class='kw'>if</span> <span class='ident'>overscroll_amount</span>.<span class='ident'>width</span> <span class='op'>!=</span> <span class='number'>0.0</span> {
+                    <span class='ident'>delta</span>.<span class='ident'>x</span> <span class='op'>/=</span> <span class='ident'>overscroll_amount</span>.<span class='ident'>width</span>.<span class='ident'>abs</span>()
+                }
+                <span class='kw'>if</span> <span class='ident'>overscroll_amount</span>.<span class='ident'>height</span> <span class='op'>!=</span> <span class='number'>0.0</span> {
+                    <span class='ident'>delta</span>.<span class='ident'>y</span> <span class='op'>/=</span> <span class='ident'>overscroll_amount</span>.<span class='ident'>height</span>.<span class='ident'>abs</span>()
+                }
             }
+
+            <span class='kw'>let</span> <span class='ident'>is_unscrollable</span> <span class='op'>=</span>
+                <span class='ident'>layer</span>.<span class='ident'>content_size</span>.<span class='ident'>width</span> <span class='op'>&lt;=</span> <span class='ident'>layer</span>.<span class='ident'>local_viewport_rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>&amp;&amp;</span>
+                <span class='ident'>layer</span>.<span class='ident'>content_size</span>.<span class='ident'>height</span> <span class='op'>&lt;=</span> <span class='ident'>layer</span>.<span class='ident'>local_viewport_rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span>;
+
+            <span class='kw'>let</span> <span class='ident'>original_layer_scroll_offset</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>;
+
+            <span class='kw'>if</span> <span class='ident'>layer</span>.<span class='ident'>content_size</span>.<span class='ident'>width</span> <span class='op'>&gt;</span> <span class='ident'>layer</span>.<span class='ident'>local_viewport_rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> {
+                <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>delta</span>.<span class='ident'>x</span>;
+                <span class='kw'>if</span> <span class='ident'>is_unscrollable</span> <span class='op'>||</span> <span class='op'>!</span><span class='ident'>CAN_OVERSCROLL</span> {
+                    <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span>.<span class='ident'>min</span>(<span class='number'>0.0</span>);
+                    <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span> <span class='op'>=</span>
+                        <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span>.<span class='ident'>max</span>(<span class='op'>-</span><span class='ident'>layer</span>.<span class='ident'>content_size</span>.<span class='ident'>width</span> <span class='op'>+</span>
+                                                     <span class='ident'>layer</span>.<span class='ident'>local_viewport_rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span>);
+                }
+            }
+
+            <span class='kw'>if</span> <span class='ident'>layer</span>.<span class='ident'>content_size</span>.<span class='ident'>height</span> <span class='op'>&gt;</span> <span class='ident'>layer</span>.<span class='ident'>local_viewport_rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> {
+                <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>delta</span>.<span class='ident'>y</span>;
+                <span class='kw'>if</span> <span class='ident'>is_unscrollable</span> <span class='op'>||</span> <span class='op'>!</span><span class='ident'>CAN_OVERSCROLL</span> {
+                    <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span>.<span class='ident'>min</span>(<span class='number'>0.0</span>);
+                    <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span> <span class='op'>=</span>
+                        <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span>.<span class='ident'>max</span>(<span class='op'>-</span><span class='ident'>layer</span>.<span class='ident'>content_size</span>.<span class='ident'>height</span> <span class='op'>+</span>
+                                                     <span class='ident'>layer</span>.<span class='ident'>local_viewport_rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span>);
+                }
+            }
+
+            <span class='kw'>if</span> <span class='ident'>phase</span> <span class='op'>==</span> <span class='ident'>ScrollEventPhase</span>::<span class='ident'>Start</span> <span class='op'>||</span> <span class='ident'>phase</span> <span class='op'>==</span> <span class='ident'>ScrollEventPhase</span>::<span class='ident'>Move</span>(<span class='bool-val'>true</span>) {
+                <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>started_bouncing_back</span> <span class='op'>=</span> <span class='bool-val'>false</span>
+            } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>overscrolling</span> <span class='op'>&amp;&amp;</span>
+                    ((<span class='ident'>delta</span>.<span class='ident'>x</span> <span class='op'>&lt;</span> <span class='number'>1.0</span> <span class='op'>&amp;&amp;</span> <span class='ident'>delta</span>.<span class='ident'>y</span> <span class='op'>&lt;</span> <span class='number'>1.0</span>) <span class='op'>||</span> <span class='ident'>phase</span> <span class='op'>==</span> <span class='ident'>ScrollEventPhase</span>::<span class='ident'>End</span>) {
+                <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>started_bouncing_back</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
+                <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>bouncing_back</span> <span class='op'>=</span> <span class='bool-val'>true</span>
+            }
+
+            <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span>.<span class='ident'>round</span>();
+            <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span>.<span class='ident'>round</span>();
+
+            <span class='kw'>if</span> <span class='ident'>CAN_OVERSCROLL</span> {
+                <span class='ident'>layer</span>.<span class='ident'>stretch_overscroll_spring</span>();
+            }
+
+            <span class='ident'>scrolled_a_layer</span> <span class='op'>=</span> <span class='ident'>scrolled_a_layer</span> <span class='op'>||</span>
+                <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span> <span class='op'>!=</span> <span class='ident'>original_layer_scroll_offset</span> <span class='op'>||</span>
+                <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>started_bouncing_back</span>;
         }
 
-        <span class='kw'>if</span> <span class='ident'>phase</span> <span class='op'>==</span> <span class='ident'>ScrollEventPhase</span>::<span class='ident'>Start</span> <span class='op'>||</span> <span class='ident'>phase</span> <span class='op'>==</span> <span class='ident'>ScrollEventPhase</span>::<span class='ident'>Move</span>(<span class='bool-val'>true</span>) {
-            <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>started_bouncing_back</span> <span class='op'>=</span> <span class='bool-val'>false</span>
-        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>overscrolling</span> <span class='op'>&amp;&amp;</span>
-                ((<span class='ident'>delta</span>.<span class='ident'>x</span> <span class='op'>&lt;</span> <span class='number'>1.0</span> <span class='op'>&amp;&amp;</span> <span class='ident'>delta</span>.<span class='ident'>y</span> <span class='op'>&lt;</span> <span class='number'>1.0</span>) <span class='op'>||</span> <span class='ident'>phase</span> <span class='op'>==</span> <span class='ident'>ScrollEventPhase</span>::<span class='ident'>End</span>) {
-            <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>started_bouncing_back</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
-            <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>bouncing_back</span> <span class='op'>=</span> <span class='bool-val'>true</span>
-        }
-
-        <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>x</span>.<span class='ident'>round</span>();
-        <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>.<span class='ident'>y</span>.<span class='ident'>round</span>();
-
-        <span class='kw'>if</span> <span class='ident'>CAN_OVERSCROLL</span> {
-            <span class='ident'>layer</span>.<span class='ident'>stretch_overscroll_spring</span>();
-        }
-
-        <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span> <span class='op'>!=</span> <span class='ident'>original_layer_scroll_offset</span> <span class='op'>||</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>
-                                                                       .<span class='ident'>started_bouncing_back</span>
+        <span class='ident'>scrolled_a_layer</span>
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>tick_scrolling_bounce_animations</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
@@ -1338,13 +1340,13 @@
                 {
                     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>frame_builder</span> <span class='op'>=</span> <span class='ident'>FrameBuilder</span>::<span class='ident'>new</span>(<span class='ident'>root_pipeline</span>.<span class='ident'>viewport_size</span>,
                                                               <span class='ident'>device_pixel_ratio</span>,
+                                                              <span class='ident'>dummy_resources</span>.<span class='ident'>clone</span>(),
                                                               <span class='self'>self</span>.<span class='ident'>debug</span>,
                                                               <span class='self'>self</span>.<span class='ident'>frame_builder_config</span>);
 
                     {
                         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>context</span> <span class='op'>=</span> <span class='ident'>FlattenContext</span> {
                             <span class='ident'>resource_cache</span>: <span class='ident'>resource_cache</span>,
-                            <span class='ident'>dummy_resources</span>: <span class='ident'>dummy_resources</span>,
                             <span class='ident'>scene</span>: <span class='ident'>scene</span>,
                             <span class='ident'>pipeline_sizes</span>: <span class='ident'>pipeline_sizes</span>,
                             <span class='ident'>builder</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>frame_builder</span>,
@@ -1423,13 +1425,26 @@
             }
         }
 
-        <span class='comment'>// Build world space transform</span>
-        <span class='kw'>let</span> <span class='ident'>transform</span> <span class='op'>=</span> <span class='ident'>parent_info</span>.<span class='ident'>layer_relative_transform</span>.<span class='ident'>pre_translated</span>(<span class='ident'>stacking_context</span>.<span class='ident'>bounds</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>,
-                                                                            <span class='ident'>stacking_context</span>.<span class='ident'>bounds</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>,
-                                                                            <span class='number'>0.0</span>)
-                                                            .<span class='ident'>pre_mul</span>(<span class='kw-2'>&amp;</span><span class='ident'>stacking_context</span>.<span class='ident'>transform</span>)
-                                                            .<span class='ident'>pre_mul</span>(<span class='kw-2'>&amp;</span><span class='ident'>stacking_context</span>.<span class='ident'>perspective</span>);
+        <span class='comment'>// Stacking contexts with scroll roots are currently not &quot;real&quot; stacking contexts,</span>
+        <span class='comment'>// but are currently represented as stacking contexts in the display list until they</span>
+        <span class='comment'>// can get their own display item to represent them. Thus we do not adjust the transform</span>
+        <span class='comment'>// to account for them and we expand the overflow region to include the area above</span>
+        <span class='comment'>// their origin in the parent context.</span>
+        <span class='kw'>let</span> (<span class='ident'>transform</span>, <span class='ident'>overflow</span>) <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>stacking_context</span>.<span class='ident'>scroll_layer_id</span>.<span class='ident'>is_none</span>() {
+            (<span class='ident'>parent_info</span>.<span class='ident'>layer_relative_transform</span>.<span class='ident'>pre_translated</span>(<span class='ident'>stacking_context</span>.<span class='ident'>bounds</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>,
+                                                                <span class='ident'>stacking_context</span>.<span class='ident'>bounds</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>,
+                                                                <span class='number'>0.0</span>)
+                                                 .<span class='ident'>pre_mul</span>(<span class='kw-2'>&amp;</span><span class='ident'>stacking_context</span>.<span class='ident'>transform</span>)
+                                                 .<span class='ident'>pre_mul</span>(<span class='kw-2'>&amp;</span><span class='ident'>stacking_context</span>.<span class='ident'>perspective</span>),
+             <span class='ident'>stacking_context</span>.<span class='ident'>overflow</span>)
+        } <span class='kw'>else</span> {
+            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>overflow</span> <span class='op'>=</span> <span class='ident'>stacking_context</span>.<span class='ident'>overflow</span>;
+            <span class='ident'>overflow</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>+=</span> <span class='ident'>stacking_context</span>.<span class='ident'>bounds</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>;
+            <span class='ident'>overflow</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>+=</span> <span class='ident'>stacking_context</span>.<span class='ident'>bounds</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>;
+            (<span class='ident'>parent_info</span>.<span class='ident'>layer_relative_transform</span>, <span class='ident'>overflow</span>)
+        };
 
+        <span class='comment'>// Build world space transform</span>
         <span class='kw'>let</span> <span class='ident'>scroll_layer_id</span> <span class='op'>=</span>  <span class='kw'>match</span> (<span class='ident'>stacking_context</span>.<span class='ident'>scroll_policy</span>, <span class='ident'>stacking_context</span>.<span class='ident'>scroll_layer_id</span>) {
             (<span class='ident'>ScrollPolicy</span>::<span class='ident'>Fixed</span>, <span class='ident'>_scroll_layer_id</span>) <span class='op'>=&gt;</span> {
                 <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>_scroll_layer_id</span>.<span class='ident'>is_none</span>());
@@ -1445,8 +1460,8 @@
         };
 
         <span class='comment'>// TODO(gw): Int with overflow etc</span>
-        <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>push_layer</span>(<span class='ident'>stacking_context</span>.<span class='ident'>overflow</span>,
-                                   <span class='ident'>stacking_context</span>.<span class='ident'>overflow</span>,
+        <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>push_layer</span>(<span class='ident'>overflow</span>,
+                                   <span class='ident'>overflow</span>,
                                    <span class='ident'>transform</span>,
                                    <span class='ident'>pipeline_id</span>,
                                    <span class='ident'>scroll_layer_id</span>,
@@ -1465,67 +1480,27 @@
             <span class='comment'>//</span>
             <span class='comment'>// If we do need this, does it make sense to keep Frame::clear_tiles?</span>
             <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_solid_rectangle</span>(<span class='kw-2'>&amp;</span><span class='ident'>stacking_context</span>.<span class='ident'>bounds</span>,
-                                                <span class='kw-2'>&amp;</span><span class='ident'>stacking_context</span>.<span class='ident'>bounds</span>,
-                                                <span class='prelude-val'>None</span>,
+                                                <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>::<span class='ident'>simple</span>(<span class='kw-2'>&amp;</span><span class='ident'>stacking_context</span>.<span class='ident'>bounds</span>),
                                                 <span class='kw-2'>&amp;</span><span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>1.0</span>, <span class='number'>1.0</span>, <span class='number'>1.0</span>, <span class='number'>1.0</span>),
                                                 <span class='ident'>PrimitiveFlags</span>::<span class='prelude-val'>None</span>);
         }
-
-        <span class='kw'>let</span> <span class='ident'>dummy_mask_source</span> <span class='op'>=</span> {
-            <span class='kw'>let</span> <span class='ident'>cache_id</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>dummy_resources</span>.<span class='ident'>opaque_mask_image_id</span>;
-            <span class='kw'>let</span> <span class='ident'>cache_item</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>resource_cache</span>.<span class='ident'>get_image_by_cache_id</span>(<span class='ident'>cache_id</span>);
-            <span class='ident'>MaskImageSource</span>::<span class='ident'>Renderer</span>(<span class='ident'>cache_item</span>.<span class='ident'>texture_id</span>)
-        };
 
         <span class='kw'>for</span> <span class='ident'>item</span> <span class='kw'>in</span> <span class='ident'>scene_items</span> {
             <span class='kw'>match</span> <span class='ident'>item</span>.<span class='ident'>specific</span> {
                 <span class='ident'>SpecificSceneItem</span>::<span class='ident'>DrawList</span>(<span class='ident'>draw_list_id</span>) <span class='op'>=&gt;</span> {
                     <span class='kw'>let</span> <span class='ident'>draw_list</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>resource_cache</span>.<span class='ident'>get_draw_list</span>(<span class='ident'>draw_list_id</span>);
                     <span class='kw'>let</span> <span class='ident'>builder</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>context</span>.<span class='ident'>builder</span>;
-                    <span class='kw'>let</span> <span class='ident'>auxiliary_lists</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipeline_auxiliary_lists</span>
-                                              .<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>parent_info</span>.<span class='ident'>pipeline_id</span>)
-                                              .<span class='ident'>expect</span>(<span class='string'>&quot;No auxiliary lists?!&quot;</span>);
 
                     <span class='kw'>for</span> <span class='ident'>item</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>draw_list</span>.<span class='ident'>items</span> {
-                        <span class='kw'>let</span> <span class='ident'>clips</span> <span class='op'>=</span> <span class='ident'>auxiliary_lists</span>.<span class='ident'>complex_clip_regions</span>(<span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>.<span class='ident'>complex</span>);
-                        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>clip</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>clips</span>.<span class='ident'>len</span>() {
-                            <span class='number'>0</span> <span class='kw'>if</span> <span class='ident'>item</span>.<span class='ident'>clip</span>.<span class='ident'>image_mask</span>.<span class='ident'>is_none</span>() <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
-                            <span class='number'>0</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>Clip</span>::<span class='ident'>new</span>(<span class='ident'>ClipInfo</span>::<span class='ident'>uniform</span>(<span class='ident'>item</span>.<span class='ident'>clip</span>.<span class='ident'>main</span>, <span class='number'>0.0</span>), <span class='ident'>dummy_mask_source</span>)),
-                            <span class='number'>1</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>Clip</span>::<span class='ident'>new</span>(<span class='ident'>ClipInfo</span>::<span class='ident'>from_clip_region</span>(<span class='kw-2'>&amp;</span><span class='ident'>clips</span>[<span class='number'>0</span>]), <span class='ident'>dummy_mask_source</span>)),
-                            _ <span class='op'>=&gt;</span> {
-                                <span class='kw'>let</span> <span class='ident'>internal_clip</span> <span class='op'>=</span> <span class='ident'>clips</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>();
-                                <span class='kw'>let</span> <span class='ident'>region</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>clips</span>.<span class='ident'>iter</span>().<span class='ident'>all</span>(<span class='op'>|</span><span class='ident'>current_clip</span><span class='op'>|</span> <span class='ident'>current_clip</span>.<span class='ident'>might_contain</span>(<span class='ident'>internal_clip</span>)) {
-                                    <span class='ident'>internal_clip</span>
-                                } <span class='kw'>else</span> {
-                                    <span class='kw-2'>&amp;</span><span class='ident'>clips</span>[<span class='number'>0</span>]
-                                };
-                                <span class='prelude-val'>Some</span>(<span class='ident'>Clip</span>::<span class='ident'>new</span>(<span class='ident'>ClipInfo</span>::<span class='ident'>from_clip_region</span>(<span class='ident'>region</span>), <span class='ident'>dummy_mask_source</span>))
-                            },
-                        };
-
-                        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>mask</span>) <span class='op'>=</span> <span class='ident'>item</span>.<span class='ident'>clip</span>.<span class='ident'>image_mask</span> {
-                            <span class='kw'>let</span> <span class='ident'>old</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>clip</span> {
-                                <span class='prelude-val'>Some</span>(<span class='ident'>masked</span>) <span class='op'>=&gt;</span> <span class='op'>*</span><span class='ident'>masked</span>.<span class='ident'>clip</span>,
-                                <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='ident'>ClipInfo</span>::<span class='ident'>uniform</span>(<span class='ident'>item</span>.<span class='ident'>clip</span>.<span class='ident'>main</span>, <span class='number'>0.0</span>),
-                            };
-                            <span class='comment'>//Note: can&#39;t call `tex_cache.aligned_uv_rect()` here since the image</span>
-                            <span class='comment'>// is not yet marked as needed this frame.</span>
-                            <span class='ident'>clip</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>Clip</span>::<span class='ident'>new</span>(<span class='ident'>old</span>.<span class='ident'>with_mask</span>(<span class='ident'>Rect</span>::<span class='ident'>zero</span>(), <span class='ident'>mask</span>.<span class='ident'>rect</span>),
-                                                         <span class='ident'>MaskImageSource</span>::<span class='ident'>User</span>(<span class='ident'>mask</span>.<span class='ident'>image</span>)));
-                        }
-
-
                         <span class='kw'>match</span> <span class='ident'>item</span>.<span class='ident'>item</span> {
                             <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>WebGL</span>(<span class='kw-2'>ref</span> <span class='ident'>info</span>) <span class='op'>=&gt;</span> {
                                 <span class='ident'>builder</span>.<span class='ident'>add_webgl_rectangle</span>(<span class='ident'>item</span>.<span class='ident'>rect</span>,
-                                                            <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>.<span class='ident'>main</span>,
-                                                            <span class='ident'>clip</span>,
+                                                            <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                                             <span class='ident'>info</span>.<span class='ident'>context_id</span>);
                             }
                             <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>Image</span>(<span class='kw-2'>ref</span> <span class='ident'>info</span>) <span class='op'>=&gt;</span> {
                                 <span class='ident'>builder</span>.<span class='ident'>add_image</span>(<span class='ident'>item</span>.<span class='ident'>rect</span>,
-                                                  <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>.<span class='ident'>main</span>,
-                                                  <span class='ident'>clip</span>,
+                                                  <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                                   <span class='kw-2'>&amp;</span><span class='ident'>info</span>.<span class='ident'>stretch_size</span>,
                                                   <span class='kw-2'>&amp;</span><span class='ident'>info</span>.<span class='ident'>tile_spacing</span>,
                                                   <span class='ident'>info</span>.<span class='ident'>image_key</span>,
@@ -1533,8 +1508,7 @@
                             }
                             <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>Text</span>(<span class='kw-2'>ref</span> <span class='ident'>text_info</span>) <span class='op'>=&gt;</span> {
                                 <span class='ident'>builder</span>.<span class='ident'>add_text</span>(<span class='ident'>item</span>.<span class='ident'>rect</span>,
-                                                 <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>.<span class='ident'>main</span>,
-                                                 <span class='ident'>clip</span>,
+                                                 <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                                  <span class='ident'>text_info</span>.<span class='ident'>font_key</span>,
                                                  <span class='ident'>text_info</span>.<span class='ident'>size</span>,
                                                  <span class='ident'>text_info</span>.<span class='ident'>blur_radius</span>,
@@ -1543,23 +1517,20 @@
                             }
                             <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>Rectangle</span>(<span class='kw-2'>ref</span> <span class='ident'>info</span>) <span class='op'>=&gt;</span> {
                                 <span class='ident'>builder</span>.<span class='ident'>add_solid_rectangle</span>(<span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>rect</span>,
-                                                            <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>.<span class='ident'>main</span>,
-                                                            <span class='ident'>clip</span>,
+                                                            <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                                             <span class='kw-2'>&amp;</span><span class='ident'>info</span>.<span class='ident'>color</span>,
                                                             <span class='ident'>PrimitiveFlags</span>::<span class='prelude-val'>None</span>);
                             }
                             <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>Gradient</span>(<span class='kw-2'>ref</span> <span class='ident'>info</span>) <span class='op'>=&gt;</span> {
                                 <span class='ident'>builder</span>.<span class='ident'>add_gradient</span>(<span class='ident'>item</span>.<span class='ident'>rect</span>,
-                                                     <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>.<span class='ident'>main</span>,
-                                                     <span class='ident'>clip</span>,
+                                                     <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                                      <span class='ident'>info</span>.<span class='ident'>start_point</span>,
                                                      <span class='ident'>info</span>.<span class='ident'>end_point</span>,
                                                      <span class='ident'>info</span>.<span class='ident'>stops</span>);
                             }
                             <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>BoxShadow</span>(<span class='kw-2'>ref</span> <span class='ident'>box_shadow_info</span>) <span class='op'>=&gt;</span> {
                                 <span class='ident'>builder</span>.<span class='ident'>add_box_shadow</span>(<span class='kw-2'>&amp;</span><span class='ident'>box_shadow_info</span>.<span class='ident'>box_bounds</span>,
-                                                       <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>.<span class='ident'>main</span>,
-                                                       <span class='ident'>clip</span>,
+                                                       <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                                        <span class='kw-2'>&amp;</span><span class='ident'>box_shadow_info</span>.<span class='ident'>offset</span>,
                                                        <span class='kw-2'>&amp;</span><span class='ident'>box_shadow_info</span>.<span class='ident'>color</span>,
                                                        <span class='ident'>box_shadow_info</span>.<span class='ident'>blur_radius</span>,
@@ -1569,8 +1540,7 @@
                             }
                             <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>Border</span>(<span class='kw-2'>ref</span> <span class='ident'>info</span>) <span class='op'>=&gt;</span> {
                                 <span class='ident'>builder</span>.<span class='ident'>add_border</span>(<span class='ident'>item</span>.<span class='ident'>rect</span>,
-                                                   <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>.<span class='ident'>main</span>,
-                                                   <span class='ident'>clip</span>,
+                                                   <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                                    <span class='ident'>info</span>);
                             }
                         }
@@ -1689,8 +1659,7 @@
             <span class='kw'>let</span> <span class='ident'>scrollbar_rect</span> <span class='op'>=</span> <span class='ident'>Rect</span>::<span class='ident'>new</span>(<span class='ident'>Point2D</span>::<span class='ident'>zero</span>(),
                                            <span class='ident'>Size2D</span>::<span class='ident'>new</span>(<span class='number'>10.0</span>, <span class='number'>70.0</span>));
             <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_solid_rectangle</span>(<span class='kw-2'>&amp;</span><span class='ident'>scrollbar_rect</span>,
-                                                <span class='kw-2'>&amp;</span><span class='ident'>scrollbar_rect</span>,
-                                                <span class='prelude-val'>None</span>,
+                                                <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>::<span class='ident'>simple</span>(<span class='kw-2'>&amp;</span><span class='ident'>scrollbar_rect</span>),
                                                 <span class='kw-2'>&amp;</span><span class='ident'>DEFAULT_SCROLLBAR_COLOR</span>,
                                                 <span class='ident'>PrimitiveFlags</span>::<span class='ident'>Scrollbar</span>(<span class='self'>self</span>.<span class='ident'>root_scroll_layer_id</span>.<span class='ident'>unwrap</span>(),
                                                                           <span class='number'>4.0</span>));
@@ -1701,10 +1670,11 @@
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>build</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
                  <span class='ident'>resource_cache</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ResourceCache</span>,
+                 <span class='ident'>auxiliary_lists_map</span>: <span class='kw-2'>&amp;</span><span class='ident'>AuxiliaryListsMap</span>,
                  <span class='ident'>device_pixel_ratio</span>: <span class='ident'>f32</span>)
                  <span class='op'>-&gt;</span> <span class='ident'>RendererFrame</span> {
         <span class='self'>self</span>.<span class='ident'>update_layer_transforms</span>(<span class='ident'>device_pixel_ratio</span>);
-        <span class='kw'>let</span> <span class='ident'>frame</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>build_frame</span>(<span class='ident'>resource_cache</span>);
+        <span class='kw'>let</span> <span class='ident'>frame</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>build_frame</span>(<span class='ident'>resource_cache</span>, <span class='ident'>auxiliary_lists_map</span>);
         <span class='ident'>resource_cache</span>.<span class='ident'>expire_old_resources</span>(<span class='self'>self</span>.<span class='ident'>id</span>);
         <span class='ident'>frame</span>
     }
@@ -1780,14 +1750,12 @@
     }
 
     <span class='kw'>fn</span> <span class='ident'>build_frame</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                   <span class='ident'>resource_cache</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ResourceCache</span>) <span class='op'>-&gt;</span> <span class='ident'>RendererFrame</span> {
+                   <span class='ident'>resource_cache</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ResourceCache</span>,
+                   <span class='ident'>auxiliary_lists_map</span>: <span class='kw-2'>&amp;</span><span class='ident'>AuxiliaryListsMap</span>) <span class='op'>-&gt;</span> <span class='ident'>RendererFrame</span> {
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>frame_builder</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>frame_builder</span>.<span class='ident'>take</span>();
-        <span class='kw'>let</span> <span class='ident'>frame</span> <span class='op'>=</span> <span class='ident'>frame_builder</span>.<span class='ident'>as_mut</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>builder</span><span class='op'>|</span> {
-            <span class='ident'>builder</span>.<span class='ident'>build</span>(<span class='ident'>resource_cache</span>,
-                          <span class='self'>self</span>.<span class='ident'>id</span>,
-                          <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>pipeline_auxiliary_lists</span>,
-                          <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>layers</span>)
-        });
+        <span class='kw'>let</span> <span class='ident'>frame</span> <span class='op'>=</span> <span class='ident'>frame_builder</span>.<span class='ident'>as_mut</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>builder</span><span class='op'>|</span>
+            <span class='ident'>builder</span>.<span class='ident'>build</span>(<span class='ident'>resource_cache</span>, <span class='self'>self</span>.<span class='ident'>id</span>, <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>layers</span>, <span class='ident'>auxiliary_lists_map</span>)
+        );
         <span class='self'>self</span>.<span class='ident'>frame_builder</span> <span class='op'>=</span> <span class='ident'>frame_builder</span>;
 
         <span class='kw'>let</span> <span class='ident'>layers_bouncing_back</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>collect_layers_bouncing_back</span>();
