@@ -249,6 +249,7 @@
 <span id="205">205</span>
 <span id="206">206</span>
 <span id="207">207</span>
+<span id="208">208</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -265,7 +266,6 @@
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>event</span>::{<span class='ident'>Event</span>, <span class='ident'>EventBubbles</span>, <span class='ident'>EventCancelable</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>globalscope</span>::<span class='ident'>GlobalScope</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>storageevent</span>::<span class='ident'>StorageEvent</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>urlhelper</span>::<span class='ident'>UrlHelper</span>;
 <span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>::{<span class='self'>self</span>, <span class='ident'>IpcSender</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>IpcSend</span>;
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>storage_thread</span>::{<span class='ident'>StorageThreadMsg</span>, <span class='ident'>StorageType</span>};
@@ -445,14 +445,16 @@
             <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='ident'>storage</span>)
         );
 
-        <span class='kw'>let</span> <span class='ident'>root_context</span> <span class='op'>=</span> <span class='ident'>script_thread</span>.<span class='ident'>root_browsing_context</span>();
-        <span class='kw'>for</span> <span class='ident'>it_context</span> <span class='kw'>in</span> <span class='ident'>root_context</span>.<span class='ident'>iter</span>() {
-            <span class='kw'>let</span> <span class='ident'>it_window</span> <span class='op'>=</span> <span class='ident'>it_context</span>.<span class='ident'>active_window</span>();
-            <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>UrlHelper</span>::<span class='ident'>SameOrigin</span>(<span class='kw-2'>&amp;</span><span class='ident'>ev_url</span>, <span class='kw-2'>&amp;</span><span class='ident'>it_window</span>.<span class='ident'>get_url</span>()));
-            <span class='comment'>// TODO: Such a Document object is not necessarily fully active, but events fired on such</span>
-            <span class='comment'>// objects are ignored by the event loop until the Document becomes fully active again.</span>
-            <span class='kw'>if</span> <span class='ident'>global</span>.<span class='ident'>pipeline_id</span>() <span class='op'>!=</span> <span class='ident'>it_window</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>GlobalScope</span><span class='op'>&gt;</span>().<span class='ident'>pipeline_id</span>() {
-                <span class='ident'>storage_event</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Event</span><span class='op'>&gt;</span>().<span class='ident'>fire</span>(<span class='ident'>it_window</span>.<span class='ident'>upcast</span>());
+        <span class='comment'>// TODO: This is only iterating over documents in the current script</span>
+        <span class='comment'>// thread, so we are not firing events to other script threads.</span>
+        <span class='comment'>// NOTE: once that is fixed, we can remove borrow_documents from ScriptThread.</span>
+        <span class='kw'>for</span> (<span class='ident'>id</span>, <span class='ident'>document</span>) <span class='kw'>in</span> <span class='ident'>script_thread</span>.<span class='ident'>borrow_documents</span>().<span class='ident'>iter</span>() {
+            <span class='kw'>if</span> <span class='ident'>ev_url</span>.<span class='ident'>origin</span>() <span class='op'>==</span> <span class='ident'>document</span>.<span class='ident'>window</span>().<span class='ident'>get_url</span>().<span class='ident'>origin</span>() {
+                <span class='comment'>// TODO: Such a Document object is not necessarily fully active, but events fired on such</span>
+                <span class='comment'>// objects are ignored by the event loop until the Document becomes fully active again.</span>
+                <span class='kw'>if</span> <span class='ident'>global</span>.<span class='ident'>pipeline_id</span>() <span class='op'>!=</span> <span class='ident'>id</span> {
+                    <span class='ident'>storage_event</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Event</span><span class='op'>&gt;</span>().<span class='ident'>fire</span>(<span class='ident'>document</span>.<span class='ident'>window</span>().<span class='ident'>upcast</span>());
+                }
             }
         }
     }

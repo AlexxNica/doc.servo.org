@@ -730,6 +730,10 @@
 <span id="686">686</span>
 <span id="687">687</span>
 <span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -775,6 +779,7 @@
 <span class='kw'>use</span> <span class='ident'>msg</span>::<span class='ident'>constellation_msg</span>::{<span class='ident'>FrameType</span>, <span class='ident'>FrameId</span>, <span class='ident'>PipelineId</span>, <span class='ident'>TraversalDirection</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>response</span>::<span class='ident'>HttpsState</span>;
 <span class='kw'>use</span> <span class='ident'>script_layout_interface</span>::<span class='ident'>message</span>::<span class='ident'>ReflowQueryType</span>;
+<span class='kw'>use</span> <span class='ident'>script_thread</span>::<span class='ident'>ScriptThread</span>;
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>IFrameLoadInfo</span>, <span class='ident'>LoadData</span>, <span class='ident'>MozBrowserEvent</span>, <span class='ident'>ScriptMsg</span> <span class='kw'>as</span> <span class='ident'>ConstellationMsg</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::<span class='ident'>IFrameSandboxState</span>::{<span class='ident'>IFrameSandboxed</span>, <span class='ident'>IFrameUnsandboxed</span>};
 <span class='kw'>use</span> <span class='ident'>servo_atoms</span>::<span class='ident'>Atom</span>;
@@ -968,7 +973,7 @@
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>iframe_load_event_steps</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>loaded_pipeline</span>: <span class='ident'>PipelineId</span>) {
         <span class='comment'>// TODO(#9592): assert that the load blocker is present at all times when we</span>
         <span class='comment'>//              can guarantee that it&#39;s created for the case of iframe.reload().</span>
-        <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>loaded_pipeline</span>, <span class='self'>self</span>.<span class='ident'>pipeline_id</span>().<span class='ident'>unwrap</span>());
+        <span class='kw'>if</span> <span class='prelude-val'>Some</span>(<span class='ident'>loaded_pipeline</span>) <span class='op'>!=</span> <span class='self'>self</span>.<span class='ident'>pipeline_id</span>() { <span class='kw'>return</span>; }
 
         <span class='comment'>// TODO A cross-origin child document would not be easily accessible</span>
         <span class='comment'>//      from this script thread. It&#39;s unclear how to implement</span>
@@ -1001,13 +1006,16 @@
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_content_window</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>Window</span><span class='op'>&gt;&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>pipeline_id</span>.<span class='ident'>get</span>().<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>pipeline_id</span><span class='op'>|</span> {
-            <span class='kw'>let</span> <span class='ident'>window</span> <span class='op'>=</span> <span class='ident'>window_from_node</span>(<span class='self'>self</span>);
-            <span class='kw'>let</span> <span class='ident'>browsing_context</span> <span class='op'>=</span> <span class='ident'>window</span>.<span class='ident'>browsing_context</span>();
-            <span class='ident'>browsing_context</span>.<span class='ident'>find_child_by_id</span>(<span class='ident'>pipeline_id</span>)
-        })
+        <span class='self'>self</span>.<span class='ident'>pipeline_id</span>.<span class='ident'>get</span>()
+            .<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>pipeline_id</span><span class='op'>|</span> <span class='ident'>ScriptThread</span>::<span class='ident'>find_document</span>(<span class='ident'>pipeline_id</span>))
+            .<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>document</span><span class='op'>|</span> {
+                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>global</span>().<span class='ident'>get_url</span>().<span class='ident'>origin</span>() <span class='op'>==</span> <span class='ident'>document</span>.<span class='ident'>global</span>().<span class='ident'>get_url</span>().<span class='ident'>origin</span>() {
+                    <span class='prelude-val'>Some</span>(<span class='ident'>Root</span>::<span class='ident'>from_ref</span>(<span class='ident'>document</span>.<span class='ident'>window</span>()))
+                } <span class='kw'>else</span> {
+                    <span class='prelude-val'>None</span>
+                }
+            })
     }
-
 }
 
 <span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>HTMLIFrameElementLayoutMethods</span> {
