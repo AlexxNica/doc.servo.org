@@ -604,6 +604,8 @@
 <span id="560">560</span>
 <span id="561">561</span>
 <span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -613,6 +615,7 @@
 <span class='kw'>use</span> <span class='ident'>compositing</span>::<span class='ident'>CompositionPipeline</span>;
 <span class='kw'>use</span> <span class='ident'>compositing</span>::<span class='ident'>CompositorProxy</span>;
 <span class='kw'>use</span> <span class='ident'>compositing</span>::<span class='ident'>compositor_thread</span>::<span class='ident'>Msg</span> <span class='kw'>as</span> <span class='ident'>CompositorMsg</span>;
+<span class='kw'>use</span> <span class='ident'>constellation</span>::<span class='ident'>ScriptChan</span>;
 <span class='kw'>use</span> <span class='ident'>devtools_traits</span>::{<span class='ident'>DevtoolsControlMsg</span>, <span class='ident'>ScriptToDevtoolsControlMsg</span>};
 <span class='kw'>use</span> <span class='ident'>euclid</span>::<span class='ident'>scale_factor</span>::<span class='ident'>ScaleFactor</span>;
 <span class='kw'>use</span> <span class='ident'>euclid</span>::<span class='ident'>size</span>::<span class='ident'>TypedSize2D</span>;
@@ -637,6 +640,7 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ffi</span>::<span class='ident'>OsStr</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::<span class='ident'>Error</span> <span class='kw'>as</span> <span class='ident'>IOError</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>process</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>rc</span>::<span class='ident'>Rc</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::<span class='ident'>Sender</span>;
 <span class='kw'>use</span> <span class='ident'>style_traits</span>::{<span class='ident'>PagePx</span>, <span class='ident'>ViewportPx</span>};
 <span class='kw'>use</span> <span class='ident'>url</span>::<span class='ident'>Url</span>;
@@ -657,7 +661,7 @@
     <span class='doccomment'>/// The ID of the frame that contains this Pipeline.</span>
     <span class='kw'>pub</span> <span class='ident'>frame_id</span>: <span class='ident'>FrameId</span>,
     <span class='kw'>pub</span> <span class='ident'>parent_info</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span>(<span class='ident'>PipelineId</span>, <span class='ident'>FrameType</span>)<span class='op'>&gt;</span>,
-    <span class='kw'>pub</span> <span class='ident'>script_chan</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>ConstellationControlMsg</span><span class='op'>&gt;</span>,
+    <span class='kw'>pub</span> <span class='ident'>script_chan</span>: <span class='ident'>Rc</span><span class='op'>&lt;</span><span class='ident'>ScriptChan</span><span class='op'>&gt;</span>,
     <span class='doccomment'>/// A channel to layout, for performing reflows and shutdown.</span>
     <span class='kw'>pub</span> <span class='ident'>layout_chan</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>LayoutControlMsg</span><span class='op'>&gt;</span>,
     <span class='doccomment'>/// A channel to the compositor.</span>
@@ -720,7 +724,7 @@
     <span class='kw'>pub</span> <span class='ident'>device_pixel_ratio</span>: <span class='ident'>ScaleFactor</span><span class='op'>&lt;</span><span class='ident'>f32</span>, <span class='ident'>ViewportPx</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>,
     <span class='doccomment'>/// A channel to the script thread, if applicable. If this is `Some`,</span>
     <span class='doccomment'>/// then `parent_info` must also be `Some`.</span>
-    <span class='kw'>pub</span> <span class='ident'>script_chan</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>ConstellationControlMsg</span><span class='op'>&gt;&gt;</span>,
+    <span class='kw'>pub</span> <span class='ident'>script_chan</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Rc</span><span class='op'>&lt;</span><span class='ident'>ScriptChan</span><span class='op'>&gt;&gt;</span>,
     <span class='doccomment'>/// Information about the page to load.</span>
     <span class='kw'>pub</span> <span class='ident'>load_data</span>: <span class='ident'>LoadData</span>,
     <span class='doccomment'>/// The ID of the pipeline namespace for this script thread.</span>
@@ -772,7 +776,7 @@
             }
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
                 <span class='kw'>let</span> (<span class='ident'>script_chan</span>, <span class='ident'>script_port</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>expect</span>(<span class='string'>&quot;Pipeline script chan&quot;</span>);
-                (<span class='ident'>script_chan</span>, <span class='prelude-val'>Some</span>((<span class='ident'>script_port</span>, <span class='ident'>pipeline_port</span>)))
+                (<span class='ident'>ScriptChan</span>::<span class='ident'>new</span>(<span class='ident'>script_chan</span>), <span class='prelude-val'>Some</span>((<span class='ident'>script_port</span>, <span class='ident'>pipeline_port</span>)))
             }
         };
 
@@ -822,7 +826,7 @@
                 <span class='ident'>mem_profiler_chan</span>: <span class='ident'>state</span>.<span class='ident'>mem_profiler_chan</span>,
                 <span class='ident'>window_size</span>: <span class='ident'>window_size</span>,
                 <span class='ident'>layout_to_constellation_chan</span>: <span class='ident'>state</span>.<span class='ident'>layout_to_constellation_chan</span>,
-                <span class='ident'>script_chan</span>: <span class='ident'>script_chan</span>.<span class='ident'>clone</span>(),
+                <span class='ident'>script_chan</span>: <span class='ident'>script_chan</span>.<span class='ident'>sender</span>(),
                 <span class='ident'>load_data</span>: <span class='ident'>state</span>.<span class='ident'>load_data</span>.<span class='ident'>clone</span>(),
                 <span class='ident'>script_port</span>: <span class='ident'>script_port</span>,
                 <span class='ident'>opts</span>: (<span class='op'>*</span><span class='ident'>opts</span>::<span class='ident'>get</span>()).<span class='ident'>clone</span>(),
@@ -865,7 +869,7 @@
     <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>id</span>: <span class='ident'>PipelineId</span>,
            <span class='ident'>frame_id</span>: <span class='ident'>FrameId</span>,
            <span class='ident'>parent_info</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span>(<span class='ident'>PipelineId</span>, <span class='ident'>FrameType</span>)<span class='op'>&gt;</span>,
-           <span class='ident'>script_chan</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>ConstellationControlMsg</span><span class='op'>&gt;</span>,
+           <span class='ident'>script_chan</span>: <span class='ident'>Rc</span><span class='op'>&lt;</span><span class='ident'>ScriptChan</span><span class='op'>&gt;</span>,
            <span class='ident'>layout_chan</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>LayoutControlMsg</span><span class='op'>&gt;</span>,
            <span class='ident'>compositor_proxy</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>CompositorProxy</span> <span class='op'>+</span> <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Send</span><span class='op'>&gt;</span>,
            <span class='ident'>is_private</span>: <span class='ident'>bool</span>,
@@ -936,7 +940,7 @@
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>to_sendable</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>CompositionPipeline</span> {
         <span class='ident'>CompositionPipeline</span> {
             <span class='ident'>id</span>: <span class='self'>self</span>.<span class='ident'>id</span>.<span class='ident'>clone</span>(),
-            <span class='ident'>script_chan</span>: <span class='self'>self</span>.<span class='ident'>script_chan</span>.<span class='ident'>clone</span>(),
+            <span class='ident'>script_chan</span>: <span class='self'>self</span>.<span class='ident'>script_chan</span>.<span class='ident'>sender</span>(),
             <span class='ident'>layout_chan</span>: <span class='self'>self</span>.<span class='ident'>layout_chan</span>.<span class='ident'>clone</span>(),
         }
     }

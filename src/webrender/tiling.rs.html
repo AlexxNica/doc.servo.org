@@ -2283,6 +2283,7 @@
 <span id="2239">2239</span>
 <span id="2240">2240</span>
 <span id="2241">2241</span>
+<span id="2242">2242</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -2718,9 +2719,16 @@
                         <span class='kw'>let</span> <span class='ident'>needs_blending</span> <span class='op'>=</span> <span class='ident'>transform_kind</span> <span class='op'>==</span> <span class='ident'>TransformedRectKind</span>::<span class='ident'>Complex</span> <span class='op'>||</span>
                                              <span class='op'>!</span><span class='ident'>prim_metadata</span>.<span class='ident'>is_opaque</span> <span class='op'>||</span>
                                              <span class='ident'>needs_clipping</span>;
-                        <span class='kw'>let</span> <span class='ident'>flags</span> <span class='op'>=</span> <span class='ident'>AlphaBatchKeyFlags</span>::<span class='ident'>new</span>(<span class='ident'>transform_kind</span>,
-                                                            <span class='ident'>needs_clipping</span>);
                         <span class='kw'>let</span> <span class='ident'>blend_mode</span> <span class='op'>=</span> <span class='ident'>ctx</span>.<span class='ident'>prim_store</span>.<span class='ident'>get_blend_mode</span>(<span class='ident'>needs_blending</span>, <span class='ident'>prim_metadata</span>);
+                        <span class='kw'>let</span> <span class='ident'>needs_clipping_flag</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>needs_clipping</span> {
+                            <span class='ident'>NEEDS_CLIPPING</span>
+                        } <span class='kw'>else</span> {
+                            <span class='ident'>AlphaBatchKeyFlags</span>::<span class='ident'>empty</span>()
+                        };
+                        <span class='kw'>let</span> <span class='ident'>flags</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>transform_kind</span> {
+                            <span class='ident'>TransformedRectKind</span>::<span class='ident'>AxisAligned</span> <span class='op'>=&gt;</span> <span class='ident'>AXIS_ALIGNED</span> <span class='op'>|</span> <span class='ident'>needs_clipping_flag</span>,
+                            _ <span class='op'>=&gt;</span> <span class='ident'>needs_clipping_flag</span>,
+                        };
                         <span class='kw'>let</span> <span class='ident'>batch_kind</span> <span class='op'>=</span> <span class='ident'>ctx</span>.<span class='ident'>prim_store</span>.<span class='ident'>get_batch_kind</span>(<span class='ident'>prim_metadata</span>);
                         <span class='kw'>let</span> <span class='ident'>color_texture_id</span> <span class='op'>=</span> <span class='ident'>ctx</span>.<span class='ident'>prim_store</span>.<span class='ident'>get_texture_id</span>(<span class='ident'>prim_metadata</span>);
                         <span class='ident'>batch_key</span> <span class='op'>=</span> <span class='ident'>AlphaBatchKey</span>::<span class='ident'>primitive</span>(<span class='ident'>batch_kind</span>,
@@ -3120,6 +3128,27 @@
     <span class='ident'>BoxShadow</span>,
 }
 
+<span class='macro'>bitflags</span><span class='macro'>!</span> {
+    <span class='kw'>pub</span> <span class='ident'>flags</span> <span class='ident'>AlphaBatchKeyFlags</span>: <span class='ident'>u8</span> {
+        <span class='kw'>const</span> <span class='ident'>NEEDS_CLIPPING</span>  <span class='op'>=</span> <span class='number'>0b00000001</span>,
+        <span class='kw'>const</span> <span class='ident'>AXIS_ALIGNED</span>    <span class='op'>=</span> <span class='number'>0b00000010</span>,
+    }
+}
+
+<span class='kw'>impl</span> <span class='ident'>AlphaBatchKeyFlags</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>transform_kind</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>TransformedRectKind</span> {
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>contains</span>(<span class='ident'>AXIS_ALIGNED</span>) {
+            <span class='ident'>TransformedRectKind</span>::<span class='ident'>AxisAligned</span>
+        } <span class='kw'>else</span> {
+            <span class='ident'>TransformedRectKind</span>::<span class='ident'>Complex</span>
+        }
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>needs_clipping</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+        <span class='self'>self</span>.<span class='ident'>contains</span>(<span class='ident'>NEEDS_CLIPPING</span>)
+    }
+}
+
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>AlphaBatchKey</span> {
     <span class='ident'>kind</span>: <span class='ident'>AlphaBatchKind</span>,
@@ -3133,8 +3162,7 @@
     <span class='kw'>fn</span> <span class='ident'>blend</span>() <span class='op'>-&gt;</span> <span class='ident'>AlphaBatchKey</span> {
         <span class='ident'>AlphaBatchKey</span> {
             <span class='ident'>kind</span>: <span class='ident'>AlphaBatchKind</span>::<span class='ident'>Blend</span>,
-            <span class='ident'>flags</span>: <span class='ident'>AlphaBatchKeyFlags</span>::<span class='ident'>new</span>(<span class='ident'>TransformedRectKind</span>::<span class='ident'>AxisAligned</span>,
-                                           <span class='bool-val'>false</span>),
+            <span class='ident'>flags</span>: <span class='ident'>AXIS_ALIGNED</span>,
             <span class='ident'>blend_mode</span>: <span class='ident'>BlendMode</span>::<span class='ident'>Alpha</span>,
             <span class='ident'>color_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
             <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
@@ -3144,8 +3172,7 @@
     <span class='kw'>fn</span> <span class='ident'>composite</span>() <span class='op'>-&gt;</span> <span class='ident'>AlphaBatchKey</span> {
         <span class='ident'>AlphaBatchKey</span> {
             <span class='ident'>kind</span>: <span class='ident'>AlphaBatchKind</span>::<span class='ident'>Composite</span>,
-            <span class='ident'>flags</span>: <span class='ident'>AlphaBatchKeyFlags</span>::<span class='ident'>new</span>(<span class='ident'>TransformedRectKind</span>::<span class='ident'>AxisAligned</span>,
-                                           <span class='bool-val'>false</span>),
+            <span class='ident'>flags</span>: <span class='ident'>AXIS_ALIGNED</span>,
             <span class='ident'>blend_mode</span>: <span class='ident'>BlendMode</span>::<span class='ident'>Alpha</span>,
             <span class='ident'>color_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
             <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
@@ -3175,31 +3202,6 @@
              <span class='self'>self</span>.<span class='ident'>color_texture_id</span> <span class='op'>==</span> <span class='ident'>other</span>.<span class='ident'>color_texture_id</span>) <span class='op'>&amp;&amp;</span>
             (<span class='self'>self</span>.<span class='ident'>mask_texture_id</span> <span class='op'>==</span> <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>() <span class='op'>||</span> <span class='ident'>other</span>.<span class='ident'>mask_texture_id</span> <span class='op'>==</span> <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>() <span class='op'>||</span>
              <span class='self'>self</span>.<span class='ident'>mask_texture_id</span> <span class='op'>==</span> <span class='ident'>other</span>.<span class='ident'>mask_texture_id</span>)
-    }
-}
-
-<span class='comment'>// FIXME(gw): Change these to use the bitflags!()</span>
-
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Hash</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>AlphaBatchKeyFlags</span>(<span class='ident'>u8</span>);
-
-<span class='kw'>impl</span> <span class='ident'>AlphaBatchKeyFlags</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>transform_kind</span>: <span class='ident'>TransformedRectKind</span>,
-           <span class='ident'>needs_clipping</span>: <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='ident'>AlphaBatchKeyFlags</span> {
-        <span class='ident'>AlphaBatchKeyFlags</span>( ((<span class='ident'>transform_kind</span> <span class='kw'>as</span> <span class='ident'>u8</span>) <span class='op'>&lt;&lt;</span> <span class='number'>1</span>) <span class='op'>|</span>
-                            ((<span class='ident'>needs_clipping</span> <span class='kw'>as</span> <span class='ident'>u8</span>) <span class='op'>&lt;&lt;</span> <span class='number'>0</span>) )
-    }
-
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>transform_kind</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>TransformedRectKind</span> {
-        <span class='kw'>if</span> ((<span class='self'>self</span>.<span class='number'>0</span> <span class='op'>&gt;&gt;</span> <span class='number'>1</span>) <span class='kw-2'>&amp;</span> <span class='number'>1</span>) <span class='op'>==</span> <span class='number'>0</span> {
-            <span class='ident'>TransformedRectKind</span>::<span class='ident'>AxisAligned</span>
-        } <span class='kw'>else</span> {
-            <span class='ident'>TransformedRectKind</span>::<span class='ident'>Complex</span>
-        }
-    }
-
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>needs_clipping</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        (<span class='self'>self</span>.<span class='number'>0</span> <span class='kw-2'>&amp;</span> <span class='number'>1</span>) <span class='op'>!=</span> <span class='number'>0</span>
     }
 }
 
