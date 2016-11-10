@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["StateChangeQuery",""],["TagKind",""],["Token",""]],"struct":[["Attribute","A tag attribute."],["Doctype","A `DOCTYPE` token."],["Tag","A tag token."]],"trait":[["TokenSink","Types which can receive tokens from the tokenizer."]]});
+initSidebarItems({"enum":[["TagKind",""],["Token",""],["TokenSinkResult",""]],"struct":[["Attribute","A tag attribute."],["Doctype","A `DOCTYPE` token."],["Tag","A tag token."]],"trait":[["TokenSink","Types which can receive tokens from the tokenizer."]]});

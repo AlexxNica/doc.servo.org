@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/registry/src/github.com-1ecc6299db9ec823/html5ever-0.9.0/src/tree_builder/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/registry/src/github.com-1ecc6299db9ec823/html5ever-0.10.1/src/tree_builder/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
@@ -474,6 +474,11 @@
 <span id="430">430</span>
 <span id="431">431</span>
 <span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
 </pre><pre class='rust '>
 <span class='comment'>// Copyright 2014 The html5ever Project Developers. See the</span>
 <span class='comment'>// COPYRIGHT file at the top-level directory of this distribution.</span>
@@ -490,7 +495,7 @@
 
 <span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>interface</span>::{<span class='ident'>QuirksMode</span>, <span class='ident'>Quirks</span>, <span class='ident'>LimitedQuirks</span>, <span class='ident'>NoQuirks</span>};
 <span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>interface</span>::{<span class='ident'>NodeOrText</span>, <span class='ident'>AppendNode</span>, <span class='ident'>AppendText</span>};
-<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>interface</span>::{<span class='ident'>TreeSink</span>, <span class='ident'>Tracer</span>, <span class='ident'>NextParserState</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>interface</span>::{<span class='ident'>TreeSink</span>, <span class='ident'>Tracer</span>};
 
 <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>types</span>::<span class='op'>*</span>;
 <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>actions</span>::<span class='ident'>TreeBuilderActions</span>;
@@ -500,7 +505,7 @@
 <span class='kw'>use</span> <span class='ident'>tendril</span>::<span class='ident'>StrTendril</span>;
 
 <span class='kw'>use</span> <span class='ident'>tokenizer</span>;
-<span class='kw'>use</span> <span class='ident'>tokenizer</span>::{<span class='ident'>Doctype</span>, <span class='ident'>StartTag</span>, <span class='ident'>StateChangeQuery</span>, <span class='ident'>Tag</span>, <span class='ident'>TokenSink</span>};
+<span class='kw'>use</span> <span class='ident'>tokenizer</span>::{<span class='ident'>Doctype</span>, <span class='ident'>StartTag</span>, <span class='ident'>Tag</span>, <span class='ident'>TokenSink</span>, <span class='ident'>TokenSinkResult</span>};
 <span class='kw'>use</span> <span class='ident'>tokenizer</span>::<span class='ident'>states</span> <span class='kw'>as</span> <span class='ident'>tok_state</span>;
 
 <span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>str</span>::<span class='ident'>is_ascii_whitespace</span>;
@@ -600,9 +605,6 @@
     <span class='ident'>form_elem</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Handle</span><span class='op'>&gt;</span>,
     <span class='comment'>//§ END</span>
 
-    <span class='doccomment'>/// Next state change for the tokenizer, if any.</span>
-    <span class='ident'>next_tokenizer_state</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>StateChangeQuery</span><span class='op'>&gt;</span>,
-
     <span class='doccomment'>/// Frameset-ok flag.</span>
     <span class='ident'>frameset_ok</span>: <span class='ident'>bool</span>,
 
@@ -644,7 +646,6 @@
             <span class='ident'>active_formatting</span>: <span class='macro'>vec</span><span class='macro'>!</span>(),
             <span class='ident'>head_elem</span>: <span class='prelude-val'>None</span>,
             <span class='ident'>form_elem</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>next_tokenizer_state</span>: <span class='prelude-val'>None</span>,
             <span class='ident'>frameset_ok</span>: <span class='bool-val'>true</span>,
             <span class='ident'>ignore_lf</span>: <span class='bool-val'>false</span>,
             <span class='ident'>foster_parenting</span>: <span class='bool-val'>false</span>,
@@ -676,7 +677,6 @@
             <span class='ident'>active_formatting</span>: <span class='macro'>vec</span><span class='macro'>!</span>(),
             <span class='ident'>head_elem</span>: <span class='prelude-val'>None</span>,
             <span class='ident'>form_elem</span>: <span class='ident'>form_elem</span>,
-            <span class='ident'>next_tokenizer_state</span>: <span class='prelude-val'>None</span>,
             <span class='ident'>frameset_ok</span>: <span class='bool-val'>true</span>,
             <span class='ident'>ignore_lf</span>: <span class='bool-val'>false</span>,
             <span class='ident'>foster_parenting</span>: <span class='bool-val'>false</span>,
@@ -785,7 +785,7 @@
         <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;processing {} in insertion mode {:?}&quot;</span>, <span class='ident'>to_escaped_string</span>(<span class='ident'>token</span>), <span class='ident'>mode</span>);
     }
 
-    <span class='kw'>fn</span> <span class='ident'>process_to_completion</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>token</span>: <span class='ident'>Token</span>) {
+    <span class='kw'>fn</span> <span class='ident'>process_to_completion</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>token</span>: <span class='ident'>Token</span>) <span class='op'>-&gt;</span> <span class='ident'>TokenSinkResult</span><span class='op'>&lt;</span><span class='ident'>Handle</span><span class='op'>&gt;</span> {
         <span class='comment'>// Queue of additional tokens yet to be processed.</span>
         <span class='comment'>// This stays empty in the common case where we don&#39;t split whitespace.</span>
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>more_tokens</span> <span class='op'>=</span> <span class='ident'>VecDeque</span>::<span class='ident'>new</span>();
@@ -804,10 +804,10 @@
                     <span class='kw'>if</span> <span class='ident'>should_have_acknowledged_self_closing_flag</span> {
                         <span class='self'>self</span>.<span class='ident'>sink</span>.<span class='ident'>parse_error</span>(<span class='ident'>Borrowed</span>(<span class='string'>&quot;Unacknowledged self-closing tag&quot;</span>));
                     }
-                    <span class='ident'>token</span> <span class='op'>=</span> <span class='macro'>unwrap_or_return</span><span class='macro'>!</span>(<span class='ident'>more_tokens</span>.<span class='ident'>pop_front</span>(), ());
+                    <span class='ident'>token</span> <span class='op'>=</span> <span class='macro'>unwrap_or_return</span><span class='macro'>!</span>(<span class='ident'>more_tokens</span>.<span class='ident'>pop_front</span>(), <span class='ident'>tokenizer</span>::<span class='ident'>TokenSinkResult</span>::<span class='ident'>Continue</span>);
                 }
                 <span class='ident'>DoneAckSelfClosing</span> <span class='op'>=&gt;</span> {
-                    <span class='ident'>token</span> <span class='op'>=</span> <span class='macro'>unwrap_or_return</span><span class='macro'>!</span>(<span class='ident'>more_tokens</span>.<span class='ident'>pop_front</span>(), ());
+                    <span class='ident'>token</span> <span class='op'>=</span> <span class='macro'>unwrap_or_return</span><span class='macro'>!</span>(<span class='ident'>more_tokens</span>.<span class='ident'>pop_front</span>(), <span class='ident'>tokenizer</span>::<span class='ident'>TokenSinkResult</span>::<span class='ident'>Continue</span>);
                 }
                 <span class='ident'>Reprocess</span>(<span class='ident'>m</span>, <span class='ident'>t</span>) <span class='op'>=&gt;</span> {
                     <span class='self'>self</span>.<span class='ident'>mode</span> <span class='op'>=</span> <span class='ident'>m</span>;
@@ -818,13 +818,25 @@
                 }
                 <span class='ident'>SplitWhitespace</span>(<span class='kw-2'>mut</span> <span class='ident'>buf</span>) <span class='op'>=&gt;</span> {
                     <span class='kw'>let</span> <span class='ident'>p</span> <span class='op'>=</span> <span class='ident'>buf</span>.<span class='ident'>pop_front_char_run</span>(<span class='ident'>is_ascii_whitespace</span>);
-                    <span class='kw'>let</span> (<span class='ident'>first</span>, <span class='ident'>is_ws</span>) <span class='op'>=</span> <span class='macro'>unwrap_or_return</span><span class='macro'>!</span>(<span class='ident'>p</span>, ());
+                    <span class='kw'>let</span> (<span class='ident'>first</span>, <span class='ident'>is_ws</span>) <span class='op'>=</span> <span class='macro'>unwrap_or_return</span><span class='macro'>!</span>(<span class='ident'>p</span>, <span class='ident'>tokenizer</span>::<span class='ident'>TokenSinkResult</span>::<span class='ident'>Continue</span>);
                     <span class='kw'>let</span> <span class='ident'>status</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>is_ws</span> { <span class='ident'>Whitespace</span> } <span class='kw'>else</span> { <span class='ident'>NotWhitespace</span> };
                     <span class='ident'>token</span> <span class='op'>=</span> <span class='ident'>CharacterTokens</span>(<span class='ident'>status</span>, <span class='ident'>first</span>);
 
                     <span class='kw'>if</span> <span class='ident'>buf</span>.<span class='ident'>len32</span>() <span class='op'>&gt;</span> <span class='number'>0</span> {
                         <span class='ident'>more_tokens</span>.<span class='ident'>push_back</span>(<span class='ident'>CharacterTokens</span>(<span class='ident'>NotSplit</span>, <span class='ident'>buf</span>));
                     }
+                }
+                <span class='ident'>Script</span>(<span class='ident'>node</span>) <span class='op'>=&gt;</span> {
+                    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>more_tokens</span>.<span class='ident'>is_empty</span>());
+                    <span class='kw'>return</span> <span class='ident'>tokenizer</span>::<span class='ident'>TokenSinkResult</span>::<span class='ident'>Script</span>(<span class='ident'>node</span>);
+                }
+                <span class='ident'>ToPlaintext</span> <span class='op'>=&gt;</span> {
+                    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>more_tokens</span>.<span class='ident'>is_empty</span>());
+                    <span class='kw'>return</span> <span class='ident'>tokenizer</span>::<span class='ident'>TokenSinkResult</span>::<span class='ident'>Plaintext</span>;
+                }
+                <span class='ident'>ToRawData</span>(<span class='ident'>k</span>) <span class='op'>=&gt;</span> {
+                    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>more_tokens</span>.<span class='ident'>is_empty</span>());
+                    <span class='kw'>return</span> <span class='ident'>tokenizer</span>::<span class='ident'>TokenSinkResult</span>::<span class='ident'>RawData</span>(<span class='ident'>k</span>);
                 }
             }
         }
@@ -841,14 +853,16 @@
     <span class='kw'>where</span> <span class='ident'>Handle</span>: <span class='ident'>Clone</span>,
           <span class='ident'>Sink</span>: <span class='ident'>TreeSink</span><span class='op'>&lt;</span><span class='ident'>Handle</span><span class='op'>=</span><span class='ident'>Handle</span><span class='op'>&gt;</span>,
 {
-    <span class='kw'>fn</span> <span class='ident'>process_token</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>token</span>: <span class='ident'>tokenizer</span>::<span class='ident'>Token</span>) {
+    <span class='kw'>type</span> <span class='ident'>Handle</span> <span class='op'>=</span> <span class='ident'>Handle</span>;
+
+    <span class='kw'>fn</span> <span class='ident'>process_token</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>token</span>: <span class='ident'>tokenizer</span>::<span class='ident'>Token</span>) <span class='op'>-&gt;</span> <span class='ident'>TokenSinkResult</span><span class='op'>&lt;</span><span class='ident'>Handle</span><span class='op'>&gt;</span> {
         <span class='kw'>let</span> <span class='ident'>ignore_lf</span> <span class='op'>=</span> <span class='ident'>replace</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>ignore_lf</span>, <span class='bool-val'>false</span>);
 
         <span class='comment'>// Handle `ParseError` and `DoctypeToken`; convert everything else to the local `Token` type.</span>
         <span class='kw'>let</span> <span class='ident'>token</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>token</span> {
             <span class='ident'>tokenizer</span>::<span class='ident'>ParseError</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> {
                 <span class='self'>self</span>.<span class='ident'>sink</span>.<span class='ident'>parse_error</span>(<span class='ident'>e</span>);
-                <span class='kw'>return</span>;
+                <span class='kw'>return</span> <span class='ident'>tokenizer</span>::<span class='ident'>TokenSinkResult</span>::<span class='ident'>Continue</span>;
             }
 
             <span class='ident'>tokenizer</span>::<span class='ident'>DoctypeToken</span>(<span class='ident'>dt</span>) <span class='op'>=&gt;</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>mode</span> <span class='op'>==</span> <span class='ident'>Initial</span> {
@@ -870,13 +884,13 @@
                 <span class='self'>self</span>.<span class='ident'>set_quirks_mode</span>(<span class='ident'>quirk</span>);
 
                 <span class='self'>self</span>.<span class='ident'>mode</span> <span class='op'>=</span> <span class='ident'>BeforeHtml</span>;
-                <span class='kw'>return</span>;
+                <span class='kw'>return</span> <span class='ident'>tokenizer</span>::<span class='ident'>TokenSinkResult</span>::<span class='ident'>Continue</span>;
             } <span class='kw'>else</span> {
                 <span class='self'>self</span>.<span class='ident'>sink</span>.<span class='ident'>parse_error</span>(<span class='macro'>format_if</span><span class='macro'>!</span>(
                     <span class='self'>self</span>.<span class='ident'>opts</span>.<span class='ident'>exact_errors</span>,
                     <span class='string'>&quot;DOCTYPE in body&quot;</span>,
                     <span class='string'>&quot;DOCTYPE in insertion mode {:?}&quot;</span>, <span class='self'>self</span>.<span class='ident'>mode</span>));
-                <span class='kw'>return</span>;
+                <span class='kw'>return</span> <span class='ident'>tokenizer</span>::<span class='ident'>TokenSinkResult</span>::<span class='ident'>Continue</span>;
             },
 
             <span class='ident'>tokenizer</span>::<span class='ident'>TagToken</span>(<span class='ident'>x</span>) <span class='op'>=&gt;</span> <span class='ident'>TagToken</span>(<span class='ident'>x</span>),
@@ -889,22 +903,18 @@
                     <span class='ident'>x</span>.<span class='ident'>pop_front</span>(<span class='number'>1</span>);
                 }
                 <span class='kw'>if</span> <span class='ident'>x</span>.<span class='ident'>is_empty</span>() {
-                    <span class='kw'>return</span>;
+                    <span class='kw'>return</span> <span class='ident'>tokenizer</span>::<span class='ident'>TokenSinkResult</span>::<span class='ident'>Continue</span>;
                 }
                 <span class='ident'>CharacterTokens</span>(<span class='ident'>NotSplit</span>, <span class='ident'>x</span>)
             }
         };
 
-        <span class='self'>self</span>.<span class='ident'>process_to_completion</span>(<span class='ident'>token</span>);
+        <span class='self'>self</span>.<span class='ident'>process_to_completion</span>(<span class='ident'>token</span>)
     }
 
     <span class='kw'>fn</span> <span class='ident'>adjusted_current_node_present_but_not_in_html_namespace</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
         <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>open_elems</span>.<span class='ident'>is_empty</span>() <span class='op'>&amp;&amp;</span>
         <span class='self'>self</span>.<span class='ident'>sink</span>.<span class='ident'>elem_name</span>(<span class='self'>self</span>.<span class='ident'>adjusted_current_node</span>()).<span class='ident'>ns</span> <span class='op'>!=</span> <span class='macro'>ns</span><span class='macro'>!</span>(<span class='ident'>html</span>)
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>query_state_change</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>StateChangeQuery</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>next_tokenizer_state</span>.<span class='ident'>take</span>()
     }
 }
 </pre>
