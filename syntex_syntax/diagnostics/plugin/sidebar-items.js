@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["MAX_DESCRIPTION_WIDTH",""]],"fn":[["expand_build_diagnostic_array",""],["expand_diagnostic_used",""],["expand_register_diagnostic",""],["with_registered_diagnostics",""]],"static":[["REGISTERED_DIAGNOSTICS",""]],"struct":[["ErrorInfo","Error information type."]],"type":[["ErrorMap","Mapping from error codes to metadata."]]});

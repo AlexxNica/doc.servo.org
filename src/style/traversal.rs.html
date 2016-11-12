@@ -458,13 +458,6 @@
 <span id="414">414</span>
 <span id="415">415</span>
 <span id="416">416</span>
-<span id="417">417</span>
-<span id="418">418</span>
-<span id="419">419</span>
-<span id="420">420</span>
-<span id="421">421</span>
-<span id="422">422</span>
-<span id="423">423</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -476,7 +469,7 @@
 <span class='kw'>use</span> <span class='ident'>context</span>::{<span class='ident'>LocalStyleContext</span>, <span class='ident'>SharedStyleContext</span>, <span class='ident'>StyleContext</span>};
 <span class='kw'>use</span> <span class='ident'>data</span>::<span class='ident'>ElementData</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>OpaqueNode</span>, <span class='ident'>StylingMode</span>, <span class='ident'>TElement</span>, <span class='ident'>TNode</span>, <span class='ident'>UnsafeNode</span>};
-<span class='kw'>use</span> <span class='ident'>matching</span>::{<span class='ident'>ApplicableDeclarations</span>, <span class='ident'>MatchMethods</span>, <span class='ident'>StyleSharingResult</span>};
+<span class='kw'>use</span> <span class='ident'>matching</span>::{<span class='ident'>MatchMethods</span>, <span class='ident'>StyleSharingResult</span>};
 <span class='kw'>use</span> <span class='ident'>selectors</span>::<span class='ident'>bloom</span>::<span class='ident'>BloomFilter</span>;
 <span class='kw'>use</span> <span class='ident'>selectors</span>::<span class='ident'>matching</span>::<span class='ident'>StyleRelations</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>RefCell</span>;
@@ -753,16 +746,14 @@
     <span class='comment'>// Note that we could add the bloom filter&#39;s complexity here, but that&#39;s</span>
     <span class='comment'>// probably not necessary since we&#39;re likely to be matching only a few</span>
     <span class='comment'>// nodes, at best.</span>
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>applicable_declarations</span> <span class='op'>=</span> <span class='ident'>ApplicableDeclarations</span>::<span class='ident'>new</span>();
     <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='ident'>prepare_for_styling</span>(<span class='ident'>element</span>, <span class='ident'>element</span>.<span class='ident'>get_data</span>().<span class='ident'>unwrap</span>());
-    <span class='kw'>let</span> <span class='ident'>stylist</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>context</span>.<span class='ident'>shared_context</span>().<span class='ident'>stylist</span>;
-
-    <span class='ident'>element</span>.<span class='ident'>match_element</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='op'>*</span><span class='ident'>stylist</span>,
-                          <span class='prelude-val'>None</span>,
-                          <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>applicable_declarations</span>);
-
+    <span class='kw'>let</span> <span class='ident'>match_results</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>match_element</span>(<span class='ident'>context</span>, <span class='prelude-val'>None</span>);
     <span class='kw'>unsafe</span> {
-        <span class='ident'>element</span>.<span class='ident'>cascade_node</span>(<span class='ident'>context</span>, <span class='ident'>data</span>, <span class='ident'>parent</span>, <span class='ident'>applicable_declarations</span>);
+        <span class='kw'>let</span> <span class='ident'>shareable</span> <span class='op'>=</span> <span class='ident'>match_results</span>.<span class='ident'>primary_is_shareable</span>();
+        <span class='ident'>element</span>.<span class='ident'>cascade_node</span>(<span class='ident'>context</span>, <span class='ident'>data</span>, <span class='ident'>parent</span>,
+                             <span class='ident'>match_results</span>.<span class='ident'>primary</span>,
+                             <span class='ident'>match_results</span>.<span class='ident'>per_pseudo</span>,
+                             <span class='ident'>shareable</span>);
     }
 }
 
@@ -798,34 +789,29 @@
         <span class='comment'>// Otherwise, match and cascade selectors.</span>
         <span class='kw'>match</span> <span class='ident'>sharing_result</span> {
             <span class='ident'>StyleSharingResult</span>::<span class='ident'>CannotShare</span> <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>applicable_declarations</span> <span class='op'>=</span> <span class='ident'>ApplicableDeclarations</span>::<span class='ident'>new</span>();
-
-                <span class='kw'>let</span> <span class='ident'>relations</span>;
+                <span class='kw'>let</span> <span class='ident'>match_results</span>;
                 <span class='kw'>let</span> <span class='ident'>shareable_element</span> <span class='op'>=</span> {
                     <span class='kw'>if</span> <span class='ident'>opts</span>::<span class='ident'>get</span>().<span class='ident'>style_sharing_stats</span> {
                         <span class='ident'>STYLE_SHARING_CACHE_MISSES</span>.<span class='ident'>fetch_add</span>(<span class='number'>1</span>, <span class='ident'>Ordering</span>::<span class='ident'>Relaxed</span>);
                     }
 
                     <span class='comment'>// Perform the CSS selector matching.</span>
-                    <span class='kw'>let</span> <span class='ident'>stylist</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>context</span>.<span class='ident'>shared_context</span>().<span class='ident'>stylist</span>;
-
-                    <span class='ident'>relations</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>match_element</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='op'>*</span><span class='ident'>stylist</span>,
-                                                      <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>bf</span>),
-                                                      <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>applicable_declarations</span>);
-
-                    <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Result of selector matching: {:?}&quot;</span>, <span class='ident'>relations</span>);
-
-                    <span class='kw'>if</span> <span class='ident'>relations_are_shareable</span>(<span class='kw-2'>&amp;</span><span class='ident'>relations</span>) {
+                    <span class='ident'>match_results</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>match_element</span>(<span class='ident'>context</span>, <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>bf</span>));
+                    <span class='kw'>if</span> <span class='ident'>match_results</span>.<span class='ident'>primary_is_shareable</span>() {
                         <span class='prelude-val'>Some</span>(<span class='ident'>element</span>)
                     } <span class='kw'>else</span> {
                         <span class='prelude-val'>None</span>
                     }
                 };
+                <span class='kw'>let</span> <span class='ident'>relations</span> <span class='op'>=</span> <span class='ident'>match_results</span>.<span class='ident'>relations</span>;
 
                 <span class='comment'>// Perform the CSS cascade.</span>
                 <span class='kw'>unsafe</span> {
+                    <span class='kw'>let</span> <span class='ident'>shareable</span> <span class='op'>=</span> <span class='ident'>match_results</span>.<span class='ident'>primary_is_shareable</span>();
                     <span class='ident'>element</span>.<span class='ident'>cascade_node</span>(<span class='ident'>context</span>, <span class='ident'>data</span>, <span class='ident'>element</span>.<span class='ident'>parent_element</span>(),
-                                         <span class='ident'>applicable_declarations</span>);
+                                         <span class='ident'>match_results</span>.<span class='ident'>primary</span>,
+                                         <span class='ident'>match_results</span>.<span class='ident'>per_pseudo</span>,
+                                         <span class='ident'>shareable</span>);
                 }
 
                 <span class='comment'>// Add ourselves to the LRU cache.</span>

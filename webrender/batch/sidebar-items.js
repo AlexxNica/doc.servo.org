@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["new_id",""]],"static":[["ID_COUNTER",""]],"struct":[["BlitJob",""],["RasterBatch","A batch for raster jobs."]]});
