@@ -123,16 +123,16 @@
 
 <span class='kw'>use</span> <span class='ident'>bluetooth_traits</span>::{<span class='ident'>BluetoothResponseListener</span>, <span class='ident'>BluetoothResponseResult</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::{<span class='ident'>Action</span>, <span class='ident'>FetchResponseListener</span>, <span class='ident'>FetchResponseMsg</span>};
-<span class='kw'>use</span> <span class='ident'>script_runtime</span>::{<span class='ident'>CommonScriptMsg</span>, <span class='ident'>ScriptChan</span>};
-<span class='kw'>use</span> <span class='ident'>script_runtime</span>::<span class='ident'>ScriptThreadEventCategory</span>::<span class='ident'>NetworkEvent</span>;
 <span class='kw'>use</span> <span class='ident'>script_thread</span>::{<span class='ident'>Runnable</span>, <span class='ident'>RunnableWrapper</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::{<span class='ident'>Arc</span>, <span class='ident'>Mutex</span>};
+<span class='kw'>use</span> <span class='ident'>task_source</span>::<span class='ident'>TaskSource</span>;
+<span class='kw'>use</span> <span class='ident'>task_source</span>::<span class='ident'>networking</span>::<span class='ident'>NetworkingTaskSource</span>;
 
 <span class='doccomment'>/// An off-thread sink for async network event runnables. All such events are forwarded to</span>
 <span class='doccomment'>/// a target thread, where they are invoked on the provided context object.</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>NetworkListener</span><span class='op'>&lt;</span><span class='ident'>Listener</span>: <span class='ident'>PreInvoke</span> <span class='op'>+</span> <span class='ident'>Send</span> <span class='op'>+</span> <span class='lifetime'>&#39;static</span><span class='op'>&gt;</span> {
     <span class='kw'>pub</span> <span class='ident'>context</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>Listener</span><span class='op'>&gt;&gt;</span>,
-    <span class='kw'>pub</span> <span class='ident'>script_chan</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ScriptChan</span> <span class='op'>+</span> <span class='ident'>Send</span><span class='op'>&gt;</span>,
+    <span class='kw'>pub</span> <span class='ident'>task_source</span>: <span class='ident'>NetworkingTaskSource</span>,
     <span class='kw'>pub</span> <span class='ident'>wrapper</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>RunnableWrapper</span><span class='op'>&gt;</span>,
 }
 
@@ -143,9 +143,9 @@
             <span class='ident'>action</span>: <span class='ident'>action</span>,
         };
         <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>wrapper</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>wrapper</span> {
-            <span class='self'>self</span>.<span class='ident'>script_chan</span>.<span class='ident'>send</span>(<span class='ident'>CommonScriptMsg</span>::<span class='ident'>RunnableMsg</span>(<span class='ident'>NetworkEvent</span>, <span class='ident'>wrapper</span>.<span class='ident'>wrap_runnable</span>(<span class='ident'>runnable</span>)))
+            <span class='self'>self</span>.<span class='ident'>task_source</span>.<span class='ident'>queue_with_wrapper</span>(<span class='ident'>runnable</span>, <span class='ident'>wrapper</span>)
         } <span class='kw'>else</span> {
-            <span class='self'>self</span>.<span class='ident'>script_chan</span>.<span class='ident'>send</span>(<span class='ident'>CommonScriptMsg</span>::<span class='ident'>RunnableMsg</span>(<span class='ident'>NetworkEvent</span>, <span class='ident'>runnable</span>))
+            <span class='self'>self</span>.<span class='ident'>task_source</span>.<span class='ident'>queue_wrapperless</span>(<span class='ident'>runnable</span>)
         };
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Err</span>(<span class='ident'>err</span>) <span class='op'>=</span> <span class='ident'>result</span> {
             <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;failed to deliver network data: {:?}&quot;</span>, <span class='ident'>err</span>);

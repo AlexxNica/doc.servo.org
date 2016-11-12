@@ -415,6 +415,13 @@
 <span id="371">371</span>
 <span id="372">372</span>
 <span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -505,9 +512,12 @@
 <span class='kw'>use</span> <span class='ident'>profile_traits</span>::<span class='ident'>mem</span>;
 <span class='kw'>use</span> <span class='ident'>profile_traits</span>::<span class='ident'>time</span>;
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>ConstellationMsg</span>, <span class='ident'>SWManagerSenders</span>, <span class='ident'>ScriptMsg</span>};
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>Cow</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cmp</span>::<span class='ident'>max</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>path</span>::<span class='ident'>PathBuf</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>rc</span>::<span class='ident'>Rc</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::<span class='ident'>Sender</span>;
+<span class='kw'>use</span> <span class='ident'>url</span>::<span class='ident'>Url</span>;
 <span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>opts</span>;
 <span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>prefs</span>::<span class='ident'>PREFS</span>;
 <span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>resource_files</span>::<span class='ident'>resources_dir_path</span>;
@@ -595,7 +605,9 @@
         <span class='comment'>// Create the constellation, which maintains the engine</span>
         <span class='comment'>// pipelines, including the script and layout threads, as well</span>
         <span class='comment'>// as the navigation context.</span>
-        <span class='kw'>let</span> (<span class='ident'>constellation_chan</span>, <span class='ident'>sw_senders</span>) <span class='op'>=</span> <span class='ident'>create_constellation</span>(<span class='ident'>opts</span>.<span class='ident'>clone</span>(),
+        <span class='kw'>let</span> (<span class='ident'>constellation_chan</span>, <span class='ident'>sw_senders</span>) <span class='op'>=</span> <span class='ident'>create_constellation</span>(<span class='ident'>opts</span>.<span class='ident'>user_agent</span>.<span class='ident'>clone</span>(),
+                                                                    <span class='ident'>opts</span>.<span class='ident'>config_dir</span>.<span class='ident'>clone</span>(),
+                                                                    <span class='ident'>opts</span>.<span class='ident'>url</span>.<span class='ident'>clone</span>(),
                                                                     <span class='ident'>compositor_proxy</span>.<span class='ident'>clone_compositor_proxy</span>(),
                                                                     <span class='ident'>time_profiler_chan</span>.<span class='ident'>clone</span>(),
                                                                     <span class='ident'>mem_profiler_chan</span>.<span class='ident'>clone</span>(),
@@ -660,7 +672,9 @@
     }
 }
 
-<span class='kw'>fn</span> <span class='ident'>create_constellation</span>(<span class='ident'>opts</span>: <span class='ident'>opts</span>::<span class='ident'>Opts</span>,
+<span class='kw'>fn</span> <span class='ident'>create_constellation</span>(<span class='ident'>user_agent</span>: <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;static</span>, <span class='ident'>str</span><span class='op'>&gt;</span>,
+                        <span class='ident'>config_dir</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>PathBuf</span><span class='op'>&gt;</span>,
+                        <span class='ident'>url</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Url</span><span class='op'>&gt;</span>,
                         <span class='ident'>compositor_proxy</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>CompositorProxy</span> <span class='op'>+</span> <span class='ident'>Send</span><span class='op'>&gt;</span>,
                         <span class='ident'>time_profiler_chan</span>: <span class='ident'>time</span>::<span class='ident'>ProfilerChan</span>,
                         <span class='ident'>mem_profiler_chan</span>: <span class='ident'>mem</span>::<span class='ident'>ProfilerChan</span>,
@@ -672,10 +686,10 @@
     <span class='kw'>let</span> <span class='ident'>bluetooth_thread</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>BluetoothRequest</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>BluetoothThreadFactory</span>::<span class='ident'>new</span>();
 
     <span class='kw'>let</span> (<span class='ident'>public_resource_threads</span>, <span class='ident'>private_resource_threads</span>) <span class='op'>=</span>
-        <span class='ident'>new_resource_threads</span>(<span class='ident'>opts</span>.<span class='ident'>user_agent</span>,
+        <span class='ident'>new_resource_threads</span>(<span class='ident'>user_agent</span>,
                              <span class='ident'>devtools_chan</span>.<span class='ident'>clone</span>(),
                              <span class='ident'>time_profiler_chan</span>.<span class='ident'>clone</span>(),
-                             <span class='ident'>opts</span>.<span class='ident'>config_dir</span>.<span class='ident'>map</span>(<span class='ident'>Into</span>::<span class='ident'>into</span>));
+                             <span class='ident'>config_dir</span>);
     <span class='kw'>let</span> <span class='ident'>image_cache_thread</span> <span class='op'>=</span> <span class='ident'>new_image_cache_thread</span>(<span class='ident'>public_resource_threads</span>.<span class='ident'>sender</span>(),
                                                     <span class='ident'>webrender_api_sender</span>.<span class='ident'>create_api</span>());
     <span class='kw'>let</span> <span class='ident'>font_cache_thread</span> <span class='op'>=</span> <span class='ident'>FontCacheThread</span>::<span class='ident'>new</span>(<span class='ident'>public_resource_threads</span>.<span class='ident'>sender</span>(),
@@ -702,7 +716,7 @@
                         <span class='ident'>layout_thread</span>::<span class='ident'>LayoutThread</span>,
                         <span class='ident'>script</span>::<span class='ident'>script_thread</span>::<span class='ident'>ScriptThread</span><span class='op'>&gt;</span>::<span class='ident'>start</span>(<span class='ident'>initial_state</span>);
 
-    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>url</span>) <span class='op'>=</span> <span class='ident'>opts</span>.<span class='ident'>url</span> {
+    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>url</span>) <span class='op'>=</span> <span class='ident'>url</span> {
         <span class='ident'>constellation_chan</span>.<span class='ident'>send</span>(<span class='ident'>ConstellationMsg</span>::<span class='ident'>InitLoadUrl</span>(<span class='ident'>url</span>)).<span class='ident'>unwrap</span>();
     };
 
