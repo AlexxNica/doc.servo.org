@@ -1,5 +1,5 @@
 (function() {var implementors = {};
-implementors["serde"] = [];implementors["url"] = [];implementors["offscreen_gl_context"] = [];implementors["ws"] = [];implementors["string_cache"] = [];implementors["hyper"] = [];implementors["xml5ever"] = [];implementors["html5ever"] = [];implementors["websocket"] = [];implementors["azure"] = [];implementors["util"] = [];implementors["webrender"] = [];implementors["net_traits"] = [];implementors["net"] = [];implementors["style"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["serde"] = [];implementors["string_cache"] = [];implementors["url"] = [];implementors["offscreen_gl_context"] = [];implementors["xml5ever"] = [];implementors["hyper"] = [];implementors["ws"] = [];implementors["html5ever"] = [];implementors["websocket"] = [];implementors["azure"] = [];implementors["util"] = [];implementors["webrender"] = [];implementors["net_traits"] = [];implementors["net"] = [];implementors["style"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);
