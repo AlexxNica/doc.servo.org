@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["ParseContext",""]],"fn":[["parse_xml",""]]});
+initSidebarItems({"struct":[["Tokenizer",""]]});
