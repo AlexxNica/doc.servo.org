@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["sStaticMethods",""],["sStaticMethods_specs",""]],"fn":[["ConstructorEnabled",""],["CreateInterfaceObjects",""],["DefineDOMInterface",""],["GetConstructorObject",""],["assert",""],["debug",""],["error",""],["info",""],["log",""],["time",""],["timeEnd",""],["warn",""]],"static":[["NAMESPACE_OBJECT_CLASS",""]]});

@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["ARRAY_SIZE",""],["KEY_MASK",""],["KEY_SHIFT",""],["KEY_SIZE",""]],"fn":[["full",""],["hash",""],["hash1",""],["hash2",""]],"struct":[["BloomFilter","A counting Bloom filter with 8-bit counters.  For now we assume that having two hash functions is enough, but we may revisit that decision later."]]});

@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["check_slice_validity",""]],"struct":[["EntityTag","An entity tag, defined in RFC7232"]]});

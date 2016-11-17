@@ -1,1 +1,0 @@
-initSidebarItems({"macro":[["atom",""]],"struct":[["AtomStaticSet",""]],"type":[["Atom",""]]});

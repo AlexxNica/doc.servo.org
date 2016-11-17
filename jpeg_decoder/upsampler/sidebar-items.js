@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["choose_upsampler",""]],"struct":[["Upsampler",""],["UpsamplerComponent",""],["UpsamplerH1V1",""],["UpsamplerH1V2",""],["UpsamplerH2V1",""],["UpsamplerH2V2",""]],"trait":[["Upsample",""]]});

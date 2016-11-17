@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["EventHandlerNonNull",""],["OnBeforeUnloadEventHandlerNonNull",""],["OnErrorEventHandlerNonNull",""]],"type":[["EventHandler",""],["OnBeforeUnloadEventHandler",""],["OnErrorEventHandler",""]]});

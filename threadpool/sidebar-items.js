@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["spawn_in_pool",""]],"struct":[["Sentinel",""],["ThreadPool","Abstraction of a thread pool for basic parallelism."]],"trait":[["FnBox",""]],"type":[["Thunk",""]]});

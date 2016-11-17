@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["ServiceWorker",""]],"type":[["TrustedServiceWorkerAddress",""]]});

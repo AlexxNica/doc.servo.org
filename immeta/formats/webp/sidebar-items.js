@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["ALPH_CHUNK_ID",""],["VP8L_CHUNK_ID",""],["VP8X_CHUNK_ID",""],["VP8_CHUNK_ID",""],["WEBP_CHUNK_TYPE",""]],"enum":[["Metadata",""],["VP8Frame",""]],"fn":[["read_vp8_chunk",""]],"struct":[["VP8LMetadata",""],["VP8Metadata",""],["VP8XMetadata",""]]});

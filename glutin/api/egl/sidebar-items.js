@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["NativeDisplay","Specifies the type of display passed as `native_display`."]],"fn":[["choose_fbconfig",""],["create_context",""],["get_native_display",""]],"mod":[["ffi",""]],"struct":[["Context",""],["ContextPrototype",""]]});

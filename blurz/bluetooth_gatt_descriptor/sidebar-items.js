@@ -1,1 +1,0 @@
-initSidebarItems({"static":[["GATT_DESCRIPTOR_INTERFACE",""],["SERVICE_NAME",""]],"struct":[["BluetoothGATTDescriptor",""]]});

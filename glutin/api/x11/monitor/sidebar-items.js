@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["get_available_monitors",""],["get_primary_monitor",""]],"struct":[["MonitorId",""]]});

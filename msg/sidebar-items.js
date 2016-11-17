@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["constellation_msg","The high-level interface from script to constellation. Using this abstract interface helps reduce coupling between these two components."]]});

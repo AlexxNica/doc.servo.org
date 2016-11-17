@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["BluetoothUUIDBinding",""]],"type":[["UUID",""]]});

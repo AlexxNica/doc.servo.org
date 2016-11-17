@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["word_cat_table",""]],"enum":[["WordCat",""]],"fn":[["bsearch_range_value_table",""],["word_category",""]]});

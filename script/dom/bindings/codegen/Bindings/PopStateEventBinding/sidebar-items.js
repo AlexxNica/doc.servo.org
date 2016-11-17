@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["PopStateEventBinding",""]],"struct":[["PopStateEventInit",""]]});

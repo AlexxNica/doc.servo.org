@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["create_host_table",""],["host_replacement",""],["parse_hostsfile",""],["replace_hosts",""]],"static":[["HOST_TABLE",""]],"struct":[["HOST_TABLE",""]]});

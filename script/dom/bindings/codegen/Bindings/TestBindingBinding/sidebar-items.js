@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["TestEnum",""]],"mod":[["TestBindingBinding",""],["TestEnumValues",""]],"struct":[["SimpleCallback",""],["TestDictionary",""],["TestDictionaryDefaults",""]]});

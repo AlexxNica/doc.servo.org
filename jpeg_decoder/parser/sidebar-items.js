@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["AdobeColorTransform",""],["AppData",""],["CodingProcess",""],["EntropyCoding",""]],"fn":[["parse_app",""],["parse_com",""],["parse_dht",""],["parse_dqt",""],["parse_dri",""],["parse_sof",""],["parse_sos",""],["read_length",""],["skip_bytes",""]],"struct":[["Component",""],["Dimensions",""],["FrameInfo",""],["ScanInfo",""]]});

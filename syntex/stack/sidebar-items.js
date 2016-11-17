@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["EXTRA_STACK",""],["STACK_ENV_VAR",""]],"enum":[["TmpEnv",""]],"fn":[["set_if_unset",""],["with_extra_stack","Runs a function in a thread with extra stack space (16 MB or `$RUST_MIN_STACK` if set)."]]});

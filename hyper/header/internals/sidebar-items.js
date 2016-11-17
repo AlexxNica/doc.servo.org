@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["cell",""],["item",""]],"struct":[["Item",""]]});

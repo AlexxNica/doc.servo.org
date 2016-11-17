@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["PageTransitionEventBinding",""]],"struct":[["PageTransitionEventInit",""]]});

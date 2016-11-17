@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["RegisterProxyHandlers","Create the global vtables used by the generated DOM bindings to implement JS proxies."]],"static":[["PROXY_HANDLERS",""]]});

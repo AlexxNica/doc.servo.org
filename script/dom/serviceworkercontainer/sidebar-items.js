@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["ServiceWorkerContainer",""]],"trait":[["Controllable",""]]});

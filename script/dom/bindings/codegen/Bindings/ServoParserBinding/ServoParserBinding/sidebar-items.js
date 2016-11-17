@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["CreateInterfaceObjects",""],["GetProtoObject",""],["Wrap",""],["_finalize",""],["_trace",""]],"static":[["CLASS_OPS",""],["Class",""],["PrototypeClass",""]]});

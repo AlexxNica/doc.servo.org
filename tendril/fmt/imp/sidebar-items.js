@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["from_u32_unchecked",""]],"struct":[["Fixup","Describes how to fix up encodings when concatenating."],["SingleByteCharIndices",""]]});

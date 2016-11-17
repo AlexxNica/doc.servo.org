@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["CLOSED",""],["CLOSING",""],["CONNECTING",""],["OPEN",""]]});

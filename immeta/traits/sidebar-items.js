@@ -1,1 +1,0 @@
-initSidebarItems({"trait":[["LoadableMetadata","Provides several convenience functions for loading metadata from various sources."]]});

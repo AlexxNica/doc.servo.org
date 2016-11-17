@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["EventStatus",""]],"fn":[["dispatch_event",""],["dispatch_to_listeners",""],["handle_event",""],["inner_invoke",""],["invoke",""]],"struct":[["AutoDOMEventMarker",""]]});

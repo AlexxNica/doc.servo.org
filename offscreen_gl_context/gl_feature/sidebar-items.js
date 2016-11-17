@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["GLFeature",""]],"fn":[["get_feature_requirements",""]],"struct":[["GLFeatureRequirements","Possible feature requirements: * OpenGL version * GLES version * Extensions"]]});

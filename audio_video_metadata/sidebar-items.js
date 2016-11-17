@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["enums",""],["metadata",""],["types",""]]});

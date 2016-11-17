@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["CRC_TABLE",""]],"struct":[["Crc32","Crc-32 checksum calculation"]]});

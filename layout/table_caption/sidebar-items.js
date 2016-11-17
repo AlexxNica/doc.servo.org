@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["TableCaptionFlow","A table formatting context."]]});

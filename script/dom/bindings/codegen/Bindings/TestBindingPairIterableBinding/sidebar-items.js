@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["TestBindingPairIterableBinding",""],["TestBindingPairIterableIteratorBinding",""]]});

@@ -1,1 +1,0 @@
-initSidebarItems({"static":[["DEFAULT_COLS",""],["DEFAULT_ROWS",""]],"struct":[["HTMLTextAreaElement",""]],"trait":[["LayoutHTMLTextAreaElementHelpers",""]]});

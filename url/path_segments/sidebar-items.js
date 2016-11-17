@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["new",""]],"struct":[["PathSegmentsMut","Exposes methods to manipulate the path of an URL that is not cannot-be-base."]]});

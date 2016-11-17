@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["BlobBinding",""]],"struct":[["BlobPropertyBag",""]]});

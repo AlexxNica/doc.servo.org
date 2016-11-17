@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["OwningHandle","`OwningHandle` is a complement to `OwningRef`. Where `OwningRef` allows consumers to pass around an owned object and a dependent reference, `OwningHandle` contains an owned object and a dependent _object_."]]});

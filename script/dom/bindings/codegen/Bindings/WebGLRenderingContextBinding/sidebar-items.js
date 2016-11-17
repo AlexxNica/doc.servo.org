@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["WebGLRenderingContextBinding",""]],"struct":[["WebGLContextAttributes",""]],"type":[["GLbitfield",""],["GLboolean",""],["GLbyte",""],["GLclampf",""],["GLenum",""],["GLfloat",""],["GLint",""],["GLintptr",""],["GLshort",""],["GLsizei",""],["GLsizeiptr",""],["GLubyte",""],["GLuint",""],["GLushort",""]]});

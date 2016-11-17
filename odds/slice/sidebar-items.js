@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["load_u64","Unaligned load of a u64 at index `i` in `buf`"],["shared_prefix","Return the end index of the longest shared (equal) prefix of `a` and `b`."]]});

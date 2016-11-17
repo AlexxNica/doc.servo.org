@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["DOM_KEY_LOCATION_LEFT",""],["DOM_KEY_LOCATION_NUMPAD",""],["DOM_KEY_LOCATION_RIGHT",""],["DOM_KEY_LOCATION_STANDARD",""]]});

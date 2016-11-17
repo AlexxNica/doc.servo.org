@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Signal",""]],"struct":[["Command",""],["Sender","A representation of the output of the WebSocket connection. Use this to send messages to the other endpoint."]]});

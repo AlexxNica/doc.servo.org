@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["encoder","Encoding of PPM Images"]],"struct":[["PPMEncoder","A representation of a PPM encoder."]]});

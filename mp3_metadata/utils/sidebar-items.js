@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["compute_duration",""],["create_str",""],["create_utf16_str",""],["get_field",""],["get_layer_value",""],["get_line",""],["get_samp_line",""],["get_text_field",""],["get_text_fields",""],["get_url_field",""],["get_url_fields",""]]});

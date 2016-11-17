@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["PNG_SIGNATURE",""]],"enum":[["InnerDecoder",""]],"fn":[["best_entry","Find the entry with the highest (color depth, size)."],["read_entries",""],["read_entry",""]],"struct":[["DirEntry",""],["ICODecoder","An ico decoder"]]});

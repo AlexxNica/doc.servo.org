@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["ALL",""],["CONN_START",""],["SYSTEM",""]],"enum":[["State",""]],"fn":[["url_to_addrs",""]],"struct":[["Handler",""],["Timeout",""]],"type":[["Chan",""],["Conn",""],["Loop",""]]});

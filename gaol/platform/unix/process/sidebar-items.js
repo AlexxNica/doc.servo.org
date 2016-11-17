@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["ExitStatus",""]],"fn":[["WEXITSTATUS",""],["WIFEXITED",""],["WTERMSIG",""],["exec",""],["execve",""],["fork",""],["spawn",""],["waitpid",""]],"struct":[["Process",""]]});

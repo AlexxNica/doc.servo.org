@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["backward","Returns the index pointer for code point `code` in this index."],["forward","Returns the index code point for pointer `code` in this index."]],"static":[["BACKWARD_TABLE_LOWER",""],["BACKWARD_TABLE_UPPER",""],["FORWARD_TABLE",""]]});

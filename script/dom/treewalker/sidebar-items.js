@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Filter",""]],"struct":[["TreeWalker",""]],"type":[["NodeAdvancer",""]]});

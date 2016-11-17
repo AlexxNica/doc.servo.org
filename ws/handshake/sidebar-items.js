@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["MAX_HEADERS",""]],"fn":[["encode_base64",""],["generate_key",""],["hash_key",""]],"static":[["BASE64",""],["WS_GUID",""]],"struct":[["Handshake","A struct representing the two halves of the WebSocket handshake."],["Request","The handshake request."],["Response","The handshake response."]]});

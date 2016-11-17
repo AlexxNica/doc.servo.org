@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["MixedMessage",""],["ServiceWorkerScriptMsg","Messages used to control service worker event loop"]],"fn":[["interrupt_callback",""]],"struct":[["ServiceWorkerChan",""],["ServiceWorkerGlobalScope",""]]});

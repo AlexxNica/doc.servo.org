@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Message",""]],"fn":[["shutdown_server",""],["start_server",""]],"struct":[["Connection",""],["Sender",""]]});

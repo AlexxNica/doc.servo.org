@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["GetSubframeWindow",""],["defineProperty",""],["finalize",""],["get",""],["getOwnPropertyDescriptor",""],["get_prototype_if_ordinary",""],["has",""],["new_window_proxy_handler",""],["set",""],["trace",""]],"static":[["PROXY_HANDLER",""]],"struct":[["BrowsingContext",""]]});

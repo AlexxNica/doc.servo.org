@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["DispatchMessage",""]],"fn":[["start",""]],"struct":[["Dispatcher",""],["HttpHandler",""],["Session",""]],"trait":[["WebDriverHandler",""]]});

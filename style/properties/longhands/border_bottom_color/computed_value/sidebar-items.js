@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["T","A <color> value."]]});

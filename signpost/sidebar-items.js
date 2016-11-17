@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["end",""],["start",""],["trace",""],["trace_function",""]],"struct":[["AutoTrace","An RAII class to automatically add start and end traces on creation and drop respectively."]]});

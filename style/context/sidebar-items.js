@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["ReflowGoal","Why we're doing reflow."]],"struct":[["LocalStyleContext",""],["LocalStyleContextCreationInfo","This structure is used to create a local style context from a shared one."],["SharedStyleContext",""]],"trait":[["StyleContext",""]]});

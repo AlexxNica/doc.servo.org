@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["enter",""],["exit",""],["get",""],["initialize",""]],"static":[["STATE",""]]});

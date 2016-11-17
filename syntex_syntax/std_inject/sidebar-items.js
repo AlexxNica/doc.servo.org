@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["ignored_span","Craft a span that will be ignored by the stability lint's call to codemap's is_internal check. The expanded code uses the unstable `#[prelude_import]` attribute."],["injected_crate_name",""],["maybe_inject_crates_ref",""]]});

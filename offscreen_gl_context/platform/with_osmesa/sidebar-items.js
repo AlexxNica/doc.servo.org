@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["DUMMY_BUFFER_HEIGHT",""],["DUMMY_BUFFER_WIDTH",""]],"struct":[["OSMesaContext",""],["OSMesaContextHandle",""]]});

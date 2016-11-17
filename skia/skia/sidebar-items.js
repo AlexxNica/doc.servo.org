@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["SkiaGrContextCreate",""],["SkiaGrContextRelease",""],["SkiaGrContextRetain",""],["SkiaGrGLCreateNativeInterface",""],["SkiaGrGLInterfaceGLVersionGreaterThanOrEqualTo",""],["SkiaGrGLInterfaceHasExtension",""],["SkiaGrGLInterfaceRelease",""],["SkiaGrGLInterfaceRetain",""]],"type":[["SkiaGrContextRef",""],["SkiaGrGLInterfaceRef",""]]});

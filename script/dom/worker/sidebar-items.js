@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["Worker",""],["WorkerErrorHandler",""],["WorkerMessageHandler",""]],"type":[["TrustedWorkerAddress",""]]});

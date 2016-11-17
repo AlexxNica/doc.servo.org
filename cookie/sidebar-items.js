@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["percent_decode",""]],"mod":[["jar","A cookie jar implementation for storing a set of cookies."]],"struct":[["AttrVal",""],["Cookie",""],["CookieJar","A jar of cookies for managing a session"]]});

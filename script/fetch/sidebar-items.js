@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["Fetch",""],["fill_headers_with_metadata",""],["from_referrer_to_referrer_url",""],["request_init_from_request",""]],"struct":[["FetchContext",""]]});

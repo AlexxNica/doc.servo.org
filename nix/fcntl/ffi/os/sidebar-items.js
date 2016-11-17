@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["F_ADD_SEALS",""],["F_DUPFD",""],["F_DUPFD_CLOEXEC",""],["F_GETFD",""],["F_GETFL",""],["F_GETLK",""],["F_GET_SEALS",""],["F_SEAL_GROW",""],["F_SEAL_SEAL",""],["F_SEAL_SHRINK",""],["F_SEAL_WRITE",""],["F_SETFD",""],["F_SETFL",""],["F_SETLK",""],["F_SETLKW",""]],"struct":[["flock",""]]});

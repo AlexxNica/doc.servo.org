@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Expansion",""],["ExpansionKind",""],["InvocationKind",""]],"fn":[["mark_tts",""],["string_to_tts",""],["tts_for_attr",""],["tts_for_item",""]],"struct":[["ExpansionConfig",""],["Invocation",""],["InvocationCollector",""],["MacroExpander",""],["Marker",""]]});

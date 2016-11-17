@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["Filter",""],["FilterConsumer",""],["FilterFolder",""]]});

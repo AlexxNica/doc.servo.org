@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["Finite","Encapsulates the IDL restricted float type."]]});

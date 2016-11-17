@@ -1,1 +1,0 @@
-initSidebarItems({"static":[["TRANSMUTE_TYPE_LINT",""]],"struct":[["TransmutePass","Lint for auditing transmutes"]]});

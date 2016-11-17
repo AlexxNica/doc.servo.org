@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["create_window",""]],"mod":[["window","A windowing implementation using glutin."]],"trait":[["NestedEventLoopListener",""]],"type":[["WindowID",""]]});

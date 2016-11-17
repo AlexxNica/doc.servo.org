@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["ActivationSource","Whether an activation was initiated via the click() method"]],"fn":[["synthetic_click_activation",""]],"trait":[["Activatable","Trait for elements with defined activation behavior"]]});

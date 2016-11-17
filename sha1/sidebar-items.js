@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["DEFAULT_STATE",""]],"struct":[["Blocks",""],["Digest","Digest generated from a `Sha1` instance."],["Sha1","Represents a Sha1 hash object in memory."],["Sha1State",""]]});

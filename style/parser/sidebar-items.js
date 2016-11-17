@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["log_css_error","Defaults to a no-op. Set a `RUST_LOG=style::errors` environment variable to log CSS parse errors to stderr."]],"struct":[["ParserContext",""],["ParserContextExtraData",""]],"trait":[["Parse",""]]});

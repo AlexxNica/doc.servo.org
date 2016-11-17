@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["MAX_LEN",""],["MIN_CAP",""]],"fn":[["bytes_to_vec_capacity",""]],"struct":[["Buf32","A buffer points to a header of type `H`, which is followed by `MIN_CAP` or more bytes of storage."]]});

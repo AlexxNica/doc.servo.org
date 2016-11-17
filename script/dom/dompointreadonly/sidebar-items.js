@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["DOMPointReadOnly",""]],"trait":[["DOMPointWriteMethods",""]]});

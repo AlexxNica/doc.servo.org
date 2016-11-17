@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Message",""]],"fn":[["serviceworker_enabled",""]],"struct":[["ServiceWorkerManager",""]]});

@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["Text","An HTML text node."]]});

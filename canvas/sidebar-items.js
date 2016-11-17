@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["canvas_paint_thread",""],["webgl_paint_thread",""]]});

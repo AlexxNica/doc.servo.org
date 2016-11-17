@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["AudioTag",""],["Frame",""],["MP3Metadata",""],["OptionalAudioTags","id3.org/id3v2.3.0#Declared_ID3v2_frames#Text_information_frames_-_details"],["Url",""]]});

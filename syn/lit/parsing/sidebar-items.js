@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["byte",""],["byte_string",""],["character",""],["digits",""],["int",""],["lit",""],["quoted_string",""],["string",""]]});

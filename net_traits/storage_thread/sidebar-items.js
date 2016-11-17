@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["_IMPL_DESERIALIZE_FOR_StorageThreadMsg",""],["_IMPL_DESERIALIZE_FOR_StorageType",""],["_IMPL_SERIALIZE_FOR_StorageThreadMsg",""],["_IMPL_SERIALIZE_FOR_StorageType",""]],"enum":[["StorageThreadMsg","Request operations on the storage data associated with a particular url"],["StorageType",""]]});

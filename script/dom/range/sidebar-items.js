@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["bp_position",""]],"struct":[["BoundaryPoint",""],["Range",""],["WeakRangeVec",""]]});

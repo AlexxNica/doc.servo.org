@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Shutdown","Possible values which can be passed to the [`shutdown`] method of [`TcpStream`]."]],"fn":[["accept",""],["bind",""],["connect",""],["dup",""],["getsockname",""],["listen",""],["recvfrom",""],["sendto",""],["socket",""],["to_nix_addr",""],["to_std_addr",""]]});

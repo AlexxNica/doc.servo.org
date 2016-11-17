@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["decoder",""],["encoder",""]],"struct":[["ICODecoder","An ico decoder"],["ICOEncoder","ICO encoder"]]});

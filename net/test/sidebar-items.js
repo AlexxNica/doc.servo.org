@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["LoadErrorType",""]],"fn":[["load",""],["resolve_chrome_url",""]],"struct":[["HttpState",""],["LoadError",""]],"trait":[["HttpRequest",""],["HttpRequestFactory",""],["HttpResponse",""],["UIProvider",""]]});

@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["IntoIterRepr",""],["SmallVectorRepr",""]],"struct":[["IntoIter",""],["SmallVector","A vector type optimized for cases where the size is almost always 0 or 1"]]});

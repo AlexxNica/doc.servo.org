@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["pipe","Default *nix awakener implementation"]],"struct":[["Awakener",""]]});

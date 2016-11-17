@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["FT_ALIGNMENT",""]],"fn":[["ft_alloc",""],["ft_free",""],["ft_realloc",""]],"struct":[["FontContextHandle",""],["FreeTypeLibraryHandle",""],["User",""]],"type":[["UserPtr",""]]});

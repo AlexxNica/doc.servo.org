@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["cfgetispeed",""],["cfgetospeed",""],["cfsetispeed",""],["cfsetospeed",""],["tcdrain",""],["tcflow",""],["tcflush",""],["tcgetattr",""],["tcsendbreak",""],["tcsetattr",""]]});

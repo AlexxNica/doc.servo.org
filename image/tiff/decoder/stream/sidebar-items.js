@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["ByteOrder","Byte order of the TIFF file."]],"struct":[["LZWReader","Reader that decompresses LZW streams"],["SmartReader","Reader that is aware of the byte order."]],"trait":[["EndianReader","Reader that is aware of the byte order."]]});

@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["choose_fbconfig","Enumerates all available FBConfigs"],["create_context",""],["with_c_str",""]],"struct":[["Context",""],["ContextPrototype",""]]});

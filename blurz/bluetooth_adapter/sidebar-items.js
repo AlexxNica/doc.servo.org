@@ -1,1 +1,0 @@
-initSidebarItems({"static":[["ADAPTER_INTERFACE",""]],"struct":[["BluetoothAdapter",""]]});

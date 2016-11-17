@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Condition","A condition to expose things."]],"struct":[["Guard","A container with a condition."]]});

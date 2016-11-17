@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Color","A <color> value."]],"fn":[["from_hex",""],["parse_color_function",""],["parse_color_hash",""],["parse_color_keyword","Return the named color with the given name."],["rgb",""],["rgba",""]],"struct":[["RGBA","A color with red, green, blue, and alpha components."]]});

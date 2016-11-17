@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["heartbeat_rates","Rate data."],["heartbeat_udata","Unsigned global and window data."],["heartbeat_window_state","State for window buffer"]]});

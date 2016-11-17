@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["prepare_message",""]],"struct":[["Console",""]]});

@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["ExtendableMessageEventBinding",""]],"struct":[["ExtendableMessageEventInit",""]]});

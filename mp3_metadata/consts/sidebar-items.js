@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["BITRATES",""],["SAMPLES_PER_FRAME",""],["SAMPLING_FREQ",""]]});

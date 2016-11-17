@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["test",""]],"trait":[["Handler","The core trait of this library. Implementing this trait provides the business logic of the WebSocket application."]]});

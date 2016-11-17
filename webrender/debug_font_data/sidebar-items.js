@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["BMP_HEIGHT",""],["BMP_WIDTH",""],["FIRST_GLYPH_INDEX",""],["FONT_BITMAP",""],["FONT_SIZE",""],["GLYPHS",""]],"struct":[["BakedGlyph",""]]});

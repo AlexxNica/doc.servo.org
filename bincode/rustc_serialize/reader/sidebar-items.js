@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["DecodingError","An error that can be produced during decoding."]],"fn":[["utf8_char_width",""],["wrap_io",""]],"static":[["UTF8_CHAR_WIDTH",""]],"struct":[["DecoderReader","A Decoder that reads bytes from a buffer."],["InvalidEncoding",""]],"type":[["DecodingResult",""]]});

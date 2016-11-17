@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["MAXIMUM_ATTRIBUTE_LENGTH",""]],"struct":[["BluetoothRemoteGATTCharacteristic",""]]});

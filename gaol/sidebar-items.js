@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["platform",""],["profile","Sandbox profiles—lists of permitted operations."],["sandbox","Creation and destruction of sandboxes."]]});

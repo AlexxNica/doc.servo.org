@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["State",""],["Status",""]],"mod":[["data",""]],"struct":[["CharRef",""],["CharRefTokenizer",""]]});

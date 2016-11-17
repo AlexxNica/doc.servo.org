@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["cstring",""]],"struct":[["Command",""]],"trait":[["ChildSandboxMethods","All platform-specific sandboxes in the child process implement this trait."],["SandboxMethods","All platform-specific sandboxes implement this trait."]]});

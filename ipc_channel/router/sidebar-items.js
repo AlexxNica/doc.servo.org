@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["RouterMsg",""]],"static":[["ROUTER",""]],"struct":[["ROUTER",""],["Router",""],["RouterProxy",""],["RouterProxyComm",""]],"type":[["RouterHandler",""]]});

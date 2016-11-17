@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["read_resource_file",""],["resources_dir_path",""],["set_resources_path",""]],"static":[["CMD_RESOURCE_DIR",""]],"struct":[["CMD_RESOURCE_DIR",""]]});

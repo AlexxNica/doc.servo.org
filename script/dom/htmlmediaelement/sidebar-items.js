@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Resource",""],["ResourceSelectionMode",""]],"struct":[["DedicatedMediaSourceFailureTask",""],["FireSimpleEventTask",""],["HTMLMediaElement",""],["HTMLMediaElementContext",""],["PauseIfNotInDocumentTask",""],["ResourceSelectionTask",""],["VideoMedia",""]]});

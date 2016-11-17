@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["fn_arg",""],["mutability",""],["parenthesized_parameter_data",""],["path",""],["path_segment",""],["poly_trait_ref",""],["qpath",""],["ty",""],["ty_array",""],["ty_bare_fn",""],["ty_impl_trait",""],["ty_never",""],["ty_paren",""],["ty_path",""],["ty_poly_trait_ref",""],["ty_ptr",""],["ty_rptr",""],["ty_tup",""],["ty_vec",""],["type_binding",""]]});

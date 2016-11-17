@@ -1,1 +1,0 @@
-initSidebarItems({"trait":[["Castable","A trait to hold the cast functions of IDL interfaces that either derive or are derived from other interfaces."]]});

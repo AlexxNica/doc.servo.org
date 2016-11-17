@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["Bindings",""],["InheritTypes",""],["InterfaceObjectMap",""],["InterfaceTypes",""],["PrototypeList",""],["RegisterBindings",""],["UnionTypes",""]]});

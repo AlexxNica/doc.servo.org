@@ -1,1 +1,0 @@
-initSidebarItems({"trait":[["Bounded","Numbers which have upper and lower bounds"],["FromPrimitive",""],["ToPrimitive","A generic trait for converting a value to a number."]]});

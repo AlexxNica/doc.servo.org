@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["StructuredCloneData","A buffer for a structured clone."]]});

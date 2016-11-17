@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["parse",""],["parse_value",""]],"struct":[["Longhands",""],["LonghandsToSerialize","Represents a serializable set of all of the longhand properties that correspond to a shorthand"]]});

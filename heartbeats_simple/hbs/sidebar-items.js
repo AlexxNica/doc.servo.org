@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["Heartbeat","Contains the Heartbeat and its window data buffer."],["HeartbeatContext","A `heartbeat_context` is used for tracking performance/power of recurring jobs."],["HeartbeatRecord","A heartbeat record with current rates."]],"type":[["HeartbeatWindowComplete","Typedef for the window completion callback function."]]});

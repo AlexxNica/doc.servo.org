@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["DOMRefCell","A mutable field in the DOM."]]});

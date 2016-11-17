@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["MAX_PROTO_CHAIN_LENGTH",""],["PROTO_OR_IFACE_LENGTH",""]],"enum":[["Constructor",""],["ID",""],["Proxies",""]],"fn":[["proto_id_to_name",""]],"static":[["INTERFACES",""]]});

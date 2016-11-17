@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["find_first_zero","Find the first zero in `v`. If there is no zero, it return v.len() - 1"],["sort_floats","Sorts floating point number. The ordering used is | -inf | < 0 | -0 | +0 | > 0 | +inf | NaN |"]]});

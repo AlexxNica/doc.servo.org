@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["ExtensionData","Extension data."],["Repeat","Number of repetitions"]],"fn":[["flag_size",""]],"struct":[["BlockWriter",""],["Encoder","GIF encoder."]]});

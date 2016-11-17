@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["gl",""],["x11",""],["xcursor",""],["xext",""],["xft",""],["xi",""],["xinerama",""],["xlib_xcb",""],["xmu",""],["xrandr",""],["xrender",""],["xscrnsaver",""],["xt",""],["xtst",""],["xxf86vm",""]]});

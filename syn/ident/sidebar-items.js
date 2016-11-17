@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["parsing",""]],"struct":[["Ident",""]]});

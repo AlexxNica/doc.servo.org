@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["LockLatch","A Latch starts as false and eventually becomes true. You can block until it becomes true."],["SpinLatch","A Latch starts as false and eventually becomes true. You can block until it becomes true."]],"trait":[["Latch",""]]});

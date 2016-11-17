@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Keyword",""],["PositionCategory",""],["PositionComponent",""]],"fn":[["category",""]],"struct":[["Position",""]]});

@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["read_header_ident",""]],"struct":[["IdentHeader",""],["Metadata","Metadata for the Theora video codec."]]});

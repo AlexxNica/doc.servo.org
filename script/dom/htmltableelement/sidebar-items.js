@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["HTMLTableElement",""],["TableRowFilter",""]],"trait":[["HTMLTableElementLayoutHelpers",""]]});

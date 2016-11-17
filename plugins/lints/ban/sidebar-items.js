@@ -1,1 +1,0 @@
-initSidebarItems({"static":[["BANNED_TYPE",""]],"struct":[["BanPass","Lint for banning various unsafe types"]]});

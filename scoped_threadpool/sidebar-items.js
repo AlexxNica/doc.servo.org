@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Message",""]],"struct":[["Pool","A threadpool that acts as a handle to a number of threads spawned at construction."],["Scope","Handle to the scope during which the threadpool is borrowed."],["ThreadData",""]],"trait":[["FnBox",""]],"type":[["Thunk",""]]});

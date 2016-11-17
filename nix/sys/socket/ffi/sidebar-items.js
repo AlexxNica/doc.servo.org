@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["accept",""],["bind",""],["connect",""],["getpeername",""],["getsockname",""],["getsockopt",""],["listen",""],["recv",""],["recvfrom",""],["recvmsg",""],["send",""],["sendmsg",""],["sendto",""],["setsockopt",""],["socket",""],["socketpair",""]],"struct":[["cmsghdr",""],["msghdr",""]],"type":[["type_of_cmsg_len",""]]});

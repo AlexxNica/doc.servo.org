@@ -1,1 +1,0 @@
-initSidebarItems({"static":[["MAGIC_GUID",""]],"struct":[["WebSocketAccept","Represents a Sec-WebSocket-Accept header"]]});

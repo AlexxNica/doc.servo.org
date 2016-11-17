@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["NodeListType",""]],"struct":[["ChildrenList",""],["NodeList",""],["NodeListIterator",""]]});

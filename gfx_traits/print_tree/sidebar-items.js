@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["PrintTree","A struct that makes it easier to print out a pretty tree of data, which can be visually scanned more easily."]]});

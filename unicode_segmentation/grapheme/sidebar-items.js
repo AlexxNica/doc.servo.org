@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["GraphemeState",""]],"fn":[["new_grapheme_indices",""],["new_graphemes",""]],"struct":[["GraphemeIndices","External iterator for grapheme clusters and byte offsets."],["Graphemes","External iterator for a string's grapheme clusters."]]});

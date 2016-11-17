@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["TypedSize2D",""]],"type":[["Size2D","Default 2d size type with no unit."]]});

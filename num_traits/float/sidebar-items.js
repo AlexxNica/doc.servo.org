@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["integer_decode_f32",""],["integer_decode_f64",""]],"trait":[["Float",""],["FloatConst",""]]});

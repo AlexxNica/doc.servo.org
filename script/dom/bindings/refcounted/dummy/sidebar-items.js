@@ -1,1 +1,0 @@
-initSidebarItems({"static":[["LIVE_REFERENCES",""]]});

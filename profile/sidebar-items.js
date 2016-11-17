@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["heartbeats",""],["mem","Memory profiling functions."],["time","Timing functions."],["trace_dump","A module for writing time profiler traces out to a self contained HTML file."]]});

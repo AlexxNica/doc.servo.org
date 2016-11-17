@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["RecompositionState",""]],"fn":[["new_canonical",""],["new_compatible",""]],"struct":[["Recompositions","External iterator for a string recomposition's characters."]]});

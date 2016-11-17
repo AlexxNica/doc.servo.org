@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["UTSNAME_LEN",""]],"fn":[["to_str",""],["uname",""]],"mod":[["ffi",""]],"struct":[["UtsName",""]]});
