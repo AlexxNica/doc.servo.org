@@ -654,6 +654,14 @@
 <span id="610">610</span>
 <span id="611">611</span>
 <span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1084,15 +1092,23 @@
     }
 
     <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>pop_from_free_list</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>WeakRuleNode</span><span class='op'>&gt;</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_layout</span>() <span class='op'>&amp;&amp;</span>
-                      <span class='op'>!</span><span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_worker</span>());
-
         <span class='comment'>// NB: This can run from the root node destructor, so we can&#39;t use</span>
         <span class='comment'>// `get()`, since it asserts the refcount is bigger than zero.</span>
         <span class='kw'>let</span> <span class='ident'>me</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='op'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>;
+
         <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>me</span>.<span class='ident'>is_root</span>());
 
+        <span class='comment'>// FIXME(#14213): Apparently the layout data can be gone from script.</span>
+        <span class='comment'>//</span>
+        <span class='comment'>// That&#39;s... suspicious, but it&#39;s fine if it happens for the rule tree</span>
+        <span class='comment'>// case, so just don&#39;t crash in the case we&#39;re doing the final GC in</span>
+        <span class='comment'>// script.</span>
+        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_worker</span>() <span class='op'>&amp;&amp;</span>
+                      (<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_layout</span>() <span class='op'>||</span>
+                       (<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>() <span class='op'>&amp;&amp;</span>
+                        <span class='ident'>me</span>.<span class='ident'>refcount</span>.<span class='ident'>load</span>(<span class='ident'>Ordering</span>::<span class='ident'>SeqCst</span>) <span class='op'>==</span> <span class='number'>0</span>)));
         <span class='kw'>let</span> <span class='ident'>current</span> <span class='op'>=</span> <span class='ident'>me</span>.<span class='ident'>next_free</span>.<span class='ident'>load</span>(<span class='ident'>Ordering</span>::<span class='ident'>SeqCst</span>);
+
         <span class='kw'>if</span> <span class='ident'>current</span> <span class='op'>==</span> <span class='ident'>FREE_LIST_SENTINEL</span> {
             <span class='kw'>return</span> <span class='prelude-val'>None</span>;
         }
