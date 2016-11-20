@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Error",""],["PixelFormat",""],["UnsupportedFeature",""]],"mod":[["decoder",""],["error",""],["huffman",""],["idct",""],["marker",""],["parser",""],["upsampler",""],["worker_thread",""]],"struct":[["Decoder",""],["ImageInfo",""]]});

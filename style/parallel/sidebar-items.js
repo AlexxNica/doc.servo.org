@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["CHUNK_SIZE",""]],"fn":[["bottom_up_dom","Process current node and potentially traverse its ancestors."],["top_down_dom","A parallel top-down DOM traversal."],["traverse_dom",""]]});

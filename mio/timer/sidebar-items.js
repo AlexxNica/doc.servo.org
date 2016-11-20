@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["EMPTY",""],["NS_PER_MS",""]],"enum":[["TimerErrorKind",""]],"struct":[["Entry",""],["EntryLinks",""],["Timeout",""],["Timer",""],["TimerError",""]],"type":[["TimerResult",""]]});

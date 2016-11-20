@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["bound_lifetimes",""],["generics",""],["lifetime",""],["lifetime_def",""],["ty_param",""],["ty_param_bound",""],["where_clause",""],["where_predicate",""]]});

@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["decode_utf8_lossy",""],["encode_utf8",""]],"struct":[["EncodingOverride",""]],"type":[["EncodingRef","A trait object using dynamic dispatch which is a sendable reference to the encoding, for code where the encoding is not known at compile-time."]]});

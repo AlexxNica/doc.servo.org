@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["MozMap","The `MozMap` (open-ended dictionary) type."]]});

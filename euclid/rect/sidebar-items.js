@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["max",""],["min",""]],"struct":[["TypedRect","A 2d Rectangle optionally tagged with a unit."]],"type":[["Rect","The default rectangle type with no unit."]]});

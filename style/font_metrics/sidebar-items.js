@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["FontMetricsQueryResult",""]],"struct":[["FontMetrics","Represents the font metrics that style needs from a font to compute the value of certain CSS units like `ex`."]],"trait":[["FontMetricsProvider","A trait used to represent something capable of providing us font metrics."]]});

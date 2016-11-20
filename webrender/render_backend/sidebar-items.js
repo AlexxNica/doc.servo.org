@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["RenderBackend","The render backend is responsible for transforming high level display lists into GPU-friendly work which is then submitted to the renderer in the form of a frame::Frame."],["WebRenderGLDispatcher",""]]});

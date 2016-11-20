@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["PseudoElementCascadeType","This function determines if a pseudo-element is eagerly cascaded or not."]],"fn":[["attr_equals_selector_is_shareable",""],["attr_exists_selector_is_shareable",""]],"trait":[["ElementExt",""]],"type":[["AttrValue",""]]});

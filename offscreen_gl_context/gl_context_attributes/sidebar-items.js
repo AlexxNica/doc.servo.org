@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["GLContextAttributes","This structure represents the attributes the context must support It's almost (if not) identical to WebGLGLContextAttributes"]]});

@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["SLOT_NATIVEHANDLER",""],["SLOT_NATIVEHANDLER_TASK",""]],"enum":[["NativeHandlerTask",""]],"fn":[["create_native_handler_function",""],["do_nothing_promise_executor",""],["native_handler_callback",""]],"struct":[["Promise",""]],"trait":[["PromiseHelper","Private helper to enable adding new methods to Rc<Promise>."]]});

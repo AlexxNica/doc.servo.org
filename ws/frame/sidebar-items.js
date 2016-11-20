@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["apply_mask",""],["generate_mask",""]],"struct":[["Frame","A struct representing a WebSocket frame."]]});

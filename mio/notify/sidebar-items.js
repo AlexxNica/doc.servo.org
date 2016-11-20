@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["CLOSED",""],["SLEEP",""]],"enum":[["NotifyError",""]],"struct":[["Notify","Send notifications to the event loop, waking it up if necessary. If the event loop is not currently sleeping, avoid using an OS wake-up strategy (eventfd, pipe, ...). Backed by a pre-allocated lock free MPMC queue."],["NotifyInner",""]]});

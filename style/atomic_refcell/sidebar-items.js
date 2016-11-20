@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["AtomicRef",""],["AtomicRefCell","Container type providing RefCell-like semantics for objects shared across threads."],["AtomicRefMut",""]],"trait":[["Map",""]],"type":[["MappedAtomicRef",""]]});

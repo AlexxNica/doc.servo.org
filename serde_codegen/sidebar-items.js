@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["expand",""],["expand_derive_deserialize",""],["expand_derive_serialize",""],["expand_single_item",""],["expand_str",""],["syntex_registry",""]],"mod":[["bound",""],["de",""],["ser",""]]});

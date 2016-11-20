@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["NonTSPseudoClass",""],["PseudoElement","NB: If you add to this list, be sure to update `each_pseudo_element` too."]],"struct":[["ServoElementSnapshot","Servo's version of an element snapshot."],["ServoSelectorImpl",""]]});

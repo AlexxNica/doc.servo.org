@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["_IMPL_DESERIALIZE_FOR_SpecifiedUrl",""],["_IMPL_DESERIALIZE_FOR_UrlExtraData",""],["_IMPL_SERIALIZE_FOR_SpecifiedUrl",""],["_IMPL_SERIALIZE_FOR_UrlExtraData",""]],"struct":[["SpecifiedUrl","A specified url() value."],["UrlExtraData",""]]});

@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["ptrace",""],["ptrace_other",""],["ptrace_peek",""],["ptrace_setoptions","Set options, as with ptrace(PTRACE_SETOPTIONS,...)."]],"mod":[["ffi",""],["ptrace",""]]});

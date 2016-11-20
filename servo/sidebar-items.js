@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["args",""],["install_crash_handler",""],["main",""],["register_glutin_resize_handler",""],["setup_logging",""],["unregister_glutin_resize_handler",""]],"mod":[["platform",""]],"struct":[["BrowserWrapper",""]]});

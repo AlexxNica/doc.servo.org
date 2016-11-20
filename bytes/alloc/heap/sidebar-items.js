@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["MAX_ALLOC_SIZE",""]],"struct":[["Heap",""]]});

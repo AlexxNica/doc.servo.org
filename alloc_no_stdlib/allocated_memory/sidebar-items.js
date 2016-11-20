@@ -1,0 +1,1 @@
+initSidebarItems({"trait":[["AllocatedSlice",""],["SliceWrapper",""],["SliceWrapperMut",""]]});
