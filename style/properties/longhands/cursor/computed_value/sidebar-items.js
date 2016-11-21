@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["T",""]]});
+initSidebarItems({"enum":[["Keyword",""]],"type":[["T",""]]});
