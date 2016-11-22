@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["BLOCKLIST_FILE",""],["BLOCKLIST_FILE_NOT_FOUND",""],["EXCLUDE_READS",""],["EXCLUDE_WRITES",""],["VALID_UUID_REGEX",""]],"enum":[["Blocklist",""]],"fn":[["parse_blocklist",""],["uuid_is_blocklisted",""]],"static":[["BLUETOOTH_BLOCKLIST",""]],"struct":[["BluetoothBlocklist",""]]});
