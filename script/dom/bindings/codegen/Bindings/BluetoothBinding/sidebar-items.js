@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["BluetoothBinding",""]],"struct":[["BluetoothRequestDeviceFilter",""],["RequestDeviceOptions",""]]});
+initSidebarItems({"mod":[["BluetoothBinding",""]],"struct":[["BluetoothDataFilterInit",""],["BluetoothLEScanFilterInit",""],["RequestDeviceOptions",""]]});
