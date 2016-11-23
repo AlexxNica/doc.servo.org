@@ -611,7 +611,6 @@
 <span id="567">567</span>
 <span id="568">568</span>
 <span id="569">569</span>
-<span id="570">570</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -730,8 +729,9 @@
     <span class='kw'>pub</span> <span class='ident'>window_size</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>TypedSize2D</span><span class='op'>&lt;</span><span class='ident'>f32</span>, <span class='ident'>PagePx</span><span class='op'>&gt;&gt;</span>,
     <span class='doccomment'>/// Information about the device pixel ratio.</span>
     <span class='kw'>pub</span> <span class='ident'>device_pixel_ratio</span>: <span class='ident'>ScaleFactor</span><span class='op'>&lt;</span><span class='ident'>f32</span>, <span class='ident'>ViewportPx</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>,
-    <span class='doccomment'>/// A channel to the script thread, if applicable. If this is `Some`,</span>
-    <span class='doccomment'>/// then `parent_info` must also be `Some`.</span>
+    <span class='doccomment'>/// A channel to the script thread, if applicable.</span>
+    <span class='doccomment'>/// If this is `None`, create a new script thread.</span>
+    <span class='doccomment'>/// If this is `Some`, then reuse an existing script thread.</span>
     <span class='kw'>pub</span> <span class='ident'>script_chan</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Rc</span><span class='op'>&lt;</span><span class='ident'>ScriptChan</span><span class='op'>&gt;&gt;</span>,
     <span class='doccomment'>/// Information about the page to load.</span>
     <span class='kw'>pub</span> <span class='ident'>load_data</span>: <span class='ident'>LoadData</span>,
@@ -761,16 +761,23 @@
         <span class='kw'>let</span> (<span class='ident'>layout_content_process_shutdown_chan</span>, <span class='ident'>layout_content_process_shutdown_port</span>) <span class='op'>=</span>
             <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>expect</span>(<span class='string'>&quot;Pipeline layout content shutdown chan&quot;</span>);
 
+        <span class='kw'>let</span> <span class='ident'>device_pixel_ratio</span> <span class='op'>=</span> <span class='ident'>state</span>.<span class='ident'>device_pixel_ratio</span>;
+        <span class='kw'>let</span> <span class='ident'>window_size</span> <span class='op'>=</span> <span class='ident'>state</span>.<span class='ident'>window_size</span>.<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>size</span><span class='op'>|</span> {
+            <span class='ident'>WindowSizeData</span> {
+                <span class='ident'>visible_viewport</span>: <span class='ident'>size</span>,
+                <span class='ident'>initial_viewport</span>: <span class='ident'>size</span> <span class='op'>*</span> <span class='ident'>ScaleFactor</span>::<span class='ident'>new</span>(<span class='number'>1.0</span>),
+                <span class='ident'>device_pixel_ratio</span>: <span class='ident'>device_pixel_ratio</span>,
+            }
+        });
+
         <span class='kw'>let</span> (<span class='ident'>script_chan</span>, <span class='ident'>content_ports</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>state</span>.<span class='ident'>script_chan</span> {
             <span class='prelude-val'>Some</span>(<span class='ident'>script_chan</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> (<span class='ident'>parent_pipeline_id</span>, <span class='ident'>frame_type</span>) <span class='op'>=</span>
-                    <span class='ident'>state</span>.<span class='ident'>parent_info</span>.<span class='ident'>expect</span>(<span class='string'>&quot;script_pipeline != None but parent_info == None&quot;</span>);
                 <span class='kw'>let</span> <span class='ident'>new_layout_info</span> <span class='op'>=</span> <span class='ident'>NewLayoutInfo</span> {
-                    <span class='ident'>parent_pipeline_id</span>: <span class='ident'>parent_pipeline_id</span>,
+                    <span class='ident'>parent_info</span>: <span class='ident'>state</span>.<span class='ident'>parent_info</span>,
                     <span class='ident'>new_pipeline_id</span>: <span class='ident'>state</span>.<span class='ident'>id</span>,
                     <span class='ident'>frame_id</span>: <span class='ident'>state</span>.<span class='ident'>frame_id</span>,
-                    <span class='ident'>frame_type</span>: <span class='ident'>frame_type</span>,
                     <span class='ident'>load_data</span>: <span class='ident'>state</span>.<span class='ident'>load_data</span>.<span class='ident'>clone</span>(),
+                    <span class='ident'>window_size</span>: <span class='ident'>window_size</span>,
                     <span class='ident'>pipeline_port</span>: <span class='ident'>pipeline_port</span>,
                     <span class='ident'>layout_to_constellation_chan</span>: <span class='ident'>state</span>.<span class='ident'>layout_to_constellation_chan</span>.<span class='ident'>clone</span>(),
                     <span class='ident'>content_process_shutdown_chan</span>: <span class='ident'>layout_content_process_shutdown_chan</span>.<span class='ident'>clone</span>(),
@@ -804,15 +811,6 @@
                     }
                 });
                 <span class='ident'>script_to_devtools_chan</span>
-            });
-
-            <span class='kw'>let</span> <span class='ident'>device_pixel_ratio</span> <span class='op'>=</span> <span class='ident'>state</span>.<span class='ident'>device_pixel_ratio</span>;
-            <span class='kw'>let</span> <span class='ident'>window_size</span> <span class='op'>=</span> <span class='ident'>state</span>.<span class='ident'>window_size</span>.<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>size</span><span class='op'>|</span> {
-                <span class='ident'>WindowSizeData</span> {
-                    <span class='ident'>visible_viewport</span>: <span class='ident'>size</span>,
-                    <span class='ident'>initial_viewport</span>: <span class='ident'>size</span> <span class='op'>*</span> <span class='ident'>ScaleFactor</span>::<span class='ident'>new</span>(<span class='number'>1.0</span>),
-                    <span class='ident'>device_pixel_ratio</span>: <span class='ident'>device_pixel_ratio</span>,
-                }
             });
 
             <span class='kw'>let</span> (<span class='ident'>script_content_process_shutdown_chan</span>, <span class='ident'>script_content_process_shutdown_port</span>) <span class='op'>=</span>

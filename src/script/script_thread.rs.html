@@ -2247,7 +2247,6 @@
 <span id="2203">2203</span>
 <span id="2204">2204</span>
 <span id="2205">2205</span>
-<span id="2206">2206</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -3424,11 +3423,11 @@
 
     <span class='kw'>fn</span> <span class='ident'>handle_new_layout</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>new_layout_info</span>: <span class='ident'>NewLayoutInfo</span>) {
         <span class='kw'>let</span> <span class='ident'>NewLayoutInfo</span> {
-            <span class='ident'>parent_pipeline_id</span>,
+            <span class='ident'>parent_info</span>,
             <span class='ident'>new_pipeline_id</span>,
             <span class='ident'>frame_id</span>,
-            <span class='ident'>frame_type</span>,
             <span class='ident'>load_data</span>,
+            <span class='ident'>window_size</span>,
             <span class='ident'>pipeline_port</span>,
             <span class='ident'>layout_to_constellation_chan</span>,
             <span class='ident'>content_process_shutdown_chan</span>,
@@ -3438,7 +3437,7 @@
         <span class='kw'>let</span> <span class='ident'>layout_pair</span> <span class='op'>=</span> <span class='ident'>channel</span>();
         <span class='kw'>let</span> <span class='ident'>layout_chan</span> <span class='op'>=</span> <span class='ident'>layout_pair</span>.<span class='number'>0</span>.<span class='ident'>clone</span>();
 
-        <span class='kw'>let</span> <span class='ident'>layout_creation_info</span> <span class='op'>=</span> <span class='ident'>NewLayoutThreadInfo</span> {
+        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>message</span>::<span class='ident'>Msg</span>::<span class='ident'>CreateLayoutThread</span>(<span class='ident'>NewLayoutThreadInfo</span> {
             <span class='ident'>id</span>: <span class='ident'>new_pipeline_id</span>,
             <span class='ident'>url</span>: <span class='ident'>load_data</span>.<span class='ident'>url</span>.<span class='ident'>clone</span>(),
             <span class='ident'>is_parent</span>: <span class='bool-val'>false</span>,
@@ -3449,19 +3448,18 @@
             <span class='ident'>image_cache_thread</span>: <span class='self'>self</span>.<span class='ident'>image_cache_thread</span>.<span class='ident'>clone</span>(),
             <span class='ident'>content_process_shutdown_chan</span>: <span class='ident'>content_process_shutdown_chan</span>,
             <span class='ident'>layout_threads</span>: <span class='ident'>layout_threads</span>,
+        });
+
+        <span class='comment'>// Pick a layout thread, any layout thread</span>
+        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>documents</span>.<span class='ident'>borrow</span>().<span class='ident'>iter</span>().<span class='ident'>next</span>() {
+            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;Layout attached to empty script thread.&quot;</span>),
+            <span class='comment'>// Tell the layout thread factory to actually spawn the thread.</span>
+            <span class='prelude-val'>Some</span>((_, <span class='ident'>document</span>)) <span class='op'>=&gt;</span> <span class='ident'>document</span>.<span class='ident'>window</span>().<span class='ident'>layout_chan</span>().<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>(),
         };
 
-        <span class='kw'>let</span> <span class='ident'>parent_window</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>documents</span>.<span class='ident'>borrow</span>().<span class='ident'>find_window</span>(<span class='ident'>parent_pipeline_id</span>)
-            .<span class='ident'>expect</span>(<span class='string'>&quot;ScriptThread: received a layout for a parent pipeline not in this script thread. This is a bug.&quot;</span>);
-
-        <span class='comment'>// Tell layout to actually spawn the thread.</span>
-        <span class='ident'>parent_window</span>.<span class='ident'>layout_chan</span>()
-                     .<span class='ident'>send</span>(<span class='ident'>message</span>::<span class='ident'>Msg</span>::<span class='ident'>CreateLayoutThread</span>(<span class='ident'>layout_creation_info</span>))
-                     .<span class='ident'>unwrap</span>();
-
         <span class='comment'>// Kick off the fetch for the new resource.</span>
-        <span class='kw'>let</span> <span class='ident'>new_load</span> <span class='op'>=</span> <span class='ident'>InProgressLoad</span>::<span class='ident'>new</span>(<span class='ident'>new_pipeline_id</span>, <span class='ident'>frame_id</span>, <span class='prelude-val'>Some</span>((<span class='ident'>parent_pipeline_id</span>, <span class='ident'>frame_type</span>)),
-                                           <span class='ident'>layout_chan</span>, <span class='ident'>parent_window</span>.<span class='ident'>window_size</span>(),
+        <span class='kw'>let</span> <span class='ident'>new_load</span> <span class='op'>=</span> <span class='ident'>InProgressLoad</span>::<span class='ident'>new</span>(<span class='ident'>new_pipeline_id</span>, <span class='ident'>frame_id</span>, <span class='ident'>parent_info</span>,
+                                           <span class='ident'>layout_chan</span>, <span class='ident'>window_size</span>,
                                            <span class='ident'>load_data</span>.<span class='ident'>url</span>.<span class='ident'>clone</span>());
         <span class='self'>self</span>.<span class='ident'>start_page_load</span>(<span class='ident'>new_load</span>, <span class='ident'>load_data</span>);
     }

@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["bloom","Simple counting bloom filters."],["matching",""],["parser",""],["tree","Traits that nodes must implement. Breaks the otherwise-cyclic dependency between layout and style."]],"trait":[["Element",""],["MatchAttr",""],["MatchAttrGeneric",""]],"type":[["HashMap",""]]});
+initSidebarItems({"mod":[["bloom","Simple counting bloom filters."],["matching",""],["parser",""],["tree","Traits that nodes must implement. Breaks the otherwise-cyclic dependency between layout and style."]],"trait":[["Element",""],["MatchAttr",""],["MatchAttrGeneric",""]]});
