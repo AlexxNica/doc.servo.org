@@ -279,24 +279,35 @@
 <span id="235">235</span>
 <span id="236">236</span>
 <span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
 <span class='kw'>use</span> <span class='ident'>byteorder</span>::{<span class='ident'>LittleEndian</span>, <span class='ident'>WriteBytesExt</span>};
+<span class='kw'>use</span> <span class='ident'>channel</span>::{<span class='self'>self</span>, <span class='ident'>MsgSender</span>, <span class='ident'>PayloadHelperMethods</span>, <span class='ident'>PayloadSender</span>};
 <span class='kw'>use</span> <span class='ident'>euclid</span>::{<span class='ident'>Point2D</span>, <span class='ident'>Size2D</span>};
-<span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>::{<span class='self'>self</span>, <span class='ident'>IpcBytesSender</span>, <span class='ident'>IpcSender</span>};
 <span class='kw'>use</span> <span class='ident'>offscreen_gl_context</span>::{<span class='ident'>GLContextAttributes</span>, <span class='ident'>GLLimits</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>Cell</span>;
 <span class='kw'>use</span> {<span class='ident'>ApiMsg</span>, <span class='ident'>AuxiliaryLists</span>, <span class='ident'>BuiltDisplayList</span>, <span class='ident'>ColorF</span>, <span class='ident'>Epoch</span>};
 <span class='kw'>use</span> {<span class='ident'>FontKey</span>, <span class='ident'>IdNamespace</span>, <span class='ident'>ImageFormat</span>, <span class='ident'>ImageKey</span>, <span class='ident'>NativeFontHandle</span>, <span class='ident'>PipelineId</span>};
-<span class='kw'>use</span> {<span class='ident'>RenderApiSender</span>, <span class='ident'>ResourceId</span>, <span class='ident'>ScrollEventPhase</span>, <span class='ident'>ScrollLayerState</span>, <span class='ident'>WebGLContextId</span>, <span class='ident'>WebGLCommand</span>};
-<span class='kw'>use</span> {<span class='ident'>GlyphKey</span>, <span class='ident'>GlyphDimensions</span>};
+<span class='kw'>use</span> {<span class='ident'>RenderApiSender</span>, <span class='ident'>ResourceId</span>, <span class='ident'>ScrollEventPhase</span>, <span class='ident'>ScrollLayerState</span>};
+<span class='kw'>use</span> {<span class='ident'>GlyphKey</span>, <span class='ident'>GlyphDimensions</span>, <span class='ident'>ImageData</span>, <span class='ident'>WebGLContextId</span>, <span class='ident'>WebGLCommand</span>};
 
 <span class='kw'>impl</span> <span class='ident'>RenderApiSender</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>api_sender</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>ApiMsg</span><span class='op'>&gt;</span>,
-               <span class='ident'>payload_sender</span>: <span class='ident'>IpcBytesSender</span>)
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>api_sender</span>: <span class='ident'>MsgSender</span><span class='op'>&lt;</span><span class='ident'>ApiMsg</span><span class='op'>&gt;</span>,
+               <span class='ident'>payload_sender</span>: <span class='ident'>PayloadSender</span>)
                <span class='op'>-&gt;</span> <span class='ident'>RenderApiSender</span> {
         <span class='ident'>RenderApiSender</span> {
             <span class='ident'>api_sender</span>: <span class='ident'>api_sender</span>,
@@ -309,7 +320,7 @@
             <span class='kw-2'>ref</span> <span class='ident'>api_sender</span>,
             <span class='kw-2'>ref</span> <span class='ident'>payload_sender</span>
         } <span class='op'>=</span> <span class='op'>*</span><span class='self'>self</span>;
-        <span class='kw'>let</span> (<span class='ident'>sync_tx</span>, <span class='ident'>sync_rx</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
+        <span class='kw'>let</span> (<span class='ident'>sync_tx</span>, <span class='ident'>sync_rx</span>) <span class='op'>=</span> <span class='ident'>channel</span>::<span class='ident'>msg_channel</span>().<span class='ident'>unwrap</span>();
         <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>CloneApi</span>(<span class='ident'>sync_tx</span>);
         <span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
         <span class='ident'>RenderApi</span> {
@@ -322,8 +333,8 @@
 }
 
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>RenderApi</span> {
-    <span class='kw'>pub</span> <span class='ident'>api_sender</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>ApiMsg</span><span class='op'>&gt;</span>,
-    <span class='kw'>pub</span> <span class='ident'>payload_sender</span>: <span class='ident'>IpcBytesSender</span>,
+    <span class='kw'>pub</span> <span class='ident'>api_sender</span>: <span class='ident'>MsgSender</span><span class='op'>&lt;</span><span class='ident'>ApiMsg</span><span class='op'>&gt;</span>,
+    <span class='kw'>pub</span> <span class='ident'>payload_sender</span>: <span class='ident'>PayloadSender</span>,
     <span class='kw'>pub</span> <span class='ident'>id_namespace</span>: <span class='ident'>IdNamespace</span>,
     <span class='kw'>pub</span> <span class='ident'>next_id</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>ResourceId</span><span class='op'>&gt;</span>,
 }
@@ -356,7 +367,7 @@
     <span class='doccomment'>/// This means that glyph dimensions e.g. for spaces (&#39; &#39;) will mostly be None.</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_glyph_dimensions</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>glyph_keys</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>GlyphKey</span><span class='op'>&gt;</span>)
                                 <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>GlyphDimensions</span><span class='op'>&gt;&gt;</span> {
-        <span class='kw'>let</span> (<span class='ident'>tx</span>, <span class='ident'>rx</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
+        <span class='kw'>let</span> (<span class='ident'>tx</span>, <span class='ident'>rx</span>) <span class='op'>=</span> <span class='ident'>channel</span>::<span class='ident'>msg_channel</span>().<span class='ident'>unwrap</span>();
         <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>GetGlyphDimensions</span>(<span class='ident'>glyph_keys</span>, <span class='ident'>tx</span>);
         <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
         <span class='ident'>rx</span>.<span class='ident'>recv</span>().<span class='ident'>unwrap</span>()
@@ -374,12 +385,20 @@
                      <span class='ident'>height</span>: <span class='ident'>u32</span>,
                      <span class='ident'>stride</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>,
                      <span class='ident'>format</span>: <span class='ident'>ImageFormat</span>,
-                     <span class='ident'>bytes</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>ImageKey</span> {
-        <span class='kw'>let</span> <span class='ident'>new_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>next_unique_id</span>();
-        <span class='kw'>let</span> <span class='ident'>key</span> <span class='op'>=</span> <span class='ident'>ImageKey</span>::<span class='ident'>new</span>(<span class='ident'>new_id</span>.<span class='number'>0</span>, <span class='ident'>new_id</span>.<span class='number'>1</span>);
-        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>AddImage</span>(<span class='ident'>key</span>, <span class='ident'>width</span>, <span class='ident'>height</span>, <span class='ident'>stride</span>, <span class='ident'>format</span>, <span class='ident'>bytes</span>);
+                     <span class='ident'>data</span>: <span class='ident'>ImageData</span>) <span class='op'>-&gt;</span> <span class='ident'>ImageKey</span> {
+        <span class='kw'>let</span> <span class='ident'>key</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>alloc_image</span>();
+        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>AddImage</span>(<span class='ident'>key</span>, <span class='ident'>width</span>, <span class='ident'>height</span>, <span class='ident'>stride</span>, <span class='ident'>format</span>, <span class='ident'>data</span>);
         <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
         <span class='ident'>key</span>
+    }
+
+    <span class='doccomment'>/// Flushes all messages and will send a notification when the render</span>
+    <span class='doccomment'>/// backend thread has finished processing all previous messages.</span>
+    <span class='doccomment'>/// This is a temporary API And users should not expect this to be API</span>
+    <span class='doccomment'>/// to exist in the future.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>flush</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
+        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>Flush</span>;
+        <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
     }
 
     <span class='doccomment'>/// Updates a specific image.</span>
@@ -420,7 +439,7 @@
 
     <span class='doccomment'>/// Supplies a new frame to WebRender.</span>
     <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Non-blocking, it notifies a worker process which processes the stacking context.</span>
+    <span class='doccomment'>/// Non-blocking, it notifies a worker process which processes the display list.</span>
     <span class='doccomment'>/// When it&#39;s done and a RenderNotifier has been set in `webrender::renderer::Renderer`,</span>
     <span class='doccomment'>/// [new_frame_ready()][notifier] gets called.</span>
     <span class='doccomment'>///</span>
@@ -428,13 +447,11 @@
     <span class='doccomment'>///</span>
     <span class='doccomment'>/// Arguments:</span>
     <span class='doccomment'>///</span>
-    <span class='doccomment'>/// * `stacking_context_id`: The ID of the root stacking context.</span>
     <span class='doccomment'>/// * `background_color`: The background color of this pipeline.</span>
     <span class='doccomment'>/// * `epoch`: The unique Frame ID, monotonically increasing.</span>
     <span class='doccomment'>/// * `pipeline_id`: The ID of the pipeline that is supplying this display list.</span>
     <span class='doccomment'>/// * `viewport_size`: The size of the viewport for this frame.</span>
-    <span class='doccomment'>/// * `stacking_contexts`: Stacking contexts used in this frame.</span>
-    <span class='doccomment'>/// * `display_lists`: Display lists used in this frame.</span>
+    <span class='doccomment'>/// * `display_list`: The root Display list used in this frame.</span>
     <span class='doccomment'>/// * `auxiliary_lists`: Various items that the display lists and stacking contexts reference.</span>
     <span class='doccomment'>///</span>
     <span class='doccomment'>/// [notifier]: trait.RenderNotifier.html#tymethod.new_frame_ready</span>
@@ -457,7 +474,7 @@
         <span class='ident'>payload</span>.<span class='ident'>write_u32</span>::<span class='op'>&lt;</span><span class='ident'>LittleEndian</span><span class='op'>&gt;</span>(<span class='ident'>epoch</span>.<span class='number'>0</span>).<span class='ident'>unwrap</span>();
         <span class='ident'>payload</span>.<span class='ident'>extend_from_slice</span>(<span class='ident'>display_list</span>.<span class='ident'>data</span>());
         <span class='ident'>payload</span>.<span class='ident'>extend_from_slice</span>(<span class='ident'>auxiliary_lists</span>.<span class='ident'>data</span>());
-        <span class='self'>self</span>.<span class='ident'>payload_sender</span>.<span class='ident'>send</span>(<span class='kw-2'>&amp;</span><span class='ident'>payload</span>[..]).<span class='ident'>unwrap</span>();
+        <span class='self'>self</span>.<span class='ident'>payload_sender</span>.<span class='ident'>send_vec</span>(<span class='ident'>payload</span>).<span class='ident'>unwrap</span>();
     }
 
     <span class='doccomment'>/// Scrolls the scrolling layer under the `cursor`</span>
@@ -477,14 +494,14 @@
     <span class='doccomment'>/// Translates a point from viewport coordinates to layer space</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>translate_point_to_layer_space</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>point</span>: <span class='kw-2'>&amp;</span><span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>)
                                           <span class='op'>-&gt;</span> (<span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>, <span class='ident'>PipelineId</span>) {
-        <span class='kw'>let</span> (<span class='ident'>tx</span>, <span class='ident'>rx</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
+        <span class='kw'>let</span> (<span class='ident'>tx</span>, <span class='ident'>rx</span>) <span class='op'>=</span> <span class='ident'>channel</span>::<span class='ident'>msg_channel</span>().<span class='ident'>unwrap</span>();
         <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>TranslatePointToLayerSpace</span>(<span class='op'>*</span><span class='ident'>point</span>, <span class='ident'>tx</span>);
         <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
         <span class='ident'>rx</span>.<span class='ident'>recv</span>().<span class='ident'>unwrap</span>()
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_scroll_layer_state</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerState</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> (<span class='ident'>tx</span>, <span class='ident'>rx</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
+        <span class='kw'>let</span> (<span class='ident'>tx</span>, <span class='ident'>rx</span>) <span class='op'>=</span> <span class='ident'>channel</span>::<span class='ident'>msg_channel</span>().<span class='ident'>unwrap</span>();
         <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>GetScrollLayerState</span>(<span class='ident'>tx</span>);
         <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
         <span class='ident'>rx</span>.<span class='ident'>recv</span>().<span class='ident'>unwrap</span>()
@@ -492,7 +509,7 @@
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>request_webgl_context</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>size</span>: <span class='kw-2'>&amp;</span><span class='ident'>Size2D</span><span class='op'>&lt;</span><span class='ident'>i32</span><span class='op'>&gt;</span>, <span class='ident'>attributes</span>: <span class='ident'>GLContextAttributes</span>)
                                  <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(<span class='ident'>WebGLContextId</span>, <span class='ident'>GLLimits</span>), <span class='ident'>String</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> (<span class='ident'>tx</span>, <span class='ident'>rx</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
+        <span class='kw'>let</span> (<span class='ident'>tx</span>, <span class='ident'>rx</span>) <span class='op'>=</span> <span class='ident'>channel</span>::<span class='ident'>msg_channel</span>().<span class='ident'>unwrap</span>();
         <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>RequestWebGLContext</span>(<span class='op'>*</span><span class='ident'>size</span>, <span class='ident'>attributes</span>, <span class='ident'>tx</span>);
         <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
         <span class='ident'>rx</span>.<span class='ident'>recv</span>().<span class='ident'>unwrap</span>()
@@ -505,6 +522,11 @@
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>send_webgl_command</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>context_id</span>: <span class='ident'>WebGLContextId</span>, <span class='ident'>command</span>: <span class='ident'>WebGLCommand</span>) {
         <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>WebGLCommand</span>(<span class='ident'>context_id</span>, <span class='ident'>command</span>);
+        <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>generate_frame</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
+        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>GenerateFrame</span>;
         <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
     }
 

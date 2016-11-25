@@ -491,6 +491,24 @@
 <span id="447">447</span>
 <span id="448">448</span>
 <span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -498,10 +516,10 @@
 
 <span class='kw'>use</span> <span class='ident'>byteorder</span>::{<span class='ident'>LittleEndian</span>, <span class='ident'>ReadBytesExt</span>};
 <span class='kw'>use</span> <span class='ident'>frame</span>::<span class='ident'>Frame</span>;
-<span class='kw'>use</span> <span class='ident'>internal_types</span>::{<span class='ident'>FontTemplate</span>, <span class='ident'>GLContextHandleWrapper</span>, <span class='ident'>GLContextWrapper</span>, <span class='ident'>ResultMsg</span>, <span class='ident'>RendererFrame</span>};
-<span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>::{<span class='ident'>IpcBytesReceiver</span>, <span class='ident'>IpcBytesSender</span>, <span class='ident'>IpcReceiver</span>};
+<span class='kw'>use</span> <span class='ident'>internal_types</span>::{<span class='ident'>FontTemplate</span>, <span class='ident'>GLContextHandleWrapper</span>, <span class='ident'>GLContextWrapper</span>};
+<span class='kw'>use</span> <span class='ident'>internal_types</span>::{<span class='ident'>SourceTexture</span>, <span class='ident'>ResultMsg</span>, <span class='ident'>RendererFrame</span>};
 <span class='kw'>use</span> <span class='ident'>profiler</span>::<span class='ident'>BackendProfileCounters</span>;
-<span class='kw'>use</span> <span class='ident'>resource_cache</span>::{<span class='ident'>DummyResources</span>, <span class='ident'>ResourceCache</span>};
+<span class='kw'>use</span> <span class='ident'>resource_cache</span>::<span class='ident'>ResourceCache</span>;
 <span class='kw'>use</span> <span class='ident'>scene</span>::<span class='ident'>Scene</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>HashMap</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fs</span>;
@@ -509,9 +527,10 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::{<span class='ident'>Arc</span>, <span class='ident'>Mutex</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::<span class='ident'>Sender</span>;
 <span class='kw'>use</span> <span class='ident'>texture_cache</span>::<span class='ident'>TextureCache</span>;
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ApiMsg</span>, <span class='ident'>AuxiliaryLists</span>, <span class='ident'>BuiltDisplayList</span>, <span class='ident'>IdNamespace</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>RenderNotifier</span>, <span class='ident'>RenderDispatcher</span>, <span class='ident'>WebGLCommand</span>, <span class='ident'>WebGLContextId</span>};
-<span class='kw'>use</span> <span class='ident'>device</span>::<span class='ident'>TextureId</span>;
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ApiMsg</span>, <span class='ident'>AuxiliaryLists</span>, <span class='ident'>BuiltDisplayList</span>, <span class='ident'>IdNamespace</span>, <span class='ident'>ImageData</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>FlushNotifier</span>, <span class='ident'>RenderNotifier</span>, <span class='ident'>RenderDispatcher</span>, <span class='ident'>WebGLCommand</span>, <span class='ident'>WebGLContextId</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>DeviceIntSize</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::<span class='ident'>channel</span>::{<span class='ident'>PayloadHelperMethods</span>, <span class='ident'>PayloadReceiver</span>, <span class='ident'>PayloadSender</span>, <span class='ident'>MsgReceiver</span>};
 <span class='kw'>use</span> <span class='ident'>record</span>;
 <span class='kw'>use</span> <span class='ident'>tiling</span>::<span class='ident'>FrameBuilderConfig</span>;
 <span class='kw'>use</span> <span class='ident'>offscreen_gl_context</span>::<span class='ident'>GLContextDispatcher</span>;
@@ -521,21 +540,21 @@
 <span class='doccomment'>///</span>
 <span class='doccomment'>/// The render backend operates on its own thread.</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>RenderBackend</span> {
-    <span class='ident'>api_rx</span>: <span class='ident'>IpcReceiver</span><span class='op'>&lt;</span><span class='ident'>ApiMsg</span><span class='op'>&gt;</span>,
-    <span class='ident'>payload_rx</span>: <span class='ident'>IpcBytesReceiver</span>,
-    <span class='ident'>payload_tx</span>: <span class='ident'>IpcBytesSender</span>,
+    <span class='ident'>api_rx</span>: <span class='ident'>MsgReceiver</span><span class='op'>&lt;</span><span class='ident'>ApiMsg</span><span class='op'>&gt;</span>,
+    <span class='ident'>payload_rx</span>: <span class='ident'>PayloadReceiver</span>,
+    <span class='ident'>payload_tx</span>: <span class='ident'>PayloadSender</span>,
     <span class='ident'>result_tx</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>ResultMsg</span><span class='op'>&gt;</span>,
 
     <span class='ident'>device_pixel_ratio</span>: <span class='ident'>f32</span>,
     <span class='ident'>next_namespace_id</span>: <span class='ident'>IdNamespace</span>,
 
     <span class='ident'>resource_cache</span>: <span class='ident'>ResourceCache</span>,
-    <span class='ident'>dummy_resources</span>: <span class='ident'>DummyResources</span>,
 
     <span class='ident'>scene</span>: <span class='ident'>Scene</span>,
     <span class='ident'>frame</span>: <span class='ident'>Frame</span>,
 
     <span class='ident'>notifier</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>RenderNotifier</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;&gt;</span>,
+    <span class='ident'>flush_notifier</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>FlushNotifier</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;&gt;</span>,
     <span class='ident'>webrender_context_handle</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>GLContextHandleWrapper</span><span class='op'>&gt;</span>,
     <span class='ident'>webgl_contexts</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>WebGLContextId</span>, <span class='ident'>GLContextWrapper</span><span class='op'>&gt;</span>,
     <span class='ident'>current_bound_webgl_context_id</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>WebGLContextId</span><span class='op'>&gt;</span>,
@@ -546,15 +565,15 @@
 }
 
 <span class='kw'>impl</span> <span class='ident'>RenderBackend</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>api_rx</span>: <span class='ident'>IpcReceiver</span><span class='op'>&lt;</span><span class='ident'>ApiMsg</span><span class='op'>&gt;</span>,
-               <span class='ident'>payload_rx</span>: <span class='ident'>IpcBytesReceiver</span>,
-               <span class='ident'>payload_tx</span>: <span class='ident'>IpcBytesSender</span>,
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>api_rx</span>: <span class='ident'>MsgReceiver</span><span class='op'>&lt;</span><span class='ident'>ApiMsg</span><span class='op'>&gt;</span>,
+               <span class='ident'>payload_rx</span>: <span class='ident'>PayloadReceiver</span>,
+               <span class='ident'>payload_tx</span>: <span class='ident'>PayloadSender</span>,
                <span class='ident'>result_tx</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>ResultMsg</span><span class='op'>&gt;</span>,
                <span class='ident'>device_pixel_ratio</span>: <span class='ident'>f32</span>,
                <span class='ident'>texture_cache</span>: <span class='ident'>TextureCache</span>,
-               <span class='ident'>dummy_resources</span>: <span class='ident'>DummyResources</span>,
                <span class='ident'>enable_aa</span>: <span class='ident'>bool</span>,
                <span class='ident'>notifier</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>RenderNotifier</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;&gt;</span>,
+               <span class='ident'>flush_notifier</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>FlushNotifier</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;&gt;</span>,
                <span class='ident'>webrender_context_handle</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>GLContextHandleWrapper</span><span class='op'>&gt;</span>,
                <span class='ident'>config</span>: <span class='ident'>FrameBuilderConfig</span>,
                <span class='ident'>debug</span>: <span class='ident'>bool</span>,
@@ -572,11 +591,11 @@
             <span class='ident'>result_tx</span>: <span class='ident'>result_tx</span>,
             <span class='ident'>device_pixel_ratio</span>: <span class='ident'>device_pixel_ratio</span>,
             <span class='ident'>resource_cache</span>: <span class='ident'>resource_cache</span>,
-            <span class='ident'>dummy_resources</span>: <span class='ident'>dummy_resources</span>,
             <span class='ident'>scene</span>: <span class='ident'>Scene</span>::<span class='ident'>new</span>(),
             <span class='ident'>frame</span>: <span class='ident'>Frame</span>::<span class='ident'>new</span>(<span class='ident'>debug</span>, <span class='ident'>config</span>),
             <span class='ident'>next_namespace_id</span>: <span class='ident'>IdNamespace</span>(<span class='number'>1</span>),
             <span class='ident'>notifier</span>: <span class='ident'>notifier</span>,
+            <span class='ident'>flush_notifier</span>: <span class='ident'>flush_notifier</span>,
             <span class='ident'>webrender_context_handle</span>: <span class='ident'>webrender_context_handle</span>,
             <span class='ident'>webgl_contexts</span>: <span class='ident'>HashMap</span>::<span class='ident'>new</span>(),
             <span class='ident'>current_bound_webgl_context_id</span>: <span class='prelude-val'>None</span>,
@@ -592,6 +611,7 @@
         <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>enable_recording</span> {
             <span class='ident'>fs</span>::<span class='ident'>create_dir</span>(<span class='string'>&quot;record&quot;</span>).<span class='ident'>ok</span>();
         }
+
         <span class='kw'>loop</span> {
             <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>api_rx</span>.<span class='ident'>recv</span>();
             <span class='kw'>match</span> <span class='ident'>msg</span> {
@@ -617,14 +637,20 @@
                             };
                             <span class='ident'>tx</span>.<span class='ident'>send</span>(<span class='ident'>glyph_dimensions</span>).<span class='ident'>unwrap</span>();
                         }
-                        <span class='ident'>ApiMsg</span>::<span class='ident'>AddImage</span>(<span class='ident'>id</span>, <span class='ident'>width</span>, <span class='ident'>height</span>, <span class='ident'>stride</span>, <span class='ident'>format</span>, <span class='ident'>bytes</span>) <span class='op'>=&gt;</span> {
-                            <span class='ident'>profile_counters</span>.<span class='ident'>image_templates</span>.<span class='ident'>inc</span>(<span class='ident'>bytes</span>.<span class='ident'>len</span>());
+                        <span class='ident'>ApiMsg</span>::<span class='ident'>AddImage</span>(<span class='ident'>id</span>, <span class='ident'>width</span>, <span class='ident'>height</span>, <span class='ident'>stride</span>, <span class='ident'>format</span>, <span class='ident'>data</span>) <span class='op'>=&gt;</span> {
+                            <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>ImageData</span>::<span class='ident'>Raw</span>(<span class='kw-2'>ref</span> <span class='ident'>bytes</span>) <span class='op'>=</span> <span class='ident'>data</span> {
+                                <span class='ident'>profile_counters</span>.<span class='ident'>image_templates</span>.<span class='ident'>inc</span>(<span class='ident'>bytes</span>.<span class='ident'>len</span>());
+                            }
                             <span class='self'>self</span>.<span class='ident'>resource_cache</span>.<span class='ident'>add_image_template</span>(<span class='ident'>id</span>,
                                                                    <span class='ident'>width</span>,
                                                                    <span class='ident'>height</span>,
                                                                    <span class='ident'>stride</span>,
                                                                    <span class='ident'>format</span>,
-                                                                   <span class='ident'>bytes</span>);
+                                                                   <span class='ident'>data</span>);
+                        }
+                        <span class='ident'>ApiMsg</span>::<span class='ident'>Flush</span> <span class='op'>=&gt;</span> {
+                            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>flush_notifier</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>flush_notifier</span>.<span class='ident'>lock</span>();
+                            <span class='ident'>flush_notifier</span>.<span class='ident'>as_mut</span>().<span class='ident'>unwrap</span>().<span class='ident'>as_mut</span>().<span class='ident'>unwrap</span>().<span class='ident'>all_messages_flushed</span>();
                         }
                         <span class='ident'>ApiMsg</span>::<span class='ident'>UpdateImage</span>(<span class='ident'>id</span>, <span class='ident'>width</span>, <span class='ident'>height</span>, <span class='ident'>format</span>, <span class='ident'>bytes</span>) <span class='op'>=&gt;</span> {
                             <span class='self'>self</span>.<span class='ident'>resource_cache</span>.<span class='ident'>update_image_template</span>(<span class='ident'>id</span>,
@@ -665,7 +691,7 @@
                                 <span class='ident'>leftover_auxiliary_data</span>.<span class='ident'>push</span>(<span class='ident'>auxiliary_data</span>)
                             }
                             <span class='kw'>for</span> <span class='ident'>leftover_auxiliary_data</span> <span class='kw'>in</span> <span class='ident'>leftover_auxiliary_data</span> {
-                                <span class='self'>self</span>.<span class='ident'>payload_tx</span>.<span class='ident'>send</span>(<span class='kw-2'>&amp;</span><span class='ident'>leftover_auxiliary_data</span>[..]).<span class='ident'>unwrap</span>()
+                                <span class='self'>self</span>.<span class='ident'>payload_tx</span>.<span class='ident'>send_vec</span>(<span class='ident'>leftover_auxiliary_data</span>).<span class='ident'>unwrap</span>()
                             }
                             <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>enable_recording</span> {
                                 <span class='ident'>record</span>::<span class='ident'>write_payload</span>(<span class='ident'>frame_counter</span>, <span class='kw-2'>&amp;</span><span class='ident'>auxiliary_data</span>);
@@ -769,7 +795,8 @@
                                         <span class='self'>self</span>.<span class='ident'>webgl_contexts</span>.<span class='ident'>insert</span>(<span class='ident'>id</span>, <span class='ident'>ctx</span>);
 
                                         <span class='self'>self</span>.<span class='ident'>resource_cache</span>
-                                            .<span class='ident'>add_webgl_texture</span>(<span class='ident'>id</span>, <span class='ident'>TextureId</span>::<span class='ident'>new</span>(<span class='ident'>texture_id</span>), <span class='ident'>real_size</span>);
+                                            .<span class='ident'>add_webgl_texture</span>(<span class='ident'>id</span>, <span class='ident'>SourceTexture</span>::<span class='ident'>WebGL</span>(<span class='ident'>texture_id</span>),
+                                                               <span class='ident'>DeviceIntSize</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>real_size</span>));
 
                                         <span class='ident'>tx</span>.<span class='ident'>send</span>(<span class='prelude-val'>Ok</span>((<span class='ident'>id</span>, <span class='ident'>limits</span>))).<span class='ident'>unwrap</span>();
                                     },
@@ -789,7 +816,8 @@
                                     <span class='comment'>// Update webgl texture size. Texture id may change too.</span>
                                     <span class='kw'>let</span> (<span class='ident'>real_size</span>, <span class='ident'>texture_id</span>, _) <span class='op'>=</span> <span class='ident'>ctx</span>.<span class='ident'>get_info</span>();
                                     <span class='self'>self</span>.<span class='ident'>resource_cache</span>
-                                        .<span class='ident'>update_webgl_texture</span>(<span class='ident'>context_id</span>, <span class='ident'>TextureId</span>::<span class='ident'>new</span>(<span class='ident'>texture_id</span>), <span class='ident'>real_size</span>);
+                                        .<span class='ident'>update_webgl_texture</span>(<span class='ident'>context_id</span>, <span class='ident'>SourceTexture</span>::<span class='ident'>WebGL</span>(<span class='ident'>texture_id</span>),
+                                                              <span class='ident'>DeviceIntSize</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>real_size</span>));
                                 },
                                 <span class='prelude-val'>Err</span>(<span class='ident'>msg</span>) <span class='op'>=&gt;</span> {
                                     <span class='macro'>error</span><span class='macro'>!</span>(<span class='string'>&quot;Error resizing WebGLContext: {}&quot;</span>, <span class='ident'>msg</span>);
@@ -803,6 +831,15 @@
                             <span class='ident'>ctx</span>.<span class='ident'>make_current</span>();
                             <span class='ident'>ctx</span>.<span class='ident'>apply_command</span>(<span class='ident'>command</span>);
                             <span class='self'>self</span>.<span class='ident'>current_bound_webgl_context_id</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>context_id</span>);
+                        }
+                        <span class='ident'>ApiMsg</span>::<span class='ident'>GenerateFrame</span> <span class='op'>=&gt;</span> {
+                            <span class='kw'>let</span> <span class='ident'>frame</span> <span class='op'>=</span> <span class='ident'>profile_counters</span>.<span class='ident'>total_time</span>.<span class='ident'>profile</span>(<span class='op'>||</span> {
+                                <span class='self'>self</span>.<span class='ident'>render</span>()
+                            });
+                            <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>scene</span>.<span class='ident'>root_pipeline_id</span>.<span class='ident'>is_some</span>() {
+                                <span class='self'>self</span>.<span class='ident'>publish_frame_and_notify_compositor</span>(<span class='ident'>frame</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>profile_counters</span>);
+                                <span class='ident'>frame_counter</span> <span class='op'>+=</span> <span class='number'>1</span>;
+                            }
                         }
                     }
                 }
@@ -836,7 +873,6 @@
         }
 
         <span class='self'>self</span>.<span class='ident'>frame</span>.<span class='ident'>create</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>scene</span>,
-                          <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>dummy_resources</span>,
                           <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>new_pipeline_sizes</span>,
                           <span class='self'>self</span>.<span class='ident'>device_pixel_ratio</span>);
 

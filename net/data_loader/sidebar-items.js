@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["DecodeError",""]],"fn":[["decode",""],["factory",""],["load",""]],"type":[["DecodeData",""]]});
+initSidebarItems({"enum":[["DecodeError",""]],"fn":[["decode",""]],"type":[["DecodeData",""]]});

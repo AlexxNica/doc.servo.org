@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["factory",""],["resolve_chrome_url",""]]});
+initSidebarItems({"fn":[["resolve_chrome_url",""]]});

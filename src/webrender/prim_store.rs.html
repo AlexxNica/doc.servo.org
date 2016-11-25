@@ -1101,25 +1101,73 @@
 <span id="1057">1057</span>
 <span id="1058">1058</span>
 <span id="1059">1059</span>
+<span id="1060">1060</span>
+<span id="1061">1061</span>
+<span id="1062">1062</span>
+<span id="1063">1063</span>
+<span id="1064">1064</span>
+<span id="1065">1065</span>
+<span id="1066">1066</span>
+<span id="1067">1067</span>
+<span id="1068">1068</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
 <span class='kw'>use</span> <span class='ident'>app_units</span>::<span class='ident'>Au</span>;
-<span class='kw'>use</span> <span class='ident'>device</span>::<span class='ident'>TextureId</span>;
-<span class='kw'>use</span> <span class='ident'>euclid</span>::{<span class='ident'>Point2D</span>, <span class='ident'>Matrix4D</span>, <span class='ident'>Rect</span>, <span class='ident'>Size2D</span>};
+<span class='kw'>use</span> <span class='ident'>euclid</span>::<span class='ident'>Size2D</span>;
 <span class='kw'>use</span> <span class='ident'>gpu_store</span>::{<span class='ident'>GpuStore</span>, <span class='ident'>GpuStoreAddress</span>};
-<span class='kw'>use</span> <span class='ident'>internal_types</span>::{<span class='ident'>device_pixel</span>, <span class='ident'>DeviceRect</span>, <span class='ident'>DeviceSize</span>};
-<span class='kw'>use</span> <span class='ident'>resource_cache</span>::<span class='ident'>ResourceCache</span>;
+<span class='kw'>use</span> <span class='ident'>internal_types</span>::<span class='ident'>SourceTexture</span>;
+<span class='kw'>use</span> <span class='ident'>mask_cache</span>::{<span class='ident'>MaskCacheInfo</span>, <span class='ident'>MaskCacheKey</span>};
+<span class='kw'>use</span> <span class='ident'>resource_cache</span>::{<span class='ident'>ImageProperties</span>, <span class='ident'>ResourceCache</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>usize</span>;
-<span class='kw'>use</span> <span class='ident'>texture_cache</span>::<span class='ident'>TextureCacheItem</span>;
 <span class='kw'>use</span> <span class='ident'>tiling</span>::<span class='ident'>RenderTask</span>;
 <span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>TransformedRect</span>;
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>AuxiliaryLists</span>, <span class='ident'>ColorF</span>, <span class='ident'>ImageKey</span>, <span class='ident'>ImageRendering</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>FontRenderMode</span>, <span class='ident'>WebGLContextId</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ClipRegion</span>, <span class='ident'>FontKey</span>, <span class='ident'>ItemRange</span>, <span class='ident'>ComplexClipRegion</span>, <span class='ident'>GlyphKey</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ClipRegion</span>, <span class='ident'>ComplexClipRegion</span>, <span class='ident'>ItemRange</span>, <span class='ident'>GlyphKey</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>FontKey</span>, <span class='ident'>FontRenderMode</span>, <span class='ident'>WebGLContextId</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>device_length</span>, <span class='ident'>DeviceIntRect</span>, <span class='ident'>DeviceIntSize</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>DeviceRect</span>, <span class='ident'>DevicePoint</span>, <span class='ident'>DeviceSize</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>LayerRect</span>, <span class='ident'>LayerSize</span>, <span class='ident'>LayerPoint</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::<span class='ident'>LayerToWorldTransform</span>;
+
+<span class='kw'>pub</span> <span class='kw'>const</span> <span class='ident'>CLIP_DATA_GPU_SIZE</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='number'>5</span>;
+<span class='kw'>pub</span> <span class='kw'>const</span> <span class='ident'>MASK_DATA_GPU_SIZE</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='number'>1</span>;
+
+<span class='doccomment'>/// Stores two coordinates in texel space. The coordinates</span>
+<span class='doccomment'>/// are stored in texel coordinates because the texture atlas</span>
+<span class='doccomment'>/// may grow. Storing them as texel coords and normalizing</span>
+<span class='doccomment'>/// the UVs in the vertex shader means nothing needs to be</span>
+<span class='doccomment'>/// updated on the CPU when the texture size changes.</span>
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>)]</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>TexelRect</span> {
+    <span class='kw'>pub</span> <span class='ident'>uv0</span>: <span class='ident'>DevicePoint</span>,
+    <span class='kw'>pub</span> <span class='ident'>uv1</span>: <span class='ident'>DevicePoint</span>,
+}
+
+<span class='kw'>impl</span> <span class='ident'>Default</span> <span class='kw'>for</span> <span class='ident'>TexelRect</span> {
+    <span class='kw'>fn</span> <span class='ident'>default</span>() <span class='op'>-&gt;</span> <span class='ident'>TexelRect</span> {
+        <span class='ident'>TexelRect</span> {
+            <span class='ident'>uv0</span>: <span class='ident'>DevicePoint</span>::<span class='ident'>zero</span>(),
+            <span class='ident'>uv1</span>: <span class='ident'>DevicePoint</span>::<span class='ident'>zero</span>(),
+        }
+    }
+}
+
+<span class='doccomment'>/// For external images, it&#39;s not possible to know the</span>
+<span class='doccomment'>/// UV coords of the image (or the image data itself)</span>
+<span class='doccomment'>/// until the render thread receives the frame and issues</span>
+<span class='doccomment'>/// callbacks to the client application. For external</span>
+<span class='doccomment'>/// images that are visible, a DeferredResolve is created</span>
+<span class='doccomment'>/// that is stored in the frame. This allows the render</span>
+<span class='doccomment'>/// thread to iterate this list and update any changed</span>
+<span class='doccomment'>/// texture data and update the UV rect.</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>DeferredResolve</span> {
+    <span class='kw'>pub</span> <span class='ident'>resource_address</span>: <span class='ident'>GpuStoreAddress</span>,
+    <span class='kw'>pub</span> <span class='ident'>image_properties</span>: <span class='ident'>ImageProperties</span>,
+}
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Eq</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Hash</span>, <span class='ident'>Ord</span>, <span class='ident'>PartialOrd</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>SpecificPrimitiveIndex</span>(<span class='kw'>pub</span> <span class='ident'>usize</span>);
@@ -1146,8 +1194,8 @@
 <span class='doccomment'>/// Geometry description for simple rectangular primitives, uploaded to the GPU.</span>
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>PrimitiveGeometry</span> {
-    <span class='kw'>pub</span> <span class='ident'>local_rect</span>: <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
-    <span class='kw'>pub</span> <span class='ident'>local_clip_rect</span>: <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
+    <span class='kw'>pub</span> <span class='ident'>local_rect</span>: <span class='ident'>LayerRect</span>,
+    <span class='kw'>pub</span> <span class='ident'>local_clip_rect</span>: <span class='ident'>LayerRect</span>,
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Eq</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Hash</span>)]</span>
@@ -1159,7 +1207,7 @@
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>PrimitiveClipSource</span> {
     <span class='ident'>NoClip</span>,
-    <span class='ident'>Complex</span>(<span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>, <span class='ident'>f32</span>),
+    <span class='ident'>Complex</span>(<span class='ident'>LayerRect</span>, <span class='ident'>f32</span>),
     <span class='ident'>Region</span>(<span class='ident'>ClipRegion</span>),
 }
 
@@ -1167,9 +1215,8 @@
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>PrimitiveMetadata</span> {
     <span class='kw'>pub</span> <span class='ident'>is_opaque</span>: <span class='ident'>bool</span>,
-    <span class='kw'>pub</span> <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>,
-    <span class='kw'>pub</span> <span class='ident'>clip_index</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>GpuStoreAddress</span><span class='op'>&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>clip_source</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>PrimitiveClipSource</span><span class='op'>&gt;</span>,
+    <span class='kw'>pub</span> <span class='ident'>clip_cache_info</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>MaskCacheInfo</span><span class='op'>&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>prim_kind</span>: <span class='ident'>PrimitiveKind</span>,
     <span class='kw'>pub</span> <span class='ident'>cpu_prim_index</span>: <span class='ident'>SpecificPrimitiveIndex</span>,
     <span class='kw'>pub</span> <span class='ident'>gpu_prim_index</span>: <span class='ident'>GpuStoreAddress</span>,
@@ -1193,27 +1240,26 @@
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>ImagePrimitiveKind</span> {
-    <span class='ident'>Image</span>(<span class='ident'>ImageKey</span>, <span class='ident'>ImageRendering</span>, <span class='ident'>Size2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>),
+    <span class='ident'>Image</span>(<span class='ident'>ImageKey</span>, <span class='ident'>ImageRendering</span>, <span class='ident'>LayerSize</span>),
     <span class='ident'>WebGL</span>(<span class='ident'>WebGLContextId</span>),
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ImagePrimitiveCpu</span> {
     <span class='kw'>pub</span> <span class='ident'>kind</span>: <span class='ident'>ImagePrimitiveKind</span>,
-    <span class='kw'>pub</span> <span class='ident'>color_texture_id</span>: <span class='ident'>TextureId</span>,
+    <span class='kw'>pub</span> <span class='ident'>color_texture_id</span>: <span class='ident'>SourceTexture</span>,
+    <span class='kw'>pub</span> <span class='ident'>resource_address</span>: <span class='ident'>GpuStoreAddress</span>,
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ImagePrimitiveGpu</span> {
-    <span class='kw'>pub</span> <span class='ident'>uv0</span>: <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
-    <span class='kw'>pub</span> <span class='ident'>uv1</span>: <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
-    <span class='kw'>pub</span> <span class='ident'>stretch_size</span>: <span class='ident'>Size2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
-    <span class='kw'>pub</span> <span class='ident'>tile_spacing</span>: <span class='ident'>Size2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
+    <span class='kw'>pub</span> <span class='ident'>stretch_size</span>: <span class='ident'>LayerSize</span>,
+    <span class='kw'>pub</span> <span class='ident'>tile_spacing</span>: <span class='ident'>LayerSize</span>,
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>BorderPrimitiveCpu</span> {
-    <span class='kw'>pub</span> <span class='ident'>inner_rect</span>: <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
+    <span class='kw'>pub</span> <span class='ident'>inner_rect</span>: <span class='ident'>LayerRect</span>,
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
@@ -1221,7 +1267,7 @@
     <span class='kw'>pub</span> <span class='ident'>style</span>: [<span class='ident'>f32</span>; <span class='number'>4</span>],
     <span class='kw'>pub</span> <span class='ident'>widths</span>: [<span class='ident'>f32</span>; <span class='number'>4</span>],
     <span class='kw'>pub</span> <span class='ident'>colors</span>: [<span class='ident'>ColorF</span>; <span class='number'>4</span>],
-    <span class='kw'>pub</span> <span class='ident'>radii</span>: [<span class='ident'>Size2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>; <span class='number'>4</span>],
+    <span class='kw'>pub</span> <span class='ident'>radii</span>: [<span class='ident'>LayerSize</span>; <span class='number'>4</span>],
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Eq</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Hash</span>)]</span>
@@ -1234,8 +1280,8 @@
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>BoxShadowPrimitiveGpu</span> {
-    <span class='kw'>pub</span> <span class='ident'>src_rect</span>: <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
-    <span class='kw'>pub</span> <span class='ident'>bs_rect</span>: <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
+    <span class='kw'>pub</span> <span class='ident'>src_rect</span>: <span class='ident'>LayerRect</span>,
+    <span class='kw'>pub</span> <span class='ident'>bs_rect</span>: <span class='ident'>LayerRect</span>,
     <span class='kw'>pub</span> <span class='ident'>color</span>: <span class='ident'>ColorF</span>,
     <span class='kw'>pub</span> <span class='ident'>border_radius</span>: <span class='ident'>f32</span>,
     <span class='kw'>pub</span> <span class='ident'>edge_size</span>: <span class='ident'>f32</span>,
@@ -1260,8 +1306,8 @@
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>GradientPrimitiveGpu</span> {
-    <span class='kw'>pub</span> <span class='ident'>start_point</span>: <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
-    <span class='kw'>pub</span> <span class='ident'>end_point</span>: <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
+    <span class='kw'>pub</span> <span class='ident'>start_point</span>: <span class='ident'>LayerPoint</span>,
+    <span class='kw'>pub</span> <span class='ident'>end_point</span>: <span class='ident'>LayerPoint</span>,
     <span class='kw'>pub</span> <span class='ident'>kind</span>: <span class='ident'>f32</span>,
     <span class='kw'>pub</span> <span class='ident'>padding</span>: [<span class='ident'>f32</span>; <span class='number'>3</span>],
 }
@@ -1276,7 +1322,7 @@
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
 <span class='kw'>struct</span> <span class='ident'>InstanceRect</span> {
-    <span class='ident'>rect</span>: <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
+    <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>,
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
@@ -1293,28 +1339,27 @@
     <span class='kw'>pub</span> <span class='ident'>cache_dirty</span>: <span class='ident'>bool</span>,
     <span class='comment'>// TODO(gw): Maybe make this an Arc for sharing with resource cache</span>
     <span class='kw'>pub</span> <span class='ident'>glyph_indices</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>,
-    <span class='kw'>pub</span> <span class='ident'>color_texture_id</span>: <span class='ident'>TextureId</span>,
+    <span class='kw'>pub</span> <span class='ident'>color_texture_id</span>: <span class='ident'>SourceTexture</span>,
     <span class='kw'>pub</span> <span class='ident'>color</span>: <span class='ident'>ColorF</span>,
     <span class='kw'>pub</span> <span class='ident'>render_mode</span>: <span class='ident'>FontRenderMode</span>,
+    <span class='kw'>pub</span> <span class='ident'>resource_address</span>: <span class='ident'>GpuStoreAddress</span>,
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
 <span class='kw'>struct</span> <span class='ident'>GlyphPrimitive</span> {
-    <span class='ident'>offset</span>: <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
-    <span class='ident'>padding</span>: <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
-    <span class='ident'>uv0</span>: <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
-    <span class='ident'>uv1</span>: <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
+    <span class='ident'>offset</span>: <span class='ident'>LayerPoint</span>,
+    <span class='ident'>padding</span>: <span class='ident'>LayerPoint</span>,
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
 <span class='kw'>struct</span> <span class='ident'>ClipRect</span> {
-    <span class='ident'>rect</span>: <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
+    <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>,
     <span class='ident'>padding</span>: [<span class='ident'>f32</span>; <span class='number'>4</span>],
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
 <span class='kw'>struct</span> <span class='ident'>ClipCorner</span> {
-    <span class='ident'>rect</span>: <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
+    <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>,
     <span class='ident'>outer_radius_x</span>: <span class='ident'>f32</span>,
     <span class='ident'>outer_radius_y</span>: <span class='ident'>f32</span>,
     <span class='ident'>inner_radius_x</span>: <span class='ident'>f32</span>,
@@ -1322,7 +1367,7 @@
 }
 
 <span class='kw'>impl</span> <span class='ident'>ClipCorner</span> {
-    <span class='kw'>fn</span> <span class='ident'>uniform</span>(<span class='ident'>rect</span>: <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>, <span class='ident'>outer_radius</span>: <span class='ident'>f32</span>, <span class='ident'>inner_radius</span>: <span class='ident'>f32</span>) <span class='op'>-&gt;</span> <span class='ident'>ClipCorner</span> {
+    <span class='kw'>fn</span> <span class='ident'>uniform</span>(<span class='ident'>rect</span>: <span class='ident'>LayerRect</span>, <span class='ident'>outer_radius</span>: <span class='ident'>f32</span>, <span class='ident'>inner_radius</span>: <span class='ident'>f32</span>) <span class='op'>-&gt;</span> <span class='ident'>ClipCorner</span> {
         <span class='ident'>ClipCorner</span> {
             <span class='ident'>rect</span>: <span class='ident'>rect</span>,
             <span class='ident'>outer_radius_x</span>: <span class='ident'>outer_radius</span>,
@@ -1334,9 +1379,9 @@
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
-<span class='kw'>struct</span> <span class='ident'>ImageMaskData</span> {
-    <span class='ident'>uv_rect</span>: <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
-    <span class='ident'>local_rect</span>: <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ImageMaskData</span> {
+    <span class='ident'>uv_rect</span>: <span class='ident'>DeviceRect</span>,
+    <span class='ident'>local_rect</span>: <span class='ident'>LayerRect</span>,
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
@@ -1346,88 +1391,81 @@
     <span class='ident'>top_right</span>: <span class='ident'>ClipCorner</span>,
     <span class='ident'>bottom_left</span>: <span class='ident'>ClipCorner</span>,
     <span class='ident'>bottom_right</span>: <span class='ident'>ClipCorner</span>,
-    <span class='ident'>mask_data</span>: <span class='ident'>ImageMaskData</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>ClipData</span> {
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>from_clip_region</span>(<span class='ident'>clip</span>: <span class='kw-2'>&amp;</span><span class='ident'>ComplexClipRegion</span>) <span class='op'>-&gt;</span> <span class='ident'>ClipData</span> {
         <span class='ident'>ClipData</span> {
             <span class='ident'>rect</span>: <span class='ident'>ClipRect</span> {
-                <span class='ident'>rect</span>: <span class='ident'>clip</span>.<span class='ident'>rect</span>,
+                <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>clip</span>.<span class='ident'>rect</span>),
                 <span class='ident'>padding</span>: [<span class='number'>0.0</span>, <span class='number'>0.0</span>, <span class='number'>0.0</span>, <span class='number'>0.0</span>],
             },
             <span class='ident'>top_left</span>: <span class='ident'>ClipCorner</span> {
-                <span class='ident'>rect</span>: <span class='ident'>Rect</span>::<span class='ident'>new</span>(<span class='ident'>Point2D</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>, <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>),
-                                <span class='ident'>Size2D</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>top_left</span>.<span class='ident'>width</span>, <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>top_left</span>.<span class='ident'>height</span>)),
+                <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>::<span class='ident'>new</span>(
+                    <span class='ident'>LayerPoint</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>, <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>),
+                    <span class='ident'>LayerSize</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>top_left</span>.<span class='ident'>width</span>, <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>top_left</span>.<span class='ident'>height</span>)),
                 <span class='ident'>outer_radius_x</span>: <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>top_left</span>.<span class='ident'>width</span>,
                 <span class='ident'>outer_radius_y</span>: <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>top_left</span>.<span class='ident'>height</span>,
                 <span class='ident'>inner_radius_x</span>: <span class='number'>0.0</span>,
                 <span class='ident'>inner_radius_y</span>: <span class='number'>0.0</span>,
             },
             <span class='ident'>top_right</span>: <span class='ident'>ClipCorner</span> {
-                <span class='ident'>rect</span>: <span class='ident'>Rect</span>::<span class='ident'>new</span>(<span class='ident'>Point2D</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>-</span> <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>top_right</span>.<span class='ident'>width</span>,
-                                             <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>),
-                                <span class='ident'>Size2D</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>top_right</span>.<span class='ident'>width</span>, <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>top_right</span>.<span class='ident'>height</span>)),
+                <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>::<span class='ident'>new</span>(
+                    <span class='ident'>LayerPoint</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>-</span> <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>top_right</span>.<span class='ident'>width</span>, <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>),
+                    <span class='ident'>LayerSize</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>top_right</span>.<span class='ident'>width</span>, <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>top_right</span>.<span class='ident'>height</span>)),
                 <span class='ident'>outer_radius_x</span>: <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>top_right</span>.<span class='ident'>width</span>,
                 <span class='ident'>outer_radius_y</span>: <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>top_right</span>.<span class='ident'>height</span>,
                 <span class='ident'>inner_radius_x</span>: <span class='number'>0.0</span>,
                 <span class='ident'>inner_radius_y</span>: <span class='number'>0.0</span>,
             },
             <span class='ident'>bottom_left</span>: <span class='ident'>ClipCorner</span> {
-                <span class='ident'>rect</span>: <span class='ident'>Rect</span>::<span class='ident'>new</span>(<span class='ident'>Point2D</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>,
-                                             <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>-</span> <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_left</span>.<span class='ident'>height</span>),
-                                <span class='ident'>Size2D</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_left</span>.<span class='ident'>width</span>, <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_left</span>.<span class='ident'>height</span>)),
+                <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>::<span class='ident'>new</span>(
+                    <span class='ident'>LayerPoint</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>, <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>-</span> <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_left</span>.<span class='ident'>height</span>),
+                    <span class='ident'>LayerSize</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_left</span>.<span class='ident'>width</span>, <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_left</span>.<span class='ident'>height</span>)),
                 <span class='ident'>outer_radius_x</span>: <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_left</span>.<span class='ident'>width</span>,
                 <span class='ident'>outer_radius_y</span>: <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_left</span>.<span class='ident'>height</span>,
                 <span class='ident'>inner_radius_x</span>: <span class='number'>0.0</span>,
                 <span class='ident'>inner_radius_y</span>: <span class='number'>0.0</span>,
             },
             <span class='ident'>bottom_right</span>: <span class='ident'>ClipCorner</span> {
-                <span class='ident'>rect</span>: <span class='ident'>Rect</span>::<span class='ident'>new</span>(<span class='ident'>Point2D</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>-</span> <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_right</span>.<span class='ident'>width</span>,
-                                             <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>-</span> <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_right</span>.<span class='ident'>height</span>),
-                                <span class='ident'>Size2D</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_right</span>.<span class='ident'>width</span>, <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_right</span>.<span class='ident'>height</span>)),
+                <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>::<span class='ident'>new</span>(
+                    <span class='ident'>LayerPoint</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>-</span> <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_right</span>.<span class='ident'>width</span>,
+                                    <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>clip</span>.<span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>-</span> <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_right</span>.<span class='ident'>height</span>),
+                    <span class='ident'>LayerSize</span>::<span class='ident'>new</span>(<span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_right</span>.<span class='ident'>width</span>, <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_right</span>.<span class='ident'>height</span>)),
                 <span class='ident'>outer_radius_x</span>: <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_right</span>.<span class='ident'>width</span>,
                 <span class='ident'>outer_radius_y</span>: <span class='ident'>clip</span>.<span class='ident'>radii</span>.<span class='ident'>bottom_right</span>.<span class='ident'>height</span>,
                 <span class='ident'>inner_radius_x</span>: <span class='number'>0.0</span>,
                 <span class='ident'>inner_radius_y</span>: <span class='number'>0.0</span>,
             },
-            <span class='ident'>mask_data</span>: <span class='ident'>ImageMaskData</span> {
-                <span class='ident'>uv_rect</span>: <span class='ident'>Rect</span>::<span class='ident'>zero</span>(),
-                <span class='ident'>local_rect</span>: <span class='ident'>Rect</span>::<span class='ident'>zero</span>(),
-            },
         }
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>uniform</span>(<span class='ident'>rect</span>: <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>, <span class='ident'>radius</span>: <span class='ident'>f32</span>) <span class='op'>-&gt;</span> <span class='ident'>ClipData</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>uniform</span>(<span class='ident'>rect</span>: <span class='ident'>LayerRect</span>, <span class='ident'>radius</span>: <span class='ident'>f32</span>) <span class='op'>-&gt;</span> <span class='ident'>ClipData</span> {
         <span class='ident'>ClipData</span> {
             <span class='ident'>rect</span>: <span class='ident'>ClipRect</span> {
                 <span class='ident'>rect</span>: <span class='ident'>rect</span>,
                 <span class='ident'>padding</span>: [<span class='number'>0.0</span>; <span class='number'>4</span>],
             },
-            <span class='ident'>top_left</span>: <span class='ident'>ClipCorner</span>::<span class='ident'>uniform</span>(<span class='ident'>Rect</span>::<span class='ident'>new</span>(<span class='ident'>Point2D</span>::<span class='ident'>new</span>(<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>,
-                                                                 <span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>),
-                                                    <span class='ident'>Size2D</span>::<span class='ident'>new</span>(<span class='ident'>radius</span>, <span class='ident'>radius</span>)),
-                                          <span class='ident'>radius</span>,
-                                          <span class='number'>0.0</span>),
-            <span class='ident'>top_right</span>: <span class='ident'>ClipCorner</span>::<span class='ident'>uniform</span>(<span class='ident'>Rect</span>::<span class='ident'>new</span>(<span class='ident'>Point2D</span>::<span class='ident'>new</span>(<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>-</span> <span class='ident'>radius</span>,
-                                                                  <span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>),
-                                                    <span class='ident'>Size2D</span>::<span class='ident'>new</span>(<span class='ident'>radius</span>, <span class='ident'>radius</span>)),
-                                           <span class='ident'>radius</span>,
-                                           <span class='number'>0.0</span>),
-            <span class='ident'>bottom_left</span>: <span class='ident'>ClipCorner</span>::<span class='ident'>uniform</span>(<span class='ident'>Rect</span>::<span class='ident'>new</span>(<span class='ident'>Point2D</span>::<span class='ident'>new</span>(<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>,
-                                                                    <span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>-</span> <span class='ident'>radius</span>),
-                                                       <span class='ident'>Size2D</span>::<span class='ident'>new</span>(<span class='ident'>radius</span>, <span class='ident'>radius</span>)),
-                                             <span class='ident'>radius</span>,
-                                             <span class='number'>0.0</span>),
-            <span class='ident'>bottom_right</span>: <span class='ident'>ClipCorner</span>::<span class='ident'>uniform</span>(<span class='ident'>Rect</span>::<span class='ident'>new</span>(<span class='ident'>Point2D</span>::<span class='ident'>new</span>(<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>-</span> <span class='ident'>radius</span>,
-                                                                     <span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>-</span> <span class='ident'>radius</span>),
-                                                        <span class='ident'>Size2D</span>::<span class='ident'>new</span>(<span class='ident'>radius</span>, <span class='ident'>radius</span>)),
-                                              <span class='ident'>radius</span>,
-                                              <span class='number'>0.0</span>),
-            <span class='ident'>mask_data</span>: <span class='ident'>ImageMaskData</span> {
-                <span class='ident'>uv_rect</span>: <span class='ident'>Rect</span>::<span class='ident'>zero</span>(),
-                <span class='ident'>local_rect</span>: <span class='ident'>Rect</span>::<span class='ident'>zero</span>(),
-            },
+            <span class='ident'>top_left</span>: <span class='ident'>ClipCorner</span>::<span class='ident'>uniform</span>(
+                <span class='ident'>LayerRect</span>::<span class='ident'>new</span>(
+                    <span class='ident'>LayerPoint</span>::<span class='ident'>new</span>(<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>, <span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>),
+                    <span class='ident'>LayerSize</span>::<span class='ident'>new</span>(<span class='ident'>radius</span>, <span class='ident'>radius</span>)),
+                <span class='ident'>radius</span>, <span class='number'>0.0</span>),
+            <span class='ident'>top_right</span>: <span class='ident'>ClipCorner</span>::<span class='ident'>uniform</span>(
+                <span class='ident'>LayerRect</span>::<span class='ident'>new</span>(
+                    <span class='ident'>LayerPoint</span>::<span class='ident'>new</span>(<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>-</span> <span class='ident'>radius</span>, <span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>),
+                    <span class='ident'>LayerSize</span>::<span class='ident'>new</span>(<span class='ident'>radius</span>, <span class='ident'>radius</span>)),
+                <span class='ident'>radius</span>, <span class='number'>0.0</span>),
+            <span class='ident'>bottom_left</span>: <span class='ident'>ClipCorner</span>::<span class='ident'>uniform</span>(
+                <span class='ident'>LayerRect</span>::<span class='ident'>new</span>(
+                    <span class='ident'>LayerPoint</span>::<span class='ident'>new</span>(<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>, <span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>-</span> <span class='ident'>radius</span>),
+                    <span class='ident'>LayerSize</span>::<span class='ident'>new</span>(<span class='ident'>radius</span>, <span class='ident'>radius</span>)),
+                <span class='ident'>radius</span>, <span class='number'>0.0</span>),
+            <span class='ident'>bottom_right</span>: <span class='ident'>ClipCorner</span>::<span class='ident'>uniform</span>(
+                <span class='ident'>LayerRect</span>::<span class='ident'>new</span>(
+                    <span class='ident'>LayerPoint</span>::<span class='ident'>new</span>(<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>-</span> <span class='ident'>radius</span>, <span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>-</span> <span class='ident'>radius</span>),
+                    <span class='ident'>LayerSize</span>::<span class='ident'>new</span>(<span class='ident'>radius</span>, <span class='ident'>radius</span>)),
+                <span class='ident'>radius</span>, <span class='number'>0.0</span>),
         }
     }
 }
@@ -1439,12 +1477,12 @@
     <span class='ident'>Image</span>(<span class='ident'>ImagePrimitiveCpu</span>, <span class='ident'>ImagePrimitiveGpu</span>),
     <span class='ident'>Border</span>(<span class='ident'>BorderPrimitiveCpu</span>, <span class='ident'>BorderPrimitiveGpu</span>),
     <span class='ident'>Gradient</span>(<span class='ident'>GradientPrimitiveCpu</span>, <span class='ident'>GradientPrimitiveGpu</span>),
-    <span class='ident'>BoxShadow</span>(<span class='ident'>BoxShadowPrimitiveGpu</span>, <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;&gt;</span>),
+    <span class='ident'>BoxShadow</span>(<span class='ident'>BoxShadowPrimitiveGpu</span>, <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>LayerRect</span><span class='op'>&gt;</span>),
 }
 
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>PrimitiveStore</span> {
     <span class='comment'>// CPU side information only</span>
-    <span class='kw'>pub</span> <span class='ident'>cpu_bounding_rects</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>DeviceRect</span><span class='op'>&gt;&gt;</span>,
+    <span class='kw'>pub</span> <span class='ident'>cpu_bounding_rects</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>DeviceIntRect</span><span class='op'>&gt;&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>cpu_text_runs</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>TextRunPrimitiveCpu</span><span class='op'>&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>cpu_images</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>ImagePrimitiveCpu</span><span class='op'>&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>cpu_gradients</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>GradientPrimitiveCpu</span><span class='op'>&gt;</span>,
@@ -1457,6 +1495,9 @@
     <span class='kw'>pub</span> <span class='ident'>gpu_data32</span>: <span class='ident'>GpuStore</span><span class='op'>&lt;</span><span class='ident'>GpuBlock32</span><span class='op'>&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>gpu_data64</span>: <span class='ident'>GpuStore</span><span class='op'>&lt;</span><span class='ident'>GpuBlock64</span><span class='op'>&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>gpu_data128</span>: <span class='ident'>GpuStore</span><span class='op'>&lt;</span><span class='ident'>GpuBlock128</span><span class='op'>&gt;</span>,
+
+    <span class='comment'>// Resolved resource rects.</span>
+    <span class='kw'>pub</span> <span class='ident'>gpu_resource_rects</span>: <span class='ident'>GpuStore</span><span class='op'>&lt;</span><span class='ident'>TexelRect</span><span class='op'>&gt;</span>,
 
     <span class='comment'>// General</span>
     <span class='ident'>device_pixel_ratio</span>: <span class='ident'>f32</span>,
@@ -1477,38 +1518,28 @@
             <span class='ident'>gpu_data32</span>: <span class='ident'>GpuStore</span>::<span class='ident'>new</span>(),
             <span class='ident'>gpu_data64</span>: <span class='ident'>GpuStore</span>::<span class='ident'>new</span>(),
             <span class='ident'>gpu_data128</span>: <span class='ident'>GpuStore</span>::<span class='ident'>new</span>(),
+            <span class='ident'>gpu_resource_rects</span>: <span class='ident'>GpuStore</span>::<span class='ident'>new</span>(),
             <span class='ident'>device_pixel_ratio</span>: <span class='ident'>device_pixel_ratio</span>,
             <span class='ident'>prims_to_resolve</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>populate_clip_data</span>(<span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> [<span class='ident'>GpuBlock32</span>], <span class='ident'>clip</span>: <span class='ident'>ClipData</span>) {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>populate_clip_data</span>(<span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> [<span class='ident'>GpuBlock32</span>], <span class='ident'>clip</span>: <span class='ident'>ClipData</span>) {
         <span class='ident'>data</span>[<span class='number'>0</span>] <span class='op'>=</span> <span class='ident'>GpuBlock32</span>::<span class='ident'>from</span>(<span class='ident'>clip</span>.<span class='ident'>rect</span>);
         <span class='ident'>data</span>[<span class='number'>1</span>] <span class='op'>=</span> <span class='ident'>GpuBlock32</span>::<span class='ident'>from</span>(<span class='ident'>clip</span>.<span class='ident'>top_left</span>);
         <span class='ident'>data</span>[<span class='number'>2</span>] <span class='op'>=</span> <span class='ident'>GpuBlock32</span>::<span class='ident'>from</span>(<span class='ident'>clip</span>.<span class='ident'>top_right</span>);
         <span class='ident'>data</span>[<span class='number'>3</span>] <span class='op'>=</span> <span class='ident'>GpuBlock32</span>::<span class='ident'>from</span>(<span class='ident'>clip</span>.<span class='ident'>bottom_left</span>);
         <span class='ident'>data</span>[<span class='number'>4</span>] <span class='op'>=</span> <span class='ident'>GpuBlock32</span>::<span class='ident'>from</span>(<span class='ident'>clip</span>.<span class='ident'>bottom_right</span>);
-        <span class='ident'>data</span>[<span class='number'>5</span>] <span class='op'>=</span> <span class='ident'>GpuBlock32</span>::<span class='ident'>from</span>(<span class='ident'>clip</span>.<span class='ident'>mask_data</span>);
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_primitive</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                         <span class='ident'>rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
-                         <span class='ident'>clip</span>: <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>,
+                         <span class='ident'>geometry</span>: <span class='ident'>PrimitiveGeometry</span>,
+                         <span class='ident'>clip_source</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>PrimitiveClipSource</span><span class='op'>&gt;</span>,
+                         <span class='ident'>clip_info</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>MaskCacheInfo</span><span class='op'>&gt;</span>,
                          <span class='ident'>container</span>: <span class='ident'>PrimitiveContainer</span>) <span class='op'>-&gt;</span> <span class='ident'>PrimitiveIndex</span> {
         <span class='kw'>let</span> <span class='ident'>prim_index</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>cpu_metadata</span>.<span class='ident'>len</span>();
-
         <span class='self'>self</span>.<span class='ident'>cpu_bounding_rects</span>.<span class='ident'>push</span>(<span class='prelude-val'>None</span>);
-
-        <span class='self'>self</span>.<span class='ident'>gpu_geometry</span>.<span class='ident'>push</span>(<span class='ident'>PrimitiveGeometry</span> {
-            <span class='ident'>local_rect</span>: <span class='op'>*</span><span class='ident'>rect</span>,
-            <span class='ident'>local_clip_rect</span>: <span class='ident'>clip</span>.<span class='ident'>main</span>.<span class='ident'>clone</span>(),
-        });
-
-        <span class='kw'>let</span> <span class='ident'>clip_source</span> <span class='op'>=</span> <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='kw'>if</span> <span class='ident'>clip</span>.<span class='ident'>is_complex</span>() {
-            <span class='ident'>PrimitiveClipSource</span>::<span class='ident'>Region</span>(<span class='ident'>clip</span>.<span class='ident'>clone</span>())
-        } <span class='kw'>else</span> {
-            <span class='ident'>PrimitiveClipSource</span>::<span class='ident'>NoClip</span>
-        });
+        <span class='self'>self</span>.<span class='ident'>gpu_geometry</span>.<span class='ident'>push</span>(<span class='ident'>geometry</span>);
 
         <span class='kw'>let</span> <span class='ident'>metadata</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>container</span> {
             <span class='ident'>PrimitiveContainer</span>::<span class='ident'>Rectangle</span>(<span class='ident'>rect</span>) <span class='op'>=&gt;</span> {
@@ -1517,9 +1548,8 @@
 
                 <span class='kw'>let</span> <span class='ident'>metadata</span> <span class='op'>=</span> <span class='ident'>PrimitiveMetadata</span> {
                     <span class='ident'>is_opaque</span>: <span class='ident'>is_opaque</span>,
-                    <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
-                    <span class='ident'>clip_index</span>: <span class='prelude-val'>None</span>,
                     <span class='ident'>clip_source</span>: <span class='ident'>clip_source</span>,
+                    <span class='ident'>clip_cache_info</span>: <span class='ident'>clip_info</span>,
                     <span class='ident'>prim_kind</span>: <span class='ident'>PrimitiveKind</span>::<span class='ident'>Rectangle</span>,
                     <span class='ident'>cpu_prim_index</span>: <span class='ident'>SpecificPrimitiveIndex</span>::<span class='ident'>invalid</span>(),
                     <span class='ident'>gpu_prim_index</span>: <span class='ident'>gpu_address</span>,
@@ -1530,15 +1560,15 @@
 
                 <span class='ident'>metadata</span>
             }
-            <span class='ident'>PrimitiveContainer</span>::<span class='ident'>TextRun</span>(<span class='ident'>text_cpu</span>, <span class='ident'>text_gpu</span>) <span class='op'>=&gt;</span> {
+            <span class='ident'>PrimitiveContainer</span>::<span class='ident'>TextRun</span>(<span class='kw-2'>mut</span> <span class='ident'>text_cpu</span>, <span class='ident'>text_gpu</span>) <span class='op'>=&gt;</span> {
                 <span class='kw'>let</span> <span class='ident'>gpu_address</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_data16</span>.<span class='ident'>push</span>(<span class='ident'>text_gpu</span>);
-                <span class='kw'>let</span> <span class='ident'>gpu_glyphs_address</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_data32</span>.<span class='ident'>alloc</span>(<span class='ident'>text_cpu</span>.<span class='ident'>glyph_range</span>.<span class='ident'>length</span>);
+                <span class='kw'>let</span> <span class='ident'>gpu_glyphs_address</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_data16</span>.<span class='ident'>alloc</span>(<span class='ident'>text_cpu</span>.<span class='ident'>glyph_range</span>.<span class='ident'>length</span>);
+                <span class='ident'>text_cpu</span>.<span class='ident'>resource_address</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_resource_rects</span>.<span class='ident'>alloc</span>(<span class='ident'>text_cpu</span>.<span class='ident'>glyph_range</span>.<span class='ident'>length</span>);
 
                 <span class='kw'>let</span> <span class='ident'>metadata</span> <span class='op'>=</span> <span class='ident'>PrimitiveMetadata</span> {
                     <span class='ident'>is_opaque</span>: <span class='bool-val'>false</span>,
-                    <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
-                    <span class='ident'>clip_index</span>: <span class='prelude-val'>None</span>,
                     <span class='ident'>clip_source</span>: <span class='ident'>clip_source</span>,
+                    <span class='ident'>clip_cache_info</span>: <span class='ident'>clip_info</span>,
                     <span class='ident'>prim_kind</span>: <span class='ident'>PrimitiveKind</span>::<span class='ident'>TextRun</span>,
                     <span class='ident'>cpu_prim_index</span>: <span class='ident'>SpecificPrimitiveIndex</span>(<span class='self'>self</span>.<span class='ident'>cpu_text_runs</span>.<span class='ident'>len</span>()),
                     <span class='ident'>gpu_prim_index</span>: <span class='ident'>gpu_address</span>,
@@ -1550,14 +1580,15 @@
                 <span class='self'>self</span>.<span class='ident'>cpu_text_runs</span>.<span class='ident'>push</span>(<span class='ident'>text_cpu</span>);
                 <span class='ident'>metadata</span>
             }
-            <span class='ident'>PrimitiveContainer</span>::<span class='ident'>Image</span>(<span class='ident'>image_cpu</span>, <span class='ident'>image_gpu</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>gpu_address</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_data32</span>.<span class='ident'>push</span>(<span class='ident'>image_gpu</span>);
+            <span class='ident'>PrimitiveContainer</span>::<span class='ident'>Image</span>(<span class='kw-2'>mut</span> <span class='ident'>image_cpu</span>, <span class='ident'>image_gpu</span>) <span class='op'>=&gt;</span> {
+                <span class='ident'>image_cpu</span>.<span class='ident'>resource_address</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_resource_rects</span>.<span class='ident'>alloc</span>(<span class='number'>1</span>);
+
+                <span class='kw'>let</span> <span class='ident'>gpu_address</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_data16</span>.<span class='ident'>push</span>(<span class='ident'>image_gpu</span>);
 
                 <span class='kw'>let</span> <span class='ident'>metadata</span> <span class='op'>=</span> <span class='ident'>PrimitiveMetadata</span> {
                     <span class='ident'>is_opaque</span>: <span class='bool-val'>false</span>,
-                    <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
-                    <span class='ident'>clip_index</span>: <span class='prelude-val'>None</span>,
                     <span class='ident'>clip_source</span>: <span class='ident'>clip_source</span>,
+                    <span class='ident'>clip_cache_info</span>: <span class='ident'>clip_info</span>,
                     <span class='ident'>prim_kind</span>: <span class='ident'>PrimitiveKind</span>::<span class='ident'>Image</span>,
                     <span class='ident'>cpu_prim_index</span>: <span class='ident'>SpecificPrimitiveIndex</span>(<span class='self'>self</span>.<span class='ident'>cpu_images</span>.<span class='ident'>len</span>()),
                     <span class='ident'>gpu_prim_index</span>: <span class='ident'>gpu_address</span>,
@@ -1574,9 +1605,8 @@
 
                 <span class='kw'>let</span> <span class='ident'>metadata</span> <span class='op'>=</span> <span class='ident'>PrimitiveMetadata</span> {
                     <span class='ident'>is_opaque</span>: <span class='bool-val'>false</span>,
-                    <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
-                    <span class='ident'>clip_index</span>: <span class='prelude-val'>None</span>,
                     <span class='ident'>clip_source</span>: <span class='ident'>clip_source</span>,
+                    <span class='ident'>clip_cache_info</span>: <span class='ident'>clip_info</span>,
                     <span class='ident'>prim_kind</span>: <span class='ident'>PrimitiveKind</span>::<span class='ident'>Border</span>,
                     <span class='ident'>cpu_prim_index</span>: <span class='ident'>SpecificPrimitiveIndex</span>(<span class='self'>self</span>.<span class='ident'>cpu_borders</span>.<span class='ident'>len</span>()),
                     <span class='ident'>gpu_prim_index</span>: <span class='ident'>gpu_address</span>,
@@ -1594,9 +1624,8 @@
 
                 <span class='kw'>let</span> <span class='ident'>metadata</span> <span class='op'>=</span> <span class='ident'>PrimitiveMetadata</span> {
                     <span class='ident'>is_opaque</span>: <span class='bool-val'>false</span>,
-                    <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
-                    <span class='ident'>clip_index</span>: <span class='prelude-val'>None</span>,
                     <span class='ident'>clip_source</span>: <span class='ident'>clip_source</span>,
+                    <span class='ident'>clip_cache_info</span>: <span class='ident'>clip_info</span>,
                     <span class='ident'>prim_kind</span>: <span class='ident'>PrimitiveKind</span>::<span class='ident'>Gradient</span>,
                     <span class='ident'>cpu_prim_index</span>: <span class='ident'>SpecificPrimitiveIndex</span>(<span class='self'>self</span>.<span class='ident'>cpu_gradients</span>.<span class='ident'>len</span>()),
                     <span class='ident'>gpu_prim_index</span>: <span class='ident'>gpu_address</span>,
@@ -1618,7 +1647,7 @@
                 <span class='comment'>// the patch is clamped / mirrored across the box shadow rect.</span>
                 <span class='kw'>let</span> <span class='ident'>edge_size</span> <span class='op'>=</span> <span class='ident'>box_shadow_gpu</span>.<span class='ident'>edge_size</span>.<span class='ident'>ceil</span>() <span class='op'>*</span> <span class='self'>self</span>.<span class='ident'>device_pixel_ratio</span>;
                 <span class='kw'>let</span> <span class='ident'>edge_size</span> <span class='op'>=</span> <span class='ident'>edge_size</span> <span class='kw'>as</span> <span class='ident'>i32</span> <span class='op'>+</span> <span class='number'>2</span>;   <span class='comment'>// Account for bilinear filtering</span>
-                <span class='kw'>let</span> <span class='ident'>cache_size</span> <span class='op'>=</span> <span class='ident'>DeviceSize</span>::<span class='ident'>new</span>(<span class='ident'>edge_size</span>, <span class='ident'>edge_size</span>);
+                <span class='kw'>let</span> <span class='ident'>cache_size</span> <span class='op'>=</span> <span class='ident'>DeviceIntSize</span>::<span class='ident'>new</span>(<span class='ident'>edge_size</span>, <span class='ident'>edge_size</span>);
                 <span class='kw'>let</span> <span class='ident'>cache_key</span> <span class='op'>=</span> <span class='ident'>PrimitiveCacheKey</span>::<span class='ident'>BoxShadow</span>(<span class='ident'>BoxShadowPrimitiveCacheKey</span> {
                     <span class='ident'>blur_radius</span>: <span class='ident'>Au</span>::<span class='ident'>from_f32_px</span>(<span class='ident'>box_shadow_gpu</span>.<span class='ident'>blur_radius</span>),
                     <span class='ident'>border_radius</span>: <span class='ident'>Au</span>::<span class='ident'>from_f32_px</span>(<span class='ident'>box_shadow_gpu</span>.<span class='ident'>border_radius</span>),
@@ -1643,9 +1672,8 @@
 
                 <span class='kw'>let</span> <span class='ident'>metadata</span> <span class='op'>=</span> <span class='ident'>PrimitiveMetadata</span> {
                     <span class='ident'>is_opaque</span>: <span class='bool-val'>false</span>,
-                    <span class='ident'>mask_texture_id</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
-                    <span class='ident'>clip_index</span>: <span class='prelude-val'>None</span>,
                     <span class='ident'>clip_source</span>: <span class='ident'>clip_source</span>,
+                    <span class='ident'>clip_cache_info</span>: <span class='prelude-val'>None</span>,
                     <span class='ident'>prim_kind</span>: <span class='ident'>PrimitiveKind</span>::<span class='ident'>BoxShadow</span>,
                     <span class='ident'>cpu_prim_index</span>: <span class='ident'>SpecificPrimitiveIndex</span>::<span class='ident'>invalid</span>(),
                     <span class='ident'>gpu_prim_index</span>: <span class='ident'>gpu_prim_address</span>,
@@ -1669,22 +1697,21 @@
         <span class='ident'>PrimitiveIndex</span>(<span class='ident'>prim_index</span>)
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>resolve_primitives</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>resource_cache</span>: <span class='kw-2'>&amp;</span><span class='ident'>ResourceCache</span>) {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>resolve_primitives</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>resource_cache</span>: <span class='kw-2'>&amp;</span><span class='ident'>ResourceCache</span>) <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>DeferredResolve</span><span class='op'>&gt;</span> {
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>deferred_resolves</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
+
         <span class='kw'>for</span> <span class='ident'>prim_index</span> <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>prims_to_resolve</span>.<span class='ident'>drain</span>(..) {
             <span class='kw'>let</span> <span class='ident'>metadata</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>cpu_metadata</span>[<span class='ident'>prim_index</span>.<span class='number'>0</span>];
 
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveClipSource</span>::<span class='ident'>Region</span>(<span class='ident'>ClipRegion</span> { <span class='ident'>image_mask</span>: <span class='prelude-val'>Some</span>(<span class='ident'>mask</span>), .. }) <span class='op'>=</span> <span class='ident'>metadata</span>.<span class='ident'>clip_source</span>.<span class='ident'>as_ref</span>() {
-                <span class='kw'>let</span> <span class='ident'>tex_cache</span> <span class='op'>=</span> <span class='ident'>resource_cache</span>.<span class='ident'>get_image</span>(<span class='ident'>mask</span>.<span class='ident'>image</span>, <span class='ident'>ImageRendering</span>::<span class='ident'>Auto</span>);
-                <span class='ident'>metadata</span>.<span class='ident'>mask_texture_id</span> <span class='op'>=</span> <span class='ident'>tex_cache</span>.<span class='ident'>texture_id</span>;
-                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>address</span>) <span class='op'>=</span> <span class='ident'>metadata</span>.<span class='ident'>clip_index</span> {
-                    <span class='kw'>let</span> <span class='ident'>clip_data</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_data32</span>.<span class='ident'>get_slice_mut</span>(<span class='ident'>address</span>, <span class='number'>6</span>);
-                    <span class='ident'>clip_data</span>[<span class='number'>5</span>] <span class='op'>=</span> <span class='ident'>GpuBlock32</span>::<span class='ident'>from</span>(<span class='ident'>ImageMaskData</span> {
-                        <span class='ident'>uv_rect</span>: <span class='ident'>Rect</span>::<span class='ident'>new</span>(<span class='ident'>tex_cache</span>.<span class='ident'>uv0</span>,
-                                           <span class='ident'>Size2D</span>::<span class='ident'>new</span>(<span class='ident'>tex_cache</span>.<span class='ident'>uv1</span>.<span class='ident'>x</span> <span class='op'>-</span> <span class='ident'>tex_cache</span>.<span class='ident'>uv0</span>.<span class='ident'>x</span>,
-                                                       <span class='ident'>tex_cache</span>.<span class='ident'>uv1</span>.<span class='ident'>y</span> <span class='op'>-</span> <span class='ident'>tex_cache</span>.<span class='ident'>uv0</span>.<span class='ident'>y</span>)),
-                        <span class='ident'>local_rect</span>: <span class='ident'>mask</span>.<span class='ident'>rect</span>,
-                    });
-                }
+            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>MaskCacheInfo</span>{ <span class='ident'>key</span>: <span class='ident'>MaskCacheKey</span> { <span class='ident'>image</span>: <span class='prelude-val'>Some</span>(<span class='ident'>gpu_address</span>), .. }, <span class='ident'>image</span>: <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>mask</span>), .. }) <span class='op'>=</span> <span class='ident'>metadata</span>.<span class='ident'>clip_cache_info</span> {
+                <span class='kw'>let</span> <span class='ident'>cache_item</span> <span class='op'>=</span> <span class='ident'>resource_cache</span>.<span class='ident'>get_cached_image</span>(<span class='ident'>mask</span>.<span class='ident'>image</span>, <span class='ident'>ImageRendering</span>::<span class='ident'>Auto</span>);
+                <span class='kw'>let</span> <span class='ident'>mask_data</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_data32</span>.<span class='ident'>get_slice_mut</span>(<span class='ident'>gpu_address</span>, <span class='ident'>MASK_DATA_GPU_SIZE</span>);
+                <span class='ident'>mask_data</span>[<span class='number'>0</span>] <span class='op'>=</span> <span class='ident'>GpuBlock32</span>::<span class='ident'>from</span>(<span class='ident'>ImageMaskData</span> {
+                    <span class='ident'>uv_rect</span>: <span class='ident'>DeviceRect</span>::<span class='ident'>new</span>(<span class='ident'>cache_item</span>.<span class='ident'>uv0</span>,
+                                             <span class='ident'>DeviceSize</span>::<span class='ident'>new</span>(<span class='ident'>cache_item</span>.<span class='ident'>uv1</span>.<span class='ident'>x</span> <span class='op'>-</span> <span class='ident'>cache_item</span>.<span class='ident'>uv0</span>.<span class='ident'>x</span>,
+                                                             <span class='ident'>cache_item</span>.<span class='ident'>uv1</span>.<span class='ident'>y</span> <span class='op'>-</span> <span class='ident'>cache_item</span>.<span class='ident'>uv0</span>.<span class='ident'>y</span>)),
+                    <span class='ident'>local_rect</span>: <span class='ident'>LayerRect</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>mask</span>.<span class='ident'>rect</span>),
+                });
             }
 
             <span class='kw'>match</span> <span class='ident'>metadata</span>.<span class='ident'>prim_kind</span> {
@@ -1695,47 +1722,67 @@
                 <span class='ident'>PrimitiveKind</span>::<span class='ident'>TextRun</span> <span class='op'>=&gt;</span> {
                     <span class='kw'>let</span> <span class='ident'>text</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>cpu_text_runs</span>[<span class='ident'>metadata</span>.<span class='ident'>cpu_prim_index</span>.<span class='number'>0</span>];
 
-                    <span class='kw'>let</span> <span class='ident'>dest_glyphs</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_data32</span>.<span class='ident'>get_slice_mut</span>(<span class='ident'>metadata</span>.<span class='ident'>gpu_data_address</span>,
-                                                                    <span class='ident'>text</span>.<span class='ident'>glyph_range</span>.<span class='ident'>length</span>);
+                    <span class='kw'>let</span> <span class='ident'>dest_rects</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_resource_rects</span>.<span class='ident'>get_slice_mut</span>(<span class='ident'>text</span>.<span class='ident'>resource_address</span>,
+                                                                           <span class='ident'>text</span>.<span class='ident'>glyph_range</span>.<span class='ident'>length</span>);
 
                     <span class='kw'>let</span> <span class='ident'>texture_id</span> <span class='op'>=</span> <span class='ident'>resource_cache</span>.<span class='ident'>get_glyphs</span>(<span class='ident'>text</span>.<span class='ident'>font_key</span>,
                                                                <span class='ident'>text</span>.<span class='ident'>font_size</span>,
                                                                <span class='kw-2'>&amp;</span><span class='ident'>text</span>.<span class='ident'>glyph_indices</span>,
                                                                <span class='ident'>text</span>.<span class='ident'>render_mode</span>, <span class='op'>|</span><span class='ident'>index</span>, <span class='ident'>uv0</span>, <span class='ident'>uv1</span><span class='op'>|</span> {
-                        <span class='kw'>let</span> <span class='ident'>dest_glyph</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>dest_glyphs</span>[<span class='ident'>index</span>];
-                        <span class='kw'>let</span> <span class='ident'>dest</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>GlyphPrimitive</span> <span class='op'>=</span> <span class='kw'>unsafe</span> {
-                            <span class='ident'>mem</span>::<span class='ident'>transmute</span>(<span class='ident'>dest_glyph</span>)
-                        };
-                        <span class='ident'>dest</span>.<span class='ident'>uv0</span> <span class='op'>=</span> <span class='ident'>uv0</span>;
-                        <span class='ident'>dest</span>.<span class='ident'>uv1</span> <span class='op'>=</span> <span class='ident'>uv1</span>;
+                        <span class='kw'>let</span> <span class='ident'>dest_rect</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>dest_rects</span>[<span class='ident'>index</span>];
+                        <span class='ident'>dest_rect</span>.<span class='ident'>uv0</span> <span class='op'>=</span> <span class='ident'>uv0</span>;
+                        <span class='ident'>dest_rect</span>.<span class='ident'>uv1</span> <span class='op'>=</span> <span class='ident'>uv1</span>;
                     });
 
                     <span class='ident'>text</span>.<span class='ident'>color_texture_id</span> <span class='op'>=</span> <span class='ident'>texture_id</span>;
                 }
                 <span class='ident'>PrimitiveKind</span>::<span class='ident'>Image</span> <span class='op'>=&gt;</span> {
                     <span class='kw'>let</span> <span class='ident'>image_cpu</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>cpu_images</span>[<span class='ident'>metadata</span>.<span class='ident'>cpu_prim_index</span>.<span class='number'>0</span>];
-                    <span class='kw'>let</span> <span class='ident'>image_gpu</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ImagePrimitiveGpu</span> <span class='op'>=</span> <span class='kw'>unsafe</span> {
-                        <span class='ident'>mem</span>::<span class='ident'>transmute</span>(<span class='self'>self</span>.<span class='ident'>gpu_data32</span>.<span class='ident'>get_mut</span>(<span class='ident'>metadata</span>.<span class='ident'>gpu_prim_index</span>))
-                    };
 
-                    <span class='kw'>let</span> <span class='ident'>cache_item</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>image_cpu</span>.<span class='ident'>kind</span> {
+                    <span class='kw'>let</span> (<span class='ident'>texture_id</span>, <span class='ident'>cache_item</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>image_cpu</span>.<span class='ident'>kind</span> {
                         <span class='ident'>ImagePrimitiveKind</span>::<span class='ident'>Image</span>(<span class='ident'>image_key</span>, <span class='ident'>image_rendering</span>, _) <span class='op'>=&gt;</span> {
-                            <span class='ident'>resource_cache</span>.<span class='ident'>get_image</span>(<span class='ident'>image_key</span>, <span class='ident'>image_rendering</span>)
+                            <span class='comment'>// Check if an external image that needs to be resolved</span>
+                            <span class='comment'>// by the render thread.</span>
+                            <span class='kw'>let</span> <span class='ident'>image_properties</span> <span class='op'>=</span> <span class='ident'>resource_cache</span>.<span class='ident'>get_image_properties</span>(<span class='ident'>image_key</span>);
+
+                            <span class='kw'>match</span> <span class='ident'>image_properties</span>.<span class='ident'>external_id</span> {
+                                <span class='prelude-val'>Some</span>(<span class='ident'>external_id</span>) <span class='op'>=&gt;</span> {
+                                    <span class='comment'>// This is an external texture - we will add it to</span>
+                                    <span class='comment'>// the deferred resolves list to be patched by</span>
+                                    <span class='comment'>// the render thread...</span>
+                                    <span class='ident'>deferred_resolves</span>.<span class='ident'>push</span>(<span class='ident'>DeferredResolve</span> {
+                                        <span class='ident'>resource_address</span>: <span class='ident'>image_cpu</span>.<span class='ident'>resource_address</span>,
+                                        <span class='ident'>image_properties</span>: <span class='ident'>image_properties</span>,
+                                    });
+
+                                    (<span class='ident'>SourceTexture</span>::<span class='ident'>External</span>(<span class='ident'>external_id</span>), <span class='prelude-val'>None</span>)
+                                }
+                                <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
+                                    <span class='kw'>let</span> <span class='ident'>cache_item</span> <span class='op'>=</span> <span class='ident'>resource_cache</span>.<span class='ident'>get_cached_image</span>(<span class='ident'>image_key</span>, <span class='ident'>image_rendering</span>);
+                                    (<span class='ident'>cache_item</span>.<span class='ident'>texture_id</span>, <span class='prelude-val'>Some</span>(<span class='ident'>cache_item</span>))
+                                }
+                            }
                         }
                         <span class='ident'>ImagePrimitiveKind</span>::<span class='ident'>WebGL</span>(<span class='ident'>context_id</span>) <span class='op'>=&gt;</span> {
-                            <span class='ident'>resource_cache</span>.<span class='ident'>get_webgl_texture</span>(<span class='kw-2'>&amp;</span><span class='ident'>context_id</span>)
+                            <span class='kw'>let</span> <span class='ident'>cache_item</span> <span class='op'>=</span> <span class='ident'>resource_cache</span>.<span class='ident'>get_webgl_texture</span>(<span class='kw-2'>&amp;</span><span class='ident'>context_id</span>);
+                            (<span class='ident'>cache_item</span>.<span class='ident'>texture_id</span>, <span class='prelude-val'>Some</span>(<span class='ident'>cache_item</span>))
                         }
                     };
 
-                    <span class='ident'>image_cpu</span>.<span class='ident'>color_texture_id</span> <span class='op'>=</span> <span class='ident'>cache_item</span>.<span class='ident'>texture_id</span>;
-                    <span class='ident'>image_gpu</span>.<span class='ident'>uv0</span> <span class='op'>=</span> <span class='ident'>cache_item</span>.<span class='ident'>uv0</span>;
-                    <span class='ident'>image_gpu</span>.<span class='ident'>uv1</span> <span class='op'>=</span> <span class='ident'>cache_item</span>.<span class='ident'>uv1</span>;
+                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>cache_item</span>) <span class='op'>=</span> <span class='ident'>cache_item</span> {
+                        <span class='kw'>let</span> <span class='ident'>resource_rect</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_resource_rects</span>.<span class='ident'>get_mut</span>(<span class='ident'>image_cpu</span>.<span class='ident'>resource_address</span>);
+                        <span class='ident'>resource_rect</span>.<span class='ident'>uv0</span> <span class='op'>=</span> <span class='ident'>cache_item</span>.<span class='ident'>uv0</span>;
+                        <span class='ident'>resource_rect</span>.<span class='ident'>uv1</span> <span class='op'>=</span> <span class='ident'>cache_item</span>.<span class='ident'>uv1</span>;
+                    }
+                    <span class='ident'>image_cpu</span>.<span class='ident'>color_texture_id</span> <span class='op'>=</span> <span class='ident'>texture_id</span>;
                 }
             }
         }
+
+        <span class='ident'>deferred_resolves</span>
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_bounding_rect</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>index</span>: <span class='ident'>PrimitiveIndex</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>DeviceRect</span><span class='op'>&gt;</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_bounding_rect</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>index</span>: <span class='ident'>PrimitiveIndex</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>DeviceIntRect</span><span class='op'>&gt;</span> {
         <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>cpu_bounding_rects</span>[<span class='ident'>index</span>.<span class='number'>0</span>]
     }
 
@@ -1744,13 +1791,13 @@
         <span class='kw'>let</span> (<span class='ident'>rect</span>, <span class='ident'>is_complex</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>source</span> {
             <span class='ident'>PrimitiveClipSource</span>::<span class='ident'>NoClip</span> <span class='op'>=&gt;</span> (<span class='prelude-val'>None</span>, <span class='bool-val'>false</span>),
             <span class='ident'>PrimitiveClipSource</span>::<span class='ident'>Complex</span>(<span class='ident'>rect</span>, <span class='ident'>radius</span>) <span class='op'>=&gt;</span> (<span class='prelude-val'>Some</span>(<span class='ident'>rect</span>), <span class='ident'>radius</span> <span class='op'>&gt;</span> <span class='number'>0.0</span>),
-            <span class='ident'>PrimitiveClipSource</span>::<span class='ident'>Region</span>(<span class='kw-2'>ref</span> <span class='ident'>region</span>) <span class='op'>=&gt;</span> (<span class='prelude-val'>Some</span>(<span class='ident'>region</span>.<span class='ident'>main</span>), <span class='ident'>region</span>.<span class='ident'>is_complex</span>()),
+            <span class='ident'>PrimitiveClipSource</span>::<span class='ident'>Region</span>(<span class='kw-2'>ref</span> <span class='ident'>region</span>) <span class='op'>=&gt;</span> (<span class='prelude-val'>Some</span>(<span class='ident'>LayerRect</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>region</span>.<span class='ident'>main</span>)), <span class='ident'>region</span>.<span class='ident'>is_complex</span>()),
         };
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>rect</span>) <span class='op'>=</span> <span class='ident'>rect</span> {
             <span class='self'>self</span>.<span class='ident'>gpu_geometry</span>.<span class='ident'>get_mut</span>(<span class='ident'>GpuStoreAddress</span>(<span class='ident'>index</span>.<span class='number'>0</span> <span class='kw'>as</span> <span class='ident'>i32</span>))
                 .<span class='ident'>local_clip_rect</span> <span class='op'>=</span> <span class='ident'>rect</span>;
-            <span class='kw'>if</span> <span class='ident'>is_complex</span> <span class='op'>&amp;&amp;</span> <span class='ident'>metadata</span>.<span class='ident'>clip_index</span>.<span class='ident'>is_none</span>() {
-                <span class='ident'>metadata</span>.<span class='ident'>clip_index</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='self'>self</span>.<span class='ident'>gpu_data32</span>.<span class='ident'>alloc</span>(<span class='number'>6</span>))
+            <span class='kw'>if</span> <span class='ident'>is_complex</span> {
+                <span class='ident'>metadata</span>.<span class='ident'>clip_cache_info</span> <span class='op'>=</span> <span class='prelude-val'>None</span>; <span class='comment'>//CLIP TODO: re-use the existing GPU allocation</span>
             }
         }
         <span class='op'>*</span><span class='ident'>metadata</span>.<span class='ident'>clip_source</span>.<span class='ident'>as_mut</span>() <span class='op'>=</span> <span class='ident'>source</span>;
@@ -1766,9 +1813,9 @@
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>build_bounding_rect</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
                                <span class='ident'>prim_index</span>: <span class='ident'>PrimitiveIndex</span>,
-                               <span class='ident'>screen_rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>DeviceRect</span>,
-                               <span class='ident'>layer_transform</span>: <span class='kw-2'>&amp;</span><span class='ident'>Matrix4D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
-                               <span class='ident'>layer_combined_local_clip_rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
+                               <span class='ident'>screen_rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>DeviceIntRect</span>,
+                               <span class='ident'>layer_transform</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerToWorldTransform</span>,
+                               <span class='ident'>layer_combined_local_clip_rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerRect</span>,
                                <span class='ident'>device_pixel_ratio</span>: <span class='ident'>f32</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
         <span class='kw'>let</span> <span class='ident'>geom</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>gpu_geometry</span>.<span class='ident'>get</span>(<span class='ident'>GpuStoreAddress</span>(<span class='ident'>prim_index</span>.<span class='number'>0</span> <span class='kw'>as</span> <span class='ident'>i32</span>));
 
@@ -1790,50 +1837,23 @@
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>prepare_prim_for_render</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
                                    <span class='ident'>prim_index</span>: <span class='ident'>PrimitiveIndex</span>,
                                    <span class='ident'>resource_cache</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ResourceCache</span>,
+                                   <span class='ident'>layer_transform</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerToWorldTransform</span>,
                                    <span class='ident'>device_pixel_ratio</span>: <span class='ident'>f32</span>,
-                                   <span class='ident'>dummy_mask_cache_item</span>: <span class='kw-2'>&amp;</span><span class='ident'>TextureCacheItem</span>,
                                    <span class='ident'>auxiliary_lists</span>: <span class='kw-2'>&amp;</span><span class='ident'>AuxiliaryLists</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+
         <span class='kw'>let</span> <span class='ident'>metadata</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>cpu_metadata</span>[<span class='ident'>prim_index</span>.<span class='number'>0</span>];
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>prim_needs_resolve</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>rebuild_bounding_rect</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
 
-        <span class='kw'>if</span> <span class='ident'>metadata</span>.<span class='ident'>clip_index</span>.<span class='ident'>is_none</span>() {
-            <span class='comment'>// if the `clip_index` already exist, we consider the contents up to date</span>
-            <span class='kw'>let</span> <span class='ident'>clip_data</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>metadata</span>.<span class='ident'>clip_source</span>.<span class='ident'>as_ref</span>() {
-                <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveClipSource</span>::<span class='ident'>NoClip</span> <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
-                <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveClipSource</span>::<span class='ident'>Complex</span>(<span class='ident'>rect</span>, <span class='ident'>radius</span>) <span class='op'>=&gt;</span> {
-                    <span class='prelude-val'>Some</span>(<span class='ident'>ClipData</span>::<span class='ident'>uniform</span>(<span class='ident'>rect</span>, <span class='ident'>radius</span>))
-                }
-                <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveClipSource</span>::<span class='ident'>Region</span>(<span class='kw-2'>ref</span> <span class='ident'>clip_region</span>) <span class='op'>=&gt;</span> {
-                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>mask</span>) <span class='op'>=</span> <span class='ident'>clip_region</span>.<span class='ident'>image_mask</span> {
-                        <span class='ident'>resource_cache</span>.<span class='ident'>request_image</span>(<span class='ident'>mask</span>.<span class='ident'>image</span>, <span class='ident'>ImageRendering</span>::<span class='ident'>Auto</span>);
-                    }
-                    <span class='kw'>let</span> <span class='ident'>clips</span> <span class='op'>=</span> <span class='ident'>auxiliary_lists</span>.<span class='ident'>complex_clip_regions</span>(<span class='kw-2'>&amp;</span><span class='ident'>clip_region</span>.<span class='ident'>complex</span>);
-                    <span class='comment'>//TODO: proper solution to multiple complex clips</span>
-                    <span class='kw'>match</span> <span class='ident'>clips</span>.<span class='ident'>len</span>() {
-                        <span class='number'>0</span> <span class='kw'>if</span> <span class='ident'>clip_region</span>.<span class='ident'>image_mask</span>.<span class='ident'>is_none</span>() <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
-                        <span class='number'>0</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>ClipData</span>::<span class='ident'>uniform</span>(<span class='ident'>clip_region</span>.<span class='ident'>main</span>, <span class='number'>0.0</span>)),
-                        <span class='number'>1</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>ClipData</span>::<span class='ident'>from_clip_region</span>(<span class='kw-2'>&amp;</span><span class='ident'>clips</span>[<span class='number'>0</span>])),
-                        _ <span class='op'>=&gt;</span> {
-                            <span class='kw'>let</span> <span class='ident'>internal_clip</span> <span class='op'>=</span> <span class='ident'>clips</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>();
-                            <span class='kw'>let</span> <span class='ident'>region</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>clips</span>.<span class='ident'>iter</span>().<span class='ident'>all</span>(<span class='op'>|</span><span class='ident'>current_clip</span><span class='op'>|</span> <span class='ident'>current_clip</span>.<span class='ident'>might_contain</span>(<span class='ident'>internal_clip</span>)) {
-                                <span class='ident'>internal_clip</span>
-                            } <span class='kw'>else</span> {
-                                <span class='kw-2'>&amp;</span><span class='ident'>clips</span>[<span class='number'>0</span>]
-                            };
-                            <span class='prelude-val'>Some</span>(<span class='ident'>ClipData</span>::<span class='ident'>from_clip_region</span>(<span class='ident'>region</span>))
-                        },
-                    }
-                }
-            };
-
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>data</span>) <span class='op'>=</span> <span class='ident'>clip_data</span> {
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>clip_info</span>) <span class='op'>=</span> <span class='ident'>metadata</span>.<span class='ident'>clip_cache_info</span> {
+            <span class='ident'>clip_info</span>.<span class='ident'>update</span>(<span class='kw-2'>&amp;</span><span class='ident'>metadata</span>.<span class='ident'>clip_source</span>,
+                             <span class='ident'>layer_transform</span>,
+                             <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>gpu_data32</span>,
+                             <span class='ident'>device_pixel_ratio</span>,
+                             <span class='ident'>auxiliary_lists</span>);
+            <span class='kw'>if</span> <span class='kw'>let</span> <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveClipSource</span>::<span class='ident'>Region</span>(<span class='ident'>ClipRegion</span>{ <span class='ident'>image_mask</span>: <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>mask</span>), .. }) <span class='op'>=</span> <span class='ident'>metadata</span>.<span class='ident'>clip_source</span>.<span class='ident'>as_ref</span>() {
+                <span class='ident'>resource_cache</span>.<span class='ident'>request_image</span>(<span class='ident'>mask</span>.<span class='ident'>image</span>, <span class='ident'>ImageRendering</span>::<span class='ident'>Auto</span>);
                 <span class='ident'>prim_needs_resolve</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
-                <span class='kw'>let</span> <span class='ident'>gpu_address</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_data32</span>.<span class='ident'>alloc</span>(<span class='number'>6</span>);
-                <span class='kw'>let</span> <span class='ident'>gpu_data</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_data32</span>.<span class='ident'>get_slice_mut</span>(<span class='ident'>gpu_address</span>, <span class='number'>6</span>);
-                <span class='self'>Self</span>::<span class='ident'>populate_clip_data</span>(<span class='ident'>gpu_data</span>, <span class='ident'>data</span>);
-                <span class='ident'>metadata</span>.<span class='ident'>clip_index</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>gpu_address</span>);
-                <span class='ident'>metadata</span>.<span class='ident'>mask_texture_id</span> <span class='op'>=</span> <span class='ident'>dummy_mask_cache_item</span>.<span class='ident'>texture_id</span>;
             }
         }
 
@@ -1852,12 +1872,12 @@
                     <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>metadata</span>.<span class='ident'>gpu_data_count</span> <span class='op'>==</span> <span class='ident'>text</span>.<span class='ident'>glyph_range</span>.<span class='ident'>length</span> <span class='kw'>as</span> <span class='ident'>i32</span>);
                     <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>text</span>.<span class='ident'>glyph_indices</span>.<span class='ident'>is_empty</span>());
                     <span class='kw'>let</span> <span class='ident'>src_glyphs</span> <span class='op'>=</span> <span class='ident'>auxiliary_lists</span>.<span class='ident'>glyph_instances</span>(<span class='kw-2'>&amp;</span><span class='ident'>text</span>.<span class='ident'>glyph_range</span>);
-                    <span class='kw'>let</span> <span class='ident'>dest_glyphs</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_data32</span>.<span class='ident'>get_slice_mut</span>(<span class='ident'>metadata</span>.<span class='ident'>gpu_data_address</span>,
+                    <span class='kw'>let</span> <span class='ident'>dest_glyphs</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_data16</span>.<span class='ident'>get_slice_mut</span>(<span class='ident'>metadata</span>.<span class='ident'>gpu_data_address</span>,
                                                                     <span class='ident'>text</span>.<span class='ident'>glyph_range</span>.<span class='ident'>length</span>);
                     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>glyph_key</span> <span class='op'>=</span> <span class='ident'>GlyphKey</span>::<span class='ident'>new</span>(<span class='ident'>text</span>.<span class='ident'>font_key</span>,
                                                       <span class='ident'>text</span>.<span class='ident'>font_size</span>,
                                                       <span class='ident'>src_glyphs</span>[<span class='number'>0</span>].<span class='ident'>index</span>);
-                    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>local_rect</span> <span class='op'>=</span> <span class='ident'>Rect</span>::<span class='ident'>zero</span>();
+                    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>local_rect</span> <span class='op'>=</span> <span class='ident'>LayerRect</span>::<span class='ident'>zero</span>();
                     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>actual_glyph_count</span> <span class='op'>=</span> <span class='number'>0</span>;
 
                     <span class='kw'>for</span> <span class='ident'>src</span> <span class='kw'>in</span> <span class='ident'>src_glyphs</span> {
@@ -1877,14 +1897,12 @@
                         <span class='kw'>let</span> <span class='ident'>width</span> <span class='op'>=</span> <span class='ident'>dimensions</span>.<span class='ident'>width</span> <span class='kw'>as</span> <span class='ident'>f32</span> <span class='op'>/</span> <span class='ident'>device_pixel_ratio</span>;
                         <span class='kw'>let</span> <span class='ident'>height</span> <span class='op'>=</span> <span class='ident'>dimensions</span>.<span class='ident'>height</span> <span class='kw'>as</span> <span class='ident'>f32</span> <span class='op'>/</span> <span class='ident'>device_pixel_ratio</span>;
 
-                        <span class='kw'>let</span> <span class='ident'>local_glyph_rect</span> <span class='op'>=</span> <span class='ident'>Rect</span>::<span class='ident'>new</span>(<span class='ident'>Point2D</span>::<span class='ident'>new</span>(<span class='ident'>x</span>, <span class='ident'>y</span>),
-                                                         <span class='ident'>Size2D</span>::<span class='ident'>new</span>(<span class='ident'>width</span>, <span class='ident'>height</span>));
+                        <span class='kw'>let</span> <span class='ident'>local_glyph_rect</span> <span class='op'>=</span> <span class='ident'>LayerRect</span>::<span class='ident'>new</span>(<span class='ident'>LayerPoint</span>::<span class='ident'>new</span>(<span class='ident'>x</span>, <span class='ident'>y</span>),
+                                                              <span class='ident'>LayerSize</span>::<span class='ident'>new</span>(<span class='ident'>width</span>, <span class='ident'>height</span>));
                         <span class='ident'>local_rect</span> <span class='op'>=</span> <span class='ident'>local_rect</span>.<span class='ident'>union</span>(<span class='kw-2'>&amp;</span><span class='ident'>local_glyph_rect</span>);
 
-                        <span class='ident'>dest_glyphs</span>[<span class='ident'>actual_glyph_count</span>] <span class='op'>=</span> <span class='ident'>GpuBlock32</span>::<span class='ident'>from</span>(<span class='ident'>GlyphPrimitive</span> {
-                            <span class='ident'>uv0</span>: <span class='ident'>Point2D</span>::<span class='ident'>zero</span>(),
-                            <span class='ident'>uv1</span>: <span class='ident'>Point2D</span>::<span class='ident'>zero</span>(),
-                            <span class='ident'>padding</span>: <span class='ident'>Point2D</span>::<span class='ident'>zero</span>(),
+                        <span class='ident'>dest_glyphs</span>[<span class='ident'>actual_glyph_count</span>] <span class='op'>=</span> <span class='ident'>GpuBlock16</span>::<span class='ident'>from</span>(<span class='ident'>GlyphPrimitive</span> {
+                            <span class='ident'>padding</span>: <span class='ident'>LayerPoint</span>::<span class='ident'>zero</span>(),
                             <span class='ident'>offset</span>: <span class='ident'>local_glyph_rect</span>.<span class='ident'>origin</span>,
                         });
 
@@ -1906,9 +1924,9 @@
                         <span class='comment'>// which will be blitted to the framebuffer.</span>
                         <span class='kw'>let</span> <span class='ident'>cache_width</span> <span class='op'>=</span> (<span class='ident'>local_rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>*</span> <span class='self'>self</span>.<span class='ident'>device_pixel_ratio</span>).<span class='ident'>ceil</span>() <span class='kw'>as</span> <span class='ident'>i32</span>;
                         <span class='kw'>let</span> <span class='ident'>cache_height</span> <span class='op'>=</span> (<span class='ident'>local_rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>*</span> <span class='self'>self</span>.<span class='ident'>device_pixel_ratio</span>).<span class='ident'>ceil</span>() <span class='kw'>as</span> <span class='ident'>i32</span>;
-                        <span class='kw'>let</span> <span class='ident'>cache_size</span> <span class='op'>=</span> <span class='ident'>DeviceSize</span>::<span class='ident'>new</span>(<span class='ident'>cache_width</span>, <span class='ident'>cache_height</span>);
+                        <span class='kw'>let</span> <span class='ident'>cache_size</span> <span class='op'>=</span> <span class='ident'>DeviceIntSize</span>::<span class='ident'>new</span>(<span class='ident'>cache_width</span>, <span class='ident'>cache_height</span>);
                         <span class='kw'>let</span> <span class='ident'>cache_key</span> <span class='op'>=</span> <span class='ident'>PrimitiveCacheKey</span>::<span class='ident'>TextShadow</span>(<span class='ident'>prim_index</span>);
-                        <span class='kw'>let</span> <span class='ident'>blur_radius</span> <span class='op'>=</span> <span class='ident'>device_pixel</span>(<span class='ident'>text</span>.<span class='ident'>blur_radius</span>.<span class='ident'>to_f32_px</span>(),
+                        <span class='kw'>let</span> <span class='ident'>blur_radius</span> <span class='op'>=</span> <span class='ident'>device_length</span>(<span class='ident'>text</span>.<span class='ident'>blur_radius</span>.<span class='ident'>to_f32_px</span>(),
                                                        <span class='self'>self</span>.<span class='ident'>device_pixel_ratio</span>);
                         <span class='prelude-val'>Some</span>(<span class='ident'>RenderTask</span>::<span class='ident'>new_blur</span>(<span class='ident'>cache_key</span>,
                                                   <span class='ident'>cache_size</span>,
@@ -2023,6 +2041,22 @@
     }
 }
 
+<span class='kw'>impl</span> <span class='ident'>From</span><span class='op'>&lt;</span><span class='ident'>ImagePrimitiveGpu</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>GpuBlock16</span> {
+    <span class='kw'>fn</span> <span class='ident'>from</span>(<span class='ident'>data</span>: <span class='ident'>ImagePrimitiveGpu</span>) <span class='op'>-&gt;</span> <span class='ident'>GpuBlock16</span> {
+        <span class='kw'>unsafe</span> {
+            <span class='ident'>mem</span>::<span class='ident'>transmute</span>::<span class='op'>&lt;</span><span class='ident'>ImagePrimitiveGpu</span>, <span class='ident'>GpuBlock16</span><span class='op'>&gt;</span>(<span class='ident'>data</span>)
+        }
+    }
+}
+
+<span class='kw'>impl</span> <span class='ident'>From</span><span class='op'>&lt;</span><span class='ident'>GlyphPrimitive</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>GpuBlock16</span> {
+    <span class='kw'>fn</span> <span class='ident'>from</span>(<span class='ident'>data</span>: <span class='ident'>GlyphPrimitive</span>) <span class='op'>-&gt;</span> <span class='ident'>GpuBlock16</span> {
+        <span class='kw'>unsafe</span> {
+            <span class='ident'>mem</span>::<span class='ident'>transmute</span>::<span class='op'>&lt;</span><span class='ident'>GlyphPrimitive</span>, <span class='ident'>GpuBlock16</span><span class='op'>&gt;</span>(<span class='ident'>data</span>)
+        }
+    }
+}
+
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>GpuBlock32</span> {
     <span class='ident'>data</span>: [<span class='ident'>f32</span>; <span class='number'>8</span>],
@@ -2048,22 +2082,6 @@
     <span class='kw'>fn</span> <span class='ident'>from</span>(<span class='ident'>data</span>: <span class='ident'>GradientStop</span>) <span class='op'>-&gt;</span> <span class='ident'>GpuBlock32</span> {
         <span class='kw'>unsafe</span> {
             <span class='ident'>mem</span>::<span class='ident'>transmute</span>::<span class='op'>&lt;</span><span class='ident'>GradientStop</span>, <span class='ident'>GpuBlock32</span><span class='op'>&gt;</span>(<span class='ident'>data</span>)
-        }
-    }
-}
-
-<span class='kw'>impl</span> <span class='ident'>From</span><span class='op'>&lt;</span><span class='ident'>GlyphPrimitive</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>GpuBlock32</span> {
-    <span class='kw'>fn</span> <span class='ident'>from</span>(<span class='ident'>data</span>: <span class='ident'>GlyphPrimitive</span>) <span class='op'>-&gt;</span> <span class='ident'>GpuBlock32</span> {
-        <span class='kw'>unsafe</span> {
-            <span class='ident'>mem</span>::<span class='ident'>transmute</span>::<span class='op'>&lt;</span><span class='ident'>GlyphPrimitive</span>, <span class='ident'>GpuBlock32</span><span class='op'>&gt;</span>(<span class='ident'>data</span>)
-        }
-    }
-}
-
-<span class='kw'>impl</span> <span class='ident'>From</span><span class='op'>&lt;</span><span class='ident'>ImagePrimitiveGpu</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>GpuBlock32</span> {
-    <span class='kw'>fn</span> <span class='ident'>from</span>(<span class='ident'>data</span>: <span class='ident'>ImagePrimitiveGpu</span>) <span class='op'>-&gt;</span> <span class='ident'>GpuBlock32</span> {
-        <span class='kw'>unsafe</span> {
-            <span class='ident'>mem</span>::<span class='ident'>transmute</span>::<span class='op'>&lt;</span><span class='ident'>ImagePrimitiveGpu</span>, <span class='ident'>GpuBlock32</span><span class='op'>&gt;</span>(<span class='ident'>data</span>)
         }
     }
 }

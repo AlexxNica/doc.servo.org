@@ -485,15 +485,14 @@
 <span id="441">441</span>
 <span id="442">442</span>
 <span id="443">443</span>
-<span id="444">444</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
 <span class='kw'>use</span> <span class='ident'>app_units</span>::<span class='ident'>Au</span>;
-<span class='kw'>use</span> <span class='ident'>device</span>::{<span class='ident'>TextureId</span>, <span class='ident'>TextureFilter</span>};
-<span class='kw'>use</span> <span class='ident'>euclid</span>::{<span class='ident'>Point2D</span>, <span class='ident'>Rect</span>, <span class='ident'>Size2D</span>, <span class='ident'>TypedRect</span>, <span class='ident'>TypedPoint2D</span>, <span class='ident'>TypedSize2D</span>, <span class='ident'>Length</span>, <span class='ident'>UnknownUnit</span>};
+<span class='kw'>use</span> <span class='ident'>device</span>::<span class='ident'>TextureFilter</span>;
+<span class='kw'>use</span> <span class='ident'>euclid</span>::{<span class='ident'>Size2D</span>, <span class='ident'>TypedPoint2D</span>, <span class='ident'>UnknownUnit</span>};
 <span class='kw'>use</span> <span class='ident'>fnv</span>::<span class='ident'>FnvHasher</span>;
 <span class='kw'>use</span> <span class='ident'>offscreen_gl_context</span>::{<span class='ident'>NativeGLContext</span>, <span class='ident'>NativeGLContextHandle</span>};
 <span class='kw'>use</span> <span class='ident'>offscreen_gl_context</span>::{<span class='ident'>GLContext</span>, <span class='ident'>NativeGLContextMethods</span>, <span class='ident'>GLContextDispatcher</span>};
@@ -503,13 +502,39 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::{<span class='ident'>HashMap</span>, <span class='ident'>HashSet</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>f32</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>hash</span>::<span class='ident'>BuildHasherDefault</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>i32</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::{<span class='ident'>i32</span>, <span class='ident'>usize</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>path</span>::<span class='ident'>PathBuf</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>Arc</span>;
 <span class='kw'>use</span> <span class='ident'>tiling</span>;
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>Epoch</span>, <span class='ident'>ColorF</span>, <span class='ident'>PipelineId</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ImageFormat</span>, <span class='ident'>MixBlendMode</span>, <span class='ident'>NativeFontHandle</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ScrollLayerId</span>, <span class='ident'>WebGLCommand</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ExternalImageId</span>, <span class='ident'>ScrollLayerId</span>, <span class='ident'>WebGLCommand</span>};
+
+<span class='comment'>// An ID for a texture that is owned by the</span>
+<span class='comment'>// texture cache module. This can include atlases</span>
+<span class='comment'>// or standalone textures allocated via the</span>
+<span class='comment'>// texture cache (e.g. if an image is too large</span>
+<span class='comment'>// to be added to an atlas). The texture cache</span>
+<span class='comment'>// manages the allocation and freeing of these</span>
+<span class='comment'>// IDs, and the rendering thread maintains a</span>
+<span class='comment'>// map from cache texture ID to native texture.</span>
+
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Debug</span>, <span class='ident'>Eq</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Hash</span>)]</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>CacheTextureId</span>(<span class='kw'>pub</span> <span class='ident'>usize</span>);
+
+<span class='comment'>// Represents the source for a texture.</span>
+<span class='comment'>// These are passed from throughout the</span>
+<span class='comment'>// pipeline until they reach the rendering</span>
+<span class='comment'>// thread, where they are resolved to a</span>
+<span class='comment'>// native texture ID.</span>
+
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Debug</span>, <span class='ident'>Eq</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Hash</span>)]</span>
+<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>SourceTexture</span> {
+    <span class='ident'>Invalid</span>,
+    <span class='ident'>TextureCache</span>(<span class='ident'>CacheTextureId</span>),
+    <span class='ident'>WebGL</span>(<span class='ident'>u32</span>),                         <span class='comment'>// Is actually a gl::GLuint</span>
+    <span class='ident'>External</span>(<span class='ident'>ExternalImageId</span>),
+}
 
 <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>GLContextHandleWrapper</span> {
     <span class='ident'>Native</span>(<span class='ident'>NativeGLContextHandle</span>),
@@ -626,18 +651,6 @@
     }
 }
 
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>DeviceRect</span> <span class='op'>=</span> <span class='ident'>TypedRect</span><span class='op'>&lt;</span><span class='ident'>i32</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>;
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>DevicePoint</span> <span class='op'>=</span> <span class='ident'>TypedPoint2D</span><span class='op'>&lt;</span><span class='ident'>i32</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>;
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>DeviceSize</span> <span class='op'>=</span> <span class='ident'>TypedSize2D</span><span class='op'>&lt;</span><span class='ident'>i32</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>;
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>DeviceLength</span> <span class='op'>=</span> <span class='ident'>Length</span><span class='op'>&lt;</span><span class='ident'>i32</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>;
-
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Hash</span>, <span class='ident'>Clone</span>, <span class='ident'>Copy</span>, <span class='ident'>Debug</span>, <span class='ident'>Eq</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Ord</span>, <span class='ident'>PartialOrd</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>DevicePixel</span>;
-
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>device_pixel</span>(<span class='ident'>value</span>: <span class='ident'>f32</span>, <span class='ident'>device_pixel_ratio</span>: <span class='ident'>f32</span>) <span class='op'>-&gt;</span> <span class='ident'>DeviceLength</span> {
-    <span class='ident'>DeviceLength</span>::<span class='ident'>new</span>((<span class='ident'>value</span> <span class='op'>*</span> <span class='ident'>device_pixel_ratio</span>).<span class='ident'>round</span>() <span class='kw'>as</span> <span class='ident'>i32</span>)
-}
-
 <span class='kw'>const</span> <span class='ident'>COLOR_FLOAT_TO_FIXED</span>: <span class='ident'>f32</span> <span class='op'>=</span> <span class='number'>255.0</span>;
 <span class='kw'>pub</span> <span class='kw'>const</span> <span class='ident'>ANGLE_FLOAT_TO_FIXED</span>: <span class='ident'>f32</span> <span class='op'>=</span> <span class='number'>65535.0</span>;
 
@@ -664,6 +677,7 @@
     <span class='ident'>Layers</span>,
     <span class='ident'>RenderTasks</span>,
     <span class='ident'>Geometry</span>,
+    <span class='ident'>ResourceRects</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>TextureSampler</span> {
@@ -683,15 +697,13 @@
 <span class='doccomment'>/// Textures that are not used by the batch are equal to TextureId::invalid().</span>
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>BatchTextures</span> {
-    <span class='kw'>pub</span> <span class='ident'>colors</span>: [<span class='ident'>TextureId</span>; <span class='number'>3</span>],
-    <span class='kw'>pub</span> <span class='ident'>mask</span>: <span class='ident'>TextureId</span>,
+    <span class='kw'>pub</span> <span class='ident'>colors</span>: [<span class='ident'>SourceTexture</span>; <span class='number'>3</span>],
 }
 
 <span class='kw'>impl</span> <span class='ident'>BatchTextures</span> {
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>no_texture</span>() <span class='op'>-&gt;</span> <span class='self'>Self</span> {
         <span class='ident'>BatchTextures</span> {
-            <span class='ident'>colors</span>: [<span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(); <span class='number'>3</span>],
-            <span class='ident'>mask</span>: <span class='ident'>TextureId</span>::<span class='ident'>invalid</span>(),
+            <span class='ident'>colors</span>: [<span class='ident'>SourceTexture</span>::<span class='ident'>Invalid</span>; <span class='number'>3</span>],
         }
     }
 }
@@ -821,28 +833,14 @@
     <span class='ident'>LayerRenderTarget</span>(<span class='ident'>i32</span>),      <span class='comment'>// Number of texture layers</span>
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>TextureUpdateDetails</span> {
-    <span class='ident'>Raw</span>,
-    <span class='ident'>Blit</span>(<span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>, <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>),
-}
-
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>Copy</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>TextureImage</span> {
-    <span class='kw'>pub</span> <span class='ident'>texture_id</span>: <span class='ident'>TextureId</span>,
-    <span class='kw'>pub</span> <span class='ident'>texel_uv</span>: <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
-    <span class='kw'>pub</span> <span class='ident'>pixel_uv</span>: <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>,
-}
-
 <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>TextureUpdateOp</span> {
-    <span class='ident'>Create</span>(<span class='ident'>u32</span>, <span class='ident'>u32</span>, <span class='ident'>ImageFormat</span>, <span class='ident'>TextureFilter</span>, <span class='ident'>RenderTargetMode</span>, <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span>),
-    <span class='ident'>Update</span>(<span class='ident'>u32</span>, <span class='ident'>u32</span>, <span class='ident'>u32</span>, <span class='ident'>u32</span>, <span class='ident'>TextureUpdateDetails</span>),
+    <span class='ident'>Create</span>(<span class='ident'>u32</span>, <span class='ident'>u32</span>, <span class='ident'>ImageFormat</span>, <span class='ident'>TextureFilter</span>, <span class='ident'>RenderTargetMode</span>, <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>),
+    <span class='ident'>Update</span>(<span class='ident'>u32</span>, <span class='ident'>u32</span>, <span class='ident'>u32</span>, <span class='ident'>u32</span>, <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span>, <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>),
     <span class='ident'>Grow</span>(<span class='ident'>u32</span>, <span class='ident'>u32</span>, <span class='ident'>ImageFormat</span>, <span class='ident'>TextureFilter</span>, <span class='ident'>RenderTargetMode</span>),
-    <span class='ident'>Remove</span>
 }
 
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>TextureUpdate</span> {
-    <span class='kw'>pub</span> <span class='ident'>id</span>: <span class='ident'>TextureId</span>,
+    <span class='kw'>pub</span> <span class='ident'>id</span>: <span class='ident'>CacheTextureId</span>,
     <span class='kw'>pub</span> <span class='ident'>op</span>: <span class='ident'>TextureUpdateOp</span>,
 }
 
@@ -901,7 +899,7 @@
     <span class='ident'>Vertical</span>,
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>, <span class='ident'>Copy</span>)]</span>
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>, <span class='ident'>Copy</span>, <span class='ident'>Eq</span>, <span class='ident'>Hash</span>, <span class='ident'>PartialEq</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>StackingContextIndex</span>(<span class='kw'>pub</span> <span class='ident'>usize</span>);
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>Copy</span>, <span class='ident'>Debug</span>)]</span>
