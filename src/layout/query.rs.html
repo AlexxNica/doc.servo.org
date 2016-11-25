@@ -844,6 +844,7 @@
 <span id="800">800</span>
 <span id="801">801</span>
 <span id="802">802</span>
+<span id="803">803</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -876,6 +877,7 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::{<span class='ident'>Arc</span>, <span class='ident'>Mutex</span>};
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>computed_values</span>;
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>context</span>::<span class='ident'>StyleContext</span>;
+<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>dom</span>::<span class='ident'>TElement</span>;
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>logical_geometry</span>::{<span class='ident'>WritingMode</span>, <span class='ident'>BlockFlowDirection</span>, <span class='ident'>InlineBaseDirection</span>};
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>properties</span>::<span class='ident'>longhands</span>::{<span class='ident'>display</span>, <span class='ident'>position</span>};
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>properties</span>::<span class='ident'>style_structs</span>;
@@ -1454,20 +1456,6 @@
     }
 }
 
-<span class='doccomment'>/// Ensures that a node&#39;s data, and all its parents&#39; is initialized. This is</span>
-<span class='doccomment'>/// needed to resolve style lazily.</span>
-<span class='kw'>fn</span> <span class='ident'>ensure_node_data_initialized</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>LayoutNode</span><span class='op'>&gt;</span>(<span class='ident'>node</span>: <span class='kw-2'>&amp;</span><span class='ident'>N</span>) {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>cur</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>node</span>.<span class='ident'>clone</span>());
-    <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>current</span>) <span class='op'>=</span> <span class='ident'>cur</span> {
-        <span class='kw'>if</span> <span class='ident'>current</span>.<span class='ident'>borrow_layout_data</span>().<span class='ident'>is_some</span>() {
-            <span class='kw'>break</span>;
-        }
-
-        <span class='ident'>current</span>.<span class='ident'>initialize_data</span>();
-        <span class='ident'>cur</span> <span class='op'>=</span> <span class='ident'>current</span>.<span class='ident'>parent_node</span>();
-    }
-}
-
 <span class='doccomment'>/// Return the resolved value of property for a given (pseudo)element.</span>
 <span class='doccomment'>/// https://drafts.csswg.org/cssom/#resolved-value</span>
 <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>process_resolved_style_request</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>N</span>, <span class='ident'>C</span><span class='op'>&gt;</span>(<span class='ident'>requested_node</span>: <span class='ident'>N</span>,
@@ -1478,14 +1466,24 @@
     <span class='kw'>where</span> <span class='ident'>N</span>: <span class='ident'>LayoutNode</span>,
           <span class='ident'>C</span>: <span class='ident'>StyleContext</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>
 {
-    <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>traversal</span>::<span class='ident'>ensure_element_styled</span>;
+    <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>traversal</span>::{<span class='ident'>clear_descendant_data</span>, <span class='ident'>style_element_in_display_none_subtree</span>};
+    <span class='kw'>let</span> <span class='ident'>element</span> <span class='op'>=</span> <span class='ident'>requested_node</span>.<span class='ident'>as_element</span>().<span class='ident'>unwrap</span>();
 
-    <span class='comment'>// This node might have display: none, or it&#39;s style might be not up to</span>
-    <span class='comment'>// date, so we might need to do style recalc.</span>
-    <span class='comment'>//</span>
-    <span class='comment'>// FIXME(emilio): Is a bit shame we have to do this instead of in style.</span>
-    <span class='ident'>ensure_node_data_initialized</span>(<span class='kw-2'>&amp;</span><span class='ident'>requested_node</span>);
-    <span class='ident'>ensure_element_styled</span>(<span class='ident'>requested_node</span>.<span class='ident'>as_element</span>().<span class='ident'>unwrap</span>(), <span class='ident'>style_context</span>);
+    <span class='comment'>// We call process_resolved_style_request after performing a whole-document</span>
+    <span class='comment'>// traversal, so the only reason we wouldn&#39;t have an up-to-date style here</span>
+    <span class='comment'>// is that the requested node is in a display:none subtree. We currently</span>
+    <span class='comment'>// maintain the invariant that elements in display:none subtrees always have</span>
+    <span class='comment'>// no ElementData, so we need to temporarily bend those invariants here, and</span>
+    <span class='comment'>// then throw them the style data away again before returning to preserve them.</span>
+    <span class='comment'>// We could optimize this later to keep the style data cached somehow, but</span>
+    <span class='comment'>// we&#39;d need a mechanism to prevent detect when it&#39;s stale (since we don&#39;t</span>
+    <span class='comment'>// traverse display:none subtrees during restyle).</span>
+    <span class='kw'>let</span> <span class='ident'>display_none_root</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>element</span>.<span class='ident'>get_data</span>().<span class='ident'>is_none</span>() {
+        <span class='prelude-val'>Some</span>(<span class='ident'>style_element_in_display_none_subtree</span>(<span class='ident'>element</span>, <span class='kw-2'>&amp;</span><span class='op'>|</span><span class='ident'>e</span><span class='op'>|</span> <span class='ident'>e</span>.<span class='ident'>as_node</span>().<span class='ident'>initialize_data</span>(),
+                                                   <span class='ident'>style_context</span>))
+    } <span class='kw'>else</span> {
+        <span class='prelude-val'>None</span>
+    };
 
     <span class='kw'>let</span> <span class='ident'>layout_el</span> <span class='op'>=</span> <span class='ident'>requested_node</span>.<span class='ident'>to_threadsafe</span>().<span class='ident'>as_element</span>().<span class='ident'>unwrap</span>();
     <span class='kw'>let</span> <span class='ident'>layout_el</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='op'>*</span><span class='ident'>pseudo</span> {
@@ -1508,6 +1506,10 @@
     };
 
     <span class='kw'>let</span> <span class='ident'>style</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>layout_el</span>.<span class='ident'>resolved_style</span>();
+
+    <span class='comment'>// Clear any temporarily-resolved data to maintain our invariants. See the comment</span>
+    <span class='comment'>// at the top of this function.</span>
+    <span class='ident'>display_none_root</span>.<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>r</span><span class='op'>|</span> <span class='ident'>clear_descendant_data</span>(<span class='ident'>r</span>, <span class='kw-2'>&amp;</span><span class='op'>|</span><span class='ident'>e</span><span class='op'>|</span> <span class='ident'>e</span>.<span class='ident'>as_node</span>().<span class='ident'>clear_data</span>()));
 
     <span class='kw'>let</span> <span class='ident'>positioned</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>style</span>.<span class='ident'>get_box</span>().<span class='ident'>position</span> {
         <span class='ident'>position</span>::<span class='ident'>computed_value</span>::<span class='ident'>T</span>::<span class='ident'>relative</span> <span class='op'>|</span>
