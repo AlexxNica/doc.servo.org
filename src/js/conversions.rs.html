@@ -674,9 +674,6 @@
 <span id="630">630</span>
 <span id="631">631</span>
 <span id="632">632</span>
-<span id="633">633</span>
-<span id="634">634</span>
-<span id="635">635</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -710,15 +707,16 @@
 <span class='kw'>use</span> <span class='ident'>core</span>::<span class='ident'>nonzero</span>::<span class='ident'>NonZero</span>;
 <span class='kw'>use</span> <span class='ident'>error</span>::<span class='ident'>throw_type_error</span>;
 <span class='kw'>use</span> <span class='ident'>glue</span>::<span class='ident'>RUST_JS_NumberValue</span>;
-<span class='kw'>use</span> <span class='ident'>jsapi</span>::<span class='ident'>JSPROP_ENUMERATE</span>;
-<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>JSContext</span>, <span class='ident'>JSObject</span>, <span class='ident'>JSString</span>, <span class='ident'>HandleValue</span>, <span class='ident'>MutableHandleValue</span>};
-<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>JS_NewUCStringCopyN</span>, <span class='ident'>JS_StringHasLatin1Chars</span>, <span class='ident'>JS_WrapValue</span>};
-<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>JS_GetLatin1StringCharsAndLength</span>, <span class='ident'>JS_GetTwoByteStringCharsAndLength</span>};
-<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>JS_NewArrayObject1</span>, <span class='ident'>JS_DefineElement</span>, <span class='ident'>RootedObject</span>};
-<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>ForOfIterator</span>, <span class='ident'>ForOfIterator_NonIterableBehavior</span>};
+<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>ForOfIterator</span>, <span class='ident'>ForOfIterator_NonIterableBehavior</span>, <span class='ident'>HandleValue</span>};
+<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>JS_DefineElement</span>, <span class='ident'>JS_GetLatin1StringCharsAndLength</span>};
+<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>JS_GetTwoByteStringCharsAndLength</span>, <span class='ident'>JS_NewArrayObject1</span>};
+<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>JS_NewUCStringCopyN</span>, <span class='ident'>JSPROP_ENUMERATE</span>, <span class='ident'>JS_StringHasLatin1Chars</span>};
+<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>JSContext</span>, <span class='ident'>JSObject</span>, <span class='ident'>JSString</span>, <span class='ident'>MutableHandleValue</span>, <span class='ident'>RootedObject</span>};
 <span class='kw'>use</span> <span class='ident'>jsval</span>::{<span class='ident'>BooleanValue</span>, <span class='ident'>Int32Value</span>, <span class='ident'>NullValue</span>, <span class='ident'>UInt32Value</span>, <span class='ident'>UndefinedValue</span>};
 <span class='kw'>use</span> <span class='ident'>jsval</span>::{<span class='ident'>JSVal</span>, <span class='ident'>ObjectValue</span>, <span class='ident'>ObjectOrNullValue</span>, <span class='ident'>StringValue</span>};
-<span class='kw'>use</span> <span class='ident'>rust</span>::{<span class='ident'>ToBoolean</span>, <span class='ident'>ToNumber</span>, <span class='ident'>ToUint16</span>, <span class='ident'>ToInt32</span>, <span class='ident'>ToUint32</span>, <span class='ident'>ToInt64</span>, <span class='ident'>ToUint64</span>, <span class='ident'>ToString</span>};
+<span class='kw'>use</span> <span class='ident'>rust</span>::{<span class='ident'>ToBoolean</span>, <span class='ident'>ToInt32</span>, <span class='ident'>ToInt64</span>, <span class='ident'>ToNumber</span>, <span class='ident'>ToUint16</span>, <span class='ident'>ToUint32</span>, <span class='ident'>ToUint64</span>};
+<span class='kw'>use</span> <span class='ident'>rust</span>::{<span class='ident'>ToString</span>, <span class='ident'>maybe_wrap_object_or_null_value</span>};
+<span class='kw'>use</span> <span class='ident'>rust</span>::{<span class='ident'>maybe_wrap_object_value</span>, <span class='ident'>maybe_wrap_value</span>};
 <span class='kw'>use</span> <span class='ident'>libc</span>;
 <span class='kw'>use</span> <span class='ident'>num_traits</span>::{<span class='ident'>Bounded</span>, <span class='ident'>Zero</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>Cow</span>;
@@ -867,9 +865,7 @@
     <span class='attribute'>#[<span class='ident'>inline</span>]</span>
     <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
         <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='op'>*</span><span class='self'>self</span>);
-        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>JS_WrapValue</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>) {
-            <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;JS_WrapValue failed.&quot;</span>);
-        }
+        <span class='ident'>maybe_wrap_value</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>);
     }
 }
 
@@ -887,9 +883,7 @@
     <span class='attribute'>#[<span class='ident'>inline</span>]</span>
     <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
         <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='self'>self</span>.<span class='ident'>get</span>());
-        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>JS_WrapValue</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>) {
-            <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;JS_WrapValue failed.&quot;</span>);
-        }
+        <span class='ident'>maybe_wrap_value</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>);
     }
 }
 
@@ -1301,7 +1295,7 @@
     <span class='attribute'>#[<span class='ident'>inline</span>]</span>
     <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
         <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>ObjectOrNullValue</span>(<span class='op'>*</span><span class='self'>self</span>));
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>JS_WrapValue</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>));
+        <span class='ident'>maybe_wrap_object_or_null_value</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>);
     }
 }
 
@@ -1310,7 +1304,7 @@
     <span class='attribute'>#[<span class='ident'>inline</span>]</span>
     <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
         <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>ObjectValue</span>(<span class='op'>*</span><span class='op'>*</span><span class='self'>self</span>));
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>JS_WrapValue</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>));
+        <span class='ident'>maybe_wrap_object_value</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>);
     }
 }
 </pre>
