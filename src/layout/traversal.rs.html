@@ -322,30 +322,6 @@
 <span id="278">278</span>
 <span id="279">279</span>
 <span id="280">280</span>
-<span id="281">281</span>
-<span id="282">282</span>
-<span id="283">283</span>
-<span id="284">284</span>
-<span id="285">285</span>
-<span id="286">286</span>
-<span id="287">287</span>
-<span id="288">288</span>
-<span id="289">289</span>
-<span id="290">290</span>
-<span id="291">291</span>
-<span id="292">292</span>
-<span id="293">293</span>
-<span id="294">294</span>
-<span id="295">295</span>
-<span id="296">296</span>
-<span id="297">297</span>
-<span id="298">298</span>
-<span id="299">299</span>
-<span id="300">300</span>
-<span id="301">301</span>
-<span id="302">302</span>
-<span id="303">303</span>
-<span id="304">304</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -367,9 +343,8 @@
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>dom</span>::{<span class='ident'>StylingMode</span>, <span class='ident'>TElement</span>, <span class='ident'>TNode</span>};
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>selector_parser</span>::<span class='ident'>RestyleDamage</span>;
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>servo</span>::<span class='ident'>restyle_damage</span>::{<span class='ident'>BUBBLE_ISIZES</span>, <span class='ident'>REFLOW</span>, <span class='ident'>REFLOW_OUT_OF_FLOW</span>, <span class='ident'>REPAINT</span>};
-<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>traversal</span>::{<span class='ident'>DomTraversalContext</span>, <span class='ident'>put_thread_local_bloom_filter</span>};
-<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>traversal</span>::{<span class='ident'>recalc_style_at</span>, <span class='ident'>remove_from_bloom_filter</span>};
-<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>traversal</span>::<span class='ident'>take_thread_local_bloom_filter</span>;
+<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>traversal</span>::{<span class='ident'>DomTraversalContext</span>, <span class='ident'>recalc_style_at</span>, <span class='ident'>remove_from_bloom_filter</span>};
+<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>traversal</span>::<span class='ident'>PerLevelTraversalData</span>;
 <span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>opts</span>;
 <span class='kw'>use</span> <span class='ident'>wrapper</span>::{<span class='ident'>GetRawData</span>, <span class='ident'>LayoutNodeHelpers</span>, <span class='ident'>LayoutNodeLayoutData</span>};
 
@@ -423,37 +398,14 @@
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>process_preorder</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>node</span>: <span class='ident'>N</span>) {
+    <span class='kw'>fn</span> <span class='ident'>process_preorder</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>node</span>: <span class='ident'>N</span>, <span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>PerLevelTraversalData</span>) {
         <span class='comment'>// FIXME(pcwalton): Stop allocating here. Ideally this should just be</span>
         <span class='comment'>// done by the HTML parser.</span>
         <span class='ident'>node</span>.<span class='ident'>initialize_data</span>();
 
-        <span class='kw'>if</span> <span class='ident'>node</span>.<span class='ident'>is_text_node</span>() {
-            <span class='comment'>// FIXME(bholley): Stop doing this silly work to maintain broken bloom filter</span>
-            <span class='comment'>// invariants.</span>
-            <span class='comment'>//</span>
-            <span class='comment'>// Longer version: The bloom filter is entirely busted for parallel traversal. Because</span>
-            <span class='comment'>// parallel traversal is breadth-first, each sibling rejects the bloom filter set up</span>
-            <span class='comment'>// by the previous sibling (which is valid for children, not siblings) and recreates</span>
-            <span class='comment'>// it. Similarly, the fixup performed in the bottom-up traversal is useless, because</span>
-            <span class='comment'>// threads perform flow construction up the parent chain until they find a parent with</span>
-            <span class='comment'>// other unprocessed children, at which point they bail to the work queue and find a</span>
-            <span class='comment'>// different node.</span>
-            <span class='comment'>//</span>
-            <span class='comment'>// Nevertheless, the remove_from_bloom_filter call at the end of flow construction</span>
-            <span class='comment'>// asserts that the bloom filter is valid for the current node. This breaks when we</span>
-            <span class='comment'>// stop calling recalc_style_at for text nodes, because the recursive chain of</span>
-            <span class='comment'>// construct_flows_at calls is no longer necessarily rooted in a call that sets up the</span>
-            <span class='comment'>// thread-local bloom filter for the leaf node.</span>
-            <span class='comment'>//</span>
-            <span class='comment'>// The bloom filter stuff is all going to be rewritten, so we just hackily duplicate</span>
-            <span class='comment'>// the bloom filter manipulation from recalc_style_at to maintain invariants.</span>
-            <span class='kw'>let</span> <span class='ident'>parent</span> <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>parent_node</span>().<span class='ident'>unwrap</span>().<span class='ident'>as_element</span>();
-            <span class='kw'>let</span> <span class='ident'>bf</span> <span class='op'>=</span> <span class='ident'>take_thread_local_bloom_filter</span>(<span class='ident'>parent</span>, <span class='self'>self</span>.<span class='ident'>root</span>, <span class='self'>self</span>.<span class='ident'>context</span>.<span class='ident'>shared_context</span>());
-            <span class='ident'>put_thread_local_bloom_filter</span>(<span class='ident'>bf</span>, <span class='kw-2'>&amp;</span><span class='ident'>node</span>.<span class='ident'>to_unsafe</span>(), <span class='self'>self</span>.<span class='ident'>context</span>.<span class='ident'>shared_context</span>());
-        } <span class='kw'>else</span> {
+        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>node</span>.<span class='ident'>is_text_node</span>() {
             <span class='kw'>let</span> <span class='ident'>el</span> <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>as_element</span>().<span class='ident'>unwrap</span>();
-            <span class='ident'>recalc_style_at</span>::<span class='op'>&lt;</span>_, _, <span class='self'>Self</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>context</span>, <span class='self'>self</span>.<span class='ident'>root</span>, <span class='ident'>el</span>);
+            <span class='ident'>recalc_style_at</span>::<span class='op'>&lt;</span>_, _, <span class='self'>Self</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>context</span>, <span class='ident'>data</span>, <span class='ident'>el</span>);
         }
     }
 
@@ -523,9 +475,9 @@
     <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>el</span>) <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>as_element</span>() {
         <span class='ident'>el</span>.<span class='ident'>mutate_data</span>().<span class='ident'>unwrap</span>().<span class='ident'>persist</span>();
         <span class='kw'>unsafe</span> { <span class='ident'>el</span>.<span class='ident'>unset_dirty_descendants</span>(); }
-    }
 
-    <span class='ident'>remove_from_bloom_filter</span>(<span class='ident'>context</span>, <span class='ident'>root</span>, <span class='ident'>node</span>);
+        <span class='ident'>remove_from_bloom_filter</span>(<span class='ident'>context</span>, <span class='ident'>root</span>, <span class='ident'>el</span>);
+    }
 }
 
 <span class='doccomment'>/// The bubble-inline-sizes traversal, the first part of layout computation. This computes</span>
