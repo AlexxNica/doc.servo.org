@@ -290,6 +290,14 @@
 <span id="246">246</span>
 <span id="247">247</span>
 <span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -300,9 +308,9 @@
 <span class='kw'>use</span> <span class='ident'>euclid</span>::{<span class='ident'>Point2D</span>, <span class='ident'>Size2D</span>};
 <span class='kw'>use</span> <span class='ident'>offscreen_gl_context</span>::{<span class='ident'>GLContextAttributes</span>, <span class='ident'>GLLimits</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>Cell</span>;
-<span class='kw'>use</span> {<span class='ident'>ApiMsg</span>, <span class='ident'>AuxiliaryLists</span>, <span class='ident'>BuiltDisplayList</span>, <span class='ident'>ColorF</span>, <span class='ident'>Epoch</span>};
+<span class='kw'>use</span> {<span class='ident'>ApiMsg</span>, <span class='ident'>ColorF</span>, <span class='ident'>DisplayListBuilder</span>, <span class='ident'>Epoch</span>};
 <span class='kw'>use</span> {<span class='ident'>FontKey</span>, <span class='ident'>IdNamespace</span>, <span class='ident'>ImageFormat</span>, <span class='ident'>ImageKey</span>, <span class='ident'>NativeFontHandle</span>, <span class='ident'>PipelineId</span>};
-<span class='kw'>use</span> {<span class='ident'>RenderApiSender</span>, <span class='ident'>ResourceId</span>, <span class='ident'>ScrollEventPhase</span>, <span class='ident'>ScrollLayerState</span>};
+<span class='kw'>use</span> {<span class='ident'>RenderApiSender</span>, <span class='ident'>ResourceId</span>, <span class='ident'>ScrollEventPhase</span>, <span class='ident'>ScrollLayerState</span>, <span class='ident'>ServoScrollRootId</span>};
 <span class='kw'>use</span> {<span class='ident'>GlyphKey</span>, <span class='ident'>GlyphDimensions</span>, <span class='ident'>ImageData</span>, <span class='ident'>WebGLContextId</span>, <span class='ident'>WebGLCommand</span>};
 
 <span class='kw'>impl</span> <span class='ident'>RenderApiSender</span> {
@@ -458,10 +466,10 @@
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_root_display_list</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
                                  <span class='ident'>background_color</span>: <span class='ident'>ColorF</span>,
                                  <span class='ident'>epoch</span>: <span class='ident'>Epoch</span>,
-                                 <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
                                  <span class='ident'>viewport_size</span>: <span class='ident'>Size2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
-                                 <span class='ident'>display_list</span>: <span class='ident'>BuiltDisplayList</span>,
-                                 <span class='ident'>auxiliary_lists</span>: <span class='ident'>AuxiliaryLists</span>) {
+                                 <span class='ident'>builder</span>: <span class='ident'>DisplayListBuilder</span>) {
+        <span class='kw'>let</span> <span class='ident'>pipeline_id</span> <span class='op'>=</span> <span class='ident'>builder</span>.<span class='ident'>pipeline_id</span>;
+        <span class='kw'>let</span> (<span class='ident'>display_list</span>, <span class='ident'>auxiliary_lists</span>) <span class='op'>=</span> <span class='ident'>builder</span>.<span class='ident'>finalize</span>();
         <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>SetRootDisplayList</span>(<span class='ident'>background_color</span>,
                                              <span class='ident'>epoch</span>,
                                              <span class='ident'>pipeline_id</span>,
@@ -483,6 +491,14 @@
     <span class='doccomment'>/// which has `ScrollPolicy::Scrollable` set.</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>scroll</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>delta</span>: <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>, <span class='ident'>cursor</span>: <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>, <span class='ident'>phase</span>: <span class='ident'>ScrollEventPhase</span>) {
         <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>Scroll</span>(<span class='ident'>delta</span>, <span class='ident'>cursor</span>, <span class='ident'>phase</span>);
+        <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>scroll_layers_with_scroll_root_id</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
+                                             <span class='ident'>new_scroll_origin</span>: <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
+                                             <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
+                                             <span class='ident'>scroll_root_id</span>: <span class='ident'>ServoScrollRootId</span>) {
+        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>ScrollLayersWithScrollId</span>(<span class='ident'>new_scroll_origin</span>, <span class='ident'>pipeline_id</span>, <span class='ident'>scroll_root_id</span>);
         <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
     }
 
