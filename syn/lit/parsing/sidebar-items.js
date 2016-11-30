@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["byte",""],["byte_string",""],["character",""],["digits",""],["int",""],["lit",""],["quoted_string",""],["string",""]]});
+initSidebarItems({"fn":[["boolean",""],["byte",""],["byte_string",""],["character",""],["digits",""],["float",""],["float_string",""],["int",""],["lit",""],["quoted_string",""],["string",""]]});

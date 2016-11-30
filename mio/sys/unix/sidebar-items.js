@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["from_nix_error",""],["pipe",""]],"mod":[["awakener",""],["epoll",""],["eventedfd",""],["io",""],["net",""],["nix",""],["socket",""],["tcp",""],["udp",""],["uds",""]],"struct":[["Awakener",""],["EventedFd",""],["Events",""],["Io",""],["Selector",""],["TcpListener",""],["TcpStream",""],["UdpSocket",""],["UnixSocket",""]],"trait":[["Socket",""]]});
+initSidebarItems({"fn":[["from_nix_error",""],["pipe",""]],"mod":[["awakener",""],["epoll",""],["eventedfd",""],["io",""],["net",""],["nix",""],["socket",""],["tcp",""],["udp",""],["uds",""]]});

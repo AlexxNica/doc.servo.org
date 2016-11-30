@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["font",""],["font_context",""],["font_list",""],["font_template",""],["freetype",""]]});
+initSidebarItems({"mod":[["freetype",""]]});

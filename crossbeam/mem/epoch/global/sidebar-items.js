@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["get",""]],"mod":[["imp",""]],"struct":[["EpochState","Global epoch state"]]});
+initSidebarItems({"mod":[["imp",""]],"struct":[["EpochState","Global epoch state"]]});

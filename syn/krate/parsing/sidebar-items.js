@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["krate",""]]});
+initSidebarItems({"fn":[["byte_order_mark",""],["krate",""],["shebang",""]]});

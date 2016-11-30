@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["expand",""],["expand_derive_deserialize",""],["expand_derive_serialize",""],["expand_single_item",""],["expand_str",""],["syntex_registry",""]],"mod":[["bound",""],["de",""],["ser",""]]});
+initSidebarItems({"fn":[["expand",""],["expand_derive_deserialize","Not public API. Use the serde_derive crate."],["expand_derive_serialize","Not public API. Use the serde_derive crate."],["expand_str",""],["syntex_registry",""]],"mod":[["bound",""],["de",""],["ser",""],["shim",""]]});

@@ -3185,6 +3185,44 @@
 <span id="3141">3141</span>
 <span id="3142">3142</span>
 <span id="3143">3143</span>
+<span id="3144">3144</span>
+<span id="3145">3145</span>
+<span id="3146">3146</span>
+<span id="3147">3147</span>
+<span id="3148">3148</span>
+<span id="3149">3149</span>
+<span id="3150">3150</span>
+<span id="3151">3151</span>
+<span id="3152">3152</span>
+<span id="3153">3153</span>
+<span id="3154">3154</span>
+<span id="3155">3155</span>
+<span id="3156">3156</span>
+<span id="3157">3157</span>
+<span id="3158">3158</span>
+<span id="3159">3159</span>
+<span id="3160">3160</span>
+<span id="3161">3161</span>
+<span id="3162">3162</span>
+<span id="3163">3163</span>
+<span id="3164">3164</span>
+<span id="3165">3165</span>
+<span id="3166">3166</span>
+<span id="3167">3167</span>
+<span id="3168">3168</span>
+<span id="3169">3169</span>
+<span id="3170">3170</span>
+<span id="3171">3171</span>
+<span id="3172">3172</span>
+<span id="3173">3173</span>
+<span id="3174">3174</span>
+<span id="3175">3175</span>
+<span id="3176">3176</span>
+<span id="3177">3177</span>
+<span id="3178">3178</span>
+<span id="3179">3179</span>
+<span id="3180">3180</span>
+<span id="3181">3181</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -3330,12 +3368,6 @@
     <span class='ident'>NonHTMLDocument</span>,
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>PartialEq</span>)]</span>
-<span class='kw'>enum</span> <span class='ident'>ParserBlockedByScript</span> {
-    <span class='ident'>Blocked</span>,
-    <span class='ident'>Unblocked</span>,
-}
-
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>JSTraceable</span>, <span class='ident'>HeapSizeOf</span>)]</span>
 <span class='attribute'>#[<span class='ident'>must_root</span>]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>StylesheetInDocument</span> {
@@ -3475,6 +3507,8 @@
     <span class='doccomment'>/// https://w3c.github.io/uievents/#event-type-dblclick</span>
     <span class='attribute'>#[<span class='ident'>ignore_heap_size_of</span> <span class='op'>=</span> <span class='string'>&quot;Defined in std&quot;</span>]</span>
     <span class='ident'>last_click_info</span>: <span class='ident'>DOMRefCell</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span>(<span class='ident'>Instant</span>, <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>)<span class='op'>&gt;&gt;</span>,
+    <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#ignore-destructive-writes-counter</span>
+    <span class='ident'>ignore_destructive_writes_counter</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>,
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>JSTraceable</span>, <span class='ident'>HeapSizeOf</span>)]</span>
@@ -3566,15 +3600,16 @@
         <span class='self'>self</span>.<span class='ident'>trigger_mozbrowser_event</span>(<span class='ident'>MozBrowserEvent</span>::<span class='ident'>SecurityChange</span>(<span class='ident'>https_state</span>));
     }
 
+    <span class='comment'>// https://html.spec.whatwg.org/multipage/#active-document</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_active</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+        <span class='self'>self</span>.<span class='ident'>browsing_context</span>().<span class='ident'>map_or</span>(<span class='bool-val'>false</span>, <span class='op'>|</span><span class='ident'>context</span><span class='op'>|</span> {
+            <span class='self'>self</span> <span class='op'>==</span> <span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>context</span>.<span class='ident'>active_document</span>()
+        })
+    }
+
     <span class='comment'>// https://html.spec.whatwg.org/multipage/#fully-active</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_fully_active</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>let</span> <span class='ident'>browsing_context</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>browsing_context</span>() {
-            <span class='prelude-val'>Some</span>(<span class='ident'>browsing_context</span>) <span class='op'>=&gt;</span> <span class='ident'>browsing_context</span>,
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='bool-val'>false</span>,
-        };
-        <span class='kw'>let</span> <span class='ident'>active_document</span> <span class='op'>=</span> <span class='ident'>browsing_context</span>.<span class='ident'>active_document</span>();
-
-        <span class='kw'>if</span> <span class='self'>self</span> <span class='op'>!=</span> <span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>active_document</span> {
+        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>is_active</span>() {
             <span class='kw'>return</span> <span class='bool-val'>false</span>;
         }
         <span class='comment'>// FIXME: It should also check whether the browser context is top-level or not</span>
@@ -4733,15 +4768,13 @@
             <span class='self'>self</span>.<span class='ident'>process_asap_scripts</span>();
         }
 
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>maybe_execute_parser_blocking_script</span>() <span class='op'>==</span> <span class='ident'>ParserBlockedByScript</span>::<span class='ident'>Blocked</span> {
-            <span class='kw'>return</span>;
-        }
-
-        <span class='comment'>// A finished resource load can potentially unblock parsing. In that case, resume the</span>
-        <span class='comment'>// parser so its loop can find out.</span>
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>parser</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>get_current_parser</span>() {
-            <span class='kw'>if</span> <span class='ident'>parser</span>.<span class='ident'>is_suspended</span>() {
-                <span class='ident'>parser</span>.<span class='ident'>resume</span>();
+            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>script</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pending_parsing_blocking_script</span>.<span class='ident'>get</span>() {
+                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>script_blocking_stylesheets_count</span>.<span class='ident'>get</span>() <span class='op'>&gt;</span> <span class='number'>0</span> <span class='op'>||</span> <span class='op'>!</span><span class='ident'>script</span>.<span class='ident'>is_ready_to_be_executed</span>() {
+                    <span class='kw'>return</span>;
+                }
+                <span class='self'>self</span>.<span class='ident'>pending_parsing_blocking_script</span>.<span class='ident'>set</span>(<span class='prelude-val'>None</span>);
+                <span class='ident'>parser</span>.<span class='ident'>resume_with_pending_parsing_blocking_script</span>(<span class='kw-2'>&amp;</span><span class='ident'>script</span>);
             }
         } <span class='kw'>else</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>reflow_timeout</span>.<span class='ident'>get</span>().<span class='ident'>is_none</span>() {
             <span class='comment'>// If we don&#39;t have a parser, and the reflow timer has been reset, explicitly</span>
@@ -4762,23 +4795,6 @@
                 <span class='ident'>win</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>GlobalScope</span><span class='op'>&gt;</span>().<span class='ident'>pipeline_id</span>());
             <span class='ident'>win</span>.<span class='ident'>main_thread_script_chan</span>().<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
         }
-    }
-
-    <span class='doccomment'>/// If document parsing is blocked on a script, and that script is ready to run,</span>
-    <span class='doccomment'>/// execute it.</span>
-    <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#ready-to-be-parser-executed</span>
-    <span class='kw'>fn</span> <span class='ident'>maybe_execute_parser_blocking_script</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>ParserBlockedByScript</span> {
-        <span class='kw'>let</span> <span class='ident'>script</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>pending_parsing_blocking_script</span>.<span class='ident'>get</span>() {
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='ident'>ParserBlockedByScript</span>::<span class='ident'>Unblocked</span>,
-            <span class='prelude-val'>Some</span>(<span class='ident'>script</span>) <span class='op'>=&gt;</span> <span class='ident'>script</span>,
-        };
-
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>script_blocking_stylesheets_count</span>.<span class='ident'>get</span>() <span class='op'>==</span> <span class='number'>0</span> <span class='op'>&amp;&amp;</span> <span class='ident'>script</span>.<span class='ident'>is_ready_to_be_executed</span>() {
-            <span class='self'>self</span>.<span class='ident'>pending_parsing_blocking_script</span>.<span class='ident'>set</span>(<span class='prelude-val'>None</span>);
-            <span class='ident'>script</span>.<span class='ident'>execute</span>();
-            <span class='kw'>return</span> <span class='ident'>ParserBlockedByScript</span>::<span class='ident'>Unblocked</span>;
-        }
-        <span class='ident'>ParserBlockedByScript</span>::<span class='ident'>Blocked</span>
     }
 
     <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#the-end step 3</span>
@@ -5089,6 +5105,7 @@
             <span class='ident'>referrer_policy</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='ident'>referrer_policy</span>),
             <span class='ident'>target_element</span>: <span class='ident'>MutNullableHeap</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
             <span class='ident'>last_click_info</span>: <span class='ident'>DOMRefCell</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
+            <span class='ident'>ignore_destructive_writes_counter</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
         }
     }
 
@@ -5264,6 +5281,16 @@
         <span class='self'>self</span>.<span class='ident'>window</span>.<span class='ident'>reflow</span>(<span class='ident'>ReflowGoal</span>::<span class='ident'>ForDisplay</span>,
                            <span class='ident'>ReflowQueryType</span>::<span class='ident'>NoQuery</span>,
                            <span class='ident'>ReflowReason</span>::<span class='ident'>ElementStateChanged</span>);
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>incr_ignore_destructive_writes_counter</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
+        <span class='self'>self</span>.<span class='ident'>ignore_destructive_writes_counter</span>.<span class='ident'>set</span>(
+            <span class='self'>self</span>.<span class='ident'>ignore_destructive_writes_counter</span>.<span class='ident'>get</span>() <span class='op'>+</span> <span class='number'>1</span>);
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>decr_ignore_destructive_writes_counter</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
+        <span class='self'>self</span>.<span class='ident'>ignore_destructive_writes_counter</span>.<span class='ident'>set</span>(
+            <span class='self'>self</span>.<span class='ident'>ignore_destructive_writes_counter</span>.<span class='ident'>get</span>() <span class='op'>-</span> <span class='number'>1</span>);
     }
 }
 
@@ -6229,6 +6256,55 @@
 
         <span class='comment'>// Step 5</span>
         <span class='ident'>elements</span>
+    }
+
+    <span class='comment'>// https://html.spec.whatwg.org/multipage/#dom-document-write</span>
+    <span class='kw'>fn</span> <span class='ident'>Write</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>text</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>DOMString</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>ErrorResult</span> {
+        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>is_html_document</span>() {
+            <span class='comment'>// Step 1.</span>
+            <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>InvalidState</span>);
+        }
+
+        <span class='comment'>// Step 2.</span>
+        <span class='comment'>// TODO: handle throw-on-dynamic-markup-insertion counter.</span>
+
+        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>is_active</span>() {
+            <span class='comment'>// Step 3.</span>
+            <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(());
+        }
+
+        <span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>get_current_parser</span>();
+        <span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>parser</span>.<span class='ident'>as_ref</span>() {
+            <span class='prelude-val'>Some</span>(<span class='ident'>parser</span>) <span class='kw'>if</span> <span class='ident'>parser</span>.<span class='ident'>script_nesting_level</span>() <span class='op'>&gt;</span> <span class='number'>0</span> <span class='op'>=&gt;</span> <span class='ident'>parser</span>,
+            _ <span class='op'>=&gt;</span> {
+                <span class='comment'>// Either there is no parser, which means the parsing ended;</span>
+                <span class='comment'>// or script nesting level is 0, which means the method was</span>
+                <span class='comment'>// called from outside a parser-executed script.</span>
+                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>ignore_destructive_writes_counter</span>.<span class='ident'>get</span>() <span class='op'>&gt;</span> <span class='number'>0</span> {
+                    <span class='comment'>// Step 4.</span>
+                    <span class='comment'>// TODO: handle ignore-opens-during-unload counter.</span>
+                    <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(());
+                }
+                <span class='comment'>// Step 5.</span>
+                <span class='comment'>// TODO: call document.open().</span>
+                <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>InvalidState</span>);
+            }
+        };
+
+        <span class='comment'>// Step 7.</span>
+        <span class='comment'>// TODO: handle reload override buffer.</span>
+
+        <span class='comment'>// Steps 6-8.</span>
+        <span class='ident'>parser</span>.<span class='ident'>write</span>(<span class='ident'>text</span>);
+
+        <span class='comment'>// Step 9.</span>
+        <span class='prelude-val'>Ok</span>(())
+    }
+
+    <span class='comment'>// https://html.spec.whatwg.org/multipage/#dom-document-writeln</span>
+    <span class='kw'>fn</span> <span class='ident'>Writeln</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>text</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>DOMString</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>ErrorResult</span> {
+        <span class='ident'>text</span>.<span class='ident'>push</span>(<span class='string'>&quot;\n&quot;</span>.<span class='ident'>into</span>());
+        <span class='self'>self</span>.<span class='ident'>Write</span>(<span class='ident'>text</span>)
     }
 
     <span class='comment'>// https://html.spec.whatwg.org/multipage/#documentandelementeventhandlers</span>

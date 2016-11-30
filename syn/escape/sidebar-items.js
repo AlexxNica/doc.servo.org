@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["backslash_u",""],["backslash_x",""],["char_from_hex_bytes","Assumes the bytes are all '0'...'9' | 'a'...'f' | 'A'...'F'."],["cooked_char",""],["cooked_string",""],["raw_string",""]]});
+initSidebarItems({"fn":[["backslash_u",""],["backslash_x_byte",""],["backslash_x_char",""],["cooked_byte",""],["cooked_byte_string",""],["cooked_char",""],["cooked_string",""],["raw_string",""]],"trait":[["FromStrRadix",""]]});

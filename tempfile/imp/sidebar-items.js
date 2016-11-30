@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["create",""],["create_named",""],["create_unix",""],["cstr",""],["persist",""],["reopen",""],["stat",""]],"mod":[["unix",""]]});
+initSidebarItems({"mod":[["unix",""]]});

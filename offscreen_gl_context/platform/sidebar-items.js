@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["with_glx",""],["with_osmesa",""]],"struct":[["NativeGLContext",""],["NativeGLContextHandle",""],["OSMesaContext",""],["OSMesaContextHandle",""]],"trait":[["NativeGLContextMethods",""]]});
+initSidebarItems({"mod":[["with_glx",""],["with_osmesa",""]],"trait":[["NativeGLContextMethods",""]]});

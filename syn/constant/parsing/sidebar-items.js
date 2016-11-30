@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["and_binary",""],["and_call",""],["and_cast",""],["const_expr",""],["expr_lit",""],["expr_unary",""]]});
+initSidebarItems({"fn":[["and_binary",""],["and_call",""],["and_cast",""],["and_index",""],["const_expr",""],["expr_lit",""],["expr_paren",""],["expr_path",""],["expr_unary",""]]});

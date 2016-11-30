@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["derive_deserialize",""],["derive_serialize",""],["post_expansion",""]]});
+initSidebarItems({"fn":[["derive_deserialize",""],["derive_serialize",""]]});

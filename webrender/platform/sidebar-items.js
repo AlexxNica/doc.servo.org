@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["font",""],["unix",""]]});
+initSidebarItems({"mod":[["unix",""]]});
