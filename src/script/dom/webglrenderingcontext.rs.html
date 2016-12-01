@@ -2885,6 +2885,30 @@
 <span id="2841">2841</span>
 <span id="2842">2842</span>
 <span id="2843">2843</span>
+<span id="2844">2844</span>
+<span id="2845">2845</span>
+<span id="2846">2846</span>
+<span id="2847">2847</span>
+<span id="2848">2848</span>
+<span id="2849">2849</span>
+<span id="2850">2850</span>
+<span id="2851">2851</span>
+<span id="2852">2852</span>
+<span id="2853">2853</span>
+<span id="2854">2854</span>
+<span id="2855">2855</span>
+<span id="2856">2856</span>
+<span id="2857">2857</span>
+<span id="2858">2858</span>
+<span id="2859">2859</span>
+<span id="2860">2860</span>
+<span id="2861">2861</span>
+<span id="2862">2862</span>
+<span id="2863">2863</span>
+<span id="2864">2864</span>
+<span id="2865">2865</span>
+<span id="2866">2866</span>
+<span id="2867">2867</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -3021,6 +3045,10 @@
     <span class='ident'>current_program</span>: <span class='ident'>MutNullableHeap</span><span class='op'>&lt;</span><span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>WebGLProgram</span><span class='op'>&gt;&gt;</span>,
     <span class='attribute'>#[<span class='ident'>ignore_heap_size_of</span> <span class='op'>=</span> <span class='string'>&quot;Because it&#39;s small&quot;</span>]</span>
     <span class='ident'>current_vertex_attrib_0</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span>(<span class='ident'>f32</span>, <span class='ident'>f32</span>, <span class='ident'>f32</span>, <span class='ident'>f32</span>)<span class='op'>&gt;</span>,
+    <span class='attribute'>#[<span class='ident'>ignore_heap_size_of</span> <span class='op'>=</span> <span class='string'>&quot;Because it&#39;s small&quot;</span>]</span>
+    <span class='ident'>current_scissor</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span>(<span class='ident'>i32</span>, <span class='ident'>i32</span>, <span class='ident'>i32</span>, <span class='ident'>i32</span>)<span class='op'>&gt;</span>,
+    <span class='attribute'>#[<span class='ident'>ignore_heap_size_of</span> <span class='op'>=</span> <span class='string'>&quot;Because it&#39;s small&quot;</span>]</span>
+    <span class='ident'>current_clear_color</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span>(<span class='ident'>f32</span>, <span class='ident'>f32</span>, <span class='ident'>f32</span>, <span class='ident'>f32</span>)<span class='op'>&gt;</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>WebGLRenderingContext</span> {
@@ -3051,6 +3079,8 @@
                 <span class='ident'>bound_renderbuffer</span>: <span class='ident'>MutNullableHeap</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
                 <span class='ident'>current_program</span>: <span class='ident'>MutNullableHeap</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
                 <span class='ident'>current_vertex_attrib_0</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>((<span class='number'>0f32</span>, <span class='number'>0f32</span>, <span class='number'>0f32</span>, <span class='number'>1f32</span>)),
+                <span class='ident'>current_scissor</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>((<span class='number'>0</span>, <span class='number'>0</span>, <span class='ident'>size</span>.<span class='ident'>width</span>, <span class='ident'>size</span>.<span class='ident'>height</span>)),
+                <span class='ident'>current_clear_color</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>((<span class='number'>0.0</span>, <span class='number'>0.0</span>, <span class='number'>0.0</span>, <span class='number'>0.0</span>))
             }
         })
     }
@@ -3091,6 +3121,22 @@
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>recreate</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>size</span>: <span class='ident'>Size2D</span><span class='op'>&lt;</span><span class='ident'>i32</span><span class='op'>&gt;</span>) {
         <span class='self'>self</span>.<span class='ident'>ipc_renderer</span>.<span class='ident'>send</span>(<span class='ident'>CanvasMsg</span>::<span class='ident'>Common</span>(<span class='ident'>CanvasCommonMsg</span>::<span class='ident'>Recreate</span>(<span class='ident'>size</span>))).<span class='ident'>unwrap</span>();
+
+        <span class='comment'>// ClearColor needs to be restored because after a resize the GLContext is recreated</span>
+        <span class='comment'>// and the framebuffer is cleared using the default black transparent color.</span>
+        <span class='kw'>let</span> <span class='ident'>color</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>current_clear_color</span>.<span class='ident'>get</span>();
+        <span class='self'>self</span>.<span class='ident'>ipc_renderer</span>
+            .<span class='ident'>send</span>(<span class='ident'>CanvasMsg</span>::<span class='ident'>WebGL</span>(<span class='ident'>WebGLCommand</span>::<span class='ident'>ClearColor</span>(<span class='ident'>color</span>.<span class='number'>0</span>, <span class='ident'>color</span>.<span class='number'>1</span>, <span class='ident'>color</span>.<span class='number'>2</span>, <span class='ident'>color</span>.<span class='number'>3</span>)))
+            .<span class='ident'>unwrap</span>();
+
+        <span class='comment'>// WebGL Spec: Scissor rect must not change if the canvas is resized.</span>
+        <span class='comment'>// See: webgl/conformance-1.0.3/conformance/rendering/gl-scissor-canvas-dimensions.html</span>
+        <span class='comment'>// NativeContext handling library changes the scissor after a resize, so we need to reset the</span>
+        <span class='comment'>// default scissor when the canvas was created or the last scissor that the user set.</span>
+        <span class='kw'>let</span> <span class='ident'>rect</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>current_scissor</span>.<span class='ident'>get</span>();
+        <span class='self'>self</span>.<span class='ident'>ipc_renderer</span>
+            .<span class='ident'>send</span>(<span class='ident'>CanvasMsg</span>::<span class='ident'>WebGL</span>(<span class='ident'>WebGLCommand</span>::<span class='ident'>Scissor</span>(<span class='ident'>rect</span>.<span class='number'>0</span>, <span class='ident'>rect</span>.<span class='number'>1</span>, <span class='ident'>rect</span>.<span class='number'>2</span>, <span class='ident'>rect</span>.<span class='number'>3</span>)))
+            .<span class='ident'>unwrap</span>()
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ipc_renderer</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>CanvasMsg</span><span class='op'>&gt;</span> {
@@ -4024,6 +4070,7 @@
 
     <span class='comment'>// https://www.khronos.org/registry/webgl/specs/latest/1.0/#5.14.3</span>
     <span class='kw'>fn</span> <span class='ident'>ClearColor</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>red</span>: <span class='ident'>f32</span>, <span class='ident'>green</span>: <span class='ident'>f32</span>, <span class='ident'>blue</span>: <span class='ident'>f32</span>, <span class='ident'>alpha</span>: <span class='ident'>f32</span>) {
+        <span class='self'>self</span>.<span class='ident'>current_clear_color</span>.<span class='ident'>set</span>((<span class='ident'>red</span>, <span class='ident'>green</span>, <span class='ident'>blue</span>, <span class='ident'>alpha</span>));
         <span class='self'>self</span>.<span class='ident'>ipc_renderer</span>
             .<span class='ident'>send</span>(<span class='ident'>CanvasMsg</span>::<span class='ident'>WebGL</span>(<span class='ident'>WebGLCommand</span>::<span class='ident'>ClearColor</span>(<span class='ident'>red</span>, <span class='ident'>green</span>, <span class='ident'>blue</span>, <span class='ident'>alpha</span>)))
             .<span class='ident'>unwrap</span>()
@@ -4791,6 +4838,7 @@
             <span class='kw'>return</span> <span class='self'>self</span>.<span class='ident'>webgl_error</span>(<span class='ident'>InvalidValue</span>)
         }
 
+        <span class='self'>self</span>.<span class='ident'>current_scissor</span>.<span class='ident'>set</span>((<span class='ident'>x</span>, <span class='ident'>y</span>, <span class='ident'>width</span>, <span class='ident'>height</span>));
         <span class='self'>self</span>.<span class='ident'>ipc_renderer</span>
             .<span class='ident'>send</span>(<span class='ident'>CanvasMsg</span>::<span class='ident'>WebGL</span>(<span class='ident'>WebGLCommand</span>::<span class='ident'>Scissor</span>(<span class='ident'>x</span>, <span class='ident'>y</span>, <span class='ident'>width</span>, <span class='ident'>height</span>)))
             .<span class='ident'>unwrap</span>()
