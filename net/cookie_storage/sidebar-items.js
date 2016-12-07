@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CookieStorage",""]]});
+initSidebarItems({"fn":[["evict_one_cookie",""],["get_oldest_accessed",""],["is_cookie_expired",""],["reg_host",""]],"struct":[["CookieStorage",""]]});
