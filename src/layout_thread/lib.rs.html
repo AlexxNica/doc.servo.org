@@ -1625,6 +1625,11 @@
 <span id="1581">1581</span>
 <span id="1582">1582</span>
 <span id="1583">1583</span>
+<span id="1584">1584</span>
+<span id="1585">1585</span>
+<span id="1586">1586</span>
+<span id="1587">1587</span>
+<span id="1588">1588</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1802,6 +1807,9 @@
 
     <span class='doccomment'>/// The workers that we use for parallel operation.</span>
     <span class='ident'>parallel_traversal</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>rayon</span>::<span class='ident'>ThreadPool</span><span class='op'>&gt;</span>,
+
+    <span class='doccomment'>/// Flag to indicate whether to use parallel operations</span>
+    <span class='ident'>parallel_flag</span>: <span class='ident'>bool</span>,
 
     <span class='doccomment'>/// Starts at zero, and increased by one every time a layout completes.</span>
     <span class='doccomment'>/// This can be used to easily check for invalid stale data.</span>
@@ -2017,13 +2025,11 @@
         <span class='kw'>let</span> <span class='ident'>device</span> <span class='op'>=</span> <span class='ident'>Device</span>::<span class='ident'>new</span>(
             <span class='ident'>MediaType</span>::<span class='ident'>Screen</span>,
             <span class='ident'>opts</span>::<span class='ident'>get</span>().<span class='ident'>initial_window_size</span>.<span class='ident'>to_f32</span>() <span class='op'>*</span> <span class='ident'>ScaleFactor</span>::<span class='ident'>new</span>(<span class='number'>1.0</span>));
-        <span class='kw'>let</span> <span class='ident'>parallel_traversal</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>layout_threads</span> <span class='op'>!=</span> <span class='number'>1</span> {
-            <span class='kw'>let</span> <span class='ident'>configuration</span> <span class='op'>=</span>
-                <span class='ident'>rayon</span>::<span class='ident'>Configuration</span>::<span class='ident'>new</span>().<span class='ident'>set_num_threads</span>(<span class='ident'>layout_threads</span>);
-            <span class='ident'>rayon</span>::<span class='ident'>ThreadPool</span>::<span class='ident'>new</span>(<span class='ident'>configuration</span>).<span class='ident'>ok</span>()
-        } <span class='kw'>else</span> {
-            <span class='prelude-val'>None</span>
-        };
+
+        <span class='kw'>let</span> <span class='ident'>configuration</span> <span class='op'>=</span>
+            <span class='ident'>rayon</span>::<span class='ident'>Configuration</span>::<span class='ident'>new</span>().<span class='ident'>set_num_threads</span>(<span class='ident'>layout_threads</span>);
+        <span class='kw'>let</span> <span class='ident'>parallel_traversal</span> <span class='op'>=</span> <span class='ident'>rayon</span>::<span class='ident'>ThreadPool</span>::<span class='ident'>new</span>(<span class='ident'>configuration</span>).<span class='ident'>ok</span>();
+        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Possible layout Threads: {}&quot;</span>, <span class='ident'>layout_threads</span>);
 
         <span class='comment'>// Create the channel on which new animations can be sent.</span>
         <span class='kw'>let</span> (<span class='ident'>new_animations_sender</span>, <span class='ident'>new_animations_receiver</span>) <span class='op'>=</span> <span class='ident'>channel</span>();
@@ -2069,6 +2075,7 @@
             <span class='ident'>font_cache_receiver</span>: <span class='ident'>font_cache_receiver</span>,
             <span class='ident'>font_cache_sender</span>: <span class='ident'>ipc_font_cache_sender</span>,
             <span class='ident'>parallel_traversal</span>: <span class='ident'>parallel_traversal</span>,
+            <span class='ident'>parallel_flag</span>: <span class='bool-val'>true</span>,
             <span class='ident'>generation</span>: <span class='number'>0</span>,
             <span class='ident'>new_animations_sender</span>: <span class='ident'>new_animations_sender</span>,
             <span class='ident'>new_animations_receiver</span>: <span class='ident'>new_animations_receiver</span>,
@@ -2607,6 +2614,13 @@
                       (<span class='ident'>data</span>.<span class='ident'>reflow_info</span>.<span class='ident'>goal</span> <span class='op'>==</span> <span class='ident'>ReflowGoal</span>::<span class='ident'>ForScriptQuery</span> <span class='op'>&amp;&amp;</span>
                        <span class='ident'>data</span>.<span class='ident'>query_type</span> <span class='op'>!=</span> <span class='ident'>ReflowQueryType</span>::<span class='ident'>NoQuery</span>));
 
+        <span class='comment'>// Parallelize if there&#39;s more than 750 objects based on rzambre&#39;s suggestion</span>
+        <span class='comment'>// https://github.com/servo/servo/issues/10110</span>
+        <span class='self'>self</span>.<span class='ident'>parallel_flag</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>layout_threads</span> <span class='op'>&gt;</span> <span class='number'>1</span> <span class='op'>&amp;&amp;</span> <span class='ident'>data</span>.<span class='ident'>dom_count</span> <span class='op'>&gt;</span> <span class='number'>750</span>;
+        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;layout: received layout request for: {}&quot;</span>, <span class='self'>self</span>.<span class='ident'>url</span>);
+        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Number of objects in DOM: {}&quot;</span>, <span class='ident'>data</span>.<span class='ident'>dom_count</span>);
+        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;layout: parallel? {}&quot;</span>, <span class='self'>self</span>.<span class='ident'>parallel_flag</span>);
+
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>rw_data</span> <span class='op'>=</span> <span class='ident'>possibly_locked_rw_data</span>.<span class='ident'>lock</span>();
 
         <span class='kw'>let</span> <span class='ident'>element</span>: <span class='ident'>ServoLayoutElement</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>document</span>.<span class='ident'>root_node</span>() {
@@ -2768,18 +2782,16 @@
                     <span class='self'>self</span>.<span class='ident'>time_profiler_chan</span>.<span class='ident'>clone</span>(),
                     <span class='op'>||</span> {
                 <span class='comment'>// Perform CSS selector matching and flow construction.</span>
-                <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>parallel_traversal</span> {
-                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
-                        <span class='ident'>sequential</span>::<span class='ident'>traverse_dom</span>::<span class='op'>&lt;</span><span class='ident'>ServoLayoutNode</span>, <span class='ident'>RecalcStyleAndConstructFlows</span><span class='op'>&gt;</span>(
-                            <span class='ident'>element</span>.<span class='ident'>as_node</span>(), <span class='kw-2'>&amp;</span><span class='ident'>shared_layout_context</span>);
-                    }
-                    <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>traversal</span>) <span class='op'>=&gt;</span> {
-                        <span class='ident'>parallel</span>::<span class='ident'>traverse_dom</span>::<span class='op'>&lt;</span><span class='ident'>ServoLayoutNode</span>, <span class='ident'>RecalcStyleAndConstructFlows</span><span class='op'>&gt;</span>(
-                            <span class='ident'>element</span>.<span class='ident'>as_node</span>(), <span class='ident'>dom_depth</span>, <span class='kw-2'>&amp;</span><span class='ident'>shared_layout_context</span>, <span class='ident'>traversal</span>);
-                    }
+                <span class='kw'>if</span> <span class='kw'>let</span> (<span class='bool-val'>true</span>, <span class='prelude-val'>Some</span>(<span class='ident'>traversal</span>)) <span class='op'>=</span> (<span class='self'>self</span>.<span class='ident'>parallel_flag</span>, <span class='self'>self</span>.<span class='ident'>parallel_traversal</span>.<span class='ident'>as_mut</span>()) {
+                    <span class='comment'>// Parallel mode</span>
+                    <span class='ident'>parallel</span>::<span class='ident'>traverse_dom</span>::<span class='op'>&lt;</span><span class='ident'>ServoLayoutNode</span>, <span class='ident'>RecalcStyleAndConstructFlows</span><span class='op'>&gt;</span>(
+                        <span class='ident'>element</span>.<span class='ident'>as_node</span>(), <span class='ident'>dom_depth</span>, <span class='kw-2'>&amp;</span><span class='ident'>shared_layout_context</span>, <span class='ident'>traversal</span>);
+                } <span class='kw'>else</span> {
+                    <span class='comment'>// Sequential mode</span>
+                    <span class='ident'>sequential</span>::<span class='ident'>traverse_dom</span>::<span class='op'>&lt;</span><span class='ident'>ServoLayoutNode</span>, <span class='ident'>RecalcStyleAndConstructFlows</span><span class='op'>&gt;</span>(
+                        <span class='ident'>element</span>.<span class='ident'>as_node</span>(), <span class='kw-2'>&amp;</span><span class='ident'>shared_layout_context</span>);
                 }
             });
-
             <span class='comment'>// TODO(pcwalton): Measure energy usage of text shaping, perhaps?</span>
             <span class='kw'>let</span> <span class='ident'>text_shaping_time</span> <span class='op'>=</span>
                 (<span class='ident'>font</span>::<span class='ident'>get_and_reset_text_shaping_performance_counter</span>() <span class='kw'>as</span> <span class='ident'>u64</span>) <span class='op'>/</span>
@@ -3030,19 +3042,17 @@
                         <span class='self'>self</span>.<span class='ident'>time_profiler_chan</span>.<span class='ident'>clone</span>(),
                         <span class='op'>||</span> {
                     <span class='kw'>let</span> <span class='ident'>profiler_metadata</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>profiler_metadata</span>();
-                    <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>parallel_traversal</span> {
-                        <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
-                            <span class='comment'>// Sequential mode.</span>
-                            <span class='ident'>LayoutThread</span>::<span class='ident'>solve_constraints</span>(<span class='ident'>FlowRef</span>::<span class='ident'>deref_mut</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>root_flow</span>), <span class='kw-2'>&amp;</span><span class='ident'>layout_context</span>)
-                        }
-                        <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>parallel</span>) <span class='op'>=&gt;</span> {
-                            <span class='comment'>// Parallel mode.</span>
-                            <span class='ident'>LayoutThread</span>::<span class='ident'>solve_constraints_parallel</span>(<span class='ident'>parallel</span>,
-                                                                     <span class='ident'>FlowRef</span>::<span class='ident'>deref_mut</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>root_flow</span>),
-                                                                     <span class='ident'>profiler_metadata</span>,
-                                                                     <span class='self'>self</span>.<span class='ident'>time_profiler_chan</span>.<span class='ident'>clone</span>(),
-                                                                     <span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>layout_context</span>);
-                        }
+
+                    <span class='kw'>if</span> <span class='kw'>let</span> (<span class='bool-val'>true</span>, <span class='prelude-val'>Some</span>(<span class='ident'>traversal</span>)) <span class='op'>=</span> (<span class='self'>self</span>.<span class='ident'>parallel_flag</span>, <span class='self'>self</span>.<span class='ident'>parallel_traversal</span>.<span class='ident'>as_mut</span>()) {
+                        <span class='comment'>// Parallel mode.</span>
+                        <span class='ident'>LayoutThread</span>::<span class='ident'>solve_constraints_parallel</span>(<span class='ident'>traversal</span>,
+                                                                 <span class='ident'>FlowRef</span>::<span class='ident'>deref_mut</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>root_flow</span>),
+                                                                 <span class='ident'>profiler_metadata</span>,
+                                                                 <span class='self'>self</span>.<span class='ident'>time_profiler_chan</span>.<span class='ident'>clone</span>(),
+                                                                 <span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>layout_context</span>);
+                    } <span class='kw'>else</span> {
+                        <span class='comment'>//Sequential mode</span>
+                        <span class='ident'>LayoutThread</span>::<span class='ident'>solve_constraints</span>(<span class='ident'>FlowRef</span>::<span class='ident'>deref_mut</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>root_flow</span>), <span class='kw-2'>&amp;</span><span class='ident'>layout_context</span>)
                     }
                 });
             }

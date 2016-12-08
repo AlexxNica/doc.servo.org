@@ -3252,6 +3252,29 @@
 <span id="3208">3208</span>
 <span id="3209">3209</span>
 <span id="3210">3210</span>
+<span id="3211">3211</span>
+<span id="3212">3212</span>
+<span id="3213">3213</span>
+<span id="3214">3214</span>
+<span id="3215">3215</span>
+<span id="3216">3216</span>
+<span id="3217">3217</span>
+<span id="3218">3218</span>
+<span id="3219">3219</span>
+<span id="3220">3220</span>
+<span id="3221">3221</span>
+<span id="3222">3222</span>
+<span id="3223">3223</span>
+<span id="3224">3224</span>
+<span id="3225">3225</span>
+<span id="3226">3226</span>
+<span id="3227">3227</span>
+<span id="3228">3228</span>
+<span id="3229">3229</span>
+<span id="3230">3230</span>
+<span id="3231">3231</span>
+<span id="3232">3232</span>
+<span id="3233">3233</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -3283,7 +3306,7 @@
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>js</span>::<span class='ident'>RootedReference</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>num</span>::<span class='ident'>Finite</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>refcounted</span>::<span class='ident'>Trusted</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>reflector</span>::{<span class='ident'>Reflectable</span>, <span class='ident'>reflect_dom_object</span>};
+<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>reflector</span>::{<span class='ident'>DomObject</span>, <span class='ident'>reflect_dom_object</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>str</span>::{<span class='ident'>DOMString</span>, <span class='ident'>USVString</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>xmlname</span>::{<span class='ident'>namespace_from_domstring</span>, <span class='ident'>validate_and_extract</span>, <span class='ident'>xml_name_type</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>xmlname</span>::<span class='ident'>XMLName</span>::<span class='ident'>InvalidXMLName</span>;
@@ -3539,6 +3562,12 @@
     <span class='ident'>last_click_info</span>: <span class='ident'>DOMRefCell</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span>(<span class='ident'>Instant</span>, <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>)<span class='op'>&gt;&gt;</span>,
     <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#ignore-destructive-writes-counter</span>
     <span class='ident'>ignore_destructive_writes_counter</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>,
+    <span class='doccomment'>/// Track the total number of elements in this DOM&#39;s tree.</span>
+    <span class='doccomment'>/// This is sent to the layout thread every time a reflow is done;</span>
+    <span class='doccomment'>/// layout uses this to determine if the gains from parallel layout will be worth the overhead.</span>
+    <span class='doccomment'>///</span>
+    <span class='doccomment'>/// See also: https://github.com/servo/servo/issues/10110</span>
+    <span class='ident'>dom_count</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>,
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>JSTraceable</span>, <span class='ident'>HeapSizeOf</span>)]</span>
@@ -3708,6 +3737,22 @@
                        .<span class='ident'>filter_map</span>(<span class='ident'>Root</span>::<span class='ident'>downcast</span>::<span class='op'>&lt;</span><span class='ident'>HTMLBaseElement</span><span class='op'>&gt;</span>)
                        .<span class='ident'>find</span>(<span class='op'>|</span><span class='ident'>element</span><span class='op'>|</span> <span class='ident'>element</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Element</span><span class='op'>&gt;</span>().<span class='ident'>has_attribute</span>(<span class='kw-2'>&amp;</span><span class='macro'>local_name</span><span class='macro'>!</span>(<span class='string'>&quot;href&quot;</span>)));
         <span class='self'>self</span>.<span class='ident'>base_element</span>.<span class='ident'>set</span>(<span class='ident'>base</span>.<span class='ident'>r</span>());
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>dom_count</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>u32</span> {
+        <span class='self'>self</span>.<span class='ident'>dom_count</span>.<span class='ident'>get</span>()
+    }
+
+    <span class='doccomment'>/// This is called by `bind_to_tree` when a node is added to the DOM.</span>
+    <span class='doccomment'>/// The internal count is used by layout to determine whether to be sequential or parallel.</span>
+    <span class='doccomment'>/// (it&#39;s sequential for small DOMs)</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>increment_dom_count</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
+        <span class='self'>self</span>.<span class='ident'>dom_count</span>.<span class='ident'>set</span>(<span class='self'>self</span>.<span class='ident'>dom_count</span>.<span class='ident'>get</span>() <span class='op'>+</span> <span class='number'>1</span>);
+    }
+
+    <span class='doccomment'>/// This is called by `unbind_from_tree` when a node is removed from the DOM.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>decrement_dom_count</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
+        <span class='self'>self</span>.<span class='ident'>dom_count</span>.<span class='ident'>set</span>(<span class='self'>self</span>.<span class='ident'>dom_count</span>.<span class='ident'>get</span>() <span class='op'>-</span> <span class='number'>1</span>);
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>quirks_mode</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>QuirksMode</span> {
@@ -5139,6 +5184,7 @@
             <span class='ident'>target_element</span>: <span class='ident'>MutNullableHeap</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
             <span class='ident'>last_click_info</span>: <span class='ident'>DOMRefCell</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
             <span class='ident'>ignore_destructive_writes_counter</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
+            <span class='ident'>dom_count</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='number'>1</span>),
         }
     }
 
