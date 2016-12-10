@@ -1385,6 +1385,7 @@
 <span id="1341">1341</span>
 <span id="1342">1342</span>
 <span id="1343">1343</span>
+<span id="1344">1344</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1626,27 +1627,28 @@
 }
 
 <span class='doccomment'>/// https://w3c.github.io/webappsec-referrer-policy/#determine-requests-referrer</span>
+<span class='doccomment'>/// Steps 4-6.</span>
 <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>determine_request_referrer</span>(<span class='ident'>headers</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Headers</span>,
                                   <span class='ident'>referrer_policy</span>: <span class='ident'>ReferrerPolicy</span>,
-                                  <span class='ident'>referrer_url</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ServoUrl</span><span class='op'>&gt;</span>,
-                                  <span class='ident'>url</span>: <span class='ident'>ServoUrl</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ServoUrl</span><span class='op'>&gt;</span> {
-    <span class='comment'>//TODO - algorithm step 2 not addressed</span>
+                                  <span class='ident'>referrer_source</span>: <span class='ident'>ServoUrl</span>,
+                                  <span class='ident'>current_url</span>: <span class='ident'>ServoUrl</span>)
+                                  <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ServoUrl</span><span class='op'>&gt;</span> {
     <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>headers</span>.<span class='ident'>has</span>::<span class='op'>&lt;</span><span class='ident'>Referer</span><span class='op'>&gt;</span>());
-    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>ref_url</span>) <span class='op'>=</span> <span class='ident'>referrer_url</span> {
-        <span class='kw'>let</span> <span class='ident'>cross_origin</span> <span class='op'>=</span> <span class='ident'>ref_url</span>.<span class='ident'>origin</span>() <span class='op'>!=</span> <span class='ident'>url</span>.<span class='ident'>origin</span>();
-        <span class='kw'>return</span> <span class='kw'>match</span> <span class='ident'>referrer_policy</span> {
-            <span class='ident'>ReferrerPolicy</span>::<span class='ident'>NoReferrer</span> <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
-            <span class='ident'>ReferrerPolicy</span>::<span class='ident'>Origin</span> <span class='op'>=&gt;</span> <span class='ident'>strip_url</span>(<span class='ident'>ref_url</span>, <span class='bool-val'>true</span>),
-            <span class='ident'>ReferrerPolicy</span>::<span class='ident'>SameOrigin</span> <span class='op'>=&gt;</span> <span class='kw'>if</span> <span class='ident'>cross_origin</span> { <span class='prelude-val'>None</span> } <span class='kw'>else</span> { <span class='ident'>strip_url</span>(<span class='ident'>ref_url</span>, <span class='bool-val'>false</span>) },
-            <span class='ident'>ReferrerPolicy</span>::<span class='ident'>UnsafeUrl</span> <span class='op'>=&gt;</span> <span class='ident'>strip_url</span>(<span class='ident'>ref_url</span>, <span class='bool-val'>false</span>),
-            <span class='ident'>ReferrerPolicy</span>::<span class='ident'>OriginWhenCrossOrigin</span> <span class='op'>=&gt;</span> <span class='ident'>strip_url</span>(<span class='ident'>ref_url</span>, <span class='ident'>cross_origin</span>),
-            <span class='ident'>ReferrerPolicy</span>::<span class='ident'>StrictOrigin</span> <span class='op'>=&gt;</span> <span class='ident'>strict_origin</span>(<span class='ident'>ref_url</span>, <span class='ident'>url</span>),
-            <span class='ident'>ReferrerPolicy</span>::<span class='ident'>StrictOriginWhenCrossOrigin</span> <span class='op'>=&gt;</span> <span class='ident'>strict_origin_when_cross_origin</span>(<span class='ident'>ref_url</span>, <span class='ident'>url</span>),
-            <span class='ident'>ReferrerPolicy</span>::<span class='ident'>NoReferrerWhenDowngrade</span> <span class='op'>=&gt;</span>
-                <span class='ident'>no_referrer_when_downgrade_header</span>(<span class='ident'>ref_url</span>, <span class='ident'>url</span>),
-        };
+    <span class='comment'>// FIXME(#14505): this does not seem to be the correct way of checking for</span>
+    <span class='comment'>//                same-origin requests.</span>
+    <span class='kw'>let</span> <span class='ident'>cross_origin</span> <span class='op'>=</span> <span class='ident'>referrer_source</span>.<span class='ident'>origin</span>() <span class='op'>!=</span> <span class='ident'>current_url</span>.<span class='ident'>origin</span>();
+    <span class='comment'>// FIXME(#14506): some of these cases are expected to consider whether the</span>
+    <span class='comment'>//                request&#39;s client is &quot;TLS-protected&quot;, whatever that means.</span>
+    <span class='kw'>match</span> <span class='ident'>referrer_policy</span> {
+        <span class='ident'>ReferrerPolicy</span>::<span class='ident'>NoReferrer</span> <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
+        <span class='ident'>ReferrerPolicy</span>::<span class='ident'>Origin</span> <span class='op'>=&gt;</span> <span class='ident'>strip_url</span>(<span class='ident'>referrer_source</span>, <span class='bool-val'>true</span>),
+        <span class='ident'>ReferrerPolicy</span>::<span class='ident'>SameOrigin</span> <span class='op'>=&gt;</span> <span class='kw'>if</span> <span class='ident'>cross_origin</span> { <span class='prelude-val'>None</span> } <span class='kw'>else</span> { <span class='ident'>strip_url</span>(<span class='ident'>referrer_source</span>, <span class='bool-val'>false</span>) },
+        <span class='ident'>ReferrerPolicy</span>::<span class='ident'>UnsafeUrl</span> <span class='op'>=&gt;</span> <span class='ident'>strip_url</span>(<span class='ident'>referrer_source</span>, <span class='bool-val'>false</span>),
+        <span class='ident'>ReferrerPolicy</span>::<span class='ident'>OriginWhenCrossOrigin</span> <span class='op'>=&gt;</span> <span class='ident'>strip_url</span>(<span class='ident'>referrer_source</span>, <span class='ident'>cross_origin</span>),
+        <span class='ident'>ReferrerPolicy</span>::<span class='ident'>StrictOrigin</span> <span class='op'>=&gt;</span> <span class='ident'>strict_origin</span>(<span class='ident'>referrer_source</span>, <span class='ident'>current_url</span>),
+        <span class='ident'>ReferrerPolicy</span>::<span class='ident'>StrictOriginWhenCrossOrigin</span> <span class='op'>=&gt;</span> <span class='ident'>strict_origin_when_cross_origin</span>(<span class='ident'>referrer_source</span>, <span class='ident'>current_url</span>),
+        <span class='ident'>ReferrerPolicy</span>::<span class='ident'>NoReferrerWhenDowngrade</span> <span class='op'>=&gt;</span> <span class='ident'>no_referrer_when_downgrade_header</span>(<span class='ident'>referrer_source</span>, <span class='ident'>current_url</span>),
     }
-    <span class='kw'>return</span> <span class='prelude-val'>None</span>;
 }
 
 <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_request_cookies</span>(<span class='ident'>url</span>: <span class='kw-2'>&amp;</span><span class='ident'>ServoUrl</span>, <span class='ident'>headers</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Headers</span>, <span class='ident'>cookie_jar</span>: <span class='kw-2'>&amp;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>RwLock</span><span class='op'>&lt;</span><span class='ident'>CookieStorage</span><span class='op'>&gt;&gt;</span>) {

@@ -505,6 +505,68 @@
 <span id="461">461</span>
 <span id="462">462</span>
 <span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -515,14 +577,18 @@
 <span class='kw'>use</span> <span class='ident'>atomic_refcell</span>::{<span class='ident'>AtomicRefCell</span>, <span class='ident'>AtomicRefMut</span>};
 <span class='kw'>use</span> <span class='ident'>bloom</span>::<span class='ident'>StyleBloom</span>;
 <span class='kw'>use</span> <span class='ident'>context</span>::{<span class='ident'>LocalStyleContext</span>, <span class='ident'>SharedStyleContext</span>, <span class='ident'>StyleContext</span>};
-<span class='kw'>use</span> <span class='ident'>data</span>::{<span class='ident'>ElementData</span>, <span class='ident'>RestyleData</span>, <span class='ident'>StoredRestyleHint</span>};
-<span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>OpaqueNode</span>, <span class='ident'>StylingMode</span>, <span class='ident'>TElement</span>, <span class='ident'>TNode</span>};
+<span class='kw'>use</span> <span class='ident'>data</span>::{<span class='ident'>ElementData</span>, <span class='ident'>StoredRestyleHint</span>};
+<span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>OpaqueNode</span>, <span class='ident'>TElement</span>, <span class='ident'>TNode</span>};
 <span class='kw'>use</span> <span class='ident'>matching</span>::{<span class='ident'>MatchMethods</span>, <span class='ident'>StyleSharingResult</span>};
-<span class='kw'>use</span> <span class='ident'>restyle_hints</span>::{<span class='ident'>RESTYLE_DESCENDANTS</span>, <span class='ident'>RESTYLE_LATER_SIBLINGS</span>, <span class='ident'>RESTYLE_SELF</span>};
+<span class='kw'>use</span> <span class='ident'>restyle_hints</span>::{<span class='ident'>RESTYLE_DESCENDANTS</span>, <span class='ident'>RESTYLE_SELF</span>};
+<span class='kw'>use</span> <span class='ident'>selector_parser</span>::<span class='ident'>RestyleDamage</span>;
+<span class='kw'>use</span> <span class='ident'>selectors</span>::<span class='ident'>Element</span>;
 <span class='kw'>use</span> <span class='ident'>selectors</span>::<span class='ident'>matching</span>::<span class='ident'>StyleRelations</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>Borrow</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>RefCell</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>marker</span>::<span class='ident'>PhantomData</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>atomic</span>::{<span class='ident'>AtomicUsize</span>, <span class='ident'>ATOMIC_USIZE_INIT</span>, <span class='ident'>Ordering</span>};
+<span class='kw'>use</span> <span class='ident'>stylist</span>::<span class='ident'>Stylist</span>;
 <span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>opts</span>;
 
 <span class='doccomment'>/// Every time we do another layout, the old bloom filters are invalid. This is</span>
@@ -544,7 +610,7 @@
 <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>take_thread_local_bloom_filter</span>(<span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='ident'>SharedStyleContext</span>)
                                       <span class='op'>-&gt;</span> <span class='ident'>StyleBloom</span>
 {
-    <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;{} taking bf&quot;</span>, ::<span class='ident'>tid</span>::<span class='ident'>tid</span>());
+    <span class='macro'>trace</span><span class='macro'>!</span>(<span class='string'>&quot;{} taking bf&quot;</span>, ::<span class='ident'>tid</span>::<span class='ident'>tid</span>());
 
     <span class='ident'>STYLE_BLOOM</span>.<span class='ident'>with</span>(<span class='op'>|</span><span class='ident'>style_bloom</span><span class='op'>|</span> {
         <span class='ident'>style_bloom</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>take</span>()
@@ -553,7 +619,7 @@
 }
 
 <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>put_thread_local_bloom_filter</span>(<span class='ident'>bf</span>: <span class='ident'>StyleBloom</span>) {
-    <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;[{}] putting bloom filter back&quot;</span>, ::<span class='ident'>tid</span>::<span class='ident'>tid</span>());
+    <span class='macro'>trace</span><span class='macro'>!</span>(<span class='string'>&quot;[{}] putting bloom filter back&quot;</span>, ::<span class='ident'>tid</span>::<span class='ident'>tid</span>());
 
     <span class='ident'>STYLE_BLOOM</span>.<span class='ident'>with</span>(<span class='kw'>move</span> <span class='op'>|</span><span class='ident'>style_bloom</span><span class='op'>|</span> {
         <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>style_bloom</span>.<span class='ident'>borrow</span>().<span class='ident'>is_none</span>(),
@@ -572,7 +638,7 @@
     <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
           <span class='ident'>C</span>: <span class='ident'>StyleContext</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>
 {
-    <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;[{}] remove_from_bloom_filter&quot;</span>, ::<span class='ident'>tid</span>::<span class='ident'>tid</span>());
+    <span class='macro'>trace</span><span class='macro'>!</span>(<span class='string'>&quot;[{}] remove_from_bloom_filter&quot;</span>, ::<span class='ident'>tid</span>::<span class='ident'>tid</span>());
 
     <span class='comment'>// We may have arrived to `reconstruct_flows` without entering in style</span>
     <span class='comment'>// recalc at all due to our optimizations, nor that it&#39;s up to date, so we</span>
@@ -604,8 +670,25 @@
     <span class='kw'>pub</span> <span class='ident'>current_dom_depth</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span>,
 }
 
+<span class='doccomment'>/// This structure exists to enforce that callers invoke pre_traverse, and also</span>
+<span class='doccomment'>/// to pass information from the pre-traversal into the primary traversal.</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>PreTraverseToken</span> {
+    <span class='ident'>traverse</span>: <span class='ident'>bool</span>,
+    <span class='ident'>skip_root</span>: <span class='ident'>bool</span>,
+}
+
+<span class='kw'>impl</span> <span class='ident'>PreTraverseToken</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>should_traverse</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+        <span class='self'>self</span>.<span class='ident'>traverse</span>
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>should_skip_root</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+        <span class='self'>self</span>.<span class='ident'>skip_root</span>
+    }
+}
+
 <span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>DomTraversalContext</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>SharedContext</span>: <span class='ident'>Sync</span> <span class='op'>+</span> <span class='lifetime'>&#39;static</span>;
+    <span class='kw'>type</span> <span class='ident'>SharedContext</span>: <span class='ident'>Sync</span> <span class='op'>+</span> <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Borrow</span><span class='op'>&lt;</span><span class='ident'>SharedStyleContext</span><span class='op'>&gt;</span>;
 
     <span class='kw'>fn</span> <span class='ident'>new</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='self'>Self</span>::<span class='ident'>SharedContext</span>, <span class='ident'>OpaqueNode</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span>;
 
@@ -621,24 +704,113 @@
     <span class='doccomment'>/// performed.</span>
     <span class='doccomment'>///</span>
     <span class='doccomment'>/// If it&#39;s false, then process_postorder has no effect at all.</span>
-    <span class='kw'>fn</span> <span class='ident'>needs_postorder_traversal</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> { <span class='bool-val'>true</span> }
+    <span class='kw'>fn</span> <span class='ident'>needs_postorder_traversal</span>() <span class='op'>-&gt;</span> <span class='ident'>bool</span> { <span class='bool-val'>true</span> }
 
-    <span class='doccomment'>/// Returns true if traversal should visit the given child.</span>
-    <span class='kw'>fn</span> <span class='ident'>should_traverse_child</span>(<span class='ident'>child</span>: <span class='ident'>N</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
+    <span class='doccomment'>/// Must be invoked before traversing the root element to determine whether</span>
+    <span class='doccomment'>/// a traversal is needed. Returns a token that allows the caller to prove</span>
+    <span class='doccomment'>/// that the call happened.</span>
+    <span class='doccomment'>///</span>
+    <span class='doccomment'>/// The skip_root parameter is used in Gecko to style newly-appended children</span>
+    <span class='doccomment'>/// without restyling the parent.</span>
+    <span class='kw'>fn</span> <span class='ident'>pre_traverse</span>(<span class='ident'>root</span>: <span class='ident'>N</span>::<span class='ident'>ConcreteElement</span>, <span class='ident'>stylist</span>: <span class='kw-2'>&amp;</span><span class='ident'>Stylist</span>, <span class='ident'>skip_root</span>: <span class='ident'>bool</span>)
+                    <span class='op'>-&gt;</span> <span class='ident'>PreTraverseToken</span>
+    {
+        <span class='comment'>// If we should skip the root, traverse unconditionally.</span>
+        <span class='kw'>if</span> <span class='ident'>skip_root</span> {
+            <span class='kw'>return</span> <span class='ident'>PreTraverseToken</span> {
+                <span class='ident'>traverse</span>: <span class='bool-val'>true</span>,
+                <span class='ident'>skip_root</span>: <span class='bool-val'>true</span>,
+            };
+        }
+
+        <span class='comment'>// Expand the snapshot, if any. This is normally handled by the parent, so</span>
+        <span class='comment'>// we need a special case for the root.</span>
+        <span class='comment'>//</span>
+        <span class='comment'>// Expanding snapshots here may create a LATER_SIBLINGS restyle hint, which</span>
+        <span class='comment'>// we will drop on the floor. This is fine, because we don&#39;t traverse roots</span>
+        <span class='comment'>// with siblings.</span>
+        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>root</span>.<span class='ident'>next_sibling_element</span>().<span class='ident'>is_none</span>());
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>mut</span> <span class='ident'>data</span>) <span class='op'>=</span> <span class='ident'>root</span>.<span class='ident'>mutate_data</span>() {
+            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>r</span>) <span class='op'>=</span> <span class='ident'>data</span>.<span class='ident'>as_restyle_mut</span>() {
+                <span class='kw'>let</span> <span class='ident'>_later_siblings</span> <span class='op'>=</span> <span class='ident'>r</span>.<span class='ident'>expand_snapshot</span>(<span class='ident'>root</span>, <span class='ident'>stylist</span>);
+            }
+        }
+
+        <span class='ident'>PreTraverseToken</span> {
+            <span class='ident'>traverse</span>: <span class='self'>Self</span>::<span class='ident'>node_needs_traversal</span>(<span class='ident'>root</span>.<span class='ident'>as_node</span>()),
+            <span class='ident'>skip_root</span>: <span class='bool-val'>false</span>,
+        }
+    }
+
+    <span class='doccomment'>/// Returns true if traversal should visit a text node. The style system never</span>
+    <span class='doccomment'>/// processes text nodes, but Servo overrides this to visit them for flow</span>
+    <span class='doccomment'>/// construction when necessary.</span>
+    <span class='kw'>fn</span> <span class='ident'>text_node_needs_traversal</span>(<span class='ident'>node</span>: <span class='ident'>N</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> { <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>node</span>.<span class='ident'>is_text_node</span>()); <span class='bool-val'>false</span> }
+
+    <span class='doccomment'>/// Returns true if traversal is needed for the given node and subtree.</span>
+    <span class='kw'>fn</span> <span class='ident'>node_needs_traversal</span>(<span class='ident'>node</span>: <span class='ident'>N</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+        <span class='comment'>// Non-incremental layout visits every node.</span>
+        <span class='kw'>if</span> <span class='macro'>cfg</span><span class='macro'>!</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>) <span class='op'>&amp;&amp;</span> <span class='ident'>opts</span>::<span class='ident'>get</span>().<span class='ident'>nonincremental_layout</span> {
+            <span class='kw'>return</span> <span class='bool-val'>true</span>;
+        }
+
+        <span class='kw'>match</span> <span class='ident'>node</span>.<span class='ident'>as_element</span>() {
+            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='self'>Self</span>::<span class='ident'>text_node_needs_traversal</span>(<span class='ident'>node</span>),
+            <span class='prelude-val'>Some</span>(<span class='ident'>el</span>) <span class='op'>=&gt;</span> {
+                <span class='comment'>// If the dirty descendants bit is set, we need to traverse no</span>
+                <span class='comment'>// matter what. Skip examining the ElementData.</span>
+                <span class='kw'>if</span> <span class='ident'>el</span>.<span class='ident'>has_dirty_descendants</span>() {
+                    <span class='kw'>return</span> <span class='bool-val'>true</span>;
+                }
+
+                <span class='comment'>// Check the element data. If it doesn&#39;t exist, we need to visit</span>
+                <span class='comment'>// the element.</span>
+                <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>el</span>.<span class='ident'>borrow_data</span>() {
+                    <span class='prelude-val'>Some</span>(<span class='ident'>d</span>) <span class='op'>=&gt;</span> <span class='ident'>d</span>,
+                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='bool-val'>true</span>,
+                };
+
+                <span class='comment'>// Check what kind of element data we have. If it&#39;s Initial or Persistent,</span>
+                <span class='comment'>// we&#39;re done.</span>
+                <span class='kw'>let</span> <span class='ident'>restyle</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='op'>*</span><span class='ident'>data</span> {
+                    <span class='ident'>ElementData</span>::<span class='ident'>Initial</span>(<span class='kw-2'>ref</span> <span class='ident'>i</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='ident'>i</span>.<span class='ident'>is_none</span>(),
+                    <span class='ident'>ElementData</span>::<span class='ident'>Persistent</span>(_) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='bool-val'>false</span>,
+                    <span class='ident'>ElementData</span>::<span class='ident'>Restyle</span>(<span class='kw-2'>ref</span> <span class='ident'>r</span>) <span class='op'>=&gt;</span> <span class='ident'>r</span>,
+                };
+
+                <span class='comment'>// Check whether we have any selector matching or re-cascading to</span>
+                <span class='comment'>// do in this subtree.</span>
+                <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>restyle</span>.<span class='ident'>snapshot</span>.<span class='ident'>is_none</span>(), <span class='string'>&quot;Snapshots should already be expanded&quot;</span>);
+                <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>restyle</span>.<span class='ident'>hint</span>.<span class='ident'>is_empty</span>() <span class='op'>||</span> <span class='ident'>restyle</span>.<span class='ident'>recascade</span> {
+                    <span class='kw'>return</span> <span class='bool-val'>true</span>;
+                }
+
+                <span class='comment'>// Servo uses the post-order traversal for flow construction, so</span>
+                <span class='comment'>// we need to traverse any element with damage so that we can perform</span>
+                <span class='comment'>// fixup / reconstruction on our way back up the tree.</span>
+                <span class='kw'>if</span> <span class='macro'>cfg</span><span class='macro'>!</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>) <span class='op'>&amp;&amp;</span> <span class='ident'>restyle</span>.<span class='ident'>damage</span> <span class='op'>!=</span> <span class='ident'>RestyleDamage</span>::<span class='ident'>empty</span>() {
+                    <span class='kw'>return</span> <span class='bool-val'>true</span>;
+                }
+
+                <span class='bool-val'>false</span>
+            },
+        }
+    }
 
     <span class='doccomment'>/// Helper for the traversal implementations to select the children that</span>
     <span class='doccomment'>/// should be enqueued for processing.</span>
     <span class='kw'>fn</span> <span class='ident'>traverse_children</span><span class='op'>&lt;</span><span class='ident'>F</span>: <span class='ident'>FnMut</span>(<span class='ident'>N</span>)<span class='op'>&gt;</span>(<span class='ident'>parent</span>: <span class='ident'>N</span>::<span class='ident'>ConcreteElement</span>, <span class='kw-2'>mut</span> <span class='ident'>f</span>: <span class='ident'>F</span>)
     {
-        <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>StylingMode</span>::<span class='ident'>Restyle</span>;
-
         <span class='kw'>if</span> <span class='ident'>parent</span>.<span class='ident'>is_display_none</span>() {
             <span class='kw'>return</span>;
         }
 
         <span class='kw'>for</span> <span class='ident'>kid</span> <span class='kw'>in</span> <span class='ident'>parent</span>.<span class='ident'>as_node</span>().<span class='ident'>children</span>() {
-            <span class='kw'>if</span> <span class='self'>Self</span>::<span class='ident'>should_traverse_child</span>(<span class='ident'>kid</span>) {
-                <span class='kw'>if</span> <span class='ident'>kid</span>.<span class='ident'>as_element</span>().<span class='ident'>map_or</span>(<span class='bool-val'>false</span>, <span class='op'>|</span><span class='ident'>el</span><span class='op'>|</span> <span class='ident'>el</span>.<span class='ident'>styling_mode</span>() <span class='op'>==</span> <span class='ident'>Restyle</span>) {
+            <span class='kw'>if</span> <span class='self'>Self</span>::<span class='ident'>node_needs_traversal</span>(<span class='ident'>kid</span>) {
+                <span class='kw'>let</span> <span class='ident'>el</span> <span class='op'>=</span> <span class='ident'>kid</span>.<span class='ident'>as_element</span>();
+                <span class='kw'>if</span> <span class='ident'>el</span>.<span class='ident'>as_ref</span>().<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>el</span><span class='op'>|</span> <span class='ident'>el</span>.<span class='ident'>borrow_data</span>())
+                              .<span class='ident'>map_or</span>(<span class='bool-val'>false</span>, <span class='op'>|</span><span class='ident'>d</span><span class='op'>|</span> <span class='ident'>d</span>.<span class='ident'>is_restyle</span>())
+                {
                     <span class='kw'>unsafe</span> { <span class='ident'>parent</span>.<span class='ident'>set_dirty_descendants</span>(); }
                 }
                 <span class='ident'>f</span>(<span class='ident'>kid</span>);
@@ -714,60 +886,74 @@
 <span class='attribute'>#[<span class='ident'>inline</span>]</span>
 <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unsafe_code</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>recalc_style_at</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>E</span>, <span class='ident'>C</span>, <span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>C</span>,
-                                    <span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>PerLevelTraversalData</span>,
-                                    <span class='ident'>element</span>: <span class='ident'>E</span>)
+                                    <span class='ident'>traversal_data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>PerLevelTraversalData</span>,
+                                    <span class='ident'>element</span>: <span class='ident'>E</span>,
+                                    <span class='kw-2'>mut</span> <span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>AtomicRefMut</span><span class='op'>&lt;</span><span class='ident'>ElementData</span><span class='op'>&gt;</span>)
     <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
           <span class='ident'>C</span>: <span class='ident'>StyleContext</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>,
           <span class='ident'>D</span>: <span class='ident'>DomTraversalContext</span><span class='op'>&lt;</span><span class='ident'>E</span>::<span class='ident'>ConcreteNode</span><span class='op'>&gt;</span>
 {
-    <span class='kw'>let</span> <span class='ident'>mode</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>styling_mode</span>();
-    <span class='kw'>let</span> <span class='ident'>should_compute</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>borrow_data</span>().<span class='ident'>map_or</span>(<span class='bool-val'>true</span>, <span class='op'>|</span><span class='ident'>d</span><span class='op'>|</span> <span class='ident'>d</span>.<span class='ident'>get_current_styles</span>().<span class='ident'>is_none</span>());
-    <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;recalc_style_at: {:?} (should_compute={:?} mode={:?}, data={:?})&quot;</span>,
-           <span class='ident'>element</span>, <span class='ident'>should_compute</span>, <span class='ident'>mode</span>, <span class='ident'>element</span>.<span class='ident'>borrow_data</span>());
+    <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>data</span>.<span class='ident'>as_restyle</span>().<span class='ident'>map_or</span>(<span class='bool-val'>true</span>, <span class='op'>|</span><span class='ident'>r</span><span class='op'>|</span> <span class='ident'>r</span>.<span class='ident'>snapshot</span>.<span class='ident'>is_none</span>()),
+                  <span class='string'>&quot;Snapshots should be expanded by the caller&quot;</span>);
 
-    <span class='kw'>let</span> (<span class='ident'>computed_display_none</span>, <span class='ident'>propagated_hint</span>) <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>should_compute</span> {
-        <span class='ident'>compute_style</span>::<span class='op'>&lt;</span>_, _, <span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>context</span>, <span class='ident'>data</span>, <span class='ident'>element</span>)
-    } <span class='kw'>else</span> {
-        (<span class='bool-val'>false</span>, <span class='ident'>StoredRestyleHint</span>::<span class='ident'>empty</span>())
+    <span class='kw'>let</span> <span class='ident'>compute_self</span> <span class='op'>=</span> <span class='op'>!</span><span class='ident'>data</span>.<span class='ident'>has_current_styles</span>();
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>inherited_style_changed</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
+
+    <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;recalc_style_at: {:?} (compute_self={:?}, dirty_descendants={:?}, data={:?})&quot;</span>,
+           <span class='ident'>element</span>, <span class='ident'>compute_self</span>, <span class='ident'>element</span>.<span class='ident'>has_dirty_descendants</span>(), <span class='ident'>data</span>);
+
+    <span class='comment'>// Compute style for this element if necessary.</span>
+    <span class='kw'>if</span> <span class='ident'>compute_self</span> {
+        <span class='ident'>inherited_style_changed</span> <span class='op'>=</span> <span class='ident'>compute_style</span>::<span class='op'>&lt;</span>_, _, <span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>context</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>, <span class='ident'>traversal_data</span>, <span class='ident'>element</span>);
+    }
+
+    <span class='comment'>// Now that matching and cascading is done, clear the bits corresponding to</span>
+    <span class='comment'>// those operations and compute the propagated restyle hint.</span>
+    <span class='kw'>let</span> <span class='ident'>empty_hint</span> <span class='op'>=</span> <span class='ident'>StoredRestyleHint</span>::<span class='ident'>empty</span>();
+    <span class='kw'>let</span> <span class='ident'>propagated_hint</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>data</span>.<span class='ident'>as_restyle_mut</span>() {
+        <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='ident'>empty_hint</span>,
+        <span class='prelude-val'>Some</span>(<span class='ident'>r</span>) <span class='op'>=&gt;</span> {
+            <span class='ident'>r</span>.<span class='ident'>recascade</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
+            <span class='ident'>mem</span>::<span class='ident'>replace</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>r</span>.<span class='ident'>hint</span>, <span class='ident'>empty_hint</span>).<span class='ident'>propagate</span>()
+        },
     };
+    <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>data</span>.<span class='ident'>has_current_styles</span>());
+    <span class='macro'>trace</span><span class='macro'>!</span>(<span class='string'>&quot;propagated_hint={:?}, inherited_style_changed={:?}&quot;</span>, <span class='ident'>propagated_hint</span>, <span class='ident'>inherited_style_changed</span>);
 
-    <span class='comment'>// Preprocess children, computing restyle hints and handling sibling relationships.</span>
-    <span class='comment'>//</span>
-    <span class='comment'>// We don&#39;t need to do this if we&#39;re not traversing children, or if we&#39;re performing</span>
-    <span class='comment'>// initial styling.</span>
-    <span class='kw'>let</span> <span class='ident'>will_traverse_children</span> <span class='op'>=</span> <span class='op'>!</span><span class='ident'>computed_display_none</span> <span class='op'>&amp;&amp;</span>
-                                 (<span class='ident'>mode</span> <span class='op'>==</span> <span class='ident'>StylingMode</span>::<span class='ident'>Restyle</span> <span class='op'>||</span>
-                                  <span class='ident'>mode</span> <span class='op'>==</span> <span class='ident'>StylingMode</span>::<span class='ident'>Traverse</span>);
-    <span class='kw'>if</span> <span class='ident'>will_traverse_children</span> {
-        <span class='ident'>preprocess_children</span>::<span class='op'>&lt;</span>_, _, <span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>context</span>, <span class='ident'>element</span>, <span class='ident'>propagated_hint</span>,
-                                       <span class='ident'>mode</span> <span class='op'>==</span> <span class='ident'>StylingMode</span>::<span class='ident'>Restyle</span>);
+    <span class='comment'>// Preprocess children, propagating restyle hints and handling sibling relationships.</span>
+    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>data</span>.<span class='ident'>styles</span>().<span class='ident'>is_display_none</span>() <span class='op'>&amp;&amp;</span>
+       (<span class='ident'>element</span>.<span class='ident'>has_dirty_descendants</span>() <span class='op'>||</span> <span class='op'>!</span><span class='ident'>propagated_hint</span>.<span class='ident'>is_empty</span>() <span class='op'>||</span> <span class='ident'>inherited_style_changed</span>) {
+        <span class='ident'>preprocess_children</span>::<span class='op'>&lt;</span>_, _, <span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>context</span>, <span class='ident'>element</span>, <span class='ident'>propagated_hint</span>, <span class='ident'>inherited_style_changed</span>);
     }
 }
 
+<span class='comment'>// Computes style, returning true if the inherited styles changed for this</span>
+<span class='comment'>// element.</span>
+<span class='comment'>//</span>
+<span class='comment'>// FIXME(bholley): This should differentiate between matching and cascading,</span>
+<span class='comment'>// since we have separate bits for each now.</span>
 <span class='kw'>fn</span> <span class='ident'>compute_style</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>E</span>, <span class='ident'>C</span>, <span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>C</span>,
-                              <span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>PerLevelTraversalData</span>,
-                              <span class='ident'>element</span>: <span class='ident'>E</span>) <span class='op'>-&gt;</span> (<span class='ident'>bool</span>, <span class='ident'>StoredRestyleHint</span>)
+                              <span class='kw-2'>mut</span> <span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>AtomicRefMut</span><span class='op'>&lt;</span><span class='ident'>ElementData</span><span class='op'>&gt;</span>,
+                              <span class='ident'>traversal_data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>PerLevelTraversalData</span>,
+                              <span class='ident'>element</span>: <span class='ident'>E</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>
     <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
           <span class='ident'>C</span>: <span class='ident'>StyleContext</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>,
-          <span class='ident'>D</span>: <span class='ident'>DomTraversalContext</span><span class='op'>&lt;</span><span class='ident'>E</span>::<span class='ident'>ConcreteNode</span><span class='op'>&gt;</span>
+          <span class='ident'>D</span>: <span class='ident'>DomTraversalContext</span><span class='op'>&lt;</span><span class='ident'>E</span>::<span class='ident'>ConcreteNode</span><span class='op'>&gt;</span>,
 {
     <span class='kw'>let</span> <span class='ident'>shared_context</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>shared_context</span>();
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>bf</span> <span class='op'>=</span> <span class='ident'>take_thread_local_bloom_filter</span>(<span class='ident'>shared_context</span>);
     <span class='comment'>// Ensure the bloom filter is up to date.</span>
     <span class='kw'>let</span> <span class='ident'>dom_depth</span> <span class='op'>=</span> <span class='ident'>bf</span>.<span class='ident'>insert_parents_recovering</span>(<span class='ident'>element</span>,
-                                                 <span class='ident'>data</span>.<span class='ident'>current_dom_depth</span>,
+                                                 <span class='ident'>traversal_data</span>.<span class='ident'>current_dom_depth</span>,
                                                  <span class='ident'>shared_context</span>.<span class='ident'>generation</span>);
 
     <span class='comment'>// Update the dom depth with the up-to-date dom depth.</span>
     <span class='comment'>//</span>
     <span class='comment'>// Note that this is always the same than the pre-existing depth, but it can</span>
     <span class='comment'>// change from unknown to known at this step.</span>
-    <span class='ident'>data</span>.<span class='ident'>current_dom_depth</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>dom_depth</span>);
+    <span class='ident'>traversal_data</span>.<span class='ident'>current_dom_depth</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>dom_depth</span>);
 
     <span class='ident'>bf</span>.<span class='ident'>assert_complete</span>(<span class='ident'>element</span>);
-
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>D</span>::<span class='ident'>ensure_element_data</span>(<span class='kw-2'>&amp;</span><span class='ident'>element</span>).<span class='ident'>borrow_mut</span>() };
-    <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>data</span>.<span class='ident'>is_persistent</span>());
 
     <span class='comment'>// Check to see whether we can share a style with someone.</span>
     <span class='kw'>let</span> <span class='ident'>style_sharing_candidate_cache</span> <span class='op'>=</span>
@@ -812,7 +998,7 @@
             <span class='comment'>// Add ourselves to the LRU cache.</span>
             <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>element</span>) <span class='op'>=</span> <span class='ident'>shareable_element</span> {
                 <span class='ident'>style_sharing_candidate_cache</span>.<span class='ident'>insert_if_possible</span>(<span class='kw-2'>&amp;</span><span class='ident'>element</span>,
-                                                                 <span class='kw-2'>&amp;</span><span class='ident'>data</span>.<span class='ident'>current_styles</span>().<span class='ident'>primary</span>.<span class='ident'>values</span>,
+                                                                 <span class='kw-2'>&amp;</span><span class='ident'>data</span>.<span class='ident'>styles</span>().<span class='ident'>primary</span>.<span class='ident'>values</span>,
                                                                  <span class='ident'>relations</span>);
             }
         }
@@ -826,7 +1012,7 @@
 
     <span class='comment'>// If we&#39;re restyling this element to display:none, throw away all style data</span>
     <span class='comment'>// in the subtree, notify the caller to early-return.</span>
-    <span class='kw'>let</span> <span class='ident'>display_none</span> <span class='op'>=</span> <span class='ident'>data</span>.<span class='ident'>current_styles</span>().<span class='ident'>is_display_none</span>();
+    <span class='kw'>let</span> <span class='ident'>display_none</span> <span class='op'>=</span> <span class='ident'>data</span>.<span class='ident'>styles</span>().<span class='ident'>is_display_none</span>();
     <span class='kw'>if</span> <span class='ident'>display_none</span> {
         <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;New element style is display:none - clearing data from descendants.&quot;</span>);
         <span class='ident'>clear_descendant_data</span>(<span class='ident'>element</span>, <span class='kw-2'>&amp;</span><span class='op'>|</span><span class='ident'>e</span><span class='op'>|</span> <span class='kw'>unsafe</span> { <span class='ident'>D</span>::<span class='ident'>clear_element_data</span>(<span class='kw-2'>&amp;</span><span class='ident'>e</span>) });
@@ -839,13 +1025,16 @@
     <span class='comment'>// complexity.</span>
     <span class='ident'>put_thread_local_bloom_filter</span>(<span class='ident'>bf</span>);
 
-    (<span class='ident'>display_none</span>, <span class='ident'>data</span>.<span class='ident'>as_restyle</span>().<span class='ident'>map_or</span>(<span class='ident'>StoredRestyleHint</span>::<span class='ident'>empty</span>(), <span class='op'>|</span><span class='ident'>r</span><span class='op'>|</span> <span class='ident'>r</span>.<span class='ident'>hint</span>.<span class='ident'>propagate</span>()))
+    <span class='comment'>// FIXME(bholley): Compute this accurately from the call to CalcStyleDifference.</span>
+    <span class='kw'>let</span> <span class='ident'>inherited_styles_changed</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
+
+    <span class='ident'>inherited_styles_changed</span>
 }
 
 <span class='kw'>fn</span> <span class='ident'>preprocess_children</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>E</span>, <span class='ident'>C</span>, <span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>C</span>,
                                     <span class='ident'>element</span>: <span class='ident'>E</span>,
                                     <span class='kw-2'>mut</span> <span class='ident'>propagated_hint</span>: <span class='ident'>StoredRestyleHint</span>,
-                                    <span class='ident'>restyled_parent</span>: <span class='ident'>bool</span>)
+                                    <span class='ident'>parent_inherited_style_changed</span>: <span class='ident'>bool</span>)
     <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
           <span class='ident'>C</span>: <span class='ident'>StyleContext</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>,
           <span class='ident'>D</span>: <span class='ident'>DomTraversalContext</span><span class='op'>&lt;</span><span class='ident'>E</span>::<span class='ident'>ConcreteNode</span><span class='op'>&gt;</span>
@@ -858,41 +1047,33 @@
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>continue</span>,
         };
 
-        <span class='comment'>// Set up our lazy child restyle data.</span>
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>child_data</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>LazyRestyleData</span>::<span class='op'>&lt;</span><span class='ident'>E</span>, <span class='ident'>D</span><span class='op'>&gt;</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>child</span>) };
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>child_data</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>D</span>::<span class='ident'>ensure_element_data</span>(<span class='kw-2'>&amp;</span><span class='ident'>child</span>).<span class='ident'>borrow_mut</span>() };
+        <span class='kw'>if</span> <span class='ident'>child_data</span>.<span class='ident'>is_unstyled_initial</span>() {
+            <span class='kw'>continue</span>;
+        }
+
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>restyle_data</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>child_data</span>.<span class='ident'>restyle</span>() {
+            <span class='prelude-val'>Some</span>(<span class='ident'>d</span>) <span class='op'>=&gt;</span> <span class='ident'>d</span>,
+            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>continue</span>,
+        };
 
         <span class='comment'>// Propagate the parent and sibling restyle hint.</span>
         <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>propagated_hint</span>.<span class='ident'>is_empty</span>() {
-            <span class='ident'>child_data</span>.<span class='ident'>ensure</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>d</span><span class='op'>|</span> <span class='ident'>d</span>.<span class='ident'>hint</span>.<span class='ident'>insert</span>(<span class='kw-2'>&amp;</span><span class='ident'>propagated_hint</span>));
+            <span class='ident'>restyle_data</span>.<span class='ident'>hint</span>.<span class='ident'>insert</span>(<span class='kw-2'>&amp;</span><span class='ident'>propagated_hint</span>);
         }
 
-        <span class='comment'>// Handle element snashots.</span>
-        <span class='kw'>if</span> <span class='ident'>child_data</span>.<span class='ident'>has_snapshot</span>() {
-            <span class='comment'>// Compute the restyle hint.</span>
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>restyle_data</span> <span class='op'>=</span> <span class='ident'>child_data</span>.<span class='ident'>ensure</span>().<span class='ident'>unwrap</span>();
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>hint</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>shared_context</span>().<span class='ident'>stylist</span>
-                                  .<span class='ident'>compute_restyle_hint</span>(<span class='kw-2'>&amp;</span><span class='ident'>child</span>,
-                                                        <span class='ident'>restyle_data</span>.<span class='ident'>snapshot</span>.<span class='ident'>as_ref</span>().<span class='ident'>unwrap</span>(),
-                                                        <span class='ident'>child</span>.<span class='ident'>get_state</span>());
-
-            <span class='comment'>// If the hint includes a directive for later siblings, strip</span>
-            <span class='comment'>// it out and modify the base hint for future siblings.</span>
-            <span class='kw'>if</span> <span class='ident'>hint</span>.<span class='ident'>contains</span>(<span class='ident'>RESTYLE_LATER_SIBLINGS</span>) {
-                <span class='ident'>hint</span>.<span class='ident'>remove</span>(<span class='ident'>RESTYLE_LATER_SIBLINGS</span>);
-                <span class='ident'>propagated_hint</span>.<span class='ident'>insert</span>(<span class='kw-2'>&amp;</span>(<span class='ident'>RESTYLE_SELF</span> <span class='op'>|</span> <span class='ident'>RESTYLE_DESCENDANTS</span>).<span class='ident'>into</span>());
-            }
-
-            <span class='comment'>// Insert the hint.</span>
-            <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>hint</span>.<span class='ident'>is_empty</span>() {
-                <span class='ident'>restyle_data</span>.<span class='ident'>hint</span>.<span class='ident'>insert</span>(<span class='kw-2'>&amp;</span><span class='ident'>hint</span>.<span class='ident'>into</span>());
-            }
+        <span class='comment'>// Handle element snapshots.</span>
+        <span class='kw'>let</span> <span class='ident'>stylist</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>context</span>.<span class='ident'>shared_context</span>().<span class='ident'>stylist</span>;
+        <span class='kw'>let</span> <span class='ident'>later_siblings</span> <span class='op'>=</span> <span class='ident'>restyle_data</span>.<span class='ident'>expand_snapshot</span>(<span class='ident'>child</span>, <span class='ident'>stylist</span>);
+        <span class='kw'>if</span> <span class='ident'>later_siblings</span> {
+            <span class='ident'>propagated_hint</span>.<span class='ident'>insert</span>(<span class='kw-2'>&amp;</span>(<span class='ident'>RESTYLE_SELF</span> <span class='op'>|</span> <span class='ident'>RESTYLE_DESCENDANTS</span>).<span class='ident'>into</span>());
         }
 
-        <span class='comment'>// If we restyled this node, conservatively mark all our children as</span>
-        <span class='comment'>// needing a re-cascade. Once we have the rule tree, we will be able</span>
-        <span class='comment'>// to distinguish between re-matching and re-cascading.</span>
-        <span class='kw'>if</span> <span class='ident'>restyled_parent</span> {
-            <span class='ident'>child_data</span>.<span class='ident'>ensure</span>();
+        <span class='comment'>// If properties that we inherited from the parent changed, we need to recascade.</span>
+        <span class='comment'>//</span>
+        <span class='comment'>// FIXME(bholley): Need to handle explicitly-inherited reset properties somewhere.</span>
+        <span class='kw'>if</span> <span class='ident'>parent_inherited_style_changed</span> {
+            <span class='ident'>restyle_data</span>.<span class='ident'>recascade</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
         }
     }
 }
@@ -911,63 +1092,6 @@
     }
 
     <span class='kw'>unsafe</span> { <span class='ident'>el</span>.<span class='ident'>unset_dirty_descendants</span>(); }
-}
-
-<span class='doccomment'>/// Various steps in the child preparation algorithm above may cause us to lazily</span>
-<span class='doccomment'>/// instantiate the ElementData on the child. Encapsulate that logic into a</span>
-<span class='doccomment'>/// convenient abstraction.</span>
-<span class='kw'>struct</span> <span class='ident'>LazyRestyleData</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span>, <span class='ident'>E</span>: <span class='ident'>TElement</span> <span class='op'>+</span> <span class='lifetime'>&#39;b</span>, <span class='ident'>D</span>: <span class='ident'>DomTraversalContext</span><span class='op'>&lt;</span><span class='ident'>E</span>::<span class='ident'>ConcreteNode</span><span class='op'>&gt;&gt;</span> {
-    <span class='ident'>data</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>AtomicRefMut</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span>, <span class='ident'>ElementData</span><span class='op'>&gt;&gt;</span>,
-    <span class='ident'>element</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='ident'>E</span>,
-    <span class='ident'>phantom</span>: <span class='ident'>PhantomData</span><span class='op'>&lt;</span><span class='ident'>D</span><span class='op'>&gt;</span>,
-}
-
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span>, <span class='ident'>E</span>: <span class='ident'>TElement</span>, <span class='ident'>D</span>: <span class='ident'>DomTraversalContext</span><span class='op'>&lt;</span><span class='ident'>E</span>::<span class='ident'>ConcreteNode</span><span class='op'>&gt;&gt;</span> <span class='ident'>LazyRestyleData</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span>, <span class='ident'>E</span>, <span class='ident'>D</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// This may lazily instantiate ElementData, and is therefore only safe to</span>
-    <span class='doccomment'>/// call on an element for which we have exclusive access.</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>element</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='ident'>E</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='ident'>LazyRestyleData</span> {
-            <span class='ident'>data</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>element</span>: <span class='ident'>element</span>,
-            <span class='ident'>phantom</span>: <span class='ident'>PhantomData</span>,
-        }
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>ensure</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>RestyleData</span><span class='op'>&gt;</span> {
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>data</span>.<span class='ident'>is_none</span>() {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>d</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>D</span>::<span class='ident'>ensure_element_data</span>(<span class='self'>self</span>.<span class='ident'>element</span>).<span class='ident'>borrow_mut</span>() };
-            <span class='ident'>d</span>.<span class='ident'>restyle</span>();
-            <span class='self'>self</span>.<span class='ident'>data</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>d</span>);
-        }
-
-        <span class='self'>self</span>.<span class='ident'>data</span>.<span class='ident'>as_mut</span>().<span class='ident'>unwrap</span>().<span class='ident'>as_restyle_mut</span>()
-    }
-
-    <span class='doccomment'>/// Checks for the existence of an element snapshot without lazily instantiating</span>
-    <span class='doccomment'>/// anything. This allows the traversal to cheaply pass through already-styled</span>
-    <span class='doccomment'>/// nodes when they don&#39;t need a restyle.</span>
-    <span class='kw'>fn</span> <span class='ident'>has_snapshot</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='comment'>// If there&#39;s no element data, we&#39;re done.</span>
-        <span class='kw'>let</span> <span class='ident'>raw_data</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>get_data</span>();
-        <span class='kw'>if</span> <span class='ident'>raw_data</span>.<span class='ident'>is_none</span>() {
-            <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>data</span>.<span class='ident'>is_none</span>());
-            <span class='kw'>return</span> <span class='bool-val'>false</span>;
-        }
-
-        <span class='comment'>// If there is element data, we still may not have committed to processing</span>
-        <span class='comment'>// the node. Carefully get a reference to the data.</span>
-        <span class='kw'>let</span> <span class='ident'>maybe_tmp_borrow</span>;
-        <span class='kw'>let</span> <span class='ident'>borrow_ref</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>data</span> {
-            <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>d</span>) <span class='op'>=&gt;</span> <span class='ident'>d</span>,
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
-                <span class='ident'>maybe_tmp_borrow</span> <span class='op'>=</span> <span class='ident'>raw_data</span>.<span class='ident'>unwrap</span>().<span class='ident'>borrow_mut</span>();
-                <span class='kw-2'>&amp;</span><span class='ident'>maybe_tmp_borrow</span>
-            }
-        };
-
-        <span class='comment'>// Check for a snapshot.</span>
-        <span class='ident'>borrow_ref</span>.<span class='ident'>as_restyle</span>().<span class='ident'>map_or</span>(<span class='bool-val'>false</span>, <span class='op'>|</span><span class='ident'>d</span><span class='op'>|</span> <span class='ident'>d</span>.<span class='ident'>snapshot</span>.<span class='ident'>is_some</span>())
-    }
 }
 </pre>
 </section>

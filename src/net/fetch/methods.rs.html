@@ -550,6 +550,16 @@
 <span id="506">506</span>
 <span id="507">507</span>
 <span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -574,6 +584,7 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>Cow</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fs</span>::<span class='ident'>File</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::<span class='ident'>Read</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>rc</span>::<span class='ident'>Rc</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::{<span class='ident'>Sender</span>, <span class='ident'>Receiver</span>};
 
@@ -707,15 +718,27 @@
     <span class='ident'>request</span>.<span class='ident'>referrer_policy</span>.<span class='ident'>set</span>(<span class='prelude-val'>Some</span>(<span class='ident'>referrer_policy</span>));
 
     <span class='comment'>// Step 8</span>
-    <span class='kw'>if</span> <span class='op'>*</span><span class='ident'>request</span>.<span class='ident'>referrer</span>.<span class='ident'>borrow</span>() <span class='op'>!=</span> <span class='ident'>Referrer</span>::<span class='ident'>NoReferrer</span> {
-        <span class='comment'>// remove Referrer headers set in past redirects/preflights</span>
-        <span class='comment'>// this stops the assertion in determine_request_referrer from failing</span>
-        <span class='ident'>request</span>.<span class='ident'>headers</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>remove</span>::<span class='op'>&lt;</span><span class='ident'>RefererHeader</span><span class='op'>&gt;</span>();
-        <span class='kw'>let</span> <span class='ident'>referrer_url</span> <span class='op'>=</span> <span class='ident'>determine_request_referrer</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='ident'>request</span>.<span class='ident'>headers</span>.<span class='ident'>borrow_mut</span>(),
-                                                      <span class='ident'>referrer_policy</span>,
-                                                      <span class='ident'>request</span>.<span class='ident'>referrer</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>take</span>(),
-                                                      <span class='ident'>request</span>.<span class='ident'>current_url</span>().<span class='ident'>clone</span>());
-        <span class='op'>*</span><span class='ident'>request</span>.<span class='ident'>referrer</span>.<span class='ident'>borrow_mut</span>() <span class='op'>=</span> <span class='ident'>Referrer</span>::<span class='ident'>from_url</span>(<span class='ident'>referrer_url</span>);
+    {
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>referrer</span> <span class='op'>=</span> <span class='ident'>request</span>.<span class='ident'>referrer</span>.<span class='ident'>borrow_mut</span>();
+        <span class='kw'>let</span> <span class='ident'>referrer_url</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>mem</span>::<span class='ident'>replace</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='ident'>referrer</span>, <span class='ident'>Referrer</span>::<span class='ident'>NoReferrer</span>) {
+            <span class='ident'>Referrer</span>::<span class='ident'>NoReferrer</span> <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
+            <span class='ident'>Referrer</span>::<span class='ident'>Client</span> <span class='op'>=&gt;</span> {
+                <span class='comment'>// FIXME(#14507): We should never get this value here; it should</span>
+                <span class='comment'>//                already have been handled in the script thread.</span>
+                <span class='ident'>request</span>.<span class='ident'>headers</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>remove</span>::<span class='op'>&lt;</span><span class='ident'>RefererHeader</span><span class='op'>&gt;</span>();
+                <span class='prelude-val'>None</span>
+            },
+            <span class='ident'>Referrer</span>::<span class='ident'>ReferrerUrl</span>(<span class='ident'>url</span>) <span class='op'>=&gt;</span> {
+                <span class='ident'>request</span>.<span class='ident'>headers</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>remove</span>::<span class='op'>&lt;</span><span class='ident'>RefererHeader</span><span class='op'>&gt;</span>();
+                <span class='ident'>determine_request_referrer</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='ident'>request</span>.<span class='ident'>headers</span>.<span class='ident'>borrow_mut</span>(),
+                                           <span class='ident'>referrer_policy</span>,
+                                           <span class='ident'>url</span>,
+                                           <span class='ident'>request</span>.<span class='ident'>current_url</span>().<span class='ident'>clone</span>())
+            }
+        };
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>referrer_url</span>) <span class='op'>=</span> <span class='ident'>referrer_url</span> {
+            <span class='op'>*</span><span class='ident'>referrer</span> <span class='op'>=</span> <span class='ident'>Referrer</span>::<span class='ident'>ReferrerUrl</span>(<span class='ident'>referrer_url</span>);
+        }
     }
 
     <span class='comment'>// Step 9</span>
@@ -917,9 +940,6 @@
             <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>*</span><span class='ident'>body</span> <span class='op'>==</span> <span class='ident'>ResponseBody</span>::<span class='ident'>Empty</span>)
         }
     }
-
-    <span class='comment'>// Step 23</span>
-    <span class='ident'>request</span>.<span class='ident'>done</span>.<span class='ident'>set</span>(<span class='bool-val'>true</span>);
 
     <span class='comment'>// Step 24</span>
     <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>target</span>) <span class='op'>=</span> <span class='op'>*</span><span class='ident'>target</span> {
