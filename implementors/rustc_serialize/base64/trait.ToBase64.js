@@ -1,5 +1,5 @@
 (function() {var implementors = {};
-implementors["rustc_serialize"] = [];implementors["mio"] = [];implementors["image"] = [];implementors["offscreen_gl_context"] = [];implementors["url"] = [];implementors["xml5ever"] = [];implementors["ws"] = [];implementors["hyper"] = [];implementors["syntex_syntax"] = [];implementors["glutin"] = [];implementors["websocket"] = [];implementors["azure"] = [];implementors["util"] = [];implementors["webrender"] = [];implementors["net_traits"] = [];implementors["net"] = [];implementors["style"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["rustc_serialize"] = [];implementors["image"] = [];implementors["url"] = [];implementors["mio"] = [];implementors["glutin"] = [];implementors["offscreen_gl_context"] = [];implementors["syntex_syntax"] = [];implementors["ws"] = [];implementors["hyper"] = [];implementors["xml5ever"] = [];implementors["websocket"] = [];implementors["azure"] = [];implementors["util"] = [];implementors["webrender"] = [];implementors["net_traits"] = [];implementors["net"] = [];implementors["style"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

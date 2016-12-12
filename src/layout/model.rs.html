@@ -611,6 +611,17 @@
 <span id="567">567</span>
 <span id="568">568</span>
 <span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1050,6 +1061,21 @@
     }
 }
 
+<span class='doccomment'>/// Receive an optional container size and return used value for width or height.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// `style_length`: content size as given in the CSS.</span>
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>style_length</span>(<span class='ident'>style_length</span>: <span class='ident'>LengthOrPercentageOrAuto</span>,
+                    <span class='ident'>container_size</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Au</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>MaybeAuto</span> {
+    <span class='kw'>match</span> <span class='ident'>container_size</span> {
+        <span class='prelude-val'>Some</span>(<span class='ident'>length</span>) <span class='op'>=&gt;</span> <span class='ident'>MaybeAuto</span>::<span class='ident'>from_style</span>(<span class='ident'>style_length</span>, <span class='ident'>length</span>),
+        <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>LengthOrPercentageOrAuto</span>::<span class='ident'>Length</span>(<span class='ident'>length</span>) <span class='op'>=</span> <span class='ident'>style_length</span> {
+            <span class='ident'>MaybeAuto</span>::<span class='ident'>Specified</span>(<span class='ident'>length</span>)
+        } <span class='kw'>else</span> {
+            <span class='ident'>MaybeAuto</span>::<span class='ident'>Auto</span>
+        }
+    }
+}
+
 <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>specified_or_none</span>(<span class='ident'>length</span>: <span class='ident'>LengthOrPercentageOrNone</span>, <span class='ident'>containing_length</span>: <span class='ident'>Au</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Au</span><span class='op'>&gt;</span> {
     <span class='kw'>match</span> <span class='ident'>length</span> {
         <span class='ident'>LengthOrPercentageOrNone</span>::<span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
@@ -1118,64 +1144,60 @@
     }
 }
 
-<span class='comment'>// https://drafts.csswg.org/css2/visudet.html#min-max-widths</span>
-<span class='comment'>// https://drafts.csswg.org/css2/visudet.html#min-max-heights</span>
-<span class='doccomment'>/// A min or max constraint</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// A `max` of `None` is equivalent to no limmit for the size in the given</span>
-<span class='doccomment'>/// dimension. The `min` is &gt;= 0, as negative values are illegal and by</span>
-<span class='doccomment'>/// default `min` is 0.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>MinMaxConstraint</span> {
-    <span class='ident'>min</span>: <span class='ident'>Au</span>,
-    <span class='ident'>max</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Au</span><span class='op'>&gt;</span>
+<span class='doccomment'>/// A min-size and max-size constraint. The constructor has a optional `border`</span>
+<span class='doccomment'>/// parameter, and when it is present the constraint will be subtracted. This is</span>
+<span class='doccomment'>/// used to adjust the constraint for `box-sizing: border-box`, and when you do so</span>
+<span class='doccomment'>/// make sure the size you want to clamp is intended to be used for content box.</span>
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>Copy</span>, <span class='ident'>Debug</span>)]</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>SizeConstraint</span> {
+    <span class='ident'>min_size</span>: <span class='ident'>Au</span>,
+    <span class='ident'>max_size</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Au</span><span class='op'>&gt;</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>MinMaxConstraint</span> {
-    <span class='doccomment'>/// Create a `MinMaxConstraint` for a dimension given the min, max, and content box size for</span>
-    <span class='doccomment'>/// an axis</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>content_size</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Au</span><span class='op'>&gt;</span>, <span class='ident'>min</span>: <span class='ident'>LengthOrPercentage</span>,
-               <span class='ident'>max</span>: <span class='ident'>LengthOrPercentageOrNone</span>) <span class='op'>-&gt;</span> <span class='ident'>MinMaxConstraint</span> {
-        <span class='kw'>let</span> <span class='ident'>min</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>min</span> {
-            <span class='ident'>LengthOrPercentage</span>::<span class='ident'>Length</span>(<span class='ident'>length</span>) <span class='op'>=&gt;</span> <span class='ident'>length</span>,
-            <span class='ident'>LengthOrPercentage</span>::<span class='ident'>Percentage</span>(<span class='ident'>percent</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>match</span> <span class='ident'>content_size</span> {
-                    <span class='prelude-val'>Some</span>(<span class='ident'>size</span>) <span class='op'>=&gt;</span> <span class='ident'>size</span>.<span class='ident'>scale_by</span>(<span class='ident'>percent</span>),
-                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='ident'>Au</span>(<span class='number'>0</span>),
-                }
-            },
-            <span class='ident'>LengthOrPercentage</span>::<span class='ident'>Calc</span>(<span class='ident'>calc</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>match</span> <span class='ident'>content_size</span> {
-                    <span class='prelude-val'>Some</span>(<span class='ident'>size</span>) <span class='op'>=&gt;</span> <span class='ident'>size</span>.<span class='ident'>scale_by</span>(<span class='ident'>calc</span>.<span class='ident'>percentage</span>()),
-                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='ident'>Au</span>(<span class='number'>0</span>),
-                }
+<span class='kw'>impl</span> <span class='ident'>SizeConstraint</span> {
+    <span class='doccomment'>/// Create a `SizeConstraint` for an axis.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>container_size</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Au</span><span class='op'>&gt;</span>,
+               <span class='ident'>min_size</span>: <span class='ident'>LengthOrPercentage</span>,
+               <span class='ident'>max_size</span>: <span class='ident'>LengthOrPercentageOrNone</span>,
+               <span class='ident'>border</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Au</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>SizeConstraint</span> {
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>min_size</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>container_size</span> {
+            <span class='prelude-val'>Some</span>(<span class='ident'>container_size</span>) <span class='op'>=&gt;</span> <span class='ident'>specified</span>(<span class='ident'>min_size</span>, <span class='ident'>container_size</span>),
+            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>LengthOrPercentage</span>::<span class='ident'>Length</span>(<span class='ident'>length</span>) <span class='op'>=</span> <span class='ident'>min_size</span> {
+                <span class='ident'>length</span>
+            } <span class='kw'>else</span> {
+                <span class='ident'>Au</span>(<span class='number'>0</span>)
             }
         };
 
-        <span class='kw'>let</span> <span class='ident'>max</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>max</span> {
-            <span class='ident'>LengthOrPercentageOrNone</span>::<span class='ident'>Length</span>(<span class='ident'>length</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>length</span>),
-            <span class='ident'>LengthOrPercentageOrNone</span>::<span class='ident'>Percentage</span>(<span class='ident'>percent</span>) <span class='op'>=&gt;</span> {
-                <span class='ident'>content_size</span>.<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>size</span><span class='op'>|</span> <span class='ident'>size</span>.<span class='ident'>scale_by</span>(<span class='ident'>percent</span>))
-            },
-            <span class='ident'>LengthOrPercentageOrNone</span>::<span class='ident'>Calc</span>(<span class='ident'>calc</span>) <span class='op'>=&gt;</span> {
-                <span class='ident'>content_size</span>.<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>size</span><span class='op'>|</span> <span class='ident'>size</span>.<span class='ident'>scale_by</span>(<span class='ident'>calc</span>.<span class='ident'>percentage</span>()))
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>max_size</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>container_size</span> {
+            <span class='prelude-val'>Some</span>(<span class='ident'>container_size</span>) <span class='op'>=&gt;</span> <span class='ident'>specified_or_none</span>(<span class='ident'>max_size</span>, <span class='ident'>container_size</span>),
+            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>LengthOrPercentageOrNone</span>::<span class='ident'>Length</span>(<span class='ident'>length</span>) <span class='op'>=</span> <span class='ident'>max_size</span> {
+                <span class='prelude-val'>Some</span>(<span class='ident'>length</span>)
+            } <span class='kw'>else</span> {
+                <span class='prelude-val'>None</span>
             }
-            <span class='ident'>LengthOrPercentageOrNone</span>::<span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
         };
+        <span class='comment'>// Make sure max size is not smaller than min size.</span>
+        <span class='ident'>max_size</span> <span class='op'>=</span> <span class='ident'>max_size</span>.<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>x</span><span class='op'>|</span> <span class='ident'>max</span>(<span class='ident'>x</span>, <span class='ident'>min_size</span>));
 
-        <span class='ident'>MinMaxConstraint</span> {
-            <span class='ident'>min</span>: <span class='ident'>min</span>,
-            <span class='ident'>max</span>: <span class='ident'>max</span>
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>border</span>) <span class='op'>=</span> <span class='ident'>border</span> {
+            <span class='ident'>min_size</span> <span class='op'>=</span> <span class='ident'>max</span>((<span class='ident'>min_size</span> <span class='op'>-</span> <span class='ident'>border</span>), <span class='ident'>Au</span>(<span class='number'>0</span>));
+            <span class='ident'>max_size</span> <span class='op'>=</span> <span class='ident'>max_size</span>.<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>x</span><span class='op'>|</span> <span class='ident'>max</span>(<span class='ident'>x</span> <span class='op'>-</span> <span class='ident'>border</span>, <span class='ident'>Au</span>(<span class='number'>0</span>)));
+        }
+
+        <span class='ident'>SizeConstraint</span> {
+            <span class='ident'>min_size</span>: <span class='ident'>min_size</span>,
+            <span class='ident'>max_size</span>: <span class='ident'>max_size</span>
         }
     }
 
-    <span class='doccomment'>/// Clamp the given size by the given `min` and `max` constraints.</span>
+    <span class='doccomment'>/// Clamp the given size by the given min size and max size constraint.</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>clamp</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>Au</span>) <span class='op'>-&gt;</span> <span class='ident'>Au</span> {
-        <span class='kw'>if</span> <span class='ident'>other</span> <span class='op'>&lt;</span> <span class='self'>self</span>.<span class='ident'>min</span> {
-            <span class='self'>self</span>.<span class='ident'>min</span>
+        <span class='kw'>if</span> <span class='ident'>other</span> <span class='op'>&lt;</span> <span class='self'>self</span>.<span class='ident'>min_size</span> {
+            <span class='self'>self</span>.<span class='ident'>min_size</span>
         } <span class='kw'>else</span> {
-            <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>max</span> {
-                <span class='prelude-val'>Some</span>(<span class='ident'>max</span>) <span class='kw'>if</span> <span class='ident'>max</span> <span class='op'>&lt;</span> <span class='ident'>other</span> <span class='op'>=&gt;</span> <span class='ident'>max</span>,
+            <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>max_size</span> {
+                <span class='prelude-val'>Some</span>(<span class='ident'>max_size</span>) <span class='kw'>if</span> <span class='ident'>max_size</span> <span class='op'>&lt;</span> <span class='ident'>other</span> <span class='op'>=&gt;</span> <span class='ident'>max_size</span>,
                 _ <span class='op'>=&gt;</span> <span class='ident'>other</span>
             }
         }
