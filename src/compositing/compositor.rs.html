@@ -1724,6 +1724,16 @@
 <span id="1680">1680</span>
 <span id="1681">1681</span>
 <span id="1682">1682</span>
+<span id="1683">1683</span>
+<span id="1684">1684</span>
+<span id="1685">1685</span>
+<span id="1686">1686</span>
+<span id="1687">1687</span>
+<span id="1688">1688</span>
+<span id="1689">1689</span>
+<span id="1690">1690</span>
+<span id="1691">1691</span>
+<span id="1692">1692</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1758,6 +1768,7 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fs</span>::<span class='ident'>File</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>rc</span>::<span class='ident'>Rc</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::<span class='ident'>Sender</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>time</span>::{<span class='ident'>Duration</span>, <span class='ident'>Instant</span>};
 <span class='kw'>use</span> <span class='ident'>style_traits</span>::{<span class='ident'>PagePx</span>, <span class='ident'>ViewportPx</span>};
 <span class='kw'>use</span> <span class='ident'>style_traits</span>::<span class='ident'>viewport</span>::<span class='ident'>ViewportConstraints</span>;
 <span class='kw'>use</span> <span class='ident'>time</span>::{<span class='ident'>precise_time_ns</span>, <span class='ident'>precise_time_s</span>};
@@ -1924,6 +1935,8 @@
 
     <span class='doccomment'>/// Whether a scroll is in progress; i.e. whether the user&#39;s fingers are down.</span>
     <span class='ident'>scroll_in_progress</span>: <span class='ident'>bool</span>,
+
+    <span class='ident'>in_scroll_transaction</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Instant</span><span class='op'>&gt;</span>,
 
     <span class='doccomment'>/// The webrender renderer.</span>
     <span class='ident'>webrender</span>: <span class='ident'>webrender</span>::<span class='ident'>Renderer</span>,
@@ -2123,6 +2136,7 @@
             <span class='ident'>last_composite_time</span>: <span class='number'>0</span>,
             <span class='ident'>ready_to_save_state</span>: <span class='ident'>ReadyState</span>::<span class='ident'>Unknown</span>,
             <span class='ident'>scroll_in_progress</span>: <span class='bool-val'>false</span>,
+            <span class='ident'>in_scroll_transaction</span>: <span class='prelude-val'>None</span>,
             <span class='ident'>webrender</span>: <span class='ident'>state</span>.<span class='ident'>webrender</span>,
             <span class='ident'>webrender_api</span>: <span class='ident'>state</span>.<span class='ident'>webrender_api_sender</span>.<span class='ident'>create_api</span>(),
         }
@@ -2803,11 +2817,17 @@
     <span class='kw'>fn</span> <span class='ident'>on_scroll_window_event</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
                               <span class='ident'>delta</span>: <span class='ident'>TypedPoint2D</span><span class='op'>&lt;</span><span class='ident'>f32</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>,
                               <span class='ident'>cursor</span>: <span class='ident'>TypedPoint2D</span><span class='op'>&lt;</span><span class='ident'>i32</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>) {
+        <span class='kw'>let</span> <span class='ident'>event_phase</span> <span class='op'>=</span> <span class='kw'>match</span> (<span class='self'>self</span>.<span class='ident'>scroll_in_progress</span>, <span class='self'>self</span>.<span class='ident'>in_scroll_transaction</span>) {
+            (<span class='bool-val'>false</span>, <span class='prelude-val'>Some</span>(<span class='ident'>last_scroll</span>)) <span class='kw'>if</span> <span class='ident'>last_scroll</span>.<span class='ident'>elapsed</span>() <span class='op'>&gt;</span> <span class='ident'>Duration</span>::<span class='ident'>from_millis</span>(<span class='number'>80</span>) <span class='op'>=&gt;</span>
+                <span class='ident'>ScrollEventPhase</span>::<span class='ident'>Start</span>,
+            (_, _) <span class='op'>=&gt;</span> <span class='ident'>ScrollEventPhase</span>::<span class='ident'>Move</span>(<span class='self'>self</span>.<span class='ident'>scroll_in_progress</span>),
+        };
+        <span class='self'>self</span>.<span class='ident'>in_scroll_transaction</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>Instant</span>::<span class='ident'>now</span>());
         <span class='self'>self</span>.<span class='ident'>pending_scroll_zoom_events</span>.<span class='ident'>push</span>(<span class='ident'>ScrollZoomEvent</span> {
             <span class='ident'>magnification</span>: <span class='number'>1.0</span>,
             <span class='ident'>delta</span>: <span class='ident'>delta</span>,
             <span class='ident'>cursor</span>: <span class='ident'>cursor</span>,
-            <span class='ident'>phase</span>: <span class='ident'>ScrollEventPhase</span>::<span class='ident'>Move</span>(<span class='self'>self</span>.<span class='ident'>scroll_in_progress</span>),
+            <span class='ident'>phase</span>: <span class='ident'>event_phase</span>,
             <span class='ident'>event_count</span>: <span class='number'>1</span>,
         });
     }
