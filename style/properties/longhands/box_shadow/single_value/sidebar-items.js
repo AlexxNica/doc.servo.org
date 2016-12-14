@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["parse",""]],"mod":[["computed_value",""]],"struct":[["SpecifiedValue",""]]});
+initSidebarItems({"fn":[["parse",""]],"mod":[["computed_value",""]],"type":[["SpecifiedValue",""]]});

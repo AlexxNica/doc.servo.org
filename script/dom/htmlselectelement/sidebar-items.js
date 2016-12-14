@@ -1,1 +1,1 @@
-initSidebarItems({"static":[["DEFAULT_SELECT_SIZE",""]],"struct":[["HTMLSelectElement",""],["OptionsFilter",""]]});
+initSidebarItems({"enum":[["Choice3",""]],"static":[["DEFAULT_SELECT_SIZE",""]],"struct":[["HTMLSelectElement",""],["OptionsFilter",""]]});
