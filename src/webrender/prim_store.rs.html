@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/c4a0c01/webrender/src/prim_store.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/b2e02df/webrender/src/prim_store.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>prim_store.rs.html -- source</title>
@@ -1217,6 +1217,26 @@
 <span id="1173">1173</span>
 <span id="1174">1174</span>
 <span id="1175">1175</span>
+<span id="1176">1176</span>
+<span id="1177">1177</span>
+<span id="1178">1178</span>
+<span id="1179">1179</span>
+<span id="1180">1180</span>
+<span id="1181">1181</span>
+<span id="1182">1182</span>
+<span id="1183">1183</span>
+<span id="1184">1184</span>
+<span id="1185">1185</span>
+<span id="1186">1186</span>
+<span id="1187">1187</span>
+<span id="1188">1188</span>
+<span id="1189">1189</span>
+<span id="1190">1190</span>
+<span id="1191">1191</span>
+<span id="1192">1192</span>
+<span id="1193">1193</span>
+<span id="1194">1194</span>
+<span id="1195">1195</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1226,11 +1246,11 @@
 <span class='kw'>use</span> <span class='ident'>euclid</span>::<span class='ident'>Size2D</span>;
 <span class='kw'>use</span> <span class='ident'>gpu_store</span>::{<span class='ident'>GpuStore</span>, <span class='ident'>GpuStoreAddress</span>};
 <span class='kw'>use</span> <span class='ident'>internal_types</span>::<span class='ident'>SourceTexture</span>;
-<span class='kw'>use</span> <span class='ident'>mask_cache</span>::{<span class='ident'>MaskCacheInfo</span>, <span class='ident'>MaskCacheKey</span>};
+<span class='kw'>use</span> <span class='ident'>mask_cache</span>::{<span class='ident'>ClipSource</span>, <span class='ident'>MaskCacheInfo</span>};
 <span class='kw'>use</span> <span class='ident'>resource_cache</span>::{<span class='ident'>ImageProperties</span>, <span class='ident'>ResourceCache</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>usize</span>;
-<span class='kw'>use</span> <span class='ident'>tiling</span>::<span class='ident'>RenderTask</span>;
+<span class='kw'>use</span> <span class='ident'>tiling</span>::{<span class='ident'>RenderTask</span>, <span class='ident'>RenderTaskLocation</span>};
 <span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>TransformedRect</span>;
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>AuxiliaryLists</span>, <span class='ident'>ColorF</span>, <span class='ident'>ImageKey</span>, <span class='ident'>ImageRendering</span>, <span class='ident'>YuvColorSpace</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ClipRegion</span>, <span class='ident'>ComplexClipRegion</span>, <span class='ident'>ItemRange</span>, <span class='ident'>GlyphKey</span>};
@@ -1312,18 +1332,11 @@
     <span class='ident'>TextShadow</span>(<span class='ident'>PrimitiveIndex</span>),
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>PrimitiveClipSource</span> {
-    <span class='ident'>NoClip</span>,
-    <span class='ident'>Complex</span>(<span class='ident'>LayerRect</span>, <span class='ident'>f32</span>),
-    <span class='ident'>Region</span>(<span class='ident'>ClipRegion</span>),
-}
-
 <span class='comment'>// TODO(gw): Pack the fields here better!</span>
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>PrimitiveMetadata</span> {
     <span class='kw'>pub</span> <span class='ident'>is_opaque</span>: <span class='ident'>bool</span>,
-    <span class='kw'>pub</span> <span class='ident'>clip_source</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>PrimitiveClipSource</span><span class='op'>&gt;</span>,
+    <span class='kw'>pub</span> <span class='ident'>clip_source</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ClipSource</span><span class='op'>&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>clip_cache_info</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>MaskCacheInfo</span><span class='op'>&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>prim_kind</span>: <span class='ident'>PrimitiveKind</span>,
     <span class='kw'>pub</span> <span class='ident'>cpu_prim_index</span>: <span class='ident'>SpecificPrimitiveIndex</span>,
@@ -1480,7 +1493,7 @@
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>TextRunPrimitiveCpu</span> {
     <span class='kw'>pub</span> <span class='ident'>font_key</span>: <span class='ident'>FontKey</span>,
-    <span class='kw'>pub</span> <span class='ident'>font_size</span>: <span class='ident'>Au</span>,
+    <span class='kw'>pub</span> <span class='ident'>logical_font_size</span>: <span class='ident'>Au</span>,
     <span class='kw'>pub</span> <span class='ident'>blur_radius</span>: <span class='ident'>Au</span>,
     <span class='kw'>pub</span> <span class='ident'>glyph_range</span>: <span class='ident'>ItemRange</span>,
     <span class='kw'>pub</span> <span class='ident'>cache_dirty</span>: <span class='ident'>bool</span>,
@@ -1544,7 +1557,7 @@
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>from_clip_region</span>(<span class='ident'>clip</span>: <span class='kw-2'>&amp;</span><span class='ident'>ComplexClipRegion</span>) <span class='op'>-&gt;</span> <span class='ident'>ClipData</span> {
         <span class='ident'>ClipData</span> {
             <span class='ident'>rect</span>: <span class='ident'>ClipRect</span> {
-                <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>clip</span>.<span class='ident'>rect</span>),
+                <span class='ident'>rect</span>: <span class='ident'>clip</span>.<span class='ident'>rect</span>,
                 <span class='ident'>padding</span>: [<span class='number'>0.0</span>, <span class='number'>0.0</span>, <span class='number'>0.0</span>, <span class='number'>0.0</span>],
             },
             <span class='ident'>top_left</span>: <span class='ident'>ClipCorner</span> {
@@ -1649,12 +1662,11 @@
     <span class='kw'>pub</span> <span class='ident'>gpu_resource_rects</span>: <span class='ident'>GpuStore</span><span class='op'>&lt;</span><span class='ident'>TexelRect</span><span class='op'>&gt;</span>,
 
     <span class='comment'>// General</span>
-    <span class='ident'>device_pixel_ratio</span>: <span class='ident'>f32</span>,
     <span class='ident'>prims_to_resolve</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>PrimitiveIndex</span><span class='op'>&gt;</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>PrimitiveStore</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>device_pixel_ratio</span>: <span class='ident'>f32</span>) <span class='op'>-&gt;</span> <span class='ident'>PrimitiveStore</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>PrimitiveStore</span> {
         <span class='ident'>PrimitiveStore</span> {
             <span class='ident'>cpu_metadata</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
             <span class='ident'>cpu_bounding_rects</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
@@ -1669,7 +1681,6 @@
             <span class='ident'>gpu_data64</span>: <span class='ident'>GpuStore</span>::<span class='ident'>new</span>(),
             <span class='ident'>gpu_data128</span>: <span class='ident'>GpuStore</span>::<span class='ident'>new</span>(),
             <span class='ident'>gpu_resource_rects</span>: <span class='ident'>GpuStore</span>::<span class='ident'>new</span>(),
-            <span class='ident'>device_pixel_ratio</span>: <span class='ident'>device_pixel_ratio</span>,
             <span class='ident'>prims_to_resolve</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
         }
     }
@@ -1684,7 +1695,7 @@
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_primitive</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
                          <span class='ident'>geometry</span>: <span class='ident'>PrimitiveGeometry</span>,
-                         <span class='ident'>clip_source</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>PrimitiveClipSource</span><span class='op'>&gt;</span>,
+                         <span class='ident'>clip_source</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ClipSource</span><span class='op'>&gt;</span>,
                          <span class='ident'>clip_info</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>MaskCacheInfo</span><span class='op'>&gt;</span>,
                          <span class='ident'>container</span>: <span class='ident'>PrimitiveContainer</span>) <span class='op'>-&gt;</span> <span class='ident'>PrimitiveIndex</span> {
         <span class='kw'>let</span> <span class='ident'>prim_index</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>cpu_metadata</span>.<span class='ident'>len</span>();
@@ -1806,16 +1817,6 @@
                 <span class='ident'>metadata</span>
             }
             <span class='ident'>PrimitiveContainer</span>::<span class='ident'>BoxShadow</span>(<span class='ident'>box_shadow_gpu</span>, <span class='ident'>instance_rects</span>) <span class='op'>=&gt;</span> {
-                <span class='comment'>// TODO(gw): Account for zoom factor!</span>
-                <span class='comment'>// Here, we calculate the size of the patch required in order</span>
-                <span class='comment'>// to create the box shadow corner. First, scale it by the</span>
-                <span class='comment'>// device pixel ratio since the cache shader expects vertices</span>
-                <span class='comment'>// in device space. The shader adds a 1-pixel border around</span>
-                <span class='comment'>// the patch, in order to prevent bilinear filter artifacts as</span>
-                <span class='comment'>// the patch is clamped / mirrored across the box shadow rect.</span>
-                <span class='kw'>let</span> <span class='ident'>edge_size</span> <span class='op'>=</span> <span class='ident'>box_shadow_gpu</span>.<span class='ident'>edge_size</span>.<span class='ident'>ceil</span>() <span class='op'>*</span> <span class='self'>self</span>.<span class='ident'>device_pixel_ratio</span>;
-                <span class='kw'>let</span> <span class='ident'>edge_size</span> <span class='op'>=</span> <span class='ident'>edge_size</span> <span class='kw'>as</span> <span class='ident'>i32</span> <span class='op'>+</span> <span class='number'>2</span>;   <span class='comment'>// Account for bilinear filtering</span>
-                <span class='kw'>let</span> <span class='ident'>cache_size</span> <span class='op'>=</span> <span class='ident'>DeviceIntSize</span>::<span class='ident'>new</span>(<span class='ident'>edge_size</span>, <span class='ident'>edge_size</span>);
                 <span class='kw'>let</span> <span class='ident'>cache_key</span> <span class='op'>=</span> <span class='ident'>PrimitiveCacheKey</span>::<span class='ident'>BoxShadow</span>(<span class='ident'>BoxShadowPrimitiveCacheKey</span> {
                     <span class='ident'>blur_radius</span>: <span class='ident'>Au</span>::<span class='ident'>from_f32_px</span>(<span class='ident'>box_shadow_gpu</span>.<span class='ident'>blur_radius</span>),
                     <span class='ident'>border_radius</span>: <span class='ident'>Au</span>::<span class='ident'>from_f32_px</span>(<span class='ident'>box_shadow_gpu</span>.<span class='ident'>border_radius</span>),
@@ -1823,6 +1824,12 @@
                     <span class='ident'>shadow_rect_size</span>: <span class='ident'>Size2D</span>::<span class='ident'>new</span>(<span class='ident'>Au</span>::<span class='ident'>from_f32_px</span>(<span class='ident'>box_shadow_gpu</span>.<span class='ident'>bs_rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span>),
                                                   <span class='ident'>Au</span>::<span class='ident'>from_f32_px</span>(<span class='ident'>box_shadow_gpu</span>.<span class='ident'>bs_rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span>)),
                 });
+
+                <span class='comment'>// The actual cache size is calculated during prepare_prim_for_render().</span>
+                <span class='comment'>// This is necessary since the size may change depending on the device</span>
+                <span class='comment'>// pixel ratio (for example, during zoom or moving the window to a</span>
+                <span class='comment'>// monitor with a different device pixel ratio).</span>
+                <span class='kw'>let</span> <span class='ident'>cache_size</span> <span class='op'>=</span> <span class='ident'>DeviceIntSize</span>::<span class='ident'>zero</span>();
 
                 <span class='comment'>// Create a render task for this box shadow primitive. This renders a small</span>
                 <span class='comment'>// portion of the box shadow to a render target. That portion is then</span>
@@ -1865,21 +1872,36 @@
         <span class='ident'>PrimitiveIndex</span>(<span class='ident'>prim_index</span>)
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>resolve_primitives</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>resource_cache</span>: <span class='kw-2'>&amp;</span><span class='ident'>ResourceCache</span>) <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>DeferredResolve</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>resolve_clip_cache_internal</span>(<span class='ident'>gpu_data32</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>GpuStore</span><span class='op'>&lt;</span><span class='ident'>GpuBlock32</span><span class='op'>&gt;</span>,
+                                   <span class='ident'>clip_info</span>: <span class='kw-2'>&amp;</span><span class='ident'>MaskCacheInfo</span>,
+                                   <span class='ident'>resource_cache</span>: <span class='kw-2'>&amp;</span><span class='ident'>ResourceCache</span>) {
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>((<span class='kw-2'>ref</span> <span class='ident'>mask</span>, <span class='ident'>gpu_address</span>)) <span class='op'>=</span> <span class='ident'>clip_info</span>.<span class='ident'>image</span> {
+            <span class='kw'>let</span> <span class='ident'>cache_item</span> <span class='op'>=</span> <span class='ident'>resource_cache</span>.<span class='ident'>get_cached_image</span>(<span class='ident'>mask</span>.<span class='ident'>image</span>, <span class='ident'>ImageRendering</span>::<span class='ident'>Auto</span>);
+            <span class='kw'>let</span> <span class='ident'>mask_data</span> <span class='op'>=</span> <span class='ident'>gpu_data32</span>.<span class='ident'>get_slice_mut</span>(<span class='ident'>gpu_address</span>, <span class='ident'>MASK_DATA_GPU_SIZE</span>);
+            <span class='ident'>mask_data</span>[<span class='number'>0</span>] <span class='op'>=</span> <span class='ident'>GpuBlock32</span>::<span class='ident'>from</span>(<span class='ident'>ImageMaskData</span> {
+                <span class='ident'>uv_rect</span>: <span class='ident'>DeviceRect</span>::<span class='ident'>new</span>(<span class='ident'>cache_item</span>.<span class='ident'>uv0</span>,
+                                         <span class='ident'>DeviceSize</span>::<span class='ident'>new</span>(<span class='ident'>cache_item</span>.<span class='ident'>uv1</span>.<span class='ident'>x</span> <span class='op'>-</span> <span class='ident'>cache_item</span>.<span class='ident'>uv0</span>.<span class='ident'>x</span>,
+                                                         <span class='ident'>cache_item</span>.<span class='ident'>uv1</span>.<span class='ident'>y</span> <span class='op'>-</span> <span class='ident'>cache_item</span>.<span class='ident'>uv0</span>.<span class='ident'>y</span>)),
+                <span class='ident'>local_rect</span>: <span class='ident'>mask</span>.<span class='ident'>rect</span>,
+            });
+        }
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>resolve_clip_cache</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                              <span class='ident'>clip_info</span>: <span class='kw-2'>&amp;</span><span class='ident'>MaskCacheInfo</span>,
+                              <span class='ident'>resource_cache</span>: <span class='kw-2'>&amp;</span><span class='ident'>ResourceCache</span>) {
+        <span class='self'>Self</span>::<span class='ident'>resolve_clip_cache_internal</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>gpu_data32</span>, <span class='ident'>clip_info</span>, <span class='ident'>resource_cache</span>)
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>resolve_primitives</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                              <span class='ident'>resource_cache</span>: <span class='kw-2'>&amp;</span><span class='ident'>ResourceCache</span>,
+                              <span class='ident'>device_pixel_ratio</span>: <span class='ident'>f32</span>) <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>DeferredResolve</span><span class='op'>&gt;</span> {
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>deferred_resolves</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
 
         <span class='kw'>for</span> <span class='ident'>prim_index</span> <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>prims_to_resolve</span>.<span class='ident'>drain</span>(..) {
             <span class='kw'>let</span> <span class='ident'>metadata</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>cpu_metadata</span>[<span class='ident'>prim_index</span>.<span class='number'>0</span>];
-
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>MaskCacheInfo</span>{ <span class='ident'>key</span>: <span class='ident'>MaskCacheKey</span> { <span class='ident'>image</span>: <span class='prelude-val'>Some</span>(<span class='ident'>gpu_address</span>), .. }, <span class='ident'>image</span>: <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>mask</span>), .. }) <span class='op'>=</span> <span class='ident'>metadata</span>.<span class='ident'>clip_cache_info</span> {
-                <span class='kw'>let</span> <span class='ident'>cache_item</span> <span class='op'>=</span> <span class='ident'>resource_cache</span>.<span class='ident'>get_cached_image</span>(<span class='ident'>mask</span>.<span class='ident'>image</span>, <span class='ident'>ImageRendering</span>::<span class='ident'>Auto</span>);
-                <span class='kw'>let</span> <span class='ident'>mask_data</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_data32</span>.<span class='ident'>get_slice_mut</span>(<span class='ident'>gpu_address</span>, <span class='ident'>MASK_DATA_GPU_SIZE</span>);
-                <span class='ident'>mask_data</span>[<span class='number'>0</span>] <span class='op'>=</span> <span class='ident'>GpuBlock32</span>::<span class='ident'>from</span>(<span class='ident'>ImageMaskData</span> {
-                    <span class='ident'>uv_rect</span>: <span class='ident'>DeviceRect</span>::<span class='ident'>new</span>(<span class='ident'>cache_item</span>.<span class='ident'>uv0</span>,
-                                             <span class='ident'>DeviceSize</span>::<span class='ident'>new</span>(<span class='ident'>cache_item</span>.<span class='ident'>uv1</span>.<span class='ident'>x</span> <span class='op'>-</span> <span class='ident'>cache_item</span>.<span class='ident'>uv0</span>.<span class='ident'>x</span>,
-                                                             <span class='ident'>cache_item</span>.<span class='ident'>uv1</span>.<span class='ident'>y</span> <span class='op'>-</span> <span class='ident'>cache_item</span>.<span class='ident'>uv0</span>.<span class='ident'>y</span>)),
-                    <span class='ident'>local_rect</span>: <span class='ident'>LayerRect</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>mask</span>.<span class='ident'>rect</span>),
-                });
+            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>clip_info</span>) <span class='op'>=</span> <span class='ident'>metadata</span>.<span class='ident'>clip_cache_info</span> {
+                <span class='self'>Self</span>::<span class='ident'>resolve_clip_cache_internal</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>gpu_data32</span>, <span class='ident'>clip_info</span>, <span class='ident'>resource_cache</span>);
             }
 
             <span class='kw'>match</span> <span class='ident'>metadata</span>.<span class='ident'>prim_kind</span> {
@@ -1889,12 +1911,13 @@
                 <span class='ident'>PrimitiveKind</span>::<span class='ident'>Gradient</span> <span class='op'>=&gt;</span> {}
                 <span class='ident'>PrimitiveKind</span>::<span class='ident'>TextRun</span> <span class='op'>=&gt;</span> {
                     <span class='kw'>let</span> <span class='ident'>text</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>cpu_text_runs</span>[<span class='ident'>metadata</span>.<span class='ident'>cpu_prim_index</span>.<span class='number'>0</span>];
+                    <span class='kw'>let</span> <span class='ident'>font_size_dp</span> <span class='op'>=</span> <span class='ident'>text</span>.<span class='ident'>logical_font_size</span>.<span class='ident'>scale_by</span>(<span class='ident'>device_pixel_ratio</span>);
 
                     <span class='kw'>let</span> <span class='ident'>dest_rects</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_resource_rects</span>.<span class='ident'>get_slice_mut</span>(<span class='ident'>text</span>.<span class='ident'>resource_address</span>,
                                                                            <span class='ident'>text</span>.<span class='ident'>glyph_range</span>.<span class='ident'>length</span>);
 
                     <span class='kw'>let</span> <span class='ident'>texture_id</span> <span class='op'>=</span> <span class='ident'>resource_cache</span>.<span class='ident'>get_glyphs</span>(<span class='ident'>text</span>.<span class='ident'>font_key</span>,
-                                                               <span class='ident'>text</span>.<span class='ident'>font_size</span>,
+                                                               <span class='ident'>font_size_dp</span>,
                                                                <span class='kw-2'>&amp;</span><span class='ident'>text</span>.<span class='ident'>glyph_indices</span>,
                                                                <span class='ident'>text</span>.<span class='ident'>render_mode</span>, <span class='op'>|</span><span class='ident'>index</span>, <span class='ident'>uv0</span>, <span class='ident'>uv1</span><span class='op'>|</span> {
                         <span class='kw'>let</span> <span class='ident'>dest_rect</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>dest_rects</span>[<span class='ident'>index</span>];
@@ -1981,12 +2004,12 @@
         <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>cpu_bounding_rects</span>[<span class='ident'>index</span>.<span class='number'>0</span>]
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_clip_source</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>index</span>: <span class='ident'>PrimitiveIndex</span>, <span class='ident'>source</span>: <span class='ident'>PrimitiveClipSource</span>) {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_clip_source</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>index</span>: <span class='ident'>PrimitiveIndex</span>, <span class='ident'>source</span>: <span class='ident'>ClipSource</span>) {
         <span class='kw'>let</span> <span class='ident'>metadata</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>cpu_metadata</span>[<span class='ident'>index</span>.<span class='number'>0</span>];
         <span class='kw'>let</span> (<span class='ident'>rect</span>, <span class='ident'>is_complex</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>source</span> {
-            <span class='ident'>PrimitiveClipSource</span>::<span class='ident'>NoClip</span> <span class='op'>=&gt;</span> (<span class='prelude-val'>None</span>, <span class='bool-val'>false</span>),
-            <span class='ident'>PrimitiveClipSource</span>::<span class='ident'>Complex</span>(<span class='ident'>rect</span>, <span class='ident'>radius</span>) <span class='op'>=&gt;</span> (<span class='prelude-val'>Some</span>(<span class='ident'>rect</span>), <span class='ident'>radius</span> <span class='op'>&gt;</span> <span class='number'>0.0</span>),
-            <span class='ident'>PrimitiveClipSource</span>::<span class='ident'>Region</span>(<span class='kw-2'>ref</span> <span class='ident'>region</span>) <span class='op'>=&gt;</span> (<span class='prelude-val'>Some</span>(<span class='ident'>LayerRect</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>region</span>.<span class='ident'>main</span>)), <span class='ident'>region</span>.<span class='ident'>is_complex</span>()),
+            <span class='ident'>ClipSource</span>::<span class='ident'>NoClip</span> <span class='op'>=&gt;</span> (<span class='prelude-val'>None</span>, <span class='bool-val'>false</span>),
+            <span class='ident'>ClipSource</span>::<span class='ident'>Complex</span>(<span class='ident'>rect</span>, <span class='ident'>radius</span>) <span class='op'>=&gt;</span> (<span class='prelude-val'>Some</span>(<span class='ident'>rect</span>), <span class='ident'>radius</span> <span class='op'>&gt;</span> <span class='number'>0.0</span>),
+            <span class='ident'>ClipSource</span>::<span class='ident'>Region</span>(<span class='kw-2'>ref</span> <span class='ident'>region</span>) <span class='op'>=&gt;</span> (<span class='prelude-val'>Some</span>(<span class='ident'>region</span>.<span class='ident'>main</span>), <span class='ident'>region</span>.<span class='ident'>is_complex</span>()),
         };
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>rect</span>) <span class='op'>=</span> <span class='ident'>rect</span> {
             <span class='self'>self</span>.<span class='ident'>gpu_geometry</span>.<span class='ident'>get_mut</span>(<span class='ident'>GpuStoreAddress</span>(<span class='ident'>index</span>.<span class='number'>0</span> <span class='kw'>as</span> <span class='ident'>i32</span>))
@@ -2046,7 +2069,7 @@
                              <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>gpu_data32</span>,
                              <span class='ident'>device_pixel_ratio</span>,
                              <span class='ident'>auxiliary_lists</span>);
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveClipSource</span>::<span class='ident'>Region</span>(<span class='ident'>ClipRegion</span>{ <span class='ident'>image_mask</span>: <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>mask</span>), .. }) <span class='op'>=</span> <span class='ident'>metadata</span>.<span class='ident'>clip_source</span>.<span class='ident'>as_ref</span>() {
+            <span class='kw'>if</span> <span class='kw'>let</span> <span class='kw-2'>&amp;</span><span class='ident'>ClipSource</span>::<span class='ident'>Region</span>(<span class='ident'>ClipRegion</span>{ <span class='ident'>image_mask</span>: <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>mask</span>), .. }) <span class='op'>=</span> <span class='ident'>metadata</span>.<span class='ident'>clip_source</span>.<span class='ident'>as_ref</span>() {
                 <span class='ident'>resource_cache</span>.<span class='ident'>request_image</span>(<span class='ident'>mask</span>.<span class='ident'>image</span>, <span class='ident'>ImageRendering</span>::<span class='ident'>Auto</span>);
                 <span class='ident'>prim_needs_resolve</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
             }
@@ -2054,10 +2077,27 @@
 
         <span class='kw'>match</span> <span class='ident'>metadata</span>.<span class='ident'>prim_kind</span> {
             <span class='ident'>PrimitiveKind</span>::<span class='ident'>Rectangle</span> <span class='op'>|</span>
-            <span class='ident'>PrimitiveKind</span>::<span class='ident'>Border</span> <span class='op'>|</span>
-            <span class='ident'>PrimitiveKind</span>::<span class='ident'>BoxShadow</span> <span class='op'>=&gt;</span> {}
+            <span class='ident'>PrimitiveKind</span>::<span class='ident'>Border</span>  <span class='op'>=&gt;</span> {}
+            <span class='ident'>PrimitiveKind</span>::<span class='ident'>BoxShadow</span> <span class='op'>=&gt;</span> {
+                <span class='comment'>// TODO(gw): Account for zoom factor!</span>
+                <span class='comment'>// Here, we calculate the size of the patch required in order</span>
+                <span class='comment'>// to create the box shadow corner. First, scale it by the</span>
+                <span class='comment'>// device pixel ratio since the cache shader expects vertices</span>
+                <span class='comment'>// in device space. The shader adds a 1-pixel border around</span>
+                <span class='comment'>// the patch, in order to prevent bilinear filter artifacts as</span>
+                <span class='comment'>// the patch is clamped / mirrored across the box shadow rect.</span>
+                <span class='kw'>let</span> <span class='ident'>box_shadow_gpu</span>: <span class='kw-2'>&amp;</span><span class='ident'>BoxShadowPrimitiveGpu</span> <span class='op'>=</span> <span class='kw'>unsafe</span> {
+                    <span class='ident'>mem</span>::<span class='ident'>transmute</span>(<span class='self'>self</span>.<span class='ident'>gpu_data64</span>.<span class='ident'>get</span>(<span class='ident'>metadata</span>.<span class='ident'>gpu_prim_index</span>))
+                };
+                <span class='kw'>let</span> <span class='ident'>edge_size</span> <span class='op'>=</span> <span class='ident'>box_shadow_gpu</span>.<span class='ident'>edge_size</span>.<span class='ident'>ceil</span>() <span class='op'>*</span> <span class='ident'>device_pixel_ratio</span>;
+                <span class='kw'>let</span> <span class='ident'>edge_size</span> <span class='op'>=</span> <span class='ident'>edge_size</span> <span class='kw'>as</span> <span class='ident'>i32</span> <span class='op'>+</span> <span class='number'>2</span>;   <span class='comment'>// Account for bilinear filtering</span>
+                <span class='kw'>let</span> <span class='ident'>cache_size</span> <span class='op'>=</span> <span class='ident'>DeviceIntSize</span>::<span class='ident'>new</span>(<span class='ident'>edge_size</span>, <span class='ident'>edge_size</span>);
+                <span class='kw'>let</span> <span class='ident'>location</span> <span class='op'>=</span> <span class='ident'>RenderTaskLocation</span>::<span class='ident'>Dynamic</span>(<span class='prelude-val'>None</span>, <span class='ident'>cache_size</span>);
+                <span class='ident'>metadata</span>.<span class='ident'>render_task</span>.<span class='ident'>as_mut</span>().<span class='ident'>unwrap</span>().<span class='ident'>location</span> <span class='op'>=</span> <span class='ident'>location</span>;
+            }
             <span class='ident'>PrimitiveKind</span>::<span class='ident'>TextRun</span> <span class='op'>=&gt;</span> {
                 <span class='kw'>let</span> <span class='ident'>text</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>cpu_text_runs</span>[<span class='ident'>metadata</span>.<span class='ident'>cpu_prim_index</span>.<span class='number'>0</span>];
+                <span class='kw'>let</span> <span class='ident'>font_size_dp</span> <span class='op'>=</span> <span class='ident'>text</span>.<span class='ident'>logical_font_size</span>.<span class='ident'>scale_by</span>(<span class='ident'>device_pixel_ratio</span>);
                 <span class='ident'>prim_needs_resolve</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
 
                 <span class='kw'>if</span> <span class='ident'>text</span>.<span class='ident'>cache_dirty</span> {
@@ -2070,7 +2110,7 @@
                     <span class='kw'>let</span> <span class='ident'>dest_glyphs</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_data16</span>.<span class='ident'>get_slice_mut</span>(<span class='ident'>metadata</span>.<span class='ident'>gpu_data_address</span>,
                                                                     <span class='ident'>text</span>.<span class='ident'>glyph_range</span>.<span class='ident'>length</span>);
                     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>glyph_key</span> <span class='op'>=</span> <span class='ident'>GlyphKey</span>::<span class='ident'>new</span>(<span class='ident'>text</span>.<span class='ident'>font_key</span>,
-                                                      <span class='ident'>text</span>.<span class='ident'>font_size</span>,
+                                                      <span class='ident'>font_size_dp</span>,
                                                       <span class='ident'>src_glyphs</span>[<span class='number'>0</span>].<span class='ident'>index</span>);
                     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>local_rect</span> <span class='op'>=</span> <span class='ident'>LayerRect</span>::<span class='ident'>zero</span>();
                     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>actual_glyph_count</span> <span class='op'>=</span> <span class='number'>0</span>;
@@ -2117,12 +2157,12 @@
                         <span class='comment'>// render the text run to a target, and then apply a gaussian</span>
                         <span class='comment'>// blur to that text run in order to build the actual primitive</span>
                         <span class='comment'>// which will be blitted to the framebuffer.</span>
-                        <span class='kw'>let</span> <span class='ident'>cache_width</span> <span class='op'>=</span> (<span class='ident'>local_rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>*</span> <span class='self'>self</span>.<span class='ident'>device_pixel_ratio</span>).<span class='ident'>ceil</span>() <span class='kw'>as</span> <span class='ident'>i32</span>;
-                        <span class='kw'>let</span> <span class='ident'>cache_height</span> <span class='op'>=</span> (<span class='ident'>local_rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>*</span> <span class='self'>self</span>.<span class='ident'>device_pixel_ratio</span>).<span class='ident'>ceil</span>() <span class='kw'>as</span> <span class='ident'>i32</span>;
+                        <span class='kw'>let</span> <span class='ident'>cache_width</span> <span class='op'>=</span> (<span class='ident'>local_rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>*</span> <span class='ident'>device_pixel_ratio</span>).<span class='ident'>ceil</span>() <span class='kw'>as</span> <span class='ident'>i32</span>;
+                        <span class='kw'>let</span> <span class='ident'>cache_height</span> <span class='op'>=</span> (<span class='ident'>local_rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>*</span> <span class='ident'>device_pixel_ratio</span>).<span class='ident'>ceil</span>() <span class='kw'>as</span> <span class='ident'>i32</span>;
                         <span class='kw'>let</span> <span class='ident'>cache_size</span> <span class='op'>=</span> <span class='ident'>DeviceIntSize</span>::<span class='ident'>new</span>(<span class='ident'>cache_width</span>, <span class='ident'>cache_height</span>);
                         <span class='kw'>let</span> <span class='ident'>cache_key</span> <span class='op'>=</span> <span class='ident'>PrimitiveCacheKey</span>::<span class='ident'>TextShadow</span>(<span class='ident'>prim_index</span>);
                         <span class='kw'>let</span> <span class='ident'>blur_radius</span> <span class='op'>=</span> <span class='ident'>device_length</span>(<span class='ident'>text</span>.<span class='ident'>blur_radius</span>.<span class='ident'>to_f32_px</span>(),
-                                                       <span class='self'>self</span>.<span class='ident'>device_pixel_ratio</span>);
+                                                        <span class='ident'>device_pixel_ratio</span>);
                         <span class='prelude-val'>Some</span>(<span class='ident'>RenderTask</span>::<span class='ident'>new_blur</span>(<span class='ident'>cache_key</span>,
                                                   <span class='ident'>cache_size</span>,
                                                   <span class='ident'>blur_radius</span>,
@@ -2135,7 +2175,7 @@
                 }
 
                 <span class='ident'>resource_cache</span>.<span class='ident'>request_glyphs</span>(<span class='ident'>text</span>.<span class='ident'>font_key</span>,
-                                              <span class='ident'>text</span>.<span class='ident'>font_size</span>,
+                                              <span class='ident'>font_size_dp</span>,
                                               <span class='kw-2'>&amp;</span><span class='ident'>text</span>.<span class='ident'>glyph_indices</span>,
                                               <span class='ident'>text</span>.<span class='ident'>render_mode</span>);
             }

@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Pref",""],["PrefValue",""]],"fn":[["add_user_prefs",""],["read_prefs_from_file",""]],"static":[["PREFS",""]],"struct":[["PREFS",""],["Preferences",""]]});

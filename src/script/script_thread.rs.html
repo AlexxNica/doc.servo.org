@@ -2284,7 +2284,6 @@
 <span id="2240">2240</span>
 <span id="2241">2241</span>
 <span id="2242">2242</span>
-<span id="2243">2243</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -2379,6 +2378,7 @@
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::<span class='ident'>CompositorEvent</span>::{<span class='ident'>TouchEvent</span>, <span class='ident'>TouchpadPressureEvent</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::<span class='ident'>webdriver_msg</span>::<span class='ident'>WebDriverScriptCommand</span>;
 <span class='kw'>use</span> <span class='ident'>serviceworkerjob</span>::{<span class='ident'>Job</span>, <span class='ident'>JobQueue</span>, <span class='ident'>AsyncJobHandler</span>, <span class='ident'>FinishJobHandler</span>, <span class='ident'>InvokeType</span>, <span class='ident'>SettleType</span>};
+<span class='kw'>use</span> <span class='ident'>servo_config</span>::<span class='ident'>opts</span>;
 <span class='kw'>use</span> <span class='ident'>servo_url</span>::<span class='ident'>ServoUrl</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>Cell</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::{<span class='ident'>hash_map</span>, <span class='ident'>HashMap</span>, <span class='ident'>HashSet</span>};
@@ -2389,6 +2389,7 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::{<span class='ident'>Arc</span>, <span class='ident'>Mutex</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>atomic</span>::{<span class='ident'>AtomicBool</span>, <span class='ident'>Ordering</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::{<span class='ident'>Receiver</span>, <span class='ident'>Select</span>, <span class='ident'>Sender</span>, <span class='ident'>channel</span>};
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>thread</span>;
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>context</span>::<span class='ident'>ReflowGoal</span>;
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>dom</span>::{<span class='ident'>TNode</span>, <span class='ident'>UnsafeNode</span>};
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>thread_state</span>;
@@ -2400,8 +2401,6 @@
 <span class='kw'>use</span> <span class='ident'>task_source</span>::<span class='ident'>user_interaction</span>::{<span class='ident'>UserInteractionTask</span>, <span class='ident'>UserInteractionTaskSource</span>};
 <span class='kw'>use</span> <span class='ident'>time</span>::<span class='ident'>Tm</span>;
 <span class='kw'>use</span> <span class='ident'>url</span>::<span class='ident'>Position</span>;
-<span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>opts</span>;
-<span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>thread</span>;
 <span class='kw'>use</span> <span class='ident'>webdriver_handlers</span>;
 
 <span class='macro'>thread_local</span><span class='macro'>!</span>(<span class='kw'>pub</span> <span class='kw'>static</span> <span class='ident'>STACK_ROOTS</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>RootCollectionPtr</span><span class='op'>&gt;&gt;</span> <span class='op'>=</span> <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>));
@@ -2807,8 +2806,7 @@
 
         <span class='kw'>let</span> (<span class='ident'>sender</span>, <span class='ident'>receiver</span>) <span class='op'>=</span> <span class='ident'>channel</span>();
         <span class='kw'>let</span> <span class='ident'>layout_chan</span> <span class='op'>=</span> <span class='ident'>sender</span>.<span class='ident'>clone</span>();
-        <span class='ident'>thread</span>::<span class='ident'>spawn_named</span>(<span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;ScriptThread {:?}&quot;</span>, <span class='ident'>state</span>.<span class='ident'>id</span>),
-                            <span class='kw'>move</span> <span class='op'>||</span> {
+        <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;ScriptThread {:?}&quot;</span>, <span class='ident'>state</span>.<span class='ident'>id</span>)).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
             <span class='ident'>thread_state</span>::<span class='ident'>initialize</span>(<span class='ident'>thread_state</span>::<span class='ident'>SCRIPT</span>);
             <span class='ident'>PipelineNamespace</span>::<span class='ident'>install</span>(<span class='ident'>state</span>.<span class='ident'>pipeline_namespace_id</span>);
             <span class='ident'>FrameId</span>::<span class='ident'>install</span>(<span class='ident'>state</span>.<span class='ident'>top_level_frame_id</span>);
@@ -2841,7 +2839,7 @@
 
             <span class='comment'>// This must always be the very last operation performed before the thread completes</span>
             <span class='ident'>failsafe</span>.<span class='ident'>neuter</span>();
-        });
+        }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
 
         (<span class='ident'>sender</span>, <span class='ident'>receiver</span>)
     }

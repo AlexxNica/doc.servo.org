@@ -657,6 +657,7 @@
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>blob_url_store</span>::{<span class='ident'>BlobBuf</span>, <span class='ident'>BlobURLStoreError</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>filemanager_thread</span>::{<span class='ident'>FileManagerResult</span>, <span class='ident'>FileManagerThreadMsg</span>, <span class='ident'>FileOrigin</span>, <span class='ident'>FilterPattern</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>filemanager_thread</span>::{<span class='ident'>FileManagerThreadError</span>, <span class='ident'>ReadFileProgress</span>, <span class='ident'>RelativePos</span>, <span class='ident'>SelectedFile</span>};
+<span class='kw'>use</span> <span class='ident'>servo_config</span>::<span class='ident'>prefs</span>::<span class='ident'>PREFS</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>HashMap</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fs</span>::<span class='ident'>File</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::{<span class='ident'>Read</span>, <span class='ident'>Seek</span>, <span class='ident'>SeekFrom</span>};
@@ -664,11 +665,10 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>path</span>::{<span class='ident'>Path</span>, <span class='ident'>PathBuf</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::{<span class='ident'>Arc</span>, <span class='ident'>RwLock</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>atomic</span>::{<span class='self'>self</span>, <span class='ident'>AtomicBool</span>, <span class='ident'>AtomicUsize</span>, <span class='ident'>Ordering</span>};
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>thread</span>;
 <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>any</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;macos&quot;</span>, <span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;linux&quot;</span>, <span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;windows&quot;</span>))]</span>
 <span class='kw'>use</span> <span class='ident'>tinyfiledialogs</span>;
 <span class='kw'>use</span> <span class='ident'>url</span>::<span class='ident'>Url</span>;
-<span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>prefs</span>::<span class='ident'>PREFS</span>;
-<span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>thread</span>::<span class='ident'>spawn_named</span>;
 <span class='kw'>use</span> <span class='ident'>uuid</span>::<span class='ident'>Uuid</span>;
 
 <span class='doccomment'>/// The provider of file-dialog UI should implement this trait.</span>
@@ -779,12 +779,12 @@
                      <span class='ident'>check_url_validity</span>: <span class='ident'>bool</span>,
                      <span class='ident'>origin</span>: <span class='ident'>FileOrigin</span>) {
         <span class='kw'>let</span> <span class='ident'>store</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>store</span>.<span class='ident'>clone</span>();
-        <span class='ident'>spawn_named</span>(<span class='string'>&quot;read file&quot;</span>.<span class='ident'>to_owned</span>(), <span class='kw'>move</span> <span class='op'>||</span> {
+        <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;read file&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
             <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=</span> <span class='ident'>store</span>.<span class='ident'>try_read_file</span>(<span class='kw-2'>&amp;</span><span class='ident'>sender</span>, <span class='ident'>id</span>, <span class='ident'>check_url_validity</span>,
                                                 <span class='ident'>origin</span>) {
                 <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='prelude-val'>Err</span>(<span class='ident'>FileManagerThreadError</span>::<span class='ident'>BlobURLStoreError</span>(<span class='ident'>e</span>)));
             }
-        })
+        }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>promote_memory</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
@@ -793,9 +793,9 @@
                           <span class='ident'>sender</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Uuid</span>, <span class='ident'>BlobURLStoreError</span><span class='op'>&gt;&gt;</span>,
                           <span class='ident'>origin</span>: <span class='ident'>FileOrigin</span>) {
         <span class='kw'>let</span> <span class='ident'>store</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>store</span>.<span class='ident'>clone</span>();
-        <span class='ident'>spawn_named</span>(<span class='string'>&quot;transfer memory&quot;</span>.<span class='ident'>to_owned</span>(), <span class='kw'>move</span> <span class='op'>||</span> {
+        <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;transfer memory&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
             <span class='ident'>store</span>.<span class='ident'>promote_memory</span>(<span class='ident'>blob_buf</span>, <span class='ident'>set_valid</span>, <span class='ident'>sender</span>, <span class='ident'>origin</span>);
-        })
+        }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
     }
 
     <span class='doccomment'>/// Message handler</span>
@@ -807,15 +807,15 @@
         <span class='kw'>match</span> <span class='ident'>msg</span> {
             <span class='ident'>FileManagerThreadMsg</span>::<span class='ident'>SelectFile</span>(<span class='ident'>filter</span>, <span class='ident'>sender</span>, <span class='ident'>origin</span>, <span class='ident'>opt_test_path</span>) <span class='op'>=&gt;</span> {
                 <span class='kw'>let</span> <span class='ident'>store</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>store</span>.<span class='ident'>clone</span>();
-                <span class='ident'>spawn_named</span>(<span class='string'>&quot;select file&quot;</span>.<span class='ident'>to_owned</span>(), <span class='kw'>move</span> <span class='op'>||</span> {
+                <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;select file&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
                     <span class='ident'>store</span>.<span class='ident'>select_file</span>(<span class='ident'>filter</span>, <span class='ident'>sender</span>, <span class='ident'>origin</span>, <span class='ident'>opt_test_path</span>, <span class='ident'>ui</span>);
-                });
+                }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
             }
             <span class='ident'>FileManagerThreadMsg</span>::<span class='ident'>SelectFiles</span>(<span class='ident'>filter</span>, <span class='ident'>sender</span>, <span class='ident'>origin</span>, <span class='ident'>opt_test_paths</span>) <span class='op'>=&gt;</span> {
                 <span class='kw'>let</span> <span class='ident'>store</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>store</span>.<span class='ident'>clone</span>();
-                <span class='ident'>spawn_named</span>(<span class='string'>&quot;select files&quot;</span>.<span class='ident'>to_owned</span>(), <span class='kw'>move</span> <span class='op'>||</span> {
+                <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;select files&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
                     <span class='ident'>store</span>.<span class='ident'>select_files</span>(<span class='ident'>filter</span>, <span class='ident'>sender</span>, <span class='ident'>origin</span>, <span class='ident'>opt_test_paths</span>, <span class='ident'>ui</span>);
-                })
+                }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
             }
             <span class='ident'>FileManagerThreadMsg</span>::<span class='ident'>ReadFile</span>(<span class='ident'>sender</span>, <span class='ident'>id</span>, <span class='ident'>check_url_validity</span>, <span class='ident'>origin</span>) <span class='op'>=&gt;</span> {
                 <span class='self'>self</span>.<span class='ident'>read_file</span>(<span class='ident'>sender</span>, <span class='ident'>id</span>, <span class='ident'>check_url_validity</span>, <span class='ident'>origin</span>);

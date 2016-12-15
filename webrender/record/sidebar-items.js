@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["write_data",""],["write_msg",""],["write_payload",""]]});
+initSidebarItems({"fn":[["set_recording_detour",""],["write_data",""],["write_msg",""],["write_payload",""]],"static":[["WEBRENDER_RECORDING_DETOUR",""]],"struct":[["WEBRENDER_RECORDING_DETOUR",""]],"trait":[["ApiRecordingReceiver",""]]});

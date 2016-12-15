@@ -126,7 +126,6 @@
 <span id="82">82</span>
 <span id="83">83</span>
 <span id="84">84</span>
-<span id="85">85</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -134,13 +133,12 @@
 
 <span class='attribute'>#[<span class='ident'>macro_use</span>]</span>
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>log</span>;
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>util</span>;
 <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;android&quot;</span>))]</span>
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>ws</span>;
 
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::<span class='ident'>channel</span>;
-<span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>thread</span>::<span class='ident'>spawn_named</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>thread</span>;
 <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;android&quot;</span>))]</span>
 <span class='kw'>use</span> <span class='ident'>ws</span>::{<span class='ident'>Builder</span>, <span class='ident'>CloseCode</span>, <span class='ident'>Handler</span>, <span class='ident'>Handshake</span>};
 
@@ -175,14 +173,14 @@
 <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>start_server</span>(<span class='ident'>port</span>: <span class='ident'>u16</span>) <span class='op'>-&gt;</span> <span class='ident'>Sender</span> {
     <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Starting server.&quot;</span>);
     <span class='kw'>let</span> (<span class='ident'>sender</span>, <span class='ident'>receiver</span>) <span class='op'>=</span> <span class='ident'>channel</span>();
-    <span class='ident'>spawn_named</span>(<span class='string'>&quot;debugger&quot;</span>.<span class='ident'>to_owned</span>(), <span class='kw'>move</span> <span class='op'>||</span> {
+    <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;debugger&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
         <span class='kw'>let</span> <span class='ident'>socket</span> <span class='op'>=</span> <span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>build</span>(<span class='op'>|</span><span class='ident'>sender</span>: <span class='ident'>ws</span>::<span class='ident'>Sender</span><span class='op'>|</span> {
             <span class='ident'>Connection</span> { <span class='ident'>sender</span>: <span class='ident'>sender</span> }
         }).<span class='ident'>unwrap</span>();
         <span class='kw'>let</span> <span class='ident'>sender</span> <span class='op'>=</span> <span class='ident'>socket</span>.<span class='ident'>broadcaster</span>();
-        <span class='ident'>spawn_named</span>(<span class='string'>&quot;debugger-websocket&quot;</span>.<span class='ident'>to_owned</span>(), <span class='kw'>move</span> <span class='op'>||</span> {
+        <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;debugger-websocket&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
             <span class='ident'>socket</span>.<span class='ident'>listen</span>((<span class='string'>&quot;127.0.0.1&quot;</span>, <span class='ident'>port</span>)).<span class='ident'>unwrap</span>();
-        });
+        }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
         <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>message</span>) <span class='op'>=</span> <span class='ident'>receiver</span>.<span class='ident'>recv</span>() {
             <span class='kw'>match</span> <span class='ident'>message</span> {
                 <span class='ident'>Message</span>::<span class='ident'>ShutdownServer</span> <span class='op'>=&gt;</span> {
@@ -191,7 +189,7 @@
             }
         }
         <span class='ident'>sender</span>.<span class='ident'>shutdown</span>().<span class='ident'>unwrap</span>();
-    });
+    }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
     <span class='ident'>Sender</span>(<span class='ident'>sender</span>)
 }
 

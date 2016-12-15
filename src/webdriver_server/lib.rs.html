@@ -955,7 +955,6 @@
 <span id="911">911</span>
 <span id="912">912</span>
 <span id="913">913</span>
-<span id="914">914</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -981,8 +980,8 @@
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>regex</span>;
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>rustc_serialize</span>;
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>script_traits</span>;
+<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>servo_config</span>;
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>servo_url</span>;
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>util</span>;
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>uuid</span>;
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>webdriver</span>;
 
@@ -1001,6 +1000,7 @@
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>ConstellationMsg</span>, <span class='ident'>LoadData</span>, <span class='ident'>WebDriverCommandMsg</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::<span class='ident'>webdriver_msg</span>::{<span class='ident'>LoadStatus</span>, <span class='ident'>WebDriverCookieError</span>, <span class='ident'>WebDriverFrameId</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::<span class='ident'>webdriver_msg</span>::{<span class='ident'>WebDriverJSError</span>, <span class='ident'>WebDriverJSResult</span>, <span class='ident'>WebDriverScriptCommand</span>};
+<span class='kw'>use</span> <span class='ident'>servo_config</span>::<span class='ident'>prefs</span>::{<span class='ident'>PREFS</span>, <span class='ident'>PrefValue</span>};
 <span class='kw'>use</span> <span class='ident'>servo_url</span>::<span class='ident'>ServoUrl</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>ToOwned</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>BTreeMap</span>;
@@ -1008,8 +1008,6 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::<span class='ident'>Sender</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>thread</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>time</span>::<span class='ident'>Duration</span>;
-<span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>prefs</span>::{<span class='ident'>PREFS</span>, <span class='ident'>PrefValue</span>};
-<span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>thread</span>::<span class='ident'>spawn_named</span>;
 <span class='kw'>use</span> <span class='ident'>uuid</span>::<span class='ident'>Uuid</span>;
 <span class='kw'>use</span> <span class='ident'>webdriver</span>::<span class='ident'>command</span>::{<span class='ident'>AddCookieParameters</span>, <span class='ident'>GetParameters</span>, <span class='ident'>JavascriptCommandParameters</span>};
 <span class='kw'>use</span> <span class='ident'>webdriver</span>::<span class='ident'>command</span>::{<span class='ident'>LocatorParameters</span>, <span class='ident'>Parameters</span>};
@@ -1047,13 +1045,13 @@
 
 <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>start_server</span>(<span class='ident'>port</span>: <span class='ident'>u16</span>, <span class='ident'>constellation_chan</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>ConstellationMsg</span><span class='op'>&gt;</span>) {
     <span class='kw'>let</span> <span class='ident'>handler</span> <span class='op'>=</span> <span class='ident'>Handler</span>::<span class='ident'>new</span>(<span class='ident'>constellation_chan</span>);
-    <span class='ident'>spawn_named</span>(<span class='string'>&quot;WebdriverHttpServer&quot;</span>.<span class='ident'>to_owned</span>(), <span class='kw'>move</span> <span class='op'>||</span> {
+    <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;WebdriverHttpServer&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
         <span class='kw'>let</span> <span class='ident'>address</span> <span class='op'>=</span> <span class='ident'>SocketAddrV4</span>::<span class='ident'>new</span>(<span class='string'>&quot;0.0.0.0&quot;</span>.<span class='ident'>parse</span>().<span class='ident'>unwrap</span>(), <span class='ident'>port</span>);
         <span class='kw'>match</span> <span class='ident'>server</span>::<span class='ident'>start</span>(<span class='ident'>SocketAddr</span>::<span class='ident'>V4</span>(<span class='ident'>address</span>), <span class='ident'>handler</span>, <span class='ident'>extension_routes</span>()) {
             <span class='prelude-val'>Ok</span>(<span class='ident'>listening</span>) <span class='op'>=&gt;</span> <span class='macro'>info</span><span class='macro'>!</span>(<span class='string'>&quot;WebDriver server listening on {}&quot;</span>, <span class='ident'>listening</span>.<span class='ident'>socket</span>),
             <span class='prelude-val'>Err</span>(_) <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;Unable to start WebDriver HTTPD server&quot;</span>),
          }
-    });
+    }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
 }
 
 <span class='kw'>struct</span> <span class='ident'>WebDriverSession</span> {

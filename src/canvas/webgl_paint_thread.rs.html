@@ -317,6 +317,8 @@
 <span id="273">273</span>
 <span id="274">274</span>
 <span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -329,10 +331,10 @@
 <span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>::{<span class='self'>self</span>, <span class='ident'>IpcSender</span>};
 <span class='kw'>use</span> <span class='ident'>offscreen_gl_context</span>::{<span class='ident'>ColorAttachmentType</span>, <span class='ident'>GLContext</span>, <span class='ident'>GLLimits</span>};
 <span class='kw'>use</span> <span class='ident'>offscreen_gl_context</span>::{<span class='ident'>GLContextAttributes</span>, <span class='ident'>NativeGLContext</span>, <span class='ident'>OSMesaContext</span>};
+<span class='kw'>use</span> <span class='ident'>servo_config</span>::<span class='ident'>opts</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>ToOwned</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::<span class='ident'>channel</span>;
-<span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>opts</span>;
-<span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>thread</span>::<span class='ident'>spawn_named</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>thread</span>;
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>;
 
 <span class='kw'>enum</span> <span class='ident'>GLContextWrapper</span> {
@@ -436,7 +438,8 @@
            <span class='ident'>webrender_api_sender</span>: <span class='ident'>webrender_traits</span>::<span class='ident'>RenderApiSender</span>)
         <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(<span class='ident'>WebGLPaintThread</span>, <span class='ident'>GLLimits</span>), <span class='ident'>String</span><span class='op'>&gt;</span> {
         <span class='kw'>let</span> <span class='ident'>wr_api</span> <span class='op'>=</span> <span class='ident'>webrender_api_sender</span>.<span class='ident'>create_api</span>();
-        <span class='kw'>match</span> <span class='ident'>wr_api</span>.<span class='ident'>request_webgl_context</span>(<span class='kw-2'>&amp;</span><span class='ident'>size</span>, <span class='ident'>attrs</span>) {
+        <span class='kw'>let</span> <span class='ident'>device_size</span> <span class='op'>=</span> <span class='ident'>webrender_traits</span>::<span class='ident'>DeviceIntSize</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>size</span>);
+        <span class='kw'>match</span> <span class='ident'>wr_api</span>.<span class='ident'>request_webgl_context</span>(<span class='kw-2'>&amp;</span><span class='ident'>device_size</span>, <span class='ident'>attrs</span>) {
             <span class='prelude-val'>Ok</span>((<span class='ident'>id</span>, <span class='ident'>limits</span>)) <span class='op'>=&gt;</span> {
                 <span class='kw'>let</span> <span class='ident'>painter</span> <span class='op'>=</span> <span class='ident'>WebGLPaintThread</span> {
                     <span class='ident'>data</span>: <span class='ident'>WebGLPaintTaskData</span>::<span class='ident'>WebRender</span>(<span class='ident'>wr_api</span>, <span class='ident'>id</span>),
@@ -471,7 +474,7 @@
                  <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(<span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>CanvasMsg</span><span class='op'>&gt;</span>, <span class='ident'>GLLimits</span>), <span class='ident'>String</span><span class='op'>&gt;</span> {
         <span class='kw'>let</span> (<span class='ident'>sender</span>, <span class='ident'>receiver</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>::<span class='op'>&lt;</span><span class='ident'>CanvasMsg</span><span class='op'>&gt;</span>().<span class='ident'>unwrap</span>();
         <span class='kw'>let</span> (<span class='ident'>result_chan</span>, <span class='ident'>result_port</span>) <span class='op'>=</span> <span class='ident'>channel</span>();
-        <span class='ident'>spawn_named</span>(<span class='string'>&quot;WebGLThread&quot;</span>.<span class='ident'>to_owned</span>(), <span class='kw'>move</span> <span class='op'>||</span> {
+        <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;WebGLThread&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
             <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>painter</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>WebGLPaintThread</span>::<span class='ident'>new</span>(<span class='ident'>size</span>, <span class='ident'>attrs</span>, <span class='ident'>webrender_api_sender</span>) {
                 <span class='prelude-val'>Ok</span>((<span class='ident'>thread</span>, <span class='ident'>limits</span>)) <span class='op'>=&gt;</span> {
                     <span class='ident'>result_chan</span>.<span class='ident'>send</span>(<span class='prelude-val'>Ok</span>(<span class='ident'>limits</span>)).<span class='ident'>unwrap</span>();
@@ -511,7 +514,7 @@
                     <span class='ident'>CanvasMsg</span>::<span class='ident'>Canvas2d</span>(_) <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;Wrong message sent to WebGLThread&quot;</span>),
                 }
             }
-        });
+        }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
 
         <span class='ident'>result_port</span>.<span class='ident'>recv</span>().<span class='ident'>unwrap</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>limits</span><span class='op'>|</span> (<span class='ident'>sender</span>, <span class='ident'>limits</span>))
     }
@@ -572,7 +575,8 @@
                 }
             }
             <span class='ident'>WebGLPaintTaskData</span>::<span class='ident'>WebRender</span>(<span class='kw-2'>ref</span> <span class='ident'>api</span>, <span class='ident'>id</span>) <span class='op'>=&gt;</span> {
-                <span class='ident'>api</span>.<span class='ident'>resize_webgl_context</span>(<span class='ident'>id</span>, <span class='kw-2'>&amp;</span><span class='ident'>size</span>);
+                <span class='kw'>let</span> <span class='ident'>device_size</span> <span class='op'>=</span> <span class='ident'>webrender_traits</span>::<span class='ident'>DeviceIntSize</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>size</span>);
+                <span class='ident'>api</span>.<span class='ident'>resize_webgl_context</span>(<span class='ident'>id</span>, <span class='kw-2'>&amp;</span><span class='ident'>device_size</span>);
             }
         }
 

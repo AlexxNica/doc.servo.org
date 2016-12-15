@@ -594,7 +594,6 @@
 <span id="550">550</span>
 <span id="551">551</span>
 <span id="552">552</span>
-<span id="553">553</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -628,7 +627,6 @@
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>serde_derive</span>;
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>serde_json</span>;
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>time</span>;
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>util</span>;
 
 <span class='kw'>use</span> <span class='ident'>actor</span>::{<span class='ident'>Actor</span>, <span class='ident'>ActorRegistry</span>};
 <span class='kw'>use</span> <span class='ident'>actors</span>::<span class='ident'>console</span>::<span class='ident'>ConsoleActor</span>;
@@ -655,8 +653,8 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>net</span>::{<span class='ident'>Shutdown</span>, <span class='ident'>TcpListener</span>, <span class='ident'>TcpStream</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::{<span class='ident'>Arc</span>, <span class='ident'>Mutex</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::{<span class='ident'>Receiver</span>, <span class='ident'>Sender</span>, <span class='ident'>channel</span>};
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>thread</span>;
 <span class='kw'>use</span> <span class='ident'>time</span>::<span class='ident'>precise_time_ns</span>;
-<span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>thread</span>::<span class='ident'>spawn_named</span>;
 
 <span class='kw'>mod</span> <span class='ident'>actor</span>;
 <span class='doccomment'>/// Corresponds to http://mxr.mozilla.org/mozilla-central/source/toolkit/devtools/server/actors/</span>
@@ -735,9 +733,9 @@
     <span class='kw'>let</span> (<span class='ident'>sender</span>, <span class='ident'>receiver</span>) <span class='op'>=</span> <span class='ident'>channel</span>();
     {
         <span class='kw'>let</span> <span class='ident'>sender</span> <span class='op'>=</span> <span class='ident'>sender</span>.<span class='ident'>clone</span>();
-        <span class='ident'>spawn_named</span>(<span class='string'>&quot;Devtools&quot;</span>.<span class='ident'>to_owned</span>(), <span class='kw'>move</span> <span class='op'>||</span> {
+        <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;Devtools&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
             <span class='ident'>run_server</span>(<span class='ident'>sender</span>, <span class='ident'>receiver</span>, <span class='ident'>port</span>)
-        });
+        }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
     }
     <span class='ident'>sender</span>
 }
@@ -1083,23 +1081,23 @@
     }
 
     <span class='kw'>let</span> <span class='ident'>sender_clone</span> <span class='op'>=</span> <span class='ident'>sender</span>.<span class='ident'>clone</span>();
-    <span class='ident'>spawn_named</span>(<span class='string'>&quot;DevtoolsClientAcceptor&quot;</span>.<span class='ident'>to_owned</span>(), <span class='kw'>move</span> <span class='op'>||</span> {
+    <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;DevtoolsClientAcceptor&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
         <span class='comment'>// accept connections and process them, spawning a new thread for each one</span>
         <span class='kw'>for</span> <span class='ident'>stream</span> <span class='kw'>in</span> <span class='ident'>listener</span>.<span class='ident'>incoming</span>() {
             <span class='comment'>// connection succeeded</span>
             <span class='ident'>sender_clone</span>.<span class='ident'>send</span>(<span class='ident'>DevtoolsControlMsg</span>::<span class='ident'>FromChrome</span>(
                     <span class='ident'>ChromeToDevtoolsControlMsg</span>::<span class='ident'>AddClient</span>(<span class='ident'>stream</span>.<span class='ident'>unwrap</span>()))).<span class='ident'>unwrap</span>();
         }
-    });
+    }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
 
     <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>msg</span>) <span class='op'>=</span> <span class='ident'>receiver</span>.<span class='ident'>recv</span>() {
         <span class='kw'>match</span> <span class='ident'>msg</span> {
             <span class='ident'>DevtoolsControlMsg</span>::<span class='ident'>FromChrome</span>(<span class='ident'>ChromeToDevtoolsControlMsg</span>::<span class='ident'>AddClient</span>(<span class='ident'>stream</span>)) <span class='op'>=&gt;</span> {
                 <span class='kw'>let</span> <span class='ident'>actors</span> <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>clone</span>();
                 <span class='ident'>accepted_connections</span>.<span class='ident'>push</span>(<span class='ident'>stream</span>.<span class='ident'>try_clone</span>().<span class='ident'>unwrap</span>());
-                <span class='ident'>spawn_named</span>(<span class='string'>&quot;DevtoolsClientHandler&quot;</span>.<span class='ident'>to_owned</span>(), <span class='kw'>move</span> <span class='op'>||</span> {
+                <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;DevtoolsClientHandler&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
                     <span class='ident'>handle_client</span>(<span class='ident'>actors</span>, <span class='ident'>stream</span>.<span class='ident'>try_clone</span>().<span class='ident'>unwrap</span>())
-                })
+                }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
             }
             <span class='ident'>DevtoolsControlMsg</span>::<span class='ident'>FromScript</span>(<span class='ident'>ScriptToDevtoolsControlMsg</span>::<span class='ident'>FramerateTick</span>(
                         <span class='ident'>actor_name</span>, <span class='ident'>tick</span>)) <span class='op'>=&gt;</span>
