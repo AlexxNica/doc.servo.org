@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["Keyword",""],["PositionCategory",""],["PositionComponent",""]],"fn":[["category",""]],"struct":[["Position",""]]});
+initSidebarItems({"constant":[["_IMPL_DESERIALIZE_FOR_Keyword",""],["_IMPL_SERIALIZE_FOR_Keyword",""]],"enum":[["Keyword",""],["PositionCategory",""],["PositionComponent",""]],"fn":[["category",""]],"struct":[["HorizontalPosition",""],["Position",""],["VerticalPosition",""]]});
