@@ -295,6 +295,10 @@
 <span id="251">251</span>
 <span id="252">252</span>
 <span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -306,7 +310,8 @@
 
 <span class='attribute'>#<span class='op'>!</span>[<span class='ident'>allow</span>(<span class='ident'>unsafe_code</span>)]</span>
 
-<span class='kw'>use</span> <span class='ident'>context</span>::{<span class='ident'>LayoutContext</span>, <span class='ident'>SharedLayoutContext</span>};
+<span class='kw'>use</span> <span class='ident'>context</span>::{<span class='ident'>LayoutContext</span>, <span class='ident'>SharedLayoutContext</span>, <span class='ident'>ThreadLocalLayoutContext</span>};
+<span class='kw'>use</span> <span class='ident'>context</span>::<span class='ident'>create_or_get_local_context</span>;
 <span class='kw'>use</span> <span class='ident'>flow</span>::{<span class='self'>self</span>, <span class='ident'>Flow</span>, <span class='ident'>MutableFlowUtils</span>, <span class='ident'>PostorderFlowTraversal</span>, <span class='ident'>PreorderFlowTraversal</span>};
 <span class='kw'>use</span> <span class='ident'>flow_ref</span>::<span class='ident'>FlowRef</span>;
 <span class='kw'>use</span> <span class='ident'>profile_traits</span>::<span class='ident'>time</span>::{<span class='self'>self</span>, <span class='ident'>TimerMetadata</span>, <span class='ident'>profile</span>};
@@ -350,7 +355,7 @@
 <span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>ChunkedFlowTraversalFunction</span><span class='op'>&lt;</span><span class='lifetime'>&#39;scope</span><span class='op'>&gt;</span> <span class='op'>=</span>
     <span class='kw'>extern</span> <span class='string'>&quot;Rust&quot;</span> <span class='kw'>fn</span>(<span class='ident'>Box</span><span class='op'>&lt;</span>[<span class='ident'>UnsafeFlow</span>]<span class='op'>&gt;</span>, <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;scope</span> <span class='ident'>SharedLayoutContext</span>, <span class='kw-2'>&amp;</span><span class='ident'>rayon</span>::<span class='ident'>Scope</span><span class='op'>&lt;</span><span class='lifetime'>&#39;scope</span><span class='op'>&gt;</span>);
 
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>FlowTraversalFunction</span> <span class='op'>=</span> <span class='kw'>extern</span> <span class='string'>&quot;Rust&quot;</span> <span class='kw'>fn</span>(<span class='ident'>UnsafeFlow</span>, <span class='kw-2'>&amp;</span><span class='ident'>SharedLayoutContext</span>);
+<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>FlowTraversalFunction</span> <span class='op'>=</span> <span class='kw'>extern</span> <span class='string'>&quot;Rust&quot;</span> <span class='kw'>fn</span>(<span class='ident'>UnsafeFlow</span>, <span class='kw-2'>&amp;</span><span class='ident'>LayoutContext</span>);
 
 <span class='doccomment'>/// Information that we need stored in each flow.</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>FlowParallelInfo</span> {
@@ -438,11 +443,14 @@
     <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
     <span class='kw'>fn</span> <span class='ident'>run_parallel_helper</span><span class='op'>&lt;</span><span class='lifetime'>&#39;scope</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
                                    <span class='ident'>unsafe_flows</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>UnsafeFlow</span>],
-                                   <span class='ident'>layout_context</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;scope</span> <span class='ident'>SharedLayoutContext</span>,
+                                   <span class='ident'>shared</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;scope</span> <span class='ident'>SharedLayoutContext</span>,
                                    <span class='ident'>scope</span>: <span class='kw-2'>&amp;</span><span class='ident'>rayon</span>::<span class='ident'>Scope</span><span class='op'>&lt;</span><span class='lifetime'>&#39;scope</span><span class='op'>&gt;</span>,
                                    <span class='ident'>top_down_func</span>: <span class='ident'>ChunkedFlowTraversalFunction</span><span class='op'>&lt;</span><span class='lifetime'>&#39;scope</span><span class='op'>&gt;</span>,
                                    <span class='ident'>bottom_up_func</span>: <span class='ident'>FlowTraversalFunction</span>)
     {
+        <span class='kw'>let</span> <span class='ident'>tlc</span> <span class='op'>=</span> <span class='ident'>create_or_get_local_context</span>(<span class='ident'>shared</span>);
+        <span class='kw'>let</span> <span class='ident'>context</span> <span class='op'>=</span> <span class='ident'>LayoutContext</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>shared</span>, <span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>tlc</span>);
+
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>discovered_child_flows</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
         <span class='kw'>for</span> <span class='ident'>unsafe_flow</span> <span class='kw'>in</span> <span class='ident'>unsafe_flows</span> {
             <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>had_children</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
@@ -473,7 +481,7 @@
 
             <span class='comment'>// If there were no more children, start assigning block-sizes.</span>
             <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>had_children</span> {
-                <span class='ident'>bottom_up_func</span>(<span class='op'>*</span><span class='ident'>unsafe_flow</span>, <span class='ident'>layout_context</span>)
+                <span class='ident'>bottom_up_func</span>(<span class='op'>*</span><span class='ident'>unsafe_flow</span>, <span class='kw-2'>&amp;</span><span class='ident'>context</span>)
             }
         }
 
@@ -481,7 +489,7 @@
             <span class='kw'>let</span> <span class='ident'>nodes</span> <span class='op'>=</span> <span class='ident'>chunk</span>.<span class='ident'>iter</span>().<span class='ident'>cloned</span>().<span class='ident'>collect</span>::<span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span>_<span class='op'>&gt;&gt;</span>().<span class='ident'>into_boxed_slice</span>();
 
             <span class='ident'>scope</span>.<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>|</span><span class='ident'>scope</span><span class='op'>|</span> {
-                <span class='ident'>top_down_func</span>(<span class='ident'>nodes</span>, <span class='ident'>layout_context</span>, <span class='ident'>scope</span>);
+                <span class='ident'>top_down_func</span>(<span class='ident'>nodes</span>, <span class='ident'>shared</span>, <span class='ident'>scope</span>);
             });
         }
     }
@@ -518,10 +526,9 @@
 
 <span class='kw'>fn</span> <span class='ident'>assign_block_sizes_and_store_overflow</span>(
         <span class='ident'>unsafe_flow</span>: <span class='ident'>UnsafeFlow</span>,
-        <span class='ident'>shared_layout_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>SharedLayoutContext</span>) {
-    <span class='kw'>let</span> <span class='ident'>layout_context</span> <span class='op'>=</span> <span class='ident'>LayoutContext</span>::<span class='ident'>new</span>(<span class='ident'>shared_layout_context</span>);
+        <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayoutContext</span>) {
     <span class='kw'>let</span> <span class='ident'>assign_block_sizes_traversal</span> <span class='op'>=</span> <span class='ident'>AssignBSizes</span> {
-        <span class='ident'>layout_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>layout_context</span>,
+        <span class='ident'>layout_context</span>: <span class='ident'>context</span>,
     };
     <span class='ident'>assign_block_sizes_traversal</span>.<span class='ident'>run_parallel</span>(<span class='ident'>unsafe_flow</span>)
 }
@@ -530,11 +537,12 @@
         <span class='ident'>root</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Flow</span>,
         <span class='ident'>profiler_metadata</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>TimerMetadata</span><span class='op'>&gt;</span>,
         <span class='ident'>time_profiler_chan</span>: <span class='ident'>time</span>::<span class='ident'>ProfilerChan</span>,
-        <span class='ident'>shared_layout_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>SharedLayoutContext</span>,
+        <span class='ident'>shared</span>: <span class='kw-2'>&amp;</span><span class='ident'>SharedLayoutContext</span>,
         <span class='ident'>queue</span>: <span class='kw-2'>&amp;</span><span class='ident'>rayon</span>::<span class='ident'>ThreadPool</span>) {
     <span class='kw'>if</span> <span class='ident'>opts</span>::<span class='ident'>get</span>().<span class='ident'>bubble_inline_sizes_separately</span> {
-        <span class='kw'>let</span> <span class='ident'>layout_context</span> <span class='op'>=</span> <span class='ident'>LayoutContext</span>::<span class='ident'>new</span>(<span class='ident'>shared_layout_context</span>);
-        <span class='kw'>let</span> <span class='ident'>bubble_inline_sizes</span> <span class='op'>=</span> <span class='ident'>BubbleISizes</span> { <span class='ident'>layout_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>layout_context</span> };
+        <span class='kw'>let</span> <span class='ident'>tlc</span> <span class='op'>=</span> <span class='ident'>ThreadLocalLayoutContext</span>::<span class='ident'>new</span>(<span class='ident'>shared</span>);
+        <span class='kw'>let</span> <span class='ident'>context</span> <span class='op'>=</span> <span class='ident'>LayoutContext</span>::<span class='ident'>new</span>(<span class='ident'>shared</span>, <span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>tlc</span>);
+        <span class='kw'>let</span> <span class='ident'>bubble_inline_sizes</span> <span class='op'>=</span> <span class='ident'>BubbleISizes</span> { <span class='ident'>layout_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>context</span> };
         <span class='ident'>root</span>.<span class='ident'>traverse_postorder</span>(<span class='kw-2'>&amp;</span><span class='ident'>bubble_inline_sizes</span>);
     }
 
@@ -544,7 +552,7 @@
         <span class='ident'>rayon</span>::<span class='ident'>scope</span>(<span class='kw'>move</span> <span class='op'>|</span><span class='ident'>scope</span><span class='op'>|</span> {
             <span class='ident'>profile</span>(<span class='ident'>time</span>::<span class='ident'>ProfilerCategory</span>::<span class='ident'>LayoutParallelWarmup</span>,
                     <span class='ident'>profiler_metadata</span>, <span class='ident'>time_profiler_chan</span>, <span class='kw'>move</span> <span class='op'>||</span> {
-                <span class='ident'>assign_inline_sizes</span>(<span class='ident'>nodes</span>, <span class='kw-2'>&amp;</span><span class='ident'>shared_layout_context</span>, <span class='ident'>scope</span>);
+                <span class='ident'>assign_inline_sizes</span>(<span class='ident'>nodes</span>, <span class='kw-2'>&amp;</span><span class='ident'>shared</span>, <span class='ident'>scope</span>);
             });
         });
     });
