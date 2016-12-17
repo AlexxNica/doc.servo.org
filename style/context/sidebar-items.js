@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["ReflowGoal","Why we're doing reflow."]],"struct":[["SharedStyleContext",""],["StyleContext",""],["ThreadLocalStyleContext",""],["ThreadLocalStyleContextCreationInfo","This structure is used to create a local style context from a shared one."]]});
+initSidebarItems({"enum":[["QuirksMode",""],["ReflowGoal","Why we're doing reflow."]],"struct":[["SharedStyleContext",""],["StyleContext",""],["ThreadLocalStyleContext",""],["ThreadLocalStyleContextCreationInfo","This structure is used to create a local style context from a shared one."]]});

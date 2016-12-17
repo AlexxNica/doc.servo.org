@@ -1646,6 +1646,12 @@
 <span id="1602">1602</span>
 <span id="1603">1603</span>
 <span id="1604">1604</span>
+<span id="1605">1605</span>
+<span id="1606">1606</span>
+<span id="1607">1607</span>
+<span id="1608">1608</span>
+<span id="1609">1609</span>
+<span id="1610">1610</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1759,7 +1765,7 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::{<span class='ident'>Receiver</span>, <span class='ident'>Sender</span>, <span class='ident'>channel</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>thread</span>;
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>animation</span>::<span class='ident'>Animation</span>;
-<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>context</span>::{<span class='ident'>ReflowGoal</span>, <span class='ident'>SharedStyleContext</span>, <span class='ident'>ThreadLocalStyleContextCreationInfo</span>};
+<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>context</span>::{<span class='ident'>QuirksMode</span>, <span class='ident'>ReflowGoal</span>, <span class='ident'>SharedStyleContext</span>, <span class='ident'>ThreadLocalStyleContextCreationInfo</span>};
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>data</span>::<span class='ident'>StoredRestyleHint</span>;
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>dom</span>::{<span class='ident'>ShowSubtree</span>, <span class='ident'>ShowSubtreeDataAndPrimaryValues</span>, <span class='ident'>TElement</span>, <span class='ident'>TNode</span>};
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>error_reporting</span>::{<span class='ident'>ParseErrorReporter</span>, <span class='ident'>StdoutErrorReporter</span>};
@@ -1882,6 +1888,9 @@
     <span class='comment'>// Number of layout threads. This is copied from `servo_config::opts`, but we&#39;d</span>
     <span class='comment'>// rather limit the dependency on that module here.</span>
     <span class='ident'>layout_threads</span>: <span class='ident'>usize</span>,
+
+    <span class='doccomment'>/// Which quirks mode are we rendering the document in?</span>
+    <span class='ident'>quirks_mode</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>QuirksMode</span><span class='op'>&gt;</span>
 }
 
 <span class='kw'>impl</span> <span class='ident'>LayoutThreadFactory</span> <span class='kw'>for</span> <span class='ident'>LayoutThread</span> {
@@ -2134,6 +2143,7 @@
                     <span class='ident'>Timer</span>::<span class='ident'>new</span>()
                 },
             <span class='ident'>layout_threads</span>: <span class='ident'>layout_threads</span>,
+            <span class='ident'>quirks_mode</span>: <span class='prelude-val'>None</span>,
         }
     }
 
@@ -2171,6 +2181,7 @@
                 <span class='ident'>error_reporter</span>: <span class='self'>self</span>.<span class='ident'>error_reporter</span>.<span class='ident'>clone</span>(),
                 <span class='ident'>local_context_creation_data</span>: <span class='ident'>Mutex</span>::<span class='ident'>new</span>(<span class='ident'>thread_local_style_context_creation_data</span>),
                 <span class='ident'>timer</span>: <span class='self'>self</span>.<span class='ident'>timer</span>.<span class='ident'>clone</span>(),
+                <span class='ident'>quirks_mode</span>: <span class='self'>self</span>.<span class='ident'>quirks_mode</span>.<span class='ident'>unwrap</span>(),
             },
             <span class='ident'>image_cache_thread</span>: <span class='ident'>Mutex</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>image_cache_thread</span>.<span class='ident'>clone</span>()),
             <span class='ident'>image_cache_sender</span>: <span class='ident'>Mutex</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>image_cache_sender</span>.<span class='ident'>clone</span>()),
@@ -2626,6 +2637,7 @@
                              <span class='ident'>possibly_locked_rw_data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>RwData</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='lifetime'>&#39;b</span><span class='op'>&gt;</span>) {
         <span class='kw'>let</span> <span class='ident'>document</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>ServoLayoutNode</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>data</span>.<span class='ident'>document</span>) };
         <span class='kw'>let</span> <span class='ident'>document</span> <span class='op'>=</span> <span class='ident'>document</span>.<span class='ident'>as_document</span>().<span class='ident'>unwrap</span>();
+        <span class='self'>self</span>.<span class='ident'>quirks_mode</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>document</span>.<span class='ident'>quirks_mode</span>());
 
         <span class='comment'>// FIXME(pcwalton): Combine `ReflowGoal` and `ReflowQueryType`. Then remove this assert.</span>
         <span class='macro'>debug_assert</span><span class='macro'>!</span>((<span class='ident'>data</span>.<span class='ident'>reflow_info</span>.<span class='ident'>goal</span> <span class='op'>==</span> <span class='ident'>ReflowGoal</span>::<span class='ident'>ForDisplay</span> <span class='op'>&amp;&amp;</span>
