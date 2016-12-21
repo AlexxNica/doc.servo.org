@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["CSSModificationAccess",""]],"struct":[["CSSStyleDeclaration",""]]});
+initSidebarItems({"enum":[["CSSModificationAccess",""],["CSSStyleOwner",""]],"struct":[["CSSStyleDeclaration",""]]});
