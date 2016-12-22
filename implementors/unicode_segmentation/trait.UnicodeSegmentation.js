@@ -1,5 +1,10 @@
 (function() {var implementors = {};
-implementors["unicode_segmentation"] = [];implementors["style"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["gfx"] = [];
+implementors["layout_thread"] = [];
+implementors["script"] = [];
+implementors["servo"] = [];
+implementors["style"] = [];
+implementors["unicode_segmentation"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

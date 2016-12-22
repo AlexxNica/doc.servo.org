@@ -1,5 +1,10 @@
 (function() {var implementors = {};
-implementors["owning_ref"] = [];implementors["style"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["gfx"] = [];
+implementors["layout_thread"] = [];
+implementors["owning_ref"] = [];
+implementors["script"] = [];
+implementors["servo"] = [];
+implementors["style"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

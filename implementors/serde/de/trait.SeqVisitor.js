@@ -1,5 +1,23 @@
 (function() {var implementors = {};
-implementors["serde"] = [];implementors["string_cache"] = [];implementors["xml5ever"] = [];implementors["url"] = [];implementors["serde_json"] = ["impl&lt;'a, R:&nbsp;<a class='trait' href='serde_json/read/trait.Read.html' title='serde_json::read::Read'>Read</a> + 'a&gt; <a class='trait' href='serde/de/trait.SeqVisitor.html' title='serde::de::SeqVisitor'>SeqVisitor</a> for <a class='struct' href='serde_json/de/struct.SeqVisitor.html' title='serde_json::de::SeqVisitor'>SeqVisitor</a>&lt;'a, R&gt;","impl&lt;'a&gt; <a class='trait' href='serde/de/trait.SeqVisitor.html' title='serde::de::SeqVisitor'>SeqVisitor</a> for <a class='struct' href='serde_json/value/struct.SeqDeserializer.html' title='serde_json::value::SeqDeserializer'>SeqDeserializer</a>&lt;'a&gt;",];implementors["html5ever"] = [];implementors["ws"] = [];implementors["offscreen_gl_context"] = [];implementors["hyper"] = [];implementors["websocket"] = [];implementors["azure"] = [];implementors["servo_config"] = [];implementors["webrender"] = [];implementors["net_traits"] = [];implementors["net"] = [];implementors["style"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["gfx"] = [];
+implementors["html5ever"] = [];
+implementors["hyper"] = [];
+implementors["layout_thread"] = [];
+implementors["net"] = [];
+implementors["net_traits"] = [];
+implementors["offscreen_gl_context"] = [];
+implementors["script"] = [];
+implementors["serde"] = [];
+implementors["serde_json"] = ["impl&lt;'a, R:&nbsp;<a class='trait' href='serde_json/read/trait.Read.html' title='serde_json::read::Read'>Read</a> + 'a&gt; <a class='trait' href='serde/de/trait.SeqVisitor.html' title='serde::de::SeqVisitor'>SeqVisitor</a> for <a class='struct' href='serde_json/de/struct.SeqVisitor.html' title='serde_json::de::SeqVisitor'>SeqVisitor</a>&lt;'a, R&gt;","impl&lt;'a&gt; <a class='trait' href='serde/de/trait.SeqVisitor.html' title='serde::de::SeqVisitor'>SeqVisitor</a> for <a class='struct' href='serde_json/value/struct.SeqDeserializer.html' title='serde_json::value::SeqDeserializer'>SeqDeserializer</a>&lt;'a&gt;",];
+implementors["servo"] = [];
+implementors["servo_config"] = [];
+implementors["string_cache"] = [];
+implementors["style"] = [];
+implementors["url"] = [];
+implementors["webrender"] = [];
+implementors["websocket"] = [];
+implementors["ws"] = [];
+implementors["xml5ever"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

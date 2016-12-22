@@ -1,5 +1,19 @@
 (function() {var implementors = {};
-implementors["encoding"] = [];implementors["tendril"] = [];implementors["xml5ever"] = [];implementors["url"] = [];implementors["ws"] = [];implementors["hyper"] = [];implementors["websocket"] = [];implementors["servo_config"] = [];implementors["net_traits"] = [];implementors["net"] = [];implementors["style"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["encoding"] = [];
+implementors["gfx"] = [];
+implementors["hyper"] = [];
+implementors["layout_thread"] = [];
+implementors["net"] = [];
+implementors["net_traits"] = [];
+implementors["script"] = [];
+implementors["servo"] = [];
+implementors["servo_config"] = [];
+implementors["style"] = [];
+implementors["tendril"] = [];
+implementors["url"] = [];
+implementors["websocket"] = [];
+implementors["ws"] = [];
+implementors["xml5ever"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

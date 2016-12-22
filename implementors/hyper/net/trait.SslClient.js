@@ -1,5 +1,12 @@
 (function() {var implementors = {};
-implementors["hyper"] = [];implementors["websocket"] = [];implementors["net_traits"] = [];implementors["net"] = ["impl <a class='trait' href='hyper/net/trait.SslClient.html' title='hyper::net::SslClient'>SslClient</a> for <a class='struct' href='net/connector/struct.ServoSslClient.html' title='net::connector::ServoSslClient'>ServoSslClient</a>",];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["gfx"] = [];
+implementors["hyper"] = [];
+implementors["layout_thread"] = [];
+implementors["net"] = ["impl <a class='trait' href='hyper/net/trait.SslClient.html' title='hyper::net::SslClient'>SslClient</a> for <a class='struct' href='net/connector/struct.ServoSslClient.html' title='net::connector::ServoSslClient'>ServoSslClient</a>",];
+implementors["net_traits"] = [];
+implementors["script"] = [];
+implementors["servo"] = [];
+implementors["websocket"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

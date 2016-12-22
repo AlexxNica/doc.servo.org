@@ -1,5 +1,17 @@
 (function() {var implementors = {};
-implementors["unicode_normalization"] = [];implementors["url"] = [];implementors["ws"] = [];implementors["hyper"] = [];implementors["websocket"] = [];implementors["servo_config"] = [];implementors["net_traits"] = [];implementors["net"] = [];implementors["style"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["gfx"] = [];
+implementors["hyper"] = [];
+implementors["layout_thread"] = [];
+implementors["net"] = [];
+implementors["net_traits"] = [];
+implementors["script"] = [];
+implementors["servo"] = [];
+implementors["servo_config"] = [];
+implementors["style"] = [];
+implementors["unicode_normalization"] = [];
+implementors["url"] = [];
+implementors["websocket"] = [];
+implementors["ws"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

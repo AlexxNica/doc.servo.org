@@ -1,5 +1,14 @@
 (function() {var implementors = {};
-implementors["unreachable"] = [];implementors["string_cache"] = [];implementors["tendril"] = [];implementors["xml5ever"] = [];implementors["html5ever"] = [];implementors["style"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["gfx"] = [];
+implementors["html5ever"] = [];
+implementors["layout_thread"] = [];
+implementors["script"] = [];
+implementors["servo"] = [];
+implementors["string_cache"] = [];
+implementors["style"] = [];
+implementors["tendril"] = [];
+implementors["unreachable"] = [];
+implementors["xml5ever"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

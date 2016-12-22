@@ -1,5 +1,8 @@
 (function() {var implementors = {};
-implementors["simd"] = [];implementors["gfx"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["gfx"] = [];
+implementors["layout_thread"] = [];
+implementors["servo"] = [];
+implementors["simd"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

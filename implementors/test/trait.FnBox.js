@@ -1,5 +1,14 @@
 (function() {var implementors = {};
-implementors["offscreen_gl_context"] = [];implementors["azure"] = [];implementors["servo_config"] = [];implementors["webrender"] = [];implementors["net_traits"] = [];implementors["net"] = [];implementors["style"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["gfx"] = [];
+implementors["layout_thread"] = [];
+implementors["net"] = [];
+implementors["net_traits"] = [];
+implementors["offscreen_gl_context"] = [];
+implementors["script"] = [];
+implementors["servo"] = [];
+implementors["servo_config"] = [];
+implementors["style"] = [];
+implementors["webrender"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

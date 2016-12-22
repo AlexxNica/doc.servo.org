@@ -1,5 +1,10 @@
 (function() {var implementors = {};
-implementors["smallvec"] = [];implementors["style"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["gfx"] = [];
+implementors["layout_thread"] = [];
+implementors["script"] = [];
+implementors["servo"] = [];
+implementors["smallvec"] = [];
+implementors["style"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

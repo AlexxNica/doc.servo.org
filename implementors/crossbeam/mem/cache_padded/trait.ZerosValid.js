@@ -1,5 +1,8 @@
 (function() {var implementors = {};
-implementors["crossbeam"] = [];implementors["wayland_window"] = [];implementors["wayland_kbd"] = [];implementors["glutin"] = [];
+implementors["crossbeam"] = [];
+implementors["glutin"] = [];
+implementors["wayland_kbd"] = [];
+implementors["wayland_window"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

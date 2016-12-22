@@ -1,5 +1,8 @@
 (function() {var implementors = {};
-implementors["html5ever"] = [];implementors["script"] = ["impl&lt;'a&gt; <a class='trait' href='html5ever/tree_builder/interface/trait.TreeSink.html' title='html5ever::tree_builder::interface::TreeSink'>TreeSink</a> for <a class='struct' href='script/dom/servoparser/html/struct.Sink.html' title='script::dom::servoparser::html::Sink'>Sink</a>",];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["html5ever"] = [];
+implementors["layout_thread"] = [];
+implementors["script"] = ["impl&lt;'a&gt; <a class='trait' href='html5ever/tree_builder/interface/trait.TreeSink.html' title='html5ever::tree_builder::interface::TreeSink'>TreeSink</a> for <a class='struct' href='script/dom/servoparser/html/struct.Sink.html' title='script::dom::servoparser::html::Sink'>Sink</a>",];
+implementors["servo"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

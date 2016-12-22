@@ -1,5 +1,14 @@
 (function() {var implementors = {};
-implementors["net2"] = [];implementors["mio"] = [];implementors["ws"] = [];implementors["websocket"] = [];implementors["net_traits"] = [];implementors["net"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["gfx"] = [];
+implementors["layout_thread"] = [];
+implementors["mio"] = [];
+implementors["net"] = [];
+implementors["net2"] = [];
+implementors["net_traits"] = [];
+implementors["script"] = [];
+implementors["servo"] = [];
+implementors["websocket"] = [];
+implementors["ws"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

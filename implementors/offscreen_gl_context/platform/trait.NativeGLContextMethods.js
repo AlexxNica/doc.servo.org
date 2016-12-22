@@ -1,5 +1,12 @@
 (function() {var implementors = {};
-implementors["offscreen_gl_context"] = [];implementors["webrender"] = [];implementors["net_traits"] = [];implementors["net"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["gfx"] = [];
+implementors["layout_thread"] = [];
+implementors["net"] = [];
+implementors["net_traits"] = [];
+implementors["offscreen_gl_context"] = [];
+implementors["script"] = [];
+implementors["servo"] = [];
+implementors["webrender"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

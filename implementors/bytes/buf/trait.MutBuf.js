@@ -1,5 +1,8 @@
 (function() {var implementors = {};
-implementors["bytes"] = [];implementors["mio"] = [];implementors["ws"] = [];implementors["servo"] = [];
+implementors["bytes"] = [];
+implementors["mio"] = [];
+implementors["servo"] = [];
+implementors["ws"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

@@ -1,5 +1,6 @@
 (function() {var implementors = {};
-implementors["syntex_pos"] = [];implementors["syntex_syntax"] = [];
+implementors["syntex_pos"] = [];
+implementors["syntex_syntax"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

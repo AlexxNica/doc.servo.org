@@ -1,5 +1,13 @@
 (function() {var implementors = {};
-implementors["openssl"] = [];implementors["hyper"] = [];implementors["websocket"] = [];implementors["net_traits"] = [];implementors["net"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["gfx"] = [];
+implementors["hyper"] = [];
+implementors["layout_thread"] = [];
+implementors["net"] = [];
+implementors["net_traits"] = [];
+implementors["openssl"] = [];
+implementors["script"] = [];
+implementors["servo"] = [];
+implementors["websocket"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

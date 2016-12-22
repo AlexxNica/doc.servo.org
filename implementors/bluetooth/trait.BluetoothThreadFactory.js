@@ -1,5 +1,6 @@
 (function() {var implementors = {};
-implementors["bluetooth"] = [];implementors["servo"] = [];
+implementors["bluetooth"] = [];
+implementors["servo"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

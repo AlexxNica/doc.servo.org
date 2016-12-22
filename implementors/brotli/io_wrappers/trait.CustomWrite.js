@@ -1,5 +1,7 @@
 (function() {var implementors = {};
-implementors["brotli"] = [];implementors["net"] = [];implementors["servo"] = [];
+implementors["brotli"] = [];
+implementors["net"] = [];
+implementors["servo"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

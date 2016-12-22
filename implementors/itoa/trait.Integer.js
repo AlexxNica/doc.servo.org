@@ -1,5 +1,8 @@
 (function() {var implementors = {};
-implementors["itoa"] = [];implementors["net"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["itoa"] = [];
+implementors["layout_thread"] = [];
+implementors["net"] = [];
+implementors["servo"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

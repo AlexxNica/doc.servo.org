@@ -1,5 +1,13 @@
 (function() {var implementors = {};
-implementors["lzw"] = [];implementors["image"] = [];implementors["glutin"] = [];implementors["net_traits"] = [];implementors["net"] = [];implementors["gfx"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["gfx"] = [];
+implementors["glutin"] = [];
+implementors["image"] = [];
+implementors["layout_thread"] = [];
+implementors["lzw"] = [];
+implementors["net"] = [];
+implementors["net_traits"] = [];
+implementors["script"] = [];
+implementors["servo"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

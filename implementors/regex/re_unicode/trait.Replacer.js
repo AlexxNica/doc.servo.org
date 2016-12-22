@@ -1,5 +1,9 @@
 (function() {var implementors = {};
-implementors["regex"] = [];implementors["net"] = [];implementors["script"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["layout_thread"] = [];
+implementors["net"] = [];
+implementors["regex"] = [];
+implementors["script"] = [];
+implementors["servo"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

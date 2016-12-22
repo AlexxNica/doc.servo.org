@@ -1,5 +1,6 @@
 (function() {var implementors = {};
-implementors["gaol"] = [];implementors["servo"] = [];
+implementors["gaol"] = [];
+implementors["servo"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

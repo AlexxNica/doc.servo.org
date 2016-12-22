@@ -1,5 +1,8 @@
 (function() {var implementors = {};
-implementors["serde_json"] = [];implementors["net"] = [];implementors["layout_thread"] = [];implementors["servo"] = [];
+implementors["layout_thread"] = [];
+implementors["net"] = [];
+implementors["serde_json"] = [];
+implementors["servo"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);
