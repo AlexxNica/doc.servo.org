@@ -257,40 +257,6 @@
 <span id="213">213</span>
 <span id="214">214</span>
 <span id="215">215</span>
-<span id="216">216</span>
-<span id="217">217</span>
-<span id="218">218</span>
-<span id="219">219</span>
-<span id="220">220</span>
-<span id="221">221</span>
-<span id="222">222</span>
-<span id="223">223</span>
-<span id="224">224</span>
-<span id="225">225</span>
-<span id="226">226</span>
-<span id="227">227</span>
-<span id="228">228</span>
-<span id="229">229</span>
-<span id="230">230</span>
-<span id="231">231</span>
-<span id="232">232</span>
-<span id="233">233</span>
-<span id="234">234</span>
-<span id="235">235</span>
-<span id="236">236</span>
-<span id="237">237</span>
-<span id="238">238</span>
-<span id="239">239</span>
-<span id="240">240</span>
-<span id="241">241</span>
-<span id="242">242</span>
-<span id="243">243</span>
-<span id="244">244</span>
-<span id="245">245</span>
-<span id="246">246</span>
-<span id="247">247</span>
-<span id="248">248</span>
-<span id="249">249</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -299,32 +265,23 @@
 <span class='doccomment'>//! The style bloom filter is used as an optimization when matching deep</span>
 <span class='doccomment'>//! descendant selectors.</span>
 
-<span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>TNode</span>, <span class='ident'>TElement</span>, <span class='ident'>UnsafeNode</span>};
+<span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>SendElement</span>, <span class='ident'>TElement</span>};
 <span class='kw'>use</span> <span class='ident'>matching</span>::<span class='ident'>MatchMethods</span>;
 <span class='kw'>use</span> <span class='ident'>selectors</span>::<span class='ident'>bloom</span>::<span class='ident'>BloomFilter</span>;
 
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>StyleBloom</span> {
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>StyleBloom</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> {
     <span class='doccomment'>/// The bloom filter per se.</span>
     <span class='ident'>filter</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>BloomFilter</span><span class='op'>&gt;</span>,
 
-    <span class='doccomment'>/// The stack of elements that this bloom filter contains. These unsafe</span>
-    <span class='doccomment'>/// nodes are guaranteed to be elements.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Note that the use we do for them is safe, since the data we access from</span>
-    <span class='doccomment'>/// them is completely read-only during restyling.</span>
-    <span class='ident'>elements</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>UnsafeNode</span><span class='op'>&gt;</span>,
-
-    <span class='doccomment'>/// A monotonic counter incremented which each reflow in order to invalidate</span>
-    <span class='doccomment'>/// the bloom filter if appropriate.</span>
-    <span class='ident'>generation</span>: <span class='ident'>u32</span>,
+    <span class='doccomment'>/// The stack of elements that this bloom filter contains.</span>
+    <span class='ident'>elements</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>SendElement</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;&gt;</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>StyleBloom</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>generation</span>: <span class='ident'>u32</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span> {
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> <span class='ident'>StyleBloom</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='self'>Self</span> {
         <span class='ident'>StyleBloom</span> {
             <span class='ident'>filter</span>: <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>BloomFilter</span>::<span class='ident'>new</span>()),
             <span class='ident'>elements</span>: <span class='macro'>vec</span><span class='macro'>!</span>[],
-            <span class='ident'>generation</span>: <span class='ident'>generation</span>,
         }
     }
 
@@ -332,43 +289,27 @@
         <span class='kw-2'>&amp;</span><span class='op'>*</span><span class='self'>self</span>.<span class='ident'>filter</span>
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>generation</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>u32</span> {
-        <span class='self'>self</span>.<span class='ident'>generation</span>
-    }
-
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>maybe_pop</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>element</span>: <span class='ident'>E</span>)
-        <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span> <span class='op'>+</span> <span class='ident'>MatchMethods</span>
-    {
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>last</span>() <span class='op'>==</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='ident'>element</span>.<span class='ident'>as_node</span>().<span class='ident'>to_unsafe</span>()) {
-            <span class='self'>self</span>.<span class='ident'>pop</span>::<span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>().<span class='ident'>unwrap</span>();
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>maybe_pop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>element</span>: <span class='ident'>E</span>) {
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>last</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>el</span><span class='op'>|</span> <span class='op'>*</span><span class='op'>*</span><span class='ident'>el</span>) <span class='op'>==</span> <span class='prelude-val'>Some</span>(<span class='ident'>element</span>) {
+            <span class='self'>self</span>.<span class='ident'>pop</span>().<span class='ident'>unwrap</span>();
         }
     }
 
     <span class='doccomment'>/// Push an element to the bloom filter, knowing that it&#39;s a child of the</span>
     <span class='doccomment'>/// last element parent.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>push</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>element</span>: <span class='ident'>E</span>)
-        <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span> <span class='op'>+</span> <span class='ident'>MatchMethods</span>,
-    {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>element</span>: <span class='ident'>E</span>) {
         <span class='kw'>if</span> <span class='macro'>cfg</span><span class='macro'>!</span>(<span class='ident'>debug_assertions</span>) {
             <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>is_empty</span>() {
                 <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>element</span>.<span class='ident'>parent_element</span>().<span class='ident'>is_none</span>());
             }
         }
         <span class='ident'>element</span>.<span class='ident'>insert_into_bloom_filter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='self'>self</span>.<span class='ident'>filter</span>);
-        <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>push</span>(<span class='ident'>element</span>.<span class='ident'>as_node</span>().<span class='ident'>to_unsafe</span>());
+        <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>push</span>(<span class='kw'>unsafe</span> { <span class='ident'>SendElement</span>::<span class='ident'>new</span>(<span class='ident'>element</span>) });
     }
 
     <span class='doccomment'>/// Pop the last element in the bloom filter and return it.</span>
-    <span class='kw'>fn</span> <span class='ident'>pop</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>
-        <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span> <span class='op'>+</span> <span class='ident'>MatchMethods</span>,
-    {
-        <span class='kw'>let</span> <span class='ident'>popped</span> <span class='op'>=</span>
-            <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>pop</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>unsafe_node</span><span class='op'>|</span> {
-                <span class='kw'>let</span> <span class='ident'>parent</span> <span class='op'>=</span> <span class='kw'>unsafe</span> {
-                    <span class='ident'>E</span>::<span class='ident'>ConcreteNode</span>::<span class='ident'>from_unsafe</span>(<span class='kw-2'>&amp;</span><span class='ident'>unsafe_node</span>)
-                };
-                <span class='ident'>parent</span>.<span class='ident'>as_element</span>().<span class='ident'>unwrap</span>()
-            });
+    <span class='kw'>fn</span> <span class='ident'>pop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span> {
+        <span class='kw'>let</span> <span class='ident'>popped</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>pop</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>el</span><span class='op'>|</span> <span class='op'>*</span><span class='ident'>el</span>);
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>popped</span>) <span class='op'>=</span> <span class='ident'>popped</span> {
             <span class='ident'>popped</span>.<span class='ident'>remove_from_bloom_filter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>filter</span>);
         }
@@ -381,14 +322,12 @@
         <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>clear</span>();
     }
 
-    <span class='kw'>fn</span> <span class='ident'>rebuild</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>element</span>: <span class='ident'>E</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span>
-        <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span> <span class='op'>+</span> <span class='ident'>MatchMethods</span>,
-    {
+    <span class='kw'>fn</span> <span class='ident'>rebuild</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>element</span>: <span class='ident'>E</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
         <span class='self'>self</span>.<span class='ident'>clear</span>();
 
         <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>) <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>parent_element</span>() {
             <span class='ident'>parent</span>.<span class='ident'>insert_into_bloom_filter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='self'>self</span>.<span class='ident'>filter</span>);
-            <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>push</span>(<span class='ident'>parent</span>.<span class='ident'>as_node</span>().<span class='ident'>to_unsafe</span>());
+            <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>push</span>(<span class='kw'>unsafe</span> { <span class='ident'>SendElement</span>::<span class='ident'>new</span>(<span class='ident'>parent</span>) });
             <span class='ident'>element</span> <span class='op'>=</span> <span class='ident'>parent</span>;
         }
 
@@ -399,14 +338,11 @@
 
     <span class='doccomment'>/// In debug builds, asserts that all the parents of `element` are in the</span>
     <span class='doccomment'>/// bloom filter.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>assert_complete</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>element</span>: <span class='ident'>E</span>)
-        <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
-    {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>assert_complete</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>element</span>: <span class='ident'>E</span>) {
         <span class='kw'>if</span> <span class='macro'>cfg</span><span class='macro'>!</span>(<span class='ident'>debug_assertions</span>) {
             <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>checked</span> <span class='op'>=</span> <span class='number'>0</span>;
             <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>) <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>parent_element</span>() {
-                <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>parent</span>.<span class='ident'>as_node</span>().<span class='ident'>to_unsafe</span>(),
-                           <span class='self'>self</span>.<span class='ident'>elements</span>[<span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>len</span>() <span class='op'>-</span> <span class='number'>1</span> <span class='op'>-</span> <span class='ident'>checked</span>]);
+                <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>parent</span>, <span class='op'>*</span><span class='self'>self</span>.<span class='ident'>elements</span>[<span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>len</span>() <span class='op'>-</span> <span class='number'>1</span> <span class='op'>-</span> <span class='ident'>checked</span>]);
                 <span class='ident'>element</span> <span class='op'>=</span> <span class='ident'>parent</span>;
                 <span class='ident'>checked</span> <span class='op'>+=</span> <span class='number'>1</span>;
             }
@@ -421,16 +357,13 @@
     <span class='doccomment'>/// provided always rebuilds the filter from scratch.</span>
     <span class='doccomment'>///</span>
     <span class='doccomment'>/// Returns the new bloom filter depth.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>insert_parents_recovering</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                                        <span class='ident'>element</span>: <span class='ident'>E</span>,
-                                        <span class='ident'>element_depth</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span>,
-                                        <span class='ident'>generation</span>: <span class='ident'>u32</span>)
-                                        <span class='op'>-&gt;</span> <span class='ident'>usize</span>
-        <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>insert_parents_recovering</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                                     <span class='ident'>element</span>: <span class='ident'>E</span>,
+                                     <span class='ident'>element_depth</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span>)
+                                     <span class='op'>-&gt;</span> <span class='ident'>usize</span>
     {
         <span class='comment'>// Easy case, we&#39;re in a different restyle, or we&#39;re empty.</span>
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>generation</span> <span class='op'>!=</span> <span class='ident'>generation</span> <span class='op'>||</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>is_empty</span>() {
-            <span class='self'>self</span>.<span class='ident'>generation</span> <span class='op'>=</span> <span class='ident'>generation</span>;
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>is_empty</span>() {
             <span class='kw'>return</span> <span class='self'>self</span>.<span class='ident'>rebuild</span>(<span class='ident'>element</span>);
         }
 
@@ -443,8 +376,7 @@
             }
         };
 
-        <span class='kw'>let</span> <span class='ident'>unsafe_parent</span> <span class='op'>=</span> <span class='ident'>parent_element</span>.<span class='ident'>as_node</span>().<span class='ident'>to_unsafe</span>();
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>last</span>() <span class='op'>==</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='ident'>unsafe_parent</span>) {
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>last</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>el</span><span class='op'>|</span> <span class='op'>*</span><span class='op'>*</span><span class='ident'>el</span>) <span class='op'>==</span> <span class='prelude-val'>Some</span>(<span class='ident'>parent_element</span>) {
             <span class='comment'>// Ta da, cache hit, we&#39;re all done.</span>
             <span class='kw'>return</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>len</span>();
         }
@@ -476,7 +408,7 @@
         <span class='comment'>// If the filter represents an element too deep in the dom, we need to</span>
         <span class='comment'>// pop ancestors.</span>
         <span class='kw'>while</span> <span class='ident'>current_depth</span> <span class='op'>&gt;</span> <span class='ident'>element_depth</span> <span class='op'>-</span> <span class='number'>1</span> {
-            <span class='self'>self</span>.<span class='ident'>pop</span>::<span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>().<span class='ident'>expect</span>(<span class='string'>&quot;Emilio is bad at math&quot;</span>);
+            <span class='self'>self</span>.<span class='ident'>pop</span>().<span class='ident'>expect</span>(<span class='string'>&quot;Emilio is bad at math&quot;</span>);
             <span class='ident'>current_depth</span> <span class='op'>-=</span> <span class='number'>1</span>;
         }
 
@@ -513,9 +445,9 @@
         <span class='comment'>// off the document (such as scrollbars) as a separate subtree from the</span>
         <span class='comment'>// document root.  Thus it&#39;s possible with Gecko that we do not find any</span>
         <span class='comment'>// common ancestor.</span>
-        <span class='kw'>while</span> <span class='op'>*</span><span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>() <span class='op'>!=</span> <span class='ident'>common_parent</span>.<span class='ident'>as_node</span>().<span class='ident'>to_unsafe</span>() {
+        <span class='kw'>while</span> <span class='op'>*</span><span class='op'>*</span><span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>() <span class='op'>!=</span> <span class='ident'>common_parent</span> {
             <span class='ident'>parents_to_insert</span>.<span class='ident'>push</span>(<span class='ident'>common_parent</span>);
-            <span class='self'>self</span>.<span class='ident'>pop</span>::<span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>().<span class='ident'>unwrap</span>();
+            <span class='self'>self</span>.<span class='ident'>pop</span>().<span class='ident'>unwrap</span>();
             <span class='ident'>common_parent</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>common_parent</span>.<span class='ident'>parent_element</span>() {
                 <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>) <span class='op'>=&gt;</span> <span class='ident'>parent</span>,
                 <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {

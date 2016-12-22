@@ -933,13 +933,6 @@
 <span id="889">889</span>
 <span id="890">890</span>
 <span id="891">891</span>
-<span id="892">892</span>
-<span id="893">893</span>
-<span id="894">894</span>
-<span id="895">895</span>
-<span id="896">896</span>
-<span id="897">897</span>
-<span id="898">898</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -956,7 +949,7 @@
 <span class='kw'>use</span> <span class='ident'>cascade_info</span>::<span class='ident'>CascadeInfo</span>;
 <span class='kw'>use</span> <span class='ident'>context</span>::{<span class='ident'>SharedStyleContext</span>, <span class='ident'>StyleContext</span>};
 <span class='kw'>use</span> <span class='ident'>data</span>::{<span class='ident'>ComputedStyle</span>, <span class='ident'>ElementData</span>, <span class='ident'>ElementStyles</span>, <span class='ident'>PseudoStyles</span>};
-<span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>TElement</span>, <span class='ident'>TNode</span>};
+<span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>SendElement</span>, <span class='ident'>TElement</span>, <span class='ident'>TNode</span>};
 <span class='kw'>use</span> <span class='ident'>properties</span>::{<span class='ident'>CascadeFlags</span>, <span class='ident'>ComputedValues</span>, <span class='ident'>SHAREABLE</span>, <span class='ident'>SKIP_ROOT_AND_ITEM_BASED_DISPLAY_FIXUP</span>, <span class='ident'>cascade</span>};
 <span class='kw'>use</span> <span class='ident'>properties</span>::<span class='ident'>longhands</span>::<span class='ident'>display</span>::<span class='ident'>computed_value</span> <span class='kw'>as</span> <span class='ident'>display</span>;
 <span class='kw'>use</span> <span class='ident'>rule_tree</span>::<span class='ident'>StrongRuleNode</span>;
@@ -1008,19 +1001,13 @@
     }
 }
 
-<span class='comment'>// TElement isn&#39;t Send because we want to be careful and explicit about our</span>
-<span class='comment'>// parallel traversal, but we need the candidates to be Send so that we can stick</span>
-<span class='comment'>// them in ScopedTLS.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>PartialEq</span>)]</span>
-<span class='kw'>struct</span> <span class='ident'>SendElement</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span>(<span class='kw'>pub</span> <span class='ident'>E</span>);
-<span class='kw'>unsafe</span> <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> <span class='ident'>Send</span> <span class='kw'>for</span> <span class='ident'>SendElement</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span> {}
-
 <span class='doccomment'>/// Information regarding a candidate.</span>
 <span class='doccomment'>///</span>
 <span class='doccomment'>/// TODO: We can stick a lot more info here.</span>
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>struct</span> <span class='ident'>StyleSharingCandidate</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// The element.</span>
+    <span class='doccomment'>/// The element. We use SendElement here so that the cache may live in</span>
+    <span class='doccomment'>/// ScopedTLS.</span>
     <span class='ident'>element</span>: <span class='ident'>SendElement</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>,
     <span class='doccomment'>/// The cached common style affecting attribute info.</span>
     <span class='ident'>common_style_affecting_attributes</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>CommonStyleAffectingAttributes</span><span class='op'>&gt;</span>,
@@ -1296,7 +1283,7 @@
                <span class='ident'>element</span>, <span class='ident'>parent</span>);
 
         <span class='self'>self</span>.<span class='ident'>cache</span>.<span class='ident'>insert</span>(<span class='ident'>StyleSharingCandidate</span> {
-            <span class='ident'>element</span>: <span class='ident'>SendElement</span>(<span class='op'>*</span><span class='ident'>element</span>),
+            <span class='ident'>element</span>: <span class='kw'>unsafe</span> { <span class='ident'>SendElement</span>::<span class='ident'>new</span>(<span class='op'>*</span><span class='ident'>element</span>) },
             <span class='ident'>common_style_affecting_attributes</span>: <span class='prelude-val'>None</span>,
             <span class='ident'>class_attributes</span>: <span class='prelude-val'>None</span>,
         }, ());
@@ -1444,9 +1431,8 @@
                                               <span class='ident'>shared_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>SharedStyleContext</span>,
                                               <span class='ident'>candidate</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>StyleSharingCandidate</span><span class='op'>&lt;</span><span class='self'>Self</span><span class='op'>&gt;</span>)
                                               <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ComputedStyle</span>, <span class='ident'>CacheMiss</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>candidate_element</span> <span class='op'>=</span> <span class='ident'>candidate</span>.<span class='ident'>element</span>.<span class='number'>0</span>;
-        <span class='ident'>element_matches_candidate</span>(<span class='self'>self</span>, <span class='ident'>candidate</span>, <span class='kw-2'>&amp;</span><span class='ident'>candidate_element</span>,
-                                  <span class='ident'>shared_context</span>)
+        <span class='kw'>let</span> <span class='ident'>candidate_element</span> <span class='op'>=</span> <span class='op'>*</span><span class='ident'>candidate</span>.<span class='ident'>element</span>;
+        <span class='ident'>element_matches_candidate</span>(<span class='self'>self</span>, <span class='ident'>candidate</span>, <span class='kw-2'>&amp;</span><span class='ident'>candidate_element</span>, <span class='ident'>shared_context</span>)
     }
 }
 
