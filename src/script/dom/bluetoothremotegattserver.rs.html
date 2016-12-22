@@ -202,7 +202,6 @@
 <span id="158">158</span>
 <span id="159">159</span>
 <span id="160">160</span>
-<span id="161">161</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -221,7 +220,7 @@
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bluetoothuuid</span>::{<span class='ident'>BluetoothServiceUUID</span>, <span class='ident'>BluetoothUUID</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>globalscope</span>::<span class='ident'>GlobalScope</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>promise</span>::<span class='ident'>Promise</span>;
-<span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>::{<span class='self'>self</span>, <span class='ident'>IpcSender</span>};
+<span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>::<span class='ident'>IpcSender</span>;
 <span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::<span class='ident'>JSContext</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>Cell</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>rc</span>::<span class='ident'>Rc</span>;
@@ -251,6 +250,10 @@
 
     <span class='kw'>fn</span> <span class='ident'>get_bluetooth_thread</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>BluetoothRequest</span><span class='op'>&gt;</span> {
         <span class='self'>self</span>.<span class='ident'>global</span>().<span class='ident'>as_window</span>().<span class='ident'>bluetooth_thread</span>()
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_connected</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>connected</span>: <span class='ident'>bool</span>) {
+        <span class='self'>self</span>.<span class='ident'>connected</span>.<span class='ident'>set</span>(<span class='ident'>connected</span>);
     }
 }
 
@@ -292,27 +295,14 @@
 
         <span class='comment'>// Step 2.</span>
         <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>Connected</span>() {
-            <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(());
+            <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(())
         }
-        <span class='kw'>let</span> (<span class='ident'>sender</span>, <span class='ident'>receiver</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
-        <span class='self'>self</span>.<span class='ident'>get_bluetooth_thread</span>().<span class='ident'>send</span>(
-            <span class='ident'>BluetoothRequest</span>::<span class='ident'>GATTServerDisconnect</span>(<span class='ident'>String</span>::<span class='ident'>from</span>(<span class='self'>self</span>.<span class='ident'>Device</span>().<span class='ident'>Id</span>()), <span class='ident'>sender</span>)).<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>server</span> <span class='op'>=</span> <span class='ident'>receiver</span>.<span class='ident'>recv</span>().<span class='ident'>unwrap</span>();
 
-        <span class='comment'>// TODO: Step 3: Implement the `clean up the disconnected device` algorithm.</span>
+        <span class='comment'>// Step 3.</span>
+        <span class='self'>self</span>.<span class='ident'>Device</span>().<span class='ident'>clean_up_disconnected_device</span>();
 
-        <span class='comment'>// TODO: Step 4: Implement representedDevice internal slot for BluetoothDevice.</span>
-
-        <span class='comment'>// TODO: Step 5: Implement the `garbage-collect the connection` algorithm.</span>
-        <span class='kw'>match</span> <span class='ident'>server</span> {
-            <span class='prelude-val'>Ok</span>(<span class='ident'>connected</span>) <span class='op'>=&gt;</span> {
-                <span class='self'>self</span>.<span class='ident'>connected</span>.<span class='ident'>set</span>(<span class='ident'>connected</span>);
-                <span class='prelude-val'>Ok</span>(())
-            },
-            <span class='prelude-val'>Err</span>(<span class='ident'>error</span>) <span class='op'>=&gt;</span> {
-                <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>from</span>(<span class='ident'>error</span>))
-            },
-        }
+        <span class='comment'>// Step 4 - 5:</span>
+        <span class='self'>self</span>.<span class='ident'>Device</span>().<span class='ident'>garbage_collect_the_connection</span>()
     }
 
     <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unrooted_must_root</span>)]</span>
@@ -340,6 +330,14 @@
         <span class='kw'>match</span> <span class='ident'>response</span> {
             <span class='comment'>// https://webbluetoothcg.github.io/web-bluetooth/#dom-bluetoothremotegattserver-connect</span>
             <span class='ident'>BluetoothResponse</span>::<span class='ident'>GATTServerConnect</span>(<span class='ident'>connected</span>) <span class='op'>=&gt;</span> {
+                <span class='comment'>// Step 5.2.3</span>
+                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>Device</span>().<span class='ident'>is_represented_device_null</span>() {
+                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>Device</span>().<span class='ident'>garbage_collect_the_connection</span>() {
+                        <span class='kw'>return</span> <span class='ident'>promise</span>.<span class='ident'>reject_error</span>(<span class='ident'>promise_cx</span>, <span class='ident'>Error</span>::<span class='ident'>from</span>(<span class='ident'>e</span>));
+                    }
+                    <span class='kw'>return</span> <span class='ident'>promise</span>.<span class='ident'>reject_error</span>(<span class='ident'>promise_cx</span>, <span class='ident'>Error</span>::<span class='ident'>Network</span>);
+                }
+
                 <span class='comment'>// Step 5.2.4.</span>
                 <span class='self'>self</span>.<span class='ident'>connected</span>.<span class='ident'>set</span>(<span class='ident'>connected</span>);
 
