@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["FilterMap",""],["FilterMapConsumer",""],["FilterMapFolder",""]]});
+initSidebarItems({"struct":[["FilterMap",""],["FilterMapConsumer","//////////////////////////////////////////////////////////////////////// Consumer implementation"],["FilterMapFolder",""]]});
