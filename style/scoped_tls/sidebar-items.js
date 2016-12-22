@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["ScopedTLS","Stack-scoped thread-local storage for rayon thread pools."]]});

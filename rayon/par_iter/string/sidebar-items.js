@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["is_char_boundary","Test if a byte is the start of a UTF-8 character. (extracted from `str::is_char_boundary`)"]],"struct":[["ParChars",""]]});

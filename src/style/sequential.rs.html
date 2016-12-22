@@ -97,9 +97,6 @@
 <span id="53">53</span>
 <span id="54">54</span>
 <span id="55">55</span>
-<span id="56">56</span>
-<span id="57">57</span>
-<span id="58">58</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -108,7 +105,6 @@
 <span class='doccomment'>//! Implements sequential traversal over the DOM tree.</span>
 
 <span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>TElement</span>, <span class='ident'>TNode</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>Borrow</span>;
 <span class='kw'>use</span> <span class='ident'>traversal</span>::{<span class='ident'>DomTraversal</span>, <span class='ident'>PerLevelTraversalData</span>, <span class='ident'>PreTraverseToken</span>};
 
 <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>traverse_dom</span><span class='op'>&lt;</span><span class='ident'>N</span>, <span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>traversal</span>: <span class='kw-2'>&amp;</span><span class='ident'>D</span>,
@@ -119,45 +115,43 @@
 {
     <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>token</span>.<span class='ident'>should_traverse</span>());
 
-    <span class='kw'>fn</span> <span class='ident'>doit</span><span class='op'>&lt;</span><span class='ident'>N</span>, <span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>traversal</span>: <span class='kw-2'>&amp;</span><span class='ident'>D</span>, <span class='ident'>node</span>: <span class='ident'>N</span>, <span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>PerLevelTraversalData</span>)
+    <span class='kw'>fn</span> <span class='ident'>doit</span><span class='op'>&lt;</span><span class='ident'>N</span>, <span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>traversal</span>: <span class='kw-2'>&amp;</span><span class='ident'>D</span>, <span class='ident'>traversal_data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>PerLevelTraversalData</span>,
+                  <span class='ident'>thread_local</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>D</span>::<span class='ident'>ThreadLocalContext</span>, <span class='ident'>node</span>: <span class='ident'>N</span>)
         <span class='kw'>where</span> <span class='ident'>N</span>: <span class='ident'>TNode</span>,
               <span class='ident'>D</span>: <span class='ident'>DomTraversal</span><span class='op'>&lt;</span><span class='ident'>N</span><span class='op'>&gt;</span>
     {
-        <span class='ident'>traversal</span>.<span class='ident'>process_preorder</span>(<span class='ident'>node</span>, <span class='ident'>data</span>);
+        <span class='ident'>traversal</span>.<span class='ident'>process_preorder</span>(<span class='ident'>traversal_data</span>, <span class='ident'>thread_local</span>, <span class='ident'>node</span>);
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>el</span>) <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>as_element</span>() {
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>depth</span>) <span class='op'>=</span> <span class='ident'>data</span>.<span class='ident'>current_dom_depth</span> {
+            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>depth</span>) <span class='op'>=</span> <span class='ident'>traversal_data</span>.<span class='ident'>current_dom_depth</span> {
                 <span class='op'>*</span><span class='ident'>depth</span> <span class='op'>+=</span> <span class='number'>1</span>;
             }
 
-            <span class='ident'>D</span>::<span class='ident'>traverse_children</span>(<span class='ident'>el</span>, <span class='op'>|</span><span class='ident'>kid</span><span class='op'>|</span> <span class='ident'>doit</span>(<span class='ident'>traversal</span>, <span class='ident'>kid</span>, <span class='ident'>data</span>));
+            <span class='ident'>D</span>::<span class='ident'>traverse_children</span>(<span class='ident'>el</span>, <span class='op'>|</span><span class='ident'>kid</span><span class='op'>|</span> <span class='ident'>doit</span>(<span class='ident'>traversal</span>, <span class='ident'>traversal_data</span>, <span class='ident'>thread_local</span>, <span class='ident'>kid</span>));
 
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>depth</span>) <span class='op'>=</span> <span class='ident'>data</span>.<span class='ident'>current_dom_depth</span> {
+            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>depth</span>) <span class='op'>=</span> <span class='ident'>traversal_data</span>.<span class='ident'>current_dom_depth</span> {
                 <span class='op'>*</span><span class='ident'>depth</span> <span class='op'>-=</span> <span class='number'>1</span>;
             }
         }
 
         <span class='kw'>if</span> <span class='ident'>D</span>::<span class='ident'>needs_postorder_traversal</span>() {
-            <span class='ident'>traversal</span>.<span class='ident'>process_postorder</span>(<span class='ident'>node</span>);
+            <span class='ident'>traversal</span>.<span class='ident'>process_postorder</span>(<span class='ident'>thread_local</span>, <span class='ident'>node</span>);
         }
     }
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='ident'>PerLevelTraversalData</span> {
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>traversal_data</span> <span class='op'>=</span> <span class='ident'>PerLevelTraversalData</span> {
         <span class='ident'>current_dom_depth</span>: <span class='prelude-val'>None</span>,
     };
 
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>tlc</span> <span class='op'>=</span> <span class='ident'>traversal</span>.<span class='ident'>create_thread_local_context</span>();
     <span class='kw'>if</span> <span class='ident'>token</span>.<span class='ident'>traverse_unstyled_children_only</span>() {
         <span class='kw'>for</span> <span class='ident'>kid</span> <span class='kw'>in</span> <span class='ident'>root</span>.<span class='ident'>as_node</span>().<span class='ident'>children</span>() {
             <span class='kw'>if</span> <span class='ident'>kid</span>.<span class='ident'>as_element</span>().<span class='ident'>map_or</span>(<span class='bool-val'>false</span>, <span class='op'>|</span><span class='ident'>el</span><span class='op'>|</span> <span class='ident'>el</span>.<span class='ident'>get_data</span>().<span class='ident'>is_none</span>()) {
-                <span class='ident'>doit</span>(<span class='ident'>traversal</span>, <span class='ident'>kid</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>);
+                <span class='ident'>doit</span>(<span class='ident'>traversal</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>traversal_data</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>tlc</span>, <span class='ident'>kid</span>);
             }
         }
     } <span class='kw'>else</span> {
-        <span class='ident'>doit</span>(<span class='ident'>traversal</span>, <span class='ident'>root</span>.<span class='ident'>as_node</span>(), <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>);
+        <span class='ident'>doit</span>(<span class='ident'>traversal</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>traversal_data</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>tlc</span>, <span class='ident'>root</span>.<span class='ident'>as_node</span>());
     }
-
-    <span class='comment'>// Clear the local LRU cache since we store stateful elements inside.</span>
-    <span class='kw'>let</span> <span class='ident'>tlc</span> <span class='op'>=</span> <span class='ident'>traversal</span>.<span class='ident'>create_or_get_thread_local_context</span>();
-    (<span class='op'>*</span><span class='ident'>tlc</span>).<span class='ident'>borrow</span>().<span class='ident'>style_sharing_candidate_cache</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>clear</span>();
 }
 </pre>
 </section>
