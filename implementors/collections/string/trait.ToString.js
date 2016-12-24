@@ -16,6 +16,7 @@ implementors["layout_thread"] = ["impl <a class='trait' href='collections/string
 implementors["lazy_static"] = [];
 implementors["libc"] = [];
 implementors["libloading"] = [];
+implementors["mime_guess"] = [];
 implementors["mio"] = [];
 implementors["net"] = ["impl <a class='trait' href='collections/string/trait.ToString.html' title='collections::string::ToString'>ToString</a> for <a class='enum' href='openssl/x509/extension/enum.Extension.html' title='openssl::x509::extension::Extension'>Extension</a>",];
 implementors["net_traits"] = ["impl <a class='trait' href='collections/string/trait.ToString.html' title='collections::string::ToString'>ToString</a> for <a class='enum' href='openssl/x509/extension/enum.Extension.html' title='openssl::x509::extension::Extension'>Extension</a>",];

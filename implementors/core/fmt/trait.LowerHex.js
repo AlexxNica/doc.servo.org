@@ -16,6 +16,7 @@ implementors["layout_thread"] = ["impl <a class='trait' href='core/fmt/trait.Low
 implementors["lazy_static"] = [];
 implementors["libc"] = [];
 implementors["libloading"] = [];
+implementors["mime_guess"] = [];
 implementors["mio"] = [];
 implementors["net"] = ["impl <a class='trait' href='core/fmt/trait.LowerHex.html' title='core::fmt::LowerHex'>LowerHex</a> for <a class='struct' href='num_bigint/biguint/struct.BigUint.html' title='num_bigint::biguint::BigUint'>BigUint</a>","impl <a class='trait' href='core/fmt/trait.LowerHex.html' title='core::fmt::LowerHex'>LowerHex</a> for <a class='struct' href='num_bigint/bigint/struct.BigInt.html' title='num_bigint::bigint::BigInt'>BigInt</a>",];
 implementors["net_traits"] = ["impl <a class='trait' href='core/fmt/trait.LowerHex.html' title='core::fmt::LowerHex'>LowerHex</a> for <a class='struct' href='num_bigint/biguint/struct.BigUint.html' title='num_bigint::biguint::BigUint'>BigUint</a>","impl <a class='trait' href='core/fmt/trait.LowerHex.html' title='core::fmt::LowerHex'>LowerHex</a> for <a class='struct' href='num_bigint/bigint/struct.BigInt.html' title='num_bigint::bigint::BigInt'>BigInt</a>",];

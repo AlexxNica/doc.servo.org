@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Filter",""],["FilterConsumer","//////////////////////////////////////////////////////////////////////// Consumer implementation"],["FilterFolder",""]]});
+initSidebarItems({"struct":[["Filter",""],["FilterConsumer",""],["FilterFolder",""]]});

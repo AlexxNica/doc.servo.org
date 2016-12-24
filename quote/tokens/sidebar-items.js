@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Tokens",""]]});
+initSidebarItems({"struct":[["Tokens","Tokens produced by a `quote!(...)` invocation."]]});

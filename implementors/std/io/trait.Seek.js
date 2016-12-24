@@ -15,6 +15,7 @@ implementors["layout_thread"] = [];
 implementors["lazy_static"] = [];
 implementors["libc"] = [];
 implementors["libloading"] = [];
+implementors["mime_guess"] = [];
 implementors["mio"] = [];
 implementors["net"] = [];
 implementors["net_traits"] = [];

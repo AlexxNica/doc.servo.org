@@ -3,6 +3,7 @@ implementors["gfx"] = [];
 implementors["html5ever"] = [];
 implementors["hyper"] = [];
 implementors["layout_thread"] = [];
+implementors["mime_guess"] = [];
 implementors["net"] = [];
 implementors["net_traits"] = [];
 implementors["offscreen_gl_context"] = [];

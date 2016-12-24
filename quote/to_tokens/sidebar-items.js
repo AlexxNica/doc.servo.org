@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["escape_str",""]],"struct":[["ByteStr",""]],"trait":[["ToTokens",""]]});
+initSidebarItems({"fn":[["escape_str",""]],"struct":[["ByteStr","Wrap a `&str` so it interpolates as a byte-string: `b\"abc\"`."],["Hex","Wrap an integer so it interpolates as a hexadecimal."]],"trait":[["ToTokens","Types that can be interpolated inside a `quote!(...)` invocation."]]});

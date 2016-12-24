@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["cell",""],["item",""]]});
+initSidebarItems({"mod":[["cell",""],["item",""],["vec_map",""]]});

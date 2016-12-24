@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["parse_crate",""],["parse_expr",""],["parse_item",""],["parse_items",""],["parse_macro_input",""],["parse_path",""],["parse_token_trees",""],["parse_type",""],["parse_where_clause",""],["unwrap",""]]});
+initSidebarItems({"fn":[["parse_crate",""],["parse_expr",""],["parse_ident",""],["parse_item",""],["parse_items",""],["parse_macro_input",""],["parse_path",""],["parse_token_trees",""],["parse_type",""],["parse_where_clause",""],["unwrap",""]]});

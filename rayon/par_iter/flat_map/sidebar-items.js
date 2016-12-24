@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["FlatMap",""],["FlatMapConsumer","//////////////////////////////////////////////////////////////////////// Consumer implementation"],["FlatMapFolder",""]]});
+initSidebarItems({"struct":[["FlatMap",""],["FlatMapConsumer",""],["FlatMapFolder",""]]});

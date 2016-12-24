@@ -4,6 +4,7 @@ implementors["gfx"] = ["impl&lt;'a, R&gt; <a class='trait' href='serde/de/trait.
 implementors["html5ever"] = [];
 implementors["hyper"] = [];
 implementors["layout_thread"] = ["impl&lt;'a, R&gt; <a class='trait' href='serde/de/trait.VariantVisitor.html' title='serde::de::VariantVisitor'>VariantVisitor</a> for <a class='struct' href='bincode/serde/reader/struct.Deserializer.html' title='bincode::serde::reader::Deserializer'>Deserializer</a>&lt;'a, R&gt; <span class='where'>where R: <a class='trait' href='std/io/trait.Read.html' title='std::io::Read'>Read</a></span>",];
+implementors["mime_guess"] = [];
 implementors["net"] = ["impl&lt;'a, R&gt; <a class='trait' href='serde/de/trait.VariantVisitor.html' title='serde::de::VariantVisitor'>VariantVisitor</a> for <a class='struct' href='bincode/serde/reader/struct.Deserializer.html' title='bincode::serde::reader::Deserializer'>Deserializer</a>&lt;'a, R&gt; <span class='where'>where R: <a class='trait' href='std/io/trait.Read.html' title='std::io::Read'>Read</a></span>",];
 implementors["net_traits"] = ["impl&lt;'a, R&gt; <a class='trait' href='serde/de/trait.VariantVisitor.html' title='serde::de::VariantVisitor'>VariantVisitor</a> for <a class='struct' href='bincode/serde/reader/struct.Deserializer.html' title='bincode::serde::reader::Deserializer'>Deserializer</a>&lt;'a, R&gt; <span class='where'>where R: <a class='trait' href='std/io/trait.Read.html' title='std::io::Read'>Read</a></span>",];
 implementors["offscreen_gl_context"] = [];

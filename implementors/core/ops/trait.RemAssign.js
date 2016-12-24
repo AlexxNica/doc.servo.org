@@ -17,6 +17,7 @@ implementors["layout_thread"] = ["impl <a class='trait' href='core/ops/trait.Rem
 implementors["lazy_static"] = [];
 implementors["libc"] = [];
 implementors["libloading"] = [];
+implementors["mime_guess"] = [];
 implementors["mio"] = [];
 implementors["net"] = [];
 implementors["net_traits"] = [];

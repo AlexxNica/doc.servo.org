@@ -1,1 +1,1 @@
-initSidebarItems({"trait":[["Decodable",""],["Decoder",""],["DecoderHelpers",""],["Encodable",""],["Encoder",""],["EncoderHelpers",""]]});
+initSidebarItems({"trait":[["Decodable","Trait for deserializing a type."],["Decoder","Trait for reading in an encoding for deserialization."],["DecoderHelpers","Trait with helper functions for implementing `Decodable`."],["Encodable","Trait for serializing a type."],["Encoder","Trait for writing out an encoding when serializing."],["EncoderHelpers","Trait with helper functions for implementing `Encodable`."]]});
