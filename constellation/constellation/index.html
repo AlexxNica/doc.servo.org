@@ -47,27 +47,91 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/constellation/constellation.rs.html#5-2545' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/constellation/constellation.rs.html#5-2744' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>The <code>Constellation</code>, Servo&#39;s Grand Central Station</p>
 
-<p>The primary duty of a <code>Constellation</code> is to mediate between the
-graphics compositor and the many <code>Pipeline</code>s in the browser&#39;s
-navigation context, each <code>Pipeline</code> encompassing a <code>ScriptThread</code>,
-<code>LayoutThread</code>, and <code>PaintThread</code>.</p>
+<p>The constellation tracks all information kept globally by the
+browser engine, which includes:</p>
+
+<ul>
+<li><p>The set of all <code>EventLoop</code> objects. Each event loop is
+the constellation&#39;s view of a script thread. The constellation
+interacts with a script thread by message-passing.</p></li>
+<li><p>The set of all <code>Pipeline</code> objects.  Each pipeline gives the
+constellation&#39;s view of a <code>Window</code>, with its script thread and
+layout threads.  Pipelines may share script threads, but not
+layout threads.</p></li>
+<li><p>The set of all <code>Frame</code> objects. Each frame gives the constellation&#39;s
+view of a browsing context. Each browsing context stores an independent
+session history, created by navigation of that frame. The session
+history can be traversed, for example by the back and forwards UI,
+so each session history maintains a list of past and future pipelines,
+as well as the current active pipeline.</p></li>
+</ul>
+
+<p>There are two kinds of frames: top-level frames (for example tabs
+in a browser UI), and nested frames (typically caused by <code>iframe</code>
+elements). Frames have a hierarchy (typically caused by <code>iframe</code>s
+containing <code>iframe</code>s), giving rise to a frame tree with a root frame.
+The logical relationship between these types is:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='op'>+</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>+</span>              <span class='op'>+</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>+</span>                 <span class='op'>+</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>+</span>
+<span class='op'>|</span>  <span class='ident'>Frame</span>  <span class='op'>|</span> <span class='op'>-</span><span class='op'>-</span><span class='ident'>parent</span><span class='question-mark'>?</span><span class='op'>-</span><span class='op'>-&gt;</span> <span class='op'>|</span>  <span class='ident'>Pipeline</span>  <span class='op'>|</span> <span class='op'>-</span><span class='op'>-</span><span class='ident'>event_loop</span><span class='op'>-</span><span class='op'>-&gt;</span> <span class='op'>|</span>  <span class='ident'>EventLoop</span>  <span class='op'>|</span>
+<span class='op'>|</span>         <span class='op'>|</span> <span class='op'>-</span><span class='op'>-</span><span class='ident'>current</span><span class='op'>-</span><span class='op'>-&gt;</span> <span class='op'>|</span>            <span class='op'>|</span>                 <span class='op'>|</span>             <span class='op'>|</span>
+<span class='op'>|</span>         <span class='op'>|</span> <span class='op'>-</span><span class='op'>-</span><span class='ident'>prev</span><span class='op'>*</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-&gt;</span> <span class='op'>|</span>            <span class='op'>|</span> &lt;-<span class='op'>-</span><span class='op'>-</span><span class='ident'>pipeline</span><span class='op'>*</span><span class='op'>-</span><span class='op'>-</span> <span class='op'>|</span>             <span class='op'>|</span>
+<span class='op'>|</span>         <span class='op'>|</span> <span class='op'>-</span><span class='op'>-</span><span class='ident'>next</span><span class='op'>*</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-&gt;</span> <span class='op'>|</span>            <span class='op'>|</span>                 <span class='op'>+</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>+</span>
+<span class='op'>|</span>         <span class='op'>|</span>              <span class='op'>|</span>            <span class='op'>|</span>
+<span class='op'>|</span>         <span class='op'>|</span> &lt;-<span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='ident'>frame</span><span class='op'>-</span><span class='op'>-</span> <span class='op'>|</span>            <span class='op'>|</span>
+<span class='op'>+</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>+</span>              <span class='op'>+</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>-</span><span class='op'>+</span></pre>
+
+<p>Complicating matters, there are also mozbrowser iframes, which are top-level
+frames with a parent.</p>
+
+<p>The constellation also maintains channels to threads, including:</p>
+
+<ul>
+<li>The script and layout threads.</li>
+<li>The graphics compositor.</li>
+<li>The font cache, image cache, and resource manager, which load
+and cache shared fonts, images, or other resources.</li>
+<li>The service worker manager.</li>
+<li>The devtools, debugger and webdriver servers.</li>
+</ul>
+
+<p>The constellation passes messages between the threads, and updates its state
+to track the evolving state of the frame tree.</p>
+
+<p>The constellation acts as a logger, tracking any <code>warn!</code> messages from threads,
+and converting any <code>error!</code> or <code>panic!</code> into a crash report, which is filed
+using an appropriate <code>mozbrowsererror</code> event.</p>
+
+<p>Since there is only one constellation, and its responsibilities include crash reporting,
+it is very important that it does not panic.</p>
 </div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
                        <tr class=' module-item'>
                            <td><a class='struct' href='struct.Constellation.html'
                                   title='constellation::constellation::Constellation'>Constellation</a></td>
                            <td class='docblock-short'>
-                                <p>Maintains the pipelines and navigation context and grants permission to composite.</p>
+                                <p>The <code>Constellation</code> itself. In the servo browser, there is one
+constellation, which maintains all of the browser global data.
+In embedded applications, there may be more than one constellation,
+which are independent of each other.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class='struct' href='struct.Frame.html'
                                   title='constellation::constellation::Frame'>Frame</a></td>
                            <td class='docblock-short'>
-                                <p>Stores the navigation context for a single frame in the frame tree.</p>
+                                <p>A frame in the frame tree.
+Each frame is the constrellation&#39;s view of a browsing context.
+Each browsing context has a session history, caused by
+navigation and traversing the history. Each frame has its
+current entry, plus past and future entries. The past is sorted
+chronologically, the future is sorted reverse chronoogically:
+in partiucular prev.pop() is the latest past entry, and
+next.pop() is the earliest future entry.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -82,16 +146,20 @@ once the new pipeline has loaded and completed initial layout / paint.</p>
                            <td><a class='struct' href='struct.FrameState.html'
                                   title='constellation::constellation::FrameState'>FrameState</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>An entry in a frame&#39;s session history.
+Each entry stores the pipeline id for a document in the session history.
+When we operate on the joint session history, entries are sorted chronologically,
+so we timestamp the entries by when the entry was added to the session history.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class='struct' href='struct.FrameTreeIterator.html'
                                   title='constellation::constellation::FrameTreeIterator'>FrameTreeIterator</a></td>
                            <td class='docblock-short'>
-                                <p>An iterator over a frame tree, returning nodes in depth-first order.
-Note that this iterator should <em>not</em> be used to mutate nodes <em>during</em>
-iteration. Mutating nodes once the iterator is out of scope is OK.</p>
+                                <p>An iterator over a frame tree, returning the fully active frames in
+depth-first order. Note that this iterator only returns the fully
+active frames, that is ones where every ancestor frame is
+in the currently active pipeline of its parent frame.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -105,14 +173,19 @@ iteration. Mutating nodes once the iterator is out of scope is OK.</p>
                            <td><a class='struct' href='struct.FromScriptLogger.html'
                                   title='constellation::constellation::FromScriptLogger'>FromScriptLogger</a></td>
                            <td class='docblock-short'>
-                                <p>A logger directed at the constellation from content processes</p>
+                                <p>The constellation uses logging to perform crash reporting.
+The constellation receives all <code>warn!</code>, <code>error!</code> and <code>panic!</code> messages,
+and generates a crash report when it receives a panic.
+A logger directed at the constellation from content processes</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class='struct' href='struct.FullFrameTreeIterator.html'
                                   title='constellation::constellation::FullFrameTreeIterator'>FullFrameTreeIterator</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>An iterator over a frame tree, returning all frames in depth-first
+order. Note that this iterator returns all frames, not just the
+fully active ones.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
@@ -126,7 +199,7 @@ iteration. Mutating nodes once the iterator is out of scope is OK.</p>
                            <td><a class='struct' href='struct.WebDriverData.html'
                                   title='constellation::constellation::WebDriverData'>WebDriverData</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>Data needed for webdriver</p>
                            </td>
                        </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
 <table>
@@ -134,14 +207,18 @@ iteration. Mutating nodes once the iterator is out of scope is OK.</p>
                            <td><a class='enum' href='enum.ExitPipelineMode.html'
                                   title='constellation::constellation::ExitPipelineMode'>ExitPipelineMode</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>When we are exiting a pipeline, we can either force exiting or not.
+A normal exit waits for the compositor to update its state before
+exiting, and delegates layout exit to script. A forced exit does
+not notify the compositor, and exits layout without involving script.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class='enum' href='enum.ReadyToSave.html'
                                   title='constellation::constellation::ReadyToSave'>ReadyToSave</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>When we are running reftests, we save an image to compare against a reference.
+This enum gives the possible states of preparing such an image.</p>
                            </td>
                        </tr></table><h2 id='constants' class='section-header'><a href="#constants">Constants</a></h2>
 <table>
@@ -149,7 +226,7 @@ iteration. Mutating nodes once the iterator is out of scope is OK.</p>
                            <td><a class='constant' href='constant.WARNINGS_BUFFER_SIZE.html'
                                   title='constellation::constellation::WARNINGS_BUFFER_SIZE'>WARNINGS_BUFFER_SIZE</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>The number of warnings to include in each crash report.</p>
                            </td>
                        </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
 <table>
@@ -157,7 +234,10 @@ iteration. Mutating nodes once the iterator is out of scope is OK.</p>
                            <td><a class='fn' href='fn.log_entry.html'
                                   title='constellation::constellation::log_entry'>log_entry</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>Rust uses <code>LogRecord</code> for storing logging, but servo converts that to
+a <code>LogEntry</code>. We do this so that we can record panics as well as log
+messages, and because <code>LogRecord</code> does not implement serde (de)serialization,
+so cannot be used over an IPC channel.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
