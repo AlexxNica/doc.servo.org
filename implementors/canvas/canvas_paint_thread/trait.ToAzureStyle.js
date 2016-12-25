@@ -1,7 +1,5 @@
 (function() {var implementors = {};
-implementors["canvas_traits"] = [];
-implementors["layout_thread"] = [];
-implementors["script"] = [];
+implementors["canvas"] = [];
 implementors["servo"] = [];
 
             if (window.register_implementors) {

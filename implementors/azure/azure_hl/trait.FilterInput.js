@@ -1,7 +1,5 @@
 (function() {var implementors = {};
 implementors["azure"] = [];
-implementors["layout_thread"] = [];
-implementors["script"] = [];
 implementors["servo"] = [];
 
             if (window.register_implementors) {
