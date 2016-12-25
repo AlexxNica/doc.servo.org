@@ -1,6 +1,10 @@
 (function() {var implementors = {};
 implementors["gfx"] = [];
+implementors["glutin"] = [];
+implementors["image"] = [];
 implementors["layout_thread"] = [];
+implementors["net"] = [];
+implementors["net_traits"] = [];
 implementors["rayon"] = [];
 implementors["script"] = [];
 implementors["servo"] = [];
