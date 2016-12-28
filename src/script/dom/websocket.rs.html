@@ -696,10 +696,9 @@
 <span class='kw'>use</span> <span class='ident'>hyper</span>;
 <span class='kw'>use</span> <span class='ident'>hyper_serde</span>::<span class='ident'>Serde</span>;
 <span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>::{<span class='self'>self</span>, <span class='ident'>IpcReceiver</span>, <span class='ident'>IpcSender</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>JS_GetArrayBufferData</span>, <span class='ident'>JS_NewArrayBuffer</span>};
 <span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::<span class='ident'>JSAutoCompartment</span>;
 <span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsval</span>::<span class='ident'>UndefinedValue</span>;
-<span class='kw'>use</span> <span class='ident'>libc</span>::{<span class='ident'>uint32_t</span>, <span class='ident'>uint8_t</span>};
+<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>typedarray</span>::<span class='ident'>ArrayBuffer</span>;
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::{<span class='ident'>WebSocketCommunicate</span>, <span class='ident'>WebSocketConnectData</span>, <span class='ident'>WebSocketDomAction</span>, <span class='ident'>WebSocketNetworkEvent</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>CookieSource</span>::<span class='ident'>HTTP</span>;
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>CoreResourceMsg</span>::{<span class='ident'>SetCookiesForUrl</span>, <span class='ident'>WebsocketConnect</span>};
@@ -1279,13 +1278,14 @@
                             <span class='ident'>blob</span>.<span class='ident'>to_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>message</span>.<span class='ident'>handle_mut</span>());
                         }
                         <span class='ident'>BinaryType</span>::<span class='ident'>Arraybuffer</span> <span class='op'>=&gt;</span> {
-                            <span class='kw'>let</span> <span class='ident'>len</span> <span class='op'>=</span> <span class='ident'>data</span>.<span class='ident'>len</span>() <span class='kw'>as</span> <span class='ident'>uint32_t</span>;
-                            <span class='kw'>let</span> <span class='ident'>buf</span> <span class='op'>=</span> <span class='ident'>JS_NewArrayBuffer</span>(<span class='ident'>cx</span>, <span class='ident'>len</span>);
-                            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>is_shared</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-                            <span class='kw'>let</span> <span class='ident'>buf_data</span>: <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>uint8_t</span> <span class='op'>=</span> <span class='ident'>JS_GetArrayBufferData</span>(<span class='ident'>buf</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>is_shared</span>, <span class='ident'>ptr</span>::<span class='ident'>null</span>());
-                            <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>is_shared</span>);
-                            <span class='ident'>ptr</span>::<span class='ident'>copy_nonoverlapping</span>(<span class='ident'>data</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>buf_data</span>, <span class='ident'>len</span> <span class='kw'>as</span> <span class='ident'>usize</span>);
-                            <span class='ident'>buf</span>.<span class='ident'>to_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>message</span>.<span class='ident'>handle_mut</span>());
+                            <span class='macro'>rooted</span><span class='macro'>!</span>(<span class='kw'>in</span>(<span class='ident'>cx</span>) <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>array_buffer</span> <span class='op'>=</span> <span class='ident'>ptr</span>::<span class='ident'>null_mut</span>());
+                            <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>ArrayBuffer</span>::<span class='ident'>create</span>(<span class='ident'>cx</span>,
+                                                        <span class='ident'>data</span>.<span class='ident'>len</span>() <span class='kw'>as</span> <span class='ident'>u32</span>,
+                                                        <span class='prelude-val'>Some</span>(<span class='ident'>data</span>.<span class='ident'>as_slice</span>()),
+                                                        <span class='ident'>array_buffer</span>.<span class='ident'>handle_mut</span>())
+                                    .<span class='ident'>is_ok</span>());
+
+                            (<span class='op'>*</span><span class='ident'>array_buffer</span>).<span class='ident'>to_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>message</span>.<span class='ident'>handle_mut</span>());
                         }
 
                     }
