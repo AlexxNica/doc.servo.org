@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["DEFAULT_COLSPAN",""]],"struct":[["HTMLTableCellElement",""]],"trait":[["HTMLTableCellElementLayoutHelpers",""]]});
+initSidebarItems({"constant":[["DEFAULT_COLSPAN",""],["DEFAULT_ROWSPAN",""]],"struct":[["HTMLTableCellElement",""]],"trait":[["HTMLTableCellElementLayoutHelpers",""]]});
