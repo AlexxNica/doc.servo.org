@@ -2300,6 +2300,13 @@
 <span id="2256">2256</span>
 <span id="2257">2257</span>
 <span id="2258">2258</span>
+<span id="2259">2259</span>
+<span id="2260">2260</span>
+<span id="2261">2261</span>
+<span id="2262">2262</span>
+<span id="2263">2263</span>
+<span id="2264">2264</span>
+<span id="2265">2265</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -2380,6 +2387,7 @@
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>request</span>::{<span class='ident'>CredentialsMode</span>, <span class='ident'>Destination</span>, <span class='ident'>RequestInit</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>storage_thread</span>::<span class='ident'>StorageType</span>;
 <span class='kw'>use</span> <span class='ident'>network_listener</span>::<span class='ident'>NetworkListener</span>;
+<span class='kw'>use</span> <span class='ident'>origin</span>::<span class='ident'>Origin</span>;
 <span class='kw'>use</span> <span class='ident'>profile_traits</span>::<span class='ident'>mem</span>::{<span class='self'>self</span>, <span class='ident'>OpaqueSender</span>, <span class='ident'>Report</span>, <span class='ident'>ReportKind</span>, <span class='ident'>ReportsChan</span>};
 <span class='kw'>use</span> <span class='ident'>profile_traits</span>::<span class='ident'>time</span>::{<span class='self'>self</span>, <span class='ident'>ProfilerCategory</span>, <span class='ident'>profile</span>};
 <span class='kw'>use</span> <span class='ident'>script_layout_interface</span>::<span class='ident'>message</span>::{<span class='self'>self</span>, <span class='ident'>NewLayoutThreadInfo</span>, <span class='ident'>ReflowQueryType</span>};
@@ -2455,6 +2463,7 @@
     <span class='ident'>is_visible</span>: <span class='ident'>bool</span>,
     <span class='doccomment'>/// The requested URL of the load.</span>
     <span class='ident'>url</span>: <span class='ident'>ServoUrl</span>,
+    <span class='ident'>origin</span>: <span class='ident'>Origin</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>InProgressLoad</span> {
@@ -2464,7 +2473,8 @@
            <span class='ident'>parent_info</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span>(<span class='ident'>PipelineId</span>, <span class='ident'>FrameType</span>)<span class='op'>&gt;</span>,
            <span class='ident'>layout_chan</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>message</span>::<span class='ident'>Msg</span><span class='op'>&gt;</span>,
            <span class='ident'>window_size</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>WindowSizeData</span><span class='op'>&gt;</span>,
-           <span class='ident'>url</span>: <span class='ident'>ServoUrl</span>) <span class='op'>-&gt;</span> <span class='ident'>InProgressLoad</span> {
+           <span class='ident'>url</span>: <span class='ident'>ServoUrl</span>,
+           <span class='ident'>origin</span>: <span class='ident'>Origin</span>) <span class='op'>-&gt;</span> <span class='ident'>InProgressLoad</span> {
         <span class='ident'>InProgressLoad</span> {
             <span class='ident'>pipeline_id</span>: <span class='ident'>id</span>,
             <span class='ident'>frame_id</span>: <span class='ident'>frame_id</span>,
@@ -2475,6 +2485,7 @@
             <span class='ident'>is_frozen</span>: <span class='bool-val'>false</span>,
             <span class='ident'>is_visible</span>: <span class='bool-val'>true</span>,
             <span class='ident'>url</span>: <span class='ident'>url</span>,
+            <span class='ident'>origin</span>: <span class='ident'>origin</span>,
         }
     }
 }
@@ -2840,8 +2851,9 @@
 
             <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>failsafe</span> <span class='op'>=</span> <span class='ident'>ScriptMemoryFailsafe</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>script_thread</span>);
 
+            <span class='kw'>let</span> <span class='ident'>origin</span> <span class='op'>=</span> <span class='ident'>Origin</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>load_data</span>.<span class='ident'>url</span>);
             <span class='kw'>let</span> <span class='ident'>new_load</span> <span class='op'>=</span> <span class='ident'>InProgressLoad</span>::<span class='ident'>new</span>(<span class='ident'>id</span>, <span class='ident'>frame_id</span>, <span class='ident'>parent_info</span>, <span class='ident'>layout_chan</span>, <span class='ident'>window_size</span>,
-                                               <span class='ident'>load_data</span>.<span class='ident'>url</span>.<span class='ident'>clone</span>());
+                                               <span class='ident'>load_data</span>.<span class='ident'>url</span>.<span class='ident'>clone</span>(), <span class='ident'>origin</span>);
             <span class='ident'>script_thread</span>.<span class='ident'>start_page_load</span>(<span class='ident'>new_load</span>, <span class='ident'>load_data</span>);
 
             <span class='kw'>let</span> <span class='ident'>reporter_name</span> <span class='op'>=</span> <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;script-reporter-{}&quot;</span>, <span class='ident'>id</span>);
@@ -2905,12 +2917,12 @@
         });
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>process_attach_layout</span>(<span class='ident'>new_layout_info</span>: <span class='ident'>NewLayoutInfo</span>) {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>process_attach_layout</span>(<span class='ident'>new_layout_info</span>: <span class='ident'>NewLayoutInfo</span>, <span class='ident'>origin</span>: <span class='ident'>Origin</span>) {
         <span class='ident'>SCRIPT_THREAD_ROOT</span>.<span class='ident'>with</span>(<span class='op'>|</span><span class='ident'>root</span><span class='op'>|</span> {
             <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>script_thread</span>) <span class='op'>=</span> <span class='ident'>root</span>.<span class='ident'>get</span>() {
                 <span class='kw'>let</span> <span class='ident'>script_thread</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>script_thread</span> };
                 <span class='ident'>script_thread</span>.<span class='ident'>profile_event</span>(<span class='ident'>ScriptThreadEventCategory</span>::<span class='ident'>AttachLayout</span>, <span class='op'>||</span> {
-                    <span class='ident'>script_thread</span>.<span class='ident'>handle_new_layout</span>(<span class='ident'>new_layout_info</span>);
+                    <span class='ident'>script_thread</span>.<span class='ident'>handle_new_layout</span>(<span class='ident'>new_layout_info</span>, <span class='ident'>origin</span>);
                 })
             }
         });
@@ -3081,7 +3093,8 @@
                 <span class='ident'>FromConstellation</span>(<span class='ident'>ConstellationControlMsg</span>::<span class='ident'>AttachLayout</span>(
                         <span class='ident'>new_layout_info</span>)) <span class='op'>=&gt;</span> {
                     <span class='self'>self</span>.<span class='ident'>profile_event</span>(<span class='ident'>ScriptThreadEventCategory</span>::<span class='ident'>AttachLayout</span>, <span class='op'>||</span> {
-                        <span class='self'>self</span>.<span class='ident'>handle_new_layout</span>(<span class='ident'>new_layout_info</span>);
+                        <span class='kw'>let</span> <span class='ident'>origin</span> <span class='op'>=</span> <span class='ident'>Origin</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>new_layout_info</span>.<span class='ident'>load_data</span>.<span class='ident'>url</span>);
+                        <span class='self'>self</span>.<span class='ident'>handle_new_layout</span>(<span class='ident'>new_layout_info</span>, <span class='ident'>origin</span>);
                     })
                 }
                 <span class='ident'>FromConstellation</span>(<span class='ident'>ConstellationControlMsg</span>::<span class='ident'>Resize</span>(<span class='ident'>id</span>, <span class='ident'>size</span>, <span class='ident'>size_type</span>)) <span class='op'>=&gt;</span> {
@@ -3492,7 +3505,7 @@
         <span class='ident'>window</span>.<span class='ident'>set_scroll_offsets</span>(<span class='ident'>scroll_offsets</span>)
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_new_layout</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>new_layout_info</span>: <span class='ident'>NewLayoutInfo</span>) {
+    <span class='kw'>fn</span> <span class='ident'>handle_new_layout</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>new_layout_info</span>: <span class='ident'>NewLayoutInfo</span>, <span class='ident'>origin</span>: <span class='ident'>Origin</span>) {
         <span class='kw'>let</span> <span class='ident'>NewLayoutInfo</span> {
             <span class='ident'>parent_info</span>,
             <span class='ident'>new_pipeline_id</span>,
@@ -3534,7 +3547,7 @@
         <span class='comment'>// Kick off the fetch for the new resource.</span>
         <span class='kw'>let</span> <span class='ident'>new_load</span> <span class='op'>=</span> <span class='ident'>InProgressLoad</span>::<span class='ident'>new</span>(<span class='ident'>new_pipeline_id</span>, <span class='ident'>frame_id</span>, <span class='ident'>parent_info</span>,
                                            <span class='ident'>layout_chan</span>, <span class='ident'>window_size</span>,
-                                           <span class='ident'>load_data</span>.<span class='ident'>url</span>.<span class='ident'>clone</span>());
+                                           <span class='ident'>load_data</span>.<span class='ident'>url</span>.<span class='ident'>clone</span>(), <span class='ident'>origin</span>);
         <span class='kw'>if</span> <span class='ident'>load_data</span>.<span class='ident'>url</span>.<span class='ident'>as_str</span>() <span class='op'>==</span> <span class='string'>&quot;about:blank&quot;</span> {
             <span class='self'>self</span>.<span class='ident'>start_page_load_about_blank</span>(<span class='ident'>new_load</span>);
         } <span class='kw'>else</span> {
@@ -4106,6 +4119,7 @@
         <span class='kw'>let</span> <span class='ident'>document</span> <span class='op'>=</span> <span class='ident'>Document</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>window</span>,
                                      <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='ident'>browsing_context</span>),
                                      <span class='prelude-val'>Some</span>(<span class='ident'>final_url</span>.<span class='ident'>clone</span>()),
+                                     <span class='ident'>incomplete</span>.<span class='ident'>origin</span>,
                                      <span class='ident'>is_html_document</span>,
                                      <span class='ident'>content_type</span>,
                                      <span class='ident'>last_modified</span>,
