@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["restyle_damage",""],["selector_parser",""]]});
+initSidebarItems({"mod":[["restyle_damage",""],["selector_parser","Servo's selector parser."]]});

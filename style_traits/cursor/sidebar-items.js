@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["_IMPL_DESERIALIZE_FOR_Cursor",""],["_IMPL_SERIALIZE_FOR_Cursor",""]],"enum":[["Cursor",""]]});
+initSidebarItems({"constant":[["_IMPL_DESERIALIZE_FOR_Cursor",""],["_IMPL_SERIALIZE_FOR_Cursor",""]],"enum":[["Cursor","https://drafts.csswg.org/css-ui/#cursor"]]});

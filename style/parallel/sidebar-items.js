@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["CHUNK_SIZE",""]],"fn":[["bottom_up_dom","Process current node and potentially traverse its ancestors."],["top_down_dom","A parallel top-down DOM traversal."],["traverse_dom",""],["traverse_nodes",""]]});
+initSidebarItems({"constant":[["CHUNK_SIZE","The chunk size used to split the parallel traversal nodes."]],"fn":[["bottom_up_dom","Process current node and potentially traverse its ancestors."],["top_down_dom","A parallel top-down DOM traversal."],["traverse_dom","A parallel top down traversal, generic over `D`."],["traverse_nodes",""]]});

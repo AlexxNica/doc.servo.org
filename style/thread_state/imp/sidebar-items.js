@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["enter",""],["exit",""],["get",""],["initialize",""]],"static":[["STATE",""]]});
+initSidebarItems({"fn":[["enter","Enter into a given temporary state. Panics if re-entring."],["exit","Exit a given temporary state."],["get","Get the current thread state."],["initialize","Initialize the current thread state."]],"static":[["STATE",""]]});

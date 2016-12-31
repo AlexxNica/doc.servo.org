@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["AllowedNumericType",""]]});
+initSidebarItems({"enum":[["AllowedNumericType","Whether to allow negative values or not."]]});

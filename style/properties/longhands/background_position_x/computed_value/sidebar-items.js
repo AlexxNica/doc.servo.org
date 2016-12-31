@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["T",""]]});
+initSidebarItems({"struct":[["T","The computed value, effectively a list of single values."]]});

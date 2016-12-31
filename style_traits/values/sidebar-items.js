@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["specified",""]],"trait":[["ToCss","The real `ToCss` trait can't be implemented for types in crates that don't depend on each other."]]});
+initSidebarItems({"mod":[["specified","Helper types for the handling of specified values."]],"trait":[["ToCss","The real `ToCss` trait can't be implemented for types in crates that don't depend on each other."]]});
