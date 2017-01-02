@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["NEWTON_METHOD_ITERATIONS",""]],"struct":[["Bezier",""]],"trait":[["ApproxEq",""]]});
+initSidebarItems({"constant":[["NEWTON_METHOD_ITERATIONS",""]],"struct":[["Bezier","A unit cubic Bézier curve, used for timing functions in CSS transitions and animations."]],"trait":[["ApproxEq",""]]});

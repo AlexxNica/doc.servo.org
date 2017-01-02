@@ -9,6 +9,7 @@
 
     <title>bloom.rs.html -- source</title>
 
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
     <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
     <link rel="stylesheet" type="text/css" href="../../main.css">
     
@@ -257,6 +258,38 @@
 <span id="213">213</span>
 <span id="214">214</span>
 <span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -265,10 +298,43 @@
 <span class='doccomment'>//! The style bloom filter is used as an optimization when matching deep</span>
 <span class='doccomment'>//! descendant selectors.</span>
 
+<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>deny</span>(<span class='ident'>missing_docs</span>)]</span>
+
 <span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>SendElement</span>, <span class='ident'>TElement</span>};
 <span class='kw'>use</span> <span class='ident'>matching</span>::<span class='ident'>MatchMethods</span>;
 <span class='kw'>use</span> <span class='ident'>selectors</span>::<span class='ident'>bloom</span>::<span class='ident'>BloomFilter</span>;
 
+<span class='doccomment'>/// A struct that allows us to fast-reject deep descendant selectors avoiding</span>
+<span class='doccomment'>/// selector-matching.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// This is implemented using a counting bloom filter, and it&#39;s a standard</span>
+<span class='doccomment'>/// optimization. See Gecko&#39;s `AncestorFilter`, and Blink&#39;s and WebKit&#39;s</span>
+<span class='doccomment'>/// `SelectorFilter`.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// The constraints for Servo&#39;s style system are a bit different compared to</span>
+<span class='doccomment'>/// traditional style systems given Servo does a parallel breadth-first</span>
+<span class='doccomment'>/// traversal instead of a sequential depth-first traversal.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// This implies that we need to track a bit more state than other browsers to</span>
+<span class='doccomment'>/// ensure we&#39;re doing the correct thing during the traversal, and being able to</span>
+<span class='doccomment'>/// apply this optimization effectively.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// Concretely, we have a bloom filter instance per worker thread, and we track</span>
+<span class='doccomment'>/// the current DOM depth in order to find a common ancestor when it doesn&#39;t</span>
+<span class='doccomment'>/// match the previous element we&#39;ve styled.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// This is usually a pretty fast operation (we use to be one level deeper than</span>
+<span class='doccomment'>/// the previous one), but in the case of work-stealing, we may needed to push</span>
+<span class='doccomment'>/// and pop multiple elements.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// See the `insert_parents_recovering`, where most of the magic happens.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// Regarding thread-safety, this struct is safe because:</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>///  * We clear this after a restyle.</span>
+<span class='doccomment'>///  * The DOM shape and attributes (and every other thing we access here) are</span>
+<span class='doccomment'>///    immutable during a restyle.</span>
+<span class='doccomment'>///</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>StyleBloom</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> {
     <span class='doccomment'>/// The bloom filter per se.</span>
     <span class='ident'>filter</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>BloomFilter</span><span class='op'>&gt;</span>,
@@ -278,6 +344,7 @@
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> <span class='ident'>StyleBloom</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span> {
+    <span class='doccomment'>/// Create an empty `StyleBloom`.</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='self'>Self</span> {
         <span class='ident'>StyleBloom</span> {
             <span class='ident'>filter</span>: <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>BloomFilter</span>::<span class='ident'>new</span>()),
@@ -285,19 +352,14 @@
         }
     }
 
+    <span class='doccomment'>/// Return the bloom filter used properly by the `selectors` crate.</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>filter</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>BloomFilter</span> {
         <span class='kw-2'>&amp;</span><span class='op'>*</span><span class='self'>self</span>.<span class='ident'>filter</span>
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>maybe_pop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>element</span>: <span class='ident'>E</span>) {
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>last</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>el</span><span class='op'>|</span> <span class='op'>*</span><span class='op'>*</span><span class='ident'>el</span>) <span class='op'>==</span> <span class='prelude-val'>Some</span>(<span class='ident'>element</span>) {
-            <span class='self'>self</span>.<span class='ident'>pop</span>().<span class='ident'>unwrap</span>();
-        }
-    }
-
     <span class='doccomment'>/// Push an element to the bloom filter, knowing that it&#39;s a child of the</span>
     <span class='doccomment'>/// last element parent.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>element</span>: <span class='ident'>E</span>) {
+    <span class='kw'>fn</span> <span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>element</span>: <span class='ident'>E</span>) {
         <span class='kw'>if</span> <span class='macro'>cfg</span><span class='macro'>!</span>(<span class='ident'>debug_assertions</span>) {
             <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>is_empty</span>() {
                 <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>element</span>.<span class='ident'>parent_element</span>().<span class='ident'>is_none</span>());
@@ -338,6 +400,8 @@
 
     <span class='doccomment'>/// In debug builds, asserts that all the parents of `element` are in the</span>
     <span class='doccomment'>/// bloom filter.</span>
+    <span class='doccomment'>///</span>
+    <span class='doccomment'>/// Goes away in release builds.</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>assert_complete</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>element</span>: <span class='ident'>E</span>) {
         <span class='kw'>if</span> <span class='macro'>cfg</span><span class='macro'>!</span>(<span class='ident'>debug_assertions</span>) {
             <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>checked</span> <span class='op'>=</span> <span class='number'>0</span>;
@@ -356,7 +420,8 @@
     <span class='doccomment'>/// Gets the element depth in the dom, to make it efficient, or if not</span>
     <span class='doccomment'>/// provided always rebuilds the filter from scratch.</span>
     <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Returns the new bloom filter depth.</span>
+    <span class='doccomment'>/// Returns the new bloom filter depth, that the traversal code is</span>
+    <span class='doccomment'>/// responsible to keep around if it wants to get an effective filter.</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>insert_parents_recovering</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
                                      <span class='ident'>element</span>: <span class='ident'>E</span>,
                                      <span class='ident'>element_depth</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span>)

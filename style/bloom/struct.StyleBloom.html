@@ -9,6 +9,7 @@
 
     <title>style::bloom::StyleBloom - Rust</title>
 
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
     <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
     <link rel="stylesheet" type="text/css" href="../../main.css">
     
@@ -47,11 +48,43 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/style/bloom.rs.html#12-18' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/style/bloom.rs.html#45-51' title='goto source code'>[src]</a></span></h1>
 <pre class='rust struct'>pub struct StyleBloom&lt;E:&nbsp;<a class='trait' href='../../style/dom/trait.TElement.html' title='style::dom::TElement'>TElement</a>&gt; {
     filter: <a class='struct' href='../../alloc/boxed/struct.Box.html' title='alloc::boxed::Box'>Box</a>&lt;<a class='struct' href='../../selectors/bloom/struct.BloomFilter.html' title='selectors::bloom::BloomFilter'>BloomFilter</a>&gt;,
     elements: <a class='struct' href='../../collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='../../style/dom/struct.SendElement.html' title='style::dom::SendElement'>SendElement</a>&lt;E&gt;&gt;,
-}</pre><h2 class='fields'>Fields</h2><span id='structfield.filter' class='structfield'>
+}</pre><div class='docblock'><p>A struct that allows us to fast-reject deep descendant selectors avoiding
+selector-matching.</p>
+
+<p>This is implemented using a counting bloom filter, and it&#39;s a standard
+optimization. See Gecko&#39;s <code>AncestorFilter</code>, and Blink&#39;s and WebKit&#39;s
+<code>SelectorFilter</code>.</p>
+
+<p>The constraints for Servo&#39;s style system are a bit different compared to
+traditional style systems given Servo does a parallel breadth-first
+traversal instead of a sequential depth-first traversal.</p>
+
+<p>This implies that we need to track a bit more state than other browsers to
+ensure we&#39;re doing the correct thing during the traversal, and being able to
+apply this optimization effectively.</p>
+
+<p>Concretely, we have a bloom filter instance per worker thread, and we track
+the current DOM depth in order to find a common ancestor when it doesn&#39;t
+match the previous element we&#39;ve styled.</p>
+
+<p>This is usually a pretty fast operation (we use to be one level deeper than
+the previous one), but in the case of work-stealing, we may needed to push
+and pop multiple elements.</p>
+
+<p>See the <code>insert_parents_recovering</code>, where most of the magic happens.</p>
+
+<p>Regarding thread-safety, this struct is safe because:</p>
+
+<ul>
+<li>We clear this after a restyle.</li>
+<li>The DOM shape and attributes (and every other thing we access here) are
+immutable during a restyle.</li>
+</ul>
+</div><h2 class='fields'>Fields</h2><span id='structfield.filter' class='structfield'>
                            <span id='filter.v' class='invisible'>
                            <code>filter: <a class='struct' href='../../alloc/boxed/struct.Box.html' title='alloc::boxed::Box'>Box</a>&lt;<a class='struct' href='../../selectors/bloom/struct.BloomFilter.html' title='selectors::bloom::BloomFilter'>BloomFilter</a>&gt;</code>
                            </span></span><span class='stab '></span><div class='docblock'><p>The bloom filter per se.</p>
@@ -59,11 +92,12 @@
                            <span id='elements.v' class='invisible'>
                            <code>elements: <a class='struct' href='../../collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='../../style/dom/struct.SendElement.html' title='style::dom::SendElement'>SendElement</a>&lt;E&gt;&gt;</code>
                            </span></span><span class='stab '></span><div class='docblock'><p>The stack of elements that this bloom filter contains.</p>
-</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl&lt;E:&nbsp;<a class='trait' href='../../style/dom/trait.TElement.html' title='style::dom::TElement'>TElement</a>&gt; <a class='struct' href='../../style/bloom/struct.StyleBloom.html' title='style::bloom::StyleBloom'>StyleBloom</a>&lt;E&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/style/bloom.rs.html#20-215' title='goto source code'>[src]</a></span></h3>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl&lt;E:&nbsp;<a class='trait' href='../../style/dom/trait.TElement.html' title='style::dom::TElement'>TElement</a>&gt; <a class='struct' href='../../style/bloom/struct.StyleBloom.html' title='style::bloom::StyleBloom'>StyleBloom</a>&lt;E&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/style/bloom.rs.html#53-247' title='goto source code'>[src]</a></span></h3>
 <div class='impl-items'><h4 id='method.new' class='method'><span id='new.v' class='invisible'><code>fn <a href='#method.new' class='fnname'>new</a>() -&gt; Self</code></span></h4>
-<h4 id='method.filter' class='method'><span id='filter.v-1' class='invisible'><code>fn <a href='#method.filter' class='fnname'>filter</a>(&amp;self) -&gt; &amp;<a class='struct' href='../../selectors/bloom/struct.BloomFilter.html' title='selectors::bloom::BloomFilter'>BloomFilter</a></code></span></h4>
-<h4 id='method.maybe_pop' class='method'><span id='maybe_pop.v' class='invisible'><code>fn <a href='#method.maybe_pop' class='fnname'>maybe_pop</a>(&amp;mut self, element: E)</code></span></h4>
-<h4 id='method.push' class='method'><span id='push.v' class='invisible'><code>fn <a href='#method.push' class='fnname'>push</a>(&amp;mut self, element: E)</code></span></h4>
+<div class='docblock'><p>Create an empty <code>StyleBloom</code>.</p>
+</div><h4 id='method.filter' class='method'><span id='filter.v-1' class='invisible'><code>fn <a href='#method.filter' class='fnname'>filter</a>(&amp;self) -&gt; &amp;<a class='struct' href='../../selectors/bloom/struct.BloomFilter.html' title='selectors::bloom::BloomFilter'>BloomFilter</a></code></span></h4>
+<div class='docblock'><p>Return the bloom filter used properly by the <code>selectors</code> crate.</p>
+</div><h4 id='method.push' class='method'><span id='push.v' class='invisible'><code>fn <a href='#method.push' class='fnname'>push</a>(&amp;mut self, element: E)</code></span></h4>
 <div class='docblock'><p>Push an element to the bloom filter, knowing that it&#39;s a child of the
 last element parent.</p>
 </div><h4 id='method.pop' class='method'><span id='pop.v' class='invisible'><code>fn <a href='#method.pop' class='fnname'>pop</a>(&amp;mut self) -&gt; <a class='enum' href='../../core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;E&gt;</code></span></h4>
@@ -73,6 +107,8 @@ last element parent.</p>
 <h4 id='method.assert_complete' class='method'><span id='assert_complete.v' class='invisible'><code>fn <a href='#method.assert_complete' class='fnname'>assert_complete</a>(&amp;self, element: E)</code></span></h4>
 <div class='docblock'><p>In debug builds, asserts that all the parents of <code>element</code> are in the
 bloom filter.</p>
+
+<p>Goes away in release builds.</p>
 </div><h4 id='method.insert_parents_recovering' class='method'><span id='insert_parents_recovering.v' class='invisible'><code>fn <a href='#method.insert_parents_recovering' class='fnname'>insert_parents_recovering</a>(&amp;mut self,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; element: E,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; element_depth: <a class='enum' href='../../core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='primitive' href='../../std/primitive.usize.html'>usize</a>&gt;)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='primitive' href='../../std/primitive.usize.html'>usize</a></code></span></h4>
 <div class='docblock'><p>Insert the parents of an element in the bloom filter, trying to recover
 the filter if the last element inserted doesn&#39;t match.</p>
@@ -80,7 +116,8 @@ the filter if the last element inserted doesn&#39;t match.</p>
 <p>Gets the element depth in the dom, to make it efficient, or if not
 provided always rebuilds the filter from scratch.</p>
 
-<p>Returns the new bloom filter depth.</p>
+<p>Returns the new bloom filter depth, that the traversal code is
+responsible to keep around if it wants to get an effective filter.</p>
 </div></div></section>
     <section id='search' class="content hidden"></section>
 
