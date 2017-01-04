@@ -1787,6 +1787,21 @@
 <span id="1742">1742</span>
 <span id="1743">1743</span>
 <span id="1744">1744</span>
+<span id="1745">1745</span>
+<span id="1746">1746</span>
+<span id="1747">1747</span>
+<span id="1748">1748</span>
+<span id="1749">1749</span>
+<span id="1750">1750</span>
+<span id="1751">1751</span>
+<span id="1752">1752</span>
+<span id="1753">1753</span>
+<span id="1754">1754</span>
+<span id="1755">1755</span>
+<span id="1756">1756</span>
+<span id="1757">1757</span>
+<span id="1758">1758</span>
+<span id="1759">1759</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -2691,18 +2706,24 @@
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>clear_js_runtime</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
+        <span class='comment'>// We tear down the active document, which causes all the attached</span>
+        <span class='comment'>// nodes to dispose of their layout data. This messages the layout</span>
+        <span class='comment'>// thread, informing it that it can safely free the memory.</span>
         <span class='self'>self</span>.<span class='ident'>Document</span>().<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Node</span><span class='op'>&gt;</span>().<span class='ident'>teardown</span>();
 
-        <span class='comment'>// The above code may not catch all DOM objects</span>
-        <span class='comment'>// (e.g. DOM objects removed from the tree that haven&#39;t</span>
-        <span class='comment'>// been collected yet). Forcing a GC here means that</span>
-        <span class='comment'>// those DOM objects will be able to call dispose()</span>
-        <span class='comment'>// to free their layout data before the layout thread</span>
-        <span class='comment'>// exits. Without this, those remaining objects try to</span>
-        <span class='comment'>// send a message to free their layout data to the</span>
-        <span class='comment'>// layout thread when the script thread is dropped,</span>
-        <span class='comment'>// which causes a panic!</span>
+        <span class='comment'>// The above code may not catch all DOM objects (e.g. DOM</span>
+        <span class='comment'>// objects removed from the tree that haven&#39;t been collected</span>
+        <span class='comment'>// yet). There should not be any such DOM nodes with layout</span>
+        <span class='comment'>// data, but if there are, then when they are dropped, they</span>
+        <span class='comment'>// will attempt to send a message to the closed layout thread.</span>
+        <span class='comment'>// This causes memory safety issues, because the DOM node uses</span>
+        <span class='comment'>// the layout channel from its window, and the window has</span>
+        <span class='comment'>// already been GC&#39;d.  For nodes which do not have a live</span>
+        <span class='comment'>// pointer, we can avoid this by GCing now:</span>
         <span class='self'>self</span>.<span class='ident'>Gc</span>();
+        <span class='comment'>// but there may still be nodes being kept alive by user</span>
+        <span class='comment'>// script.</span>
+        <span class='comment'>// TODO: ensure that this doesn&#39;t happen!</span>
 
         <span class='self'>self</span>.<span class='ident'>current_state</span>.<span class='ident'>set</span>(<span class='ident'>WindowState</span>::<span class='ident'>Zombie</span>);
         <span class='op'>*</span><span class='self'>self</span>.<span class='ident'>js_runtime</span>.<span class='ident'>borrow_mut</span>() <span class='op'>=</span> <span class='prelude-val'>None</span>;
@@ -3233,6 +3254,15 @@
     <span class='comment'>// https://html.spec.whatwg.org/multipage/#accessing-other-browsing-contexts</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>IndexedGetter</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_index</span>: <span class='ident'>u32</span>, <span class='ident'>_found</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>Window</span><span class='op'>&gt;&gt;</span> {
         <span class='prelude-val'>None</span>
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>freeze</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
+        <span class='self'>self</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>GlobalScope</span><span class='op'>&gt;</span>().<span class='ident'>suspend</span>();
+        <span class='comment'>// A hint to the JS runtime that now would be a good time to</span>
+        <span class='comment'>// GC any unreachable objects generated by user script,</span>
+        <span class='comment'>// or unattached DOM nodes. Attached DOM nodes can&#39;t be GCd yet,</span>
+        <span class='comment'>// as the document might be thawed later.</span>
+        <span class='self'>self</span>.<span class='ident'>Gc</span>();
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>thaw</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
