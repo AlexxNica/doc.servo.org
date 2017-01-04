@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["PropertyBitField",""]]});
+initSidebarItems({"struct":[["PropertyBitField","A bitfield for all longhand properties, in order to quickly test whether we've seen one of them."]]});

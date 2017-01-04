@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["ScopedTLS","Stack-scoped thread-local storage for rayon thread pools."]]});
+initSidebarItems({"struct":[["ScopedTLS","A scoped TLS set, that is alive during the `'scope` lifetime."]]});
