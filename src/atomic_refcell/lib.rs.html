@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/buildbot/slave/doc/build/components/style/atomic_refcell.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/registry/src/github.com-1ecc6299db9ec823/atomic_refcell-0.1.0/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
-    <title>atomic_refcell.rs.html -- source</title>
+    <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
     <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
@@ -389,6 +389,7 @@
 <span id="344">344</span>
 <span id="345">345</span>
 <span id="346">346</span>
+<span id="347">347</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -518,39 +519,40 @@
 
         <span class='comment'>// If the new count has the high bit set, panic. The specifics of how</span>
         <span class='comment'>// we panic is interesting for soundness, but irrelevant for real programs.</span>
-        <span class='comment'>//</span>
-        <span class='comment'>// FIXME(bholley): Counter-intuitively, moving the panic logic below out-of-</span>
-        <span class='comment'>// line costs about 2ns on the benchmark. My best guess is that we end up</span>
-        <span class='comment'>// predicting the wrong branch, but there&#39;s no way to mark something as</span>
-        <span class='comment'>// unlikely on stable rust. :-(</span>
         <span class='kw'>if</span> <span class='ident'>new</span> <span class='kw-2'>&amp;</span> <span class='ident'>HIGH_BIT</span> <span class='op'>!=</span> <span class='number'>0</span> {
-            <span class='kw'>if</span> <span class='ident'>new</span> <span class='op'>==</span> <span class='ident'>HIGH_BIT</span> {
-                <span class='comment'>// We overflowed into the reserved upper half of the refcount</span>
-                <span class='comment'>// space. Before panicking, decrement the refcount to leave things</span>
-                <span class='comment'>// in a consistent immutable-borrow state.</span>
-                <span class='comment'>//</span>
-                <span class='comment'>// This can basically only happen if somebody forget()s AtomicRefs</span>
-                <span class='comment'>// in a tight loop.</span>
-                <span class='ident'>borrow</span>.<span class='ident'>fetch_sub</span>(<span class='number'>1</span>, <span class='ident'>atomic</span>::<span class='ident'>Ordering</span>::<span class='ident'>Release</span>);
-                <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;too many immutable borrows&quot;</span>);
-            } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>new</span> <span class='op'>&gt;=</span> <span class='ident'>MAX_FAILED_BORROWS</span> {
-                <span class='comment'>// During the mutable borrow, an absurd number of threads have</span>
-                <span class='comment'>// incremented the refcount and panicked. To avoid hypothetically</span>
-                <span class='comment'>// wrapping the refcount, we abort the process once a certain</span>
-                <span class='comment'>// threshold is reached.</span>
-                <span class='comment'>//</span>
-                <span class='comment'>// This requires billions of threads to have panicked already, and</span>
-                <span class='comment'>// so will never happen in a real program.</span>
-                <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;Too many failed borrows&quot;</span>);
-                ::<span class='ident'>std</span>::<span class='ident'>process</span>::<span class='ident'>exit</span>(<span class='number'>1</span>);
-            } <span class='kw'>else</span> {
-                <span class='comment'>// This is the normal case, and the only one which should happen</span>
-                <span class='comment'>// in a real program.</span>
-                <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;already mutably borrowed&quot;</span>);
-            }
+            <span class='self'>Self</span>::<span class='ident'>do_panic</span>(<span class='ident'>borrow</span>, <span class='ident'>new</span>);
         }
 
         <span class='ident'>AtomicBorrowRef</span> { <span class='ident'>borrow</span>: <span class='ident'>borrow</span> }
+    }
+
+    <span class='attribute'>#[<span class='ident'>cold</span>]</span>
+    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>never</span>)]</span>
+    <span class='kw'>fn</span> <span class='ident'>do_panic</span>(<span class='ident'>borrow</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='ident'>AtomicUsize</span>, <span class='ident'>new</span>: <span class='ident'>usize</span>) {
+        <span class='kw'>if</span> <span class='ident'>new</span> <span class='op'>==</span> <span class='ident'>HIGH_BIT</span> {
+            <span class='comment'>// We overflowed into the reserved upper half of the refcount</span>
+            <span class='comment'>// space. Before panicking, decrement the refcount to leave things</span>
+            <span class='comment'>// in a consistent immutable-borrow state.</span>
+            <span class='comment'>//</span>
+            <span class='comment'>// This can basically only happen if somebody forget()s AtomicRefs</span>
+            <span class='comment'>// in a tight loop.</span>
+            <span class='ident'>borrow</span>.<span class='ident'>fetch_sub</span>(<span class='number'>1</span>, <span class='ident'>atomic</span>::<span class='ident'>Ordering</span>::<span class='ident'>Release</span>);
+            <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;too many immutable borrows&quot;</span>);
+        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>new</span> <span class='op'>&gt;=</span> <span class='ident'>MAX_FAILED_BORROWS</span> {
+            <span class='comment'>// During the mutable borrow, an absurd number of threads have</span>
+            <span class='comment'>// incremented the refcount and panicked. To avoid hypothetically</span>
+            <span class='comment'>// wrapping the refcount, we abort the process once a certain</span>
+            <span class='comment'>// threshold is reached.</span>
+            <span class='comment'>//</span>
+            <span class='comment'>// This requires billions of threads to have panicked already, and</span>
+            <span class='comment'>// so will never happen in a real program.</span>
+            <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;Too many failed borrows&quot;</span>);
+            ::<span class='ident'>std</span>::<span class='ident'>process</span>::<span class='ident'>exit</span>(<span class='number'>1</span>);
+        } <span class='kw'>else</span> {
+            <span class='comment'>// This is the normal case, and the only one which should happen</span>
+            <span class='comment'>// in a real program.</span>
+            <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;already mutably borrowed&quot;</span>);
+        }
     }
 }
 
@@ -792,7 +794,7 @@
 
     <script>
         window.rootPath = "../../";
-        window.currentCrate = "style";
+        window.currentCrate = "atomic_refcell";
     </script>
     <script src="../../jquery.js"></script>
     <script src="../../main.js"></script>

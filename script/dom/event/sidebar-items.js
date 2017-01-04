@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["EventBubbles",""],["EventCancelable",""],["EventPhase",""]],"struct":[["Event",""],["EventRunnable",""],["SimpleEventRunnable",""]]});
+initSidebarItems({"enum":[["EventBubbles",""],["EventCancelable",""],["EventDefault","An enum to indicate whether the default action of an event is allowed."],["EventPhase",""]],"struct":[["Event",""],["EventRunnable",""],["SimpleEventRunnable",""]]});

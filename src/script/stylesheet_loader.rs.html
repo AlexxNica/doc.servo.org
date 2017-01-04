@@ -288,6 +288,9 @@
 <span id="243">243</span>
 <span id="244">244</span>
 <span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -297,6 +300,7 @@
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>inheritance</span>::<span class='ident'>Castable</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>refcounted</span>::<span class='ident'>Trusted</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>reflector</span>::<span class='ident'>DomObject</span>;
+<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>document</span>::<span class='ident'>Document</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>element</span>::<span class='ident'>Element</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>eventtarget</span>::<span class='ident'>EventTarget</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>htmlelement</span>::<span class='ident'>HTMLElement</span>;
@@ -369,6 +373,8 @@
     <span class='ident'>metadata</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Metadata</span><span class='op'>&gt;</span>,
     <span class='doccomment'>/// The response body received to date.</span>
     <span class='ident'>data</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>,
+    <span class='doccomment'>/// The node document for elem when the load was initiated.</span>
+    <span class='ident'>document</span>: <span class='ident'>Trusted</span><span class='op'>&lt;</span><span class='ident'>Document</span><span class='op'>&gt;</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>PreInvoke</span> <span class='kw'>for</span> <span class='ident'>StylesheetContext</span> {}
@@ -394,7 +400,7 @@
 
     <span class='kw'>fn</span> <span class='ident'>process_response_eof</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>status</span>: <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), <span class='ident'>NetworkError</span><span class='op'>&gt;</span>) {
         <span class='kw'>let</span> <span class='ident'>elem</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>elem</span>.<span class='ident'>root</span>();
-        <span class='kw'>let</span> <span class='ident'>document</span> <span class='op'>=</span> <span class='ident'>document_from_node</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>elem</span>);
+        <span class='kw'>let</span> <span class='ident'>document</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>document</span>.<span class='ident'>root</span>();
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>successful</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
 
         <span class='kw'>if</span> <span class='ident'>status</span>.<span class='ident'>is_ok</span>() {
@@ -483,14 +489,14 @@
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>StylesheetLoader</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>load</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>source</span>: <span class='ident'>StylesheetContextSource</span>) {
         <span class='kw'>let</span> <span class='ident'>url</span> <span class='op'>=</span> <span class='ident'>source</span>.<span class='ident'>url</span>();
+        <span class='kw'>let</span> <span class='ident'>document</span> <span class='op'>=</span> <span class='ident'>document_from_node</span>(<span class='self'>self</span>.<span class='ident'>elem</span>);
         <span class='kw'>let</span> <span class='ident'>context</span> <span class='op'>=</span> <span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>Mutex</span>::<span class='ident'>new</span>(<span class='ident'>StylesheetContext</span> {
             <span class='ident'>elem</span>: <span class='ident'>Trusted</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='self'>self</span>.<span class='ident'>elem</span>),
             <span class='ident'>source</span>: <span class='ident'>source</span>,
             <span class='ident'>metadata</span>: <span class='prelude-val'>None</span>,
             <span class='ident'>data</span>: <span class='macro'>vec</span><span class='macro'>!</span>[],
+            <span class='ident'>document</span>: <span class='ident'>Trusted</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>document</span>),
         }));
-
-        <span class='kw'>let</span> <span class='ident'>document</span> <span class='op'>=</span> <span class='ident'>document_from_node</span>(<span class='self'>self</span>.<span class='ident'>elem</span>);
 
         <span class='kw'>let</span> (<span class='ident'>action_sender</span>, <span class='ident'>action_receiver</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
         <span class='kw'>let</span> <span class='ident'>listener</span> <span class='op'>=</span> <span class='ident'>NetworkListener</span> {
