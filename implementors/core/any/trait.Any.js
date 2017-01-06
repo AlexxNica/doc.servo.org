@@ -31,6 +31,7 @@ implementors["script"] = [];
 implementors["serde"] = [];
 implementors["servo"] = [];
 implementors["servo_config"] = [];
+implementors["servo_rand"] = [];
 implementors["servo_remutex"] = [];
 implementors["shared_library"] = [];
 implementors["std_unicode"] = [];

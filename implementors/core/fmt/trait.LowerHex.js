@@ -30,6 +30,7 @@ implementors["regex_syntax"] = [];
 implementors["script"] = ["impl <a class='trait' href='core/fmt/trait.LowerHex.html' title='core::fmt::LowerHex'>LowerHex</a> for <a class='struct' href='num_bigint/biguint/struct.BigUint.html' title='num_bigint::biguint::BigUint'>BigUint</a>","impl <a class='trait' href='core/fmt/trait.LowerHex.html' title='core::fmt::LowerHex'>LowerHex</a> for <a class='struct' href='num_bigint/bigint/struct.BigInt.html' title='num_bigint::bigint::BigInt'>BigInt</a>",];
 implementors["servo"] = ["impl <a class='trait' href='core/fmt/trait.LowerHex.html' title='core::fmt::LowerHex'>LowerHex</a> for <a class='struct' href='num_bigint/biguint/struct.BigUint.html' title='num_bigint::biguint::BigUint'>BigUint</a>","impl <a class='trait' href='core/fmt/trait.LowerHex.html' title='core::fmt::LowerHex'>LowerHex</a> for <a class='struct' href='num_bigint/bigint/struct.BigInt.html' title='num_bigint::bigint::BigInt'>BigInt</a>",];
 implementors["servo_config"] = [];
+implementors["servo_rand"] = [];
 implementors["servo_remutex"] = [];
 implementors["shared_library"] = [];
 implementors["std_unicode"] = [];

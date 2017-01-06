@@ -8,6 +8,7 @@ implementors["net_traits"] = [];
 implementors["rand"] = [];
 implementors["script"] = [];
 implementors["servo"] = [];
+implementors["servo_rand"] = [];
 implementors["style"] = [];
 implementors["tempfile"] = [];
 implementors["wayland_window"] = [];

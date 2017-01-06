@@ -238,9 +238,6 @@
 <span id="193">193</span>
 <span id="194">194</span>
 <span id="195">195</span>
-<span id="196">196</span>
-<span id="197">197</span>
-<span id="198">198</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -249,16 +246,15 @@
 <span class='doccomment'>//! Base classes to work with IDL callbacks.</span>
 
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>error</span>::{<span class='ident'>Error</span>, <span class='ident'>Fallible</span>, <span class='ident'>report_pending_exception</span>};
+<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>js</span>::<span class='ident'>Root</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>reflector</span>::<span class='ident'>DomObject</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>globalscope</span>::<span class='ident'>GlobalScope</span>;
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>Heap</span>, <span class='ident'>MutableHandleObject</span>, <span class='ident'>RootedObject</span>};
+<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>Heap</span>, <span class='ident'>MutableHandleObject</span>};
 <span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>IsCallable</span>, <span class='ident'>JSContext</span>, <span class='ident'>JSObject</span>, <span class='ident'>JS_WrapObject</span>};
 <span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>JSCompartment</span>, <span class='ident'>JS_EnterCompartment</span>, <span class='ident'>JS_LeaveCompartment</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::<span class='ident'>GetGlobalForObjectCrossCompartment</span>;
 <span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::<span class='ident'>JSAutoCompartment</span>;
 <span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::<span class='ident'>JS_GetProperty</span>;
 <span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsval</span>::{<span class='ident'>JSVal</span>, <span class='ident'>UndefinedValue</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>rust</span>::<span class='ident'>RootedGuard</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>default</span>::<span class='ident'>Default</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ffi</span>::<span class='ident'>CString</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ptr</span>;
@@ -391,9 +387,10 @@
 
 <span class='doccomment'>/// A class that performs whatever setup we need to safely make a call while</span>
 <span class='doccomment'>/// this class is on the stack. After `new` returns, the call is safe to make.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>CallSetup</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// The compartment for reporting exceptions.</span>
-    <span class='ident'>exception_compartment</span>: <span class='ident'>RootedGuard</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSObject</span><span class='op'>&gt;</span>,
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>CallSetup</span> {
+    <span class='doccomment'>/// The global for reporting exceptions. This is the global object of the</span>
+    <span class='doccomment'>/// (possibly wrapped) callback object.</span>
+    <span class='ident'>exception_global</span>: <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>GlobalScope</span><span class='op'>&gt;</span>,
     <span class='doccomment'>/// The `JSContext` used for the call.</span>
     <span class='ident'>cx</span>: <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
     <span class='doccomment'>/// The compartment we were in before the call.</span>
@@ -402,21 +399,17 @@
     <span class='ident'>handling</span>: <span class='ident'>ExceptionHandling</span>,
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>CallSetup</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
+<span class='kw'>impl</span> <span class='ident'>CallSetup</span> {
     <span class='doccomment'>/// Performs the setup needed to make a call.</span>
     <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unrooted_must_root</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>CallbackContainer</span><span class='op'>&gt;</span>(<span class='ident'>exception_compartment</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>RootedObject</span>,
-                                     <span class='ident'>callback</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>,
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>CallbackContainer</span><span class='op'>&gt;</span>(<span class='ident'>callback</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>,
                                      <span class='ident'>handling</span>: <span class='ident'>ExceptionHandling</span>)
-                                     <span class='op'>-&gt;</span> <span class='ident'>CallSetup</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
+                                     <span class='op'>-&gt;</span> <span class='ident'>CallSetup</span> {
         <span class='kw'>let</span> <span class='ident'>global</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>GlobalScope</span>::<span class='ident'>from_object</span>(<span class='ident'>callback</span>.<span class='ident'>callback</span>()) };
         <span class='kw'>let</span> <span class='ident'>cx</span> <span class='op'>=</span> <span class='ident'>global</span>.<span class='ident'>get_cx</span>();
 
-        <span class='ident'>exception_compartment</span>.<span class='ident'>ptr</span> <span class='op'>=</span> <span class='kw'>unsafe</span> {
-            <span class='ident'>GetGlobalForObjectCrossCompartment</span>(<span class='ident'>callback</span>.<span class='ident'>callback</span>())
-        };
         <span class='ident'>CallSetup</span> {
-            <span class='ident'>exception_compartment</span>: <span class='ident'>RootedGuard</span>::<span class='ident'>new</span>(<span class='ident'>cx</span>, <span class='ident'>exception_compartment</span>),
+            <span class='ident'>exception_global</span>: <span class='ident'>global</span>,
             <span class='ident'>cx</span>: <span class='ident'>cx</span>,
             <span class='ident'>old_compartment</span>: <span class='kw'>unsafe</span> { <span class='ident'>JS_EnterCompartment</span>(<span class='ident'>cx</span>, <span class='ident'>callback</span>.<span class='ident'>callback</span>()) },
             <span class='ident'>handling</span>: <span class='ident'>handling</span>,
@@ -429,12 +422,13 @@
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Drop</span> <span class='kw'>for</span> <span class='ident'>CallSetup</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
+<span class='kw'>impl</span> <span class='ident'>Drop</span> <span class='kw'>for</span> <span class='ident'>CallSetup</span> {
     <span class='kw'>fn</span> <span class='ident'>drop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
         <span class='kw'>unsafe</span> {
             <span class='ident'>JS_LeaveCompartment</span>(<span class='self'>self</span>.<span class='ident'>cx</span>, <span class='self'>self</span>.<span class='ident'>old_compartment</span>);
             <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>handling</span> <span class='op'>==</span> <span class='ident'>ExceptionHandling</span>::<span class='ident'>Report</span> {
-                <span class='kw'>let</span> <span class='ident'>_ac</span> <span class='op'>=</span> <span class='ident'>JSAutoCompartment</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>cx</span>, <span class='op'>*</span><span class='self'>self</span>.<span class='ident'>exception_compartment</span>);
+                <span class='kw'>let</span> <span class='ident'>_ac</span> <span class='op'>=</span> <span class='ident'>JSAutoCompartment</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>cx</span>,
+                                                 <span class='self'>self</span>.<span class='ident'>exception_global</span>.<span class='ident'>reflector</span>().<span class='ident'>get_jsobject</span>().<span class='ident'>get</span>());
                 <span class='ident'>report_pending_exception</span>(<span class='self'>self</span>.<span class='ident'>cx</span>, <span class='bool-val'>true</span>);
             }
         }

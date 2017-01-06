@@ -30,6 +30,7 @@ implementors["script"] = ["impl <a class='trait' href='collections/string/trait.
 implementors["serde"] = [];
 implementors["servo"] = ["impl <a class='trait' href='collections/string/trait.ToString.html' title='collections::string::ToString'>ToString</a> for <a class='enum' href='openssl/x509/extension/enum.Extension.html' title='openssl::x509::extension::Extension'>Extension</a>",];
 implementors["servo_config"] = [];
+implementors["servo_rand"] = [];
 implementors["servo_remutex"] = [];
 implementors["shared_library"] = [];
 implementors["string_cache"] = [];
