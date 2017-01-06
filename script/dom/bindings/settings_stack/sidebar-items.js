@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["entry_global","Returns the [\"entry\"] global object."],["trace","Traces the script settings stack."]],"static":[["STACK",""]],"struct":[["AutoEntryScript","RAII struct that pushes and pops entries from the script settings stack."],["StackEntry",""]]});
