@@ -804,15 +804,6 @@
 <span id="759">759</span>
 <span id="760">760</span>
 <span id="761">761</span>
-<span id="762">762</span>
-<span id="763">763</span>
-<span id="764">764</span>
-<span id="765">765</span>
-<span id="766">766</span>
-<span id="767">767</span>
-<span id="768">768</span>
-<span id="769">769</span>
-<span id="770">770</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -849,7 +840,6 @@
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>globalscope</span>::<span class='ident'>GlobalScope</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>htmlelement</span>::<span class='ident'>HTMLElement</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>node</span>::{<span class='ident'>Node</span>, <span class='ident'>NodeDamage</span>, <span class='ident'>UnbindContext</span>, <span class='ident'>document_from_node</span>, <span class='ident'>window_from_node</span>};
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>urlhelper</span>::<span class='ident'>UrlHelper</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>virtualmethods</span>::<span class='ident'>VirtualMethods</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>window</span>::{<span class='ident'>ReflowReason</span>, <span class='ident'>Window</span>};
 <span class='kw'>use</span> <span class='ident'>html5ever_atoms</span>::<span class='ident'>LocalName</span>;
@@ -1525,42 +1515,34 @@
         <span class='ident'>LoadBlocker</span>::<span class='ident'>terminate</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>blocker</span>);
 
         <span class='comment'>// https://html.spec.whatwg.org/multipage/#a-browsing-context-is-discarded</span>
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>pipeline_id</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipeline_id</span>.<span class='ident'>get</span>() {
-            <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Unbinding pipeline {} from frame {}.&quot;</span>, <span class='ident'>pipeline_id</span>, <span class='self'>self</span>.<span class='ident'>frame_id</span>);
-            <span class='kw'>let</span> <span class='ident'>window</span> <span class='op'>=</span> <span class='ident'>window_from_node</span>(<span class='self'>self</span>);
+        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Unbinding frame {}.&quot;</span>, <span class='self'>self</span>.<span class='ident'>frame_id</span>);
+        <span class='kw'>let</span> <span class='ident'>window</span> <span class='op'>=</span> <span class='ident'>window_from_node</span>(<span class='self'>self</span>);
+        <span class='kw'>let</span> (<span class='ident'>sender</span>, <span class='ident'>receiver</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
 
-            <span class='comment'>// The only reason we&#39;re waiting for the iframe to be totally</span>
-            <span class='comment'>// removed is to ensure the script thread can&#39;t add iframes faster</span>
-            <span class='comment'>// than the compositor can remove them.</span>
-            <span class='comment'>//</span>
-            <span class='comment'>// Since most of this cleanup doesn&#39;t happen on same-origin</span>
-            <span class='comment'>// iframes, and since that would cause a deadlock, don&#39;t do it.</span>
-            <span class='kw'>let</span> <span class='ident'>same_origin</span> <span class='op'>=</span> {
-                <span class='comment'>// FIXME(#10968): this should probably match the origin check in</span>
-                <span class='comment'>//                HTMLIFrameElement::contentDocument.</span>
-                <span class='kw'>let</span> <span class='ident'>self_url</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>get_url</span>();
-                <span class='kw'>let</span> <span class='ident'>win_url</span> <span class='op'>=</span> <span class='ident'>window_from_node</span>(<span class='self'>self</span>).<span class='ident'>get_url</span>();
-                <span class='ident'>UrlHelper</span>::<span class='ident'>SameOrigin</span>(<span class='kw-2'>&amp;</span><span class='ident'>self_url</span>, <span class='kw-2'>&amp;</span><span class='ident'>win_url</span>) <span class='op'>||</span> <span class='ident'>self_url</span>.<span class='ident'>as_str</span>() <span class='op'>==</span> <span class='string'>&quot;about:blank&quot;</span>
-            };
-            <span class='kw'>let</span> (<span class='ident'>sender</span>, <span class='ident'>receiver</span>) <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>same_origin</span> {
-                (<span class='prelude-val'>None</span>, <span class='prelude-val'>None</span>)
-            } <span class='kw'>else</span> {
-                <span class='kw'>let</span> (<span class='ident'>sender</span>, <span class='ident'>receiver</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
-                (<span class='prelude-val'>Some</span>(<span class='ident'>sender</span>), <span class='prelude-val'>Some</span>(<span class='ident'>receiver</span>))
-            };
-            <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ConstellationMsg</span>::<span class='ident'>RemoveIFrame</span>(<span class='ident'>pipeline_id</span>, <span class='ident'>sender</span>);
-            <span class='ident'>window</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>GlobalScope</span><span class='op'>&gt;</span>().<span class='ident'>constellation_chan</span>().<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>receiver</span>) <span class='op'>=</span> <span class='ident'>receiver</span> {
-                <span class='ident'>receiver</span>.<span class='ident'>recv</span>().<span class='ident'>unwrap</span>()
+        <span class='comment'>// Ask the constellation to remove the iframe, and tell us the</span>
+        <span class='comment'>// pipeline ids of the closed pipelines.</span>
+        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ConstellationMsg</span>::<span class='ident'>RemoveIFrame</span>(<span class='self'>self</span>.<span class='ident'>frame_id</span>, <span class='ident'>sender</span>);
+        <span class='ident'>window</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>GlobalScope</span><span class='op'>&gt;</span>().<span class='ident'>constellation_chan</span>().<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
+        <span class='kw'>let</span> <span class='ident'>exited_pipeline_ids</span> <span class='op'>=</span> <span class='ident'>receiver</span>.<span class='ident'>recv</span>().<span class='ident'>unwrap</span>();
+
+        <span class='comment'>// The spec for discarding is synchronous,</span>
+        <span class='comment'>// so we need to discard the browsing contexts now, rather than</span>
+        <span class='comment'>// when the `PipelineExit` message arrives.</span>
+        <span class='kw'>for</span> <span class='ident'>exited_pipeline_id</span> <span class='kw'>in</span> <span class='ident'>exited_pipeline_ids</span> {
+            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>exited_document</span>) <span class='op'>=</span> <span class='ident'>ScriptThread</span>::<span class='ident'>find_document</span>(<span class='ident'>exited_pipeline_id</span>) {
+                <span class='ident'>exited_document</span>.<span class='ident'>window</span>().<span class='ident'>browsing_context</span>().<span class='ident'>discard</span>();
+                <span class='kw'>for</span> <span class='ident'>exited_iframe</span> <span class='kw'>in</span> <span class='ident'>exited_document</span>.<span class='ident'>iter_iframes</span>() {
+                    <span class='ident'>exited_iframe</span>.<span class='ident'>pipeline_id</span>.<span class='ident'>set</span>(<span class='prelude-val'>None</span>);
+                }
             }
-
-            <span class='comment'>// Resetting the pipeline_id to None is required here so that</span>
-            <span class='comment'>// if this iframe is subsequently re-added to the document</span>
-            <span class='comment'>// the load doesn&#39;t think that it&#39;s a navigation, but instead</span>
-            <span class='comment'>// a new iframe. Without this, the constellation gets very</span>
-            <span class='comment'>// confused.</span>
-            <span class='self'>self</span>.<span class='ident'>pipeline_id</span>.<span class='ident'>set</span>(<span class='prelude-val'>None</span>);
         }
+
+        <span class='comment'>// Resetting the pipeline_id to None is required here so that</span>
+        <span class='comment'>// if this iframe is subsequently re-added to the document</span>
+        <span class='comment'>// the load doesn&#39;t think that it&#39;s a navigation, but instead</span>
+        <span class='comment'>// a new iframe. Without this, the constellation gets very</span>
+        <span class='comment'>// confused.</span>
+        <span class='self'>self</span>.<span class='ident'>pipeline_id</span>.<span class='ident'>set</span>(<span class='prelude-val'>None</span>);
     }
 }
 

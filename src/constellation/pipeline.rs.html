@@ -674,6 +674,8 @@
 <span id="629">629</span>
 <span id="630">630</span>
 <span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -697,7 +699,7 @@
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>image_cache_thread</span>::<span class='ident'>ImageCacheThread</span>;
 <span class='kw'>use</span> <span class='ident'>profile_traits</span>::<span class='ident'>mem</span> <span class='kw'>as</span> <span class='ident'>profile_mem</span>;
 <span class='kw'>use</span> <span class='ident'>profile_traits</span>::<span class='ident'>time</span>;
-<span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>ConstellationControlMsg</span>, <span class='ident'>InitialScriptState</span>};
+<span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>ConstellationControlMsg</span>, <span class='ident'>DiscardBrowsingContext</span>, <span class='ident'>InitialScriptState</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>LayoutControlMsg</span>, <span class='ident'>LayoutMsg</span>, <span class='ident'>LoadData</span>, <span class='ident'>MozBrowserEvent</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>NewLayoutInfo</span>, <span class='ident'>SWManagerMsg</span>, <span class='ident'>SWManagerSenders</span>, <span class='ident'>ScriptMsg</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>ScriptThreadFactory</span>, <span class='ident'>TimerEventRequest</span>, <span class='ident'>WindowSizeData</span>};
@@ -1005,7 +1007,7 @@
 
     <span class='doccomment'>/// A normal exit of the pipeline, which waits for the compositor,</span>
     <span class='doccomment'>/// and delegates layout shutdown to the script thread.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>exit</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>exit</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>discard_bc</span>: <span class='ident'>DiscardBrowsingContext</span>) {
         <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;pipeline {:?} exiting&quot;</span>, <span class='self'>self</span>.<span class='ident'>id</span>);
 
         <span class='comment'>// The compositor wants to know when pipelines shut down too.</span>
@@ -1022,15 +1024,17 @@
 
         <span class='comment'>// Script thread handles shutting down layout, and layout handles shutting down the painter.</span>
         <span class='comment'>// For now, if the script thread has failed, we give up on clean shutdown.</span>
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>event_loop</span>.<span class='ident'>send</span>(<span class='ident'>ConstellationControlMsg</span>::<span class='ident'>ExitPipeline</span>(<span class='self'>self</span>.<span class='ident'>id</span>)) {
+        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ConstellationControlMsg</span>::<span class='ident'>ExitPipeline</span>(<span class='self'>self</span>.<span class='ident'>id</span>, <span class='ident'>discard_bc</span>);
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>event_loop</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>) {
             <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;Sending script exit message failed ({}).&quot;</span>, <span class='ident'>e</span>);
         }
     }
 
     <span class='doccomment'>/// A forced exit of the shutdown, which does not wait for the compositor,</span>
     <span class='doccomment'>/// or for the script thread to shut down layout.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>force_exit</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>event_loop</span>.<span class='ident'>send</span>(<span class='ident'>ConstellationControlMsg</span>::<span class='ident'>ExitPipeline</span>(<span class='self'>self</span>.<span class='ident'>id</span>)) {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>force_exit</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>discard_bc</span>: <span class='ident'>DiscardBrowsingContext</span>) {
+        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ConstellationControlMsg</span>::<span class='ident'>ExitPipeline</span>(<span class='self'>self</span>.<span class='ident'>id</span>, <span class='ident'>discard_bc</span>);
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>event_loop</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>) {
             <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;Sending script exit message failed ({}).&quot;</span>, <span class='ident'>e</span>);
         }
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>layout_chan</span>.<span class='ident'>send</span>(<span class='ident'>LayoutControlMsg</span>::<span class='ident'>ExitNow</span>) {
