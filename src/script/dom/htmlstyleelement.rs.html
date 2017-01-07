@@ -225,6 +225,26 @@
 <span id="180">180</span>
 <span id="181">181</span>
 <span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -264,6 +284,7 @@
     <span class='ident'>cssom_stylesheet</span>: <span class='ident'>MutNullableJS</span><span class='op'>&lt;</span><span class='ident'>CSSStyleSheet</span><span class='op'>&gt;</span>,
     <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#a-style-sheet-that-is-blocking-scripts</span>
     <span class='ident'>parser_inserted</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>bool</span><span class='op'>&gt;</span>,
+    <span class='ident'>in_stack_of_open_elements</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>bool</span><span class='op'>&gt;</span>,
     <span class='ident'>pending_loads</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>,
     <span class='ident'>any_failed_load</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>bool</span><span class='op'>&gt;</span>,
 }
@@ -278,6 +299,7 @@
             <span class='ident'>stylesheet</span>: <span class='ident'>DOMRefCell</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
             <span class='ident'>cssom_stylesheet</span>: <span class='ident'>MutNullableJS</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
             <span class='ident'>parser_inserted</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='ident'>creator</span> <span class='op'>==</span> <span class='ident'>ElementCreator</span>::<span class='ident'>ParserCreated</span>),
+            <span class='ident'>in_stack_of_open_elements</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='ident'>creator</span> <span class='op'>==</span> <span class='ident'>ElementCreator</span>::<span class='ident'>ParserCreated</span>),
             <span class='ident'>pending_loads</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='number'>0</span>),
             <span class='ident'>any_failed_load</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='bool-val'>false</span>),
         }
@@ -352,20 +374,38 @@
     }
 
     <span class='kw'>fn</span> <span class='ident'>children_changed</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>mutation</span>: <span class='kw-2'>&amp;</span><span class='ident'>ChildrenMutation</span>) {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>s</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>super_type</span>() {
-            <span class='ident'>s</span>.<span class='ident'>children_changed</span>(<span class='ident'>mutation</span>);
-        }
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Node</span><span class='op'>&gt;</span>().<span class='ident'>is_in_doc</span>() {
+        <span class='self'>self</span>.<span class='ident'>super_type</span>().<span class='ident'>unwrap</span>().<span class='ident'>children_changed</span>(<span class='ident'>mutation</span>);
+
+        <span class='comment'>// https://html.spec.whatwg.org/multipage/#update-a-style-block</span>
+        <span class='comment'>// Handles the case when:</span>
+        <span class='comment'>// &quot;The element is not on the stack of open elements of an HTML parser or XML parser,</span>
+        <span class='comment'>// and one of its child nodes is modified by a script.&quot;</span>
+        <span class='comment'>// TODO: Handle Text child contents being mutated.</span>
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Node</span><span class='op'>&gt;</span>().<span class='ident'>is_in_doc</span>() <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>in_stack_of_open_elements</span>.<span class='ident'>get</span>() {
             <span class='self'>self</span>.<span class='ident'>parse_own_css</span>();
         }
     }
 
     <span class='kw'>fn</span> <span class='ident'>bind_to_tree</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>tree_in_doc</span>: <span class='ident'>bool</span>) {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>s</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>super_type</span>() {
-            <span class='ident'>s</span>.<span class='ident'>bind_to_tree</span>(<span class='ident'>tree_in_doc</span>);
-        }
+        <span class='self'>self</span>.<span class='ident'>super_type</span>().<span class='ident'>unwrap</span>().<span class='ident'>bind_to_tree</span>(<span class='ident'>tree_in_doc</span>);
 
-        <span class='kw'>if</span> <span class='ident'>tree_in_doc</span> {
+        <span class='comment'>// https://html.spec.whatwg.org/multipage/#update-a-style-block</span>
+        <span class='comment'>// Handles the case when:</span>
+        <span class='comment'>// &quot;The element is not on the stack of open elements of an HTML parser or XML parser,</span>
+        <span class='comment'>// and it becomes connected or disconnected.&quot;</span>
+        <span class='kw'>if</span> <span class='ident'>tree_in_doc</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>in_stack_of_open_elements</span>.<span class='ident'>get</span>() {
+            <span class='self'>self</span>.<span class='ident'>parse_own_css</span>();
+        }
+    }
+
+    <span class='kw'>fn</span> <span class='ident'>pop</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
+        <span class='self'>self</span>.<span class='ident'>super_type</span>().<span class='ident'>unwrap</span>().<span class='ident'>pop</span>();
+
+        <span class='comment'>// https://html.spec.whatwg.org/multipage/#update-a-style-block</span>
+        <span class='comment'>// Handles the case when:</span>
+        <span class='comment'>// &quot;The element is popped off the stack of open elements of an HTML parser or XML parser.&quot;</span>
+        <span class='self'>self</span>.<span class='ident'>in_stack_of_open_elements</span>.<span class='ident'>set</span>(<span class='bool-val'>false</span>);
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Node</span><span class='op'>&gt;</span>().<span class='ident'>is_in_doc</span>() {
             <span class='self'>self</span>.<span class='ident'>parse_own_css</span>();
         }
     }
