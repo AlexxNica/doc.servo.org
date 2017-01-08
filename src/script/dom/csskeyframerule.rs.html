@@ -94,16 +94,33 @@
 <span id="49">49</span>
 <span id="50">50</span>
 <span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>codegen</span>::<span class='ident'>Bindings</span>::<span class='ident'>CSSKeyframeRuleBinding</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>js</span>::<span class='ident'>Root</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>reflector</span>::<span class='ident'>reflect_dom_object</span>;
+<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>codegen</span>::<span class='ident'>Bindings</span>::<span class='ident'>CSSKeyframeRuleBinding</span>::{<span class='self'>self</span>, <span class='ident'>CSSKeyframeRuleMethods</span>};
+<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>js</span>::{<span class='ident'>JS</span>, <span class='ident'>MutNullableJS</span>, <span class='ident'>Root</span>};
+<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>reflector</span>::{<span class='ident'>DomObject</span>, <span class='ident'>reflect_dom_object</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>str</span>::<span class='ident'>DOMString</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>cssrule</span>::{<span class='ident'>CSSRule</span>, <span class='ident'>SpecificCSSRule</span>};
+<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>cssstyledeclaration</span>::{<span class='ident'>CSSModificationAccess</span>, <span class='ident'>CSSStyleDeclaration</span>, <span class='ident'>CSSStyleOwner</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>cssstylesheet</span>::<span class='ident'>CSSStyleSheet</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>window</span>::<span class='ident'>Window</span>;
 <span class='kw'>use</span> <span class='ident'>parking_lot</span>::<span class='ident'>RwLock</span>;
@@ -116,6 +133,7 @@
     <span class='ident'>cssrule</span>: <span class='ident'>CSSRule</span>,
     <span class='attribute'>#[<span class='ident'>ignore_heap_size_of</span> <span class='op'>=</span> <span class='string'>&quot;Arc&quot;</span>]</span>
     <span class='ident'>keyframerule</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>RwLock</span><span class='op'>&lt;</span><span class='ident'>Keyframe</span><span class='op'>&gt;&gt;</span>,
+    <span class='ident'>style_decl</span>: <span class='ident'>MutNullableJS</span><span class='op'>&lt;</span><span class='ident'>CSSStyleDeclaration</span><span class='op'>&gt;</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>CSSKeyframeRule</span> {
@@ -124,6 +142,7 @@
         <span class='ident'>CSSKeyframeRule</span> {
             <span class='ident'>cssrule</span>: <span class='ident'>CSSRule</span>::<span class='ident'>new_inherited</span>(<span class='ident'>parent_stylesheet</span>),
             <span class='ident'>keyframerule</span>: <span class='ident'>keyframerule</span>,
+            <span class='ident'>style_decl</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
         }
     }
 
@@ -133,6 +152,19 @@
         <span class='ident'>reflect_dom_object</span>(<span class='kw'>box</span> <span class='ident'>CSSKeyframeRule</span>::<span class='ident'>new_inherited</span>(<span class='ident'>parent_stylesheet</span>, <span class='ident'>keyframerule</span>),
                            <span class='ident'>window</span>,
                            <span class='ident'>CSSKeyframeRuleBinding</span>::<span class='ident'>Wrap</span>)
+    }
+}
+
+<span class='kw'>impl</span> <span class='ident'>CSSKeyframeRuleMethods</span> <span class='kw'>for</span> <span class='ident'>CSSKeyframeRule</span> {
+    <span class='comment'>// https://drafts.csswg.org/css-animations/#dom-csskeyframerule-style</span>
+    <span class='kw'>fn</span> <span class='ident'>Style</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>CSSStyleDeclaration</span><span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>style_decl</span>.<span class='ident'>or_init</span>(<span class='op'>||</span> {
+            <span class='ident'>CSSStyleDeclaration</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>global</span>().<span class='ident'>as_window</span>(),
+                                     <span class='ident'>CSSStyleOwner</span>::<span class='ident'>CSSRule</span>(<span class='ident'>JS</span>::<span class='ident'>from_ref</span>(<span class='self'>self</span>.<span class='ident'>global</span>().<span class='ident'>as_window</span>()),
+                                                                 <span class='self'>self</span>.<span class='ident'>keyframerule</span>.<span class='ident'>read</span>().<span class='ident'>block</span>.<span class='ident'>clone</span>()),
+                                     <span class='prelude-val'>None</span>,
+                                     <span class='ident'>CSSModificationAccess</span>::<span class='ident'>ReadWrite</span>)
+        })
     }
 }
 
