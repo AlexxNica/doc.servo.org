@@ -48,6 +48,7 @@ implementors["wayland_sys"] = [];
 implementors["wayland_window"] = [];
 implementors["webrender"] = [];
 implementors["websocket"] = ["impl&lt;'a&gt; <a class='trait' href='core/ops/trait.Shl.html' title='core::ops::Shl'>Shl</a>&lt;<a class='primitive' href='std/primitive.i32.html'>i32</a>&gt; for &amp;'a <a class='struct' href='openssl/bn/struct.BigNum.html' title='openssl::bn::BigNum'>BigNum</a>",];
+implementors["webvr_traits"] = [];
 implementors["ws"] = [];
 implementors["xml5ever"] = [];
 

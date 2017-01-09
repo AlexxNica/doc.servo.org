@@ -14,6 +14,7 @@ implementors["servo"] = ["impl <a class='trait' href='num_traits/cast/trait.ToPr
 implementors["servo_config"] = [];
 implementors["style"] = [];
 implementors["webrender"] = [];
+implementors["webvr_traits"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

@@ -11,6 +11,7 @@ implementors["servo"] = [];
 implementors["wayland_window"] = [];
 implementors["webrender"] = [];
 implementors["websocket"] = [];
+implementors["webvr_traits"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

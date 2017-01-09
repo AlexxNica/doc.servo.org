@@ -48,6 +48,7 @@ implementors["wayland_sys"] = [];
 implementors["wayland_window"] = [];
 implementors["webrender"] = [];
 implementors["websocket"] = [];
+implementors["webvr_traits"] = [];
 implementors["ws"] = [];
 implementors["xml5ever"] = [];
 

@@ -18,6 +18,7 @@ implementors["style"] = [];
 implementors["url"] = [];
 implementors["webrender"] = ["impl <a class='trait' href='serde/de/trait.Error.html' title='serde::de::Error'>Error</a> for <a class='enum' href='bincode/serde/reader/enum.DeserializeError.html' title='bincode::serde::reader::DeserializeError'>DeserializeError</a>",];
 implementors["websocket"] = [];
+implementors["webvr_traits"] = ["impl <a class='trait' href='serde/de/trait.Error.html' title='serde::de::Error'>Error</a> for <a class='enum' href='bincode/serde/reader/enum.DeserializeError.html' title='bincode::serde::reader::DeserializeError'>DeserializeError</a>",];
 implementors["ws"] = [];
 implementors["xml5ever"] = [];
 

@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["WebVRDisplayEvent",""],["WebVRDisplayEventReason",""],["WebVREye",""],["WebVRMsg",""]],"mod":[["webvr_traits",""]],"struct":[["WebVRDisplayCapabilities",""],["WebVRDisplayData",""],["WebVREyeParameters",""],["WebVRFieldOfView",""],["WebVRFrameData",""],["WebVRLayer",""],["WebVRPose",""],["WebVRStageParameters",""]],"type":[["WebVRResult",""]]});

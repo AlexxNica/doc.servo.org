@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["_IMPL_DESERIALIZE_FOR_VRDisplayCapabilities",""],["_IMPL_SERIALIZE_FOR_VRDisplayCapabilities",""]],"struct":[["VRDisplayCapabilities",""]]});

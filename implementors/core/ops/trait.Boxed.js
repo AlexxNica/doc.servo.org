@@ -44,6 +44,7 @@ implementors["wayland_sys"] = ["impl&lt;T&gt; <a class='trait' href='core/ops/tr
 implementors["wayland_window"] = ["impl&lt;T&gt; <a class='trait' href='core/ops/trait.Boxed.html' title='core::ops::Boxed'>Boxed</a> for <a class='struct' href='alloc/boxed/struct.Box.html' title='alloc::boxed::Box'>Box</a>&lt;T&gt;",];
 implementors["webrender"] = ["impl&lt;T&gt; <a class='trait' href='core/ops/trait.Boxed.html' title='core::ops::Boxed'>Boxed</a> for <a class='struct' href='alloc/boxed/struct.Box.html' title='alloc::boxed::Box'>Box</a>&lt;T&gt;",];
 implementors["websocket"] = ["impl&lt;T&gt; <a class='trait' href='core/ops/trait.Boxed.html' title='core::ops::Boxed'>Boxed</a> for <a class='struct' href='alloc/boxed/struct.Box.html' title='alloc::boxed::Box'>Box</a>&lt;T&gt;",];
+implementors["webvr_traits"] = ["impl&lt;T&gt; <a class='trait' href='core/ops/trait.Boxed.html' title='core::ops::Boxed'>Boxed</a> for <a class='struct' href='alloc/boxed/struct.Box.html' title='alloc::boxed::Box'>Box</a>&lt;T&gt;",];
 implementors["ws"] = ["impl&lt;T&gt; <a class='trait' href='core/ops/trait.Boxed.html' title='core::ops::Boxed'>Boxed</a> for <a class='struct' href='alloc/boxed/struct.Box.html' title='alloc::boxed::Box'>Box</a>&lt;T&gt;",];
 implementors["xml5ever"] = ["impl&lt;T&gt; <a class='trait' href='core/ops/trait.Boxed.html' title='core::ops::Boxed'>Boxed</a> for <a class='struct' href='alloc/boxed/struct.Box.html' title='alloc::boxed::Box'>Box</a>&lt;T&gt;",];
 

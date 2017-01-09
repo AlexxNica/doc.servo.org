@@ -14,6 +14,7 @@ implementors["uuid"] = ["impl <a class='trait' href='rand/trait.Rand.html' title
 implementors["wayland_window"] = [];
 implementors["webrender"] = [];
 implementors["websocket"] = [];
+implementors["webvr_traits"] = [];
 implementors["ws"] = [];
 
             if (window.register_implementors) {

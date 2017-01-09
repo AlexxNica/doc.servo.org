@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["adjoint_matrix",""],["determinant2x2",""],["determinant3x3",""],["determinant4x4",""],["inverse_matrix",""],["multiply_matrix",""],["new_id",""],["timestamp",""]],"static":[["DEVICE_ID_COUNTER",""]]});

@@ -11,6 +11,7 @@ implementors["style"] = [];
 implementors["syntex_syntax"] = [];
 implementors["term"] = [];
 implementors["webrender"] = [];
+implementors["webvr_traits"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

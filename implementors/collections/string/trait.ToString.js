@@ -44,6 +44,7 @@ implementors["wayland_sys"] = [];
 implementors["wayland_window"] = [];
 implementors["webrender"] = [];
 implementors["websocket"] = ["impl <a class='trait' href='collections/string/trait.ToString.html' title='collections::string::ToString'>ToString</a> for <a class='enum' href='openssl/x509/extension/enum.Extension.html' title='openssl::x509::extension::Extension'>Extension</a>",];
+implementors["webvr_traits"] = [];
 implementors["ws"] = [];
 implementors["xml5ever"] = [];
 

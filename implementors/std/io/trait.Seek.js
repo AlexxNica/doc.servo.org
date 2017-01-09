@@ -44,6 +44,7 @@ implementors["wayland_sys"] = [];
 implementors["wayland_window"] = ["impl <a class='trait' href='std/io/trait.Seek.html' title='std::io::Seek'>Seek</a> for <a class='struct' href='tempfile/named/struct.NamedTempFile.html' title='tempfile::named::NamedTempFile'>NamedTempFile</a>","impl&lt;'a&gt; <a class='trait' href='std/io/trait.Seek.html' title='std::io::Seek'>Seek</a> for &amp;'a <a class='struct' href='tempfile/named/struct.NamedTempFile.html' title='tempfile::named::NamedTempFile'>NamedTempFile</a>",];
 implementors["webrender"] = [];
 implementors["websocket"] = [];
+implementors["webvr_traits"] = [];
 implementors["ws"] = [];
 implementors["xml5ever"] = [];
 

@@ -17,6 +17,7 @@ implementors["syntex_syntax"] = [];
 implementors["url"] = [];
 implementors["webrender"] = [];
 implementors["websocket"] = [];
+implementors["webvr_traits"] = [];
 implementors["ws"] = [];
 implementors["xml5ever"] = [];
 

@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["_IMPL_DESERIALIZE_FOR_VRGamepadButton",""],["_IMPL_DESERIALIZE_FOR_VRGamepadState",""],["_IMPL_SERIALIZE_FOR_VRGamepadButton",""],["_IMPL_SERIALIZE_FOR_VRGamepadState",""]],"struct":[["VRGamepadButton",""],["VRGamepadState",""]],"trait":[["VRGamepad",""]],"type":[["VRGamepadPtr",""]]});
