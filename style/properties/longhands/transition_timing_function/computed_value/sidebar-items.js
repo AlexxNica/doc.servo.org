@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["StartEnd",""],["TransitionTimingFunction",""]],"struct":[["T",""]]});
+initSidebarItems({"struct":[["T","The computed value, effectively a list of single values."]]});

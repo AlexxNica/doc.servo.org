@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["AnimationName",""],["T",""]]});
+initSidebarItems({"struct":[["T","The computed value, effectively a list of single values."]]});
