@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["HAS_NEWLY_CONSTRUCTED_FLOW","Whether a flow has been newly constructed."]],"struct":[["LayoutDataFlags",""],["PersistentLayoutData","Data that layout associates with a node."]]});
+initSidebarItems({"constant":[["HAS_BEEN_TRAVERSED","Whether this node has been traversed by layout."],["HAS_NEWLY_CONSTRUCTED_FLOW","Whether a flow has been newly constructed."]],"struct":[["LayoutDataFlags",""],["PersistentLayoutData","Data that layout associates with a node."]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["MAX_COORD",""]],"enum":[["ClipSource",""]],"struct":[["ClipAddressRange",""],["MaskCacheInfo",""]],"type":[["ImageMaskIndex",""]]});
+initSidebarItems({"constant":[["MAX_COORD",""]],"enum":[["ClipSource",""]],"struct":[["ClipAddressRange",""],["MaskCacheInfo",""]]});

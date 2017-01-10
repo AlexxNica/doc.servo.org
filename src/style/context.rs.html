@@ -177,6 +177,54 @@
 <span id="132">132</span>
 <span id="133">133</span>
 <span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -188,7 +236,8 @@
 <span class='kw'>use</span> <span class='ident'>animation</span>::<span class='ident'>Animation</span>;
 <span class='kw'>use</span> <span class='ident'>app_units</span>::<span class='ident'>Au</span>;
 <span class='kw'>use</span> <span class='ident'>bloom</span>::<span class='ident'>StyleBloom</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>OpaqueNode</span>, <span class='ident'>TElement</span>};
+<span class='kw'>use</span> <span class='ident'>data</span>::<span class='ident'>ElementData</span>;
+<span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>OpaqueNode</span>, <span class='ident'>TNode</span>, <span class='ident'>TElement</span>};
 <span class='kw'>use</span> <span class='ident'>error_reporting</span>::<span class='ident'>ParseErrorReporter</span>;
 <span class='kw'>use</span> <span class='ident'>euclid</span>::<span class='ident'>Size2D</span>;
 <span class='kw'>use</span> <span class='ident'>matching</span>::<span class='ident'>StyleSharingCandidateCache</span>;
@@ -269,6 +318,18 @@
     <span class='kw'>pub</span> <span class='ident'>default_computed_values</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>ComputedValues</span><span class='op'>&gt;</span>,
 }
 
+<span class='doccomment'>/// Information about the current element being processed. We group this together</span>
+<span class='doccomment'>/// into a single struct within ThreadLocalStyleContext so that we can instantiate</span>
+<span class='doccomment'>/// and destroy it easily at the beginning and end of element processing.</span>
+<span class='kw'>struct</span> <span class='ident'>CurrentElementInfo</span> {
+    <span class='doccomment'>/// The element being processed. Currently we use an OpaqueNode since we only</span>
+    <span class='doccomment'>/// use this for identity checks, but we could use SendElement if there were</span>
+    <span class='doccomment'>/// a good reason to.</span>
+    <span class='ident'>element</span>: <span class='ident'>OpaqueNode</span>,
+    <span class='doccomment'>/// Whether the element is being styled for the first time.</span>
+    <span class='ident'>is_initial_style</span>: <span class='ident'>bool</span>,
+}
+
 <span class='doccomment'>/// A thread-local style context.</span>
 <span class='doccomment'>///</span>
 <span class='doccomment'>/// This context contains data that needs to be used during restyling, but is</span>
@@ -282,16 +343,51 @@
     <span class='doccomment'>/// A channel on which new animations that have been triggered by style</span>
     <span class='doccomment'>/// recalculation can be sent.</span>
     <span class='kw'>pub</span> <span class='ident'>new_animations_sender</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>Animation</span><span class='op'>&gt;</span>,
+    <span class='doccomment'>/// Information related to the current element, non-None during processing.</span>
+    <span class='ident'>current_element_info</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>CurrentElementInfo</span><span class='op'>&gt;</span>,
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> <span class='ident'>ThreadLocalStyleContext</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Create a new `ThreadLocalStyleContext` from a shared one.</span>
+    <span class='doccomment'>/// Creates a new `ThreadLocalStyleContext` from a shared one.</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>shared</span>: <span class='kw-2'>&amp;</span><span class='ident'>SharedStyleContext</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span> {
         <span class='ident'>ThreadLocalStyleContext</span> {
             <span class='ident'>style_sharing_candidate_cache</span>: <span class='ident'>StyleSharingCandidateCache</span>::<span class='ident'>new</span>(),
             <span class='ident'>bloom_filter</span>: <span class='ident'>StyleBloom</span>::<span class='ident'>new</span>(),
             <span class='ident'>new_animations_sender</span>: <span class='ident'>shared</span>.<span class='ident'>local_context_creation_data</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>().<span class='ident'>new_animations_sender</span>.<span class='ident'>clone</span>(),
+            <span class='ident'>current_element_info</span>: <span class='prelude-val'>None</span>,
         }
+    }
+
+    <span class='doccomment'>/// Notes when the style system starts traversing an element.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>begin_element</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>element</span>: <span class='ident'>E</span>, <span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='ident'>ElementData</span>) {
+        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>current_element_info</span>.<span class='ident'>is_none</span>());
+        <span class='self'>self</span>.<span class='ident'>current_element_info</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>CurrentElementInfo</span> {
+            <span class='ident'>element</span>: <span class='ident'>element</span>.<span class='ident'>as_node</span>().<span class='ident'>opaque</span>(),
+            <span class='ident'>is_initial_style</span>: <span class='op'>!</span><span class='ident'>data</span>.<span class='ident'>has_styles</span>(),
+        });
+    }
+
+    <span class='doccomment'>/// Notes when the style system finishes traversing an element.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>end_element</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>element</span>: <span class='ident'>E</span>) {
+        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>current_element_info</span>.<span class='ident'>is_some</span>());
+        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>current_element_info</span>.<span class='ident'>as_ref</span>().<span class='ident'>unwrap</span>().<span class='ident'>element</span> <span class='op'>==</span>
+                      <span class='ident'>element</span>.<span class='ident'>as_node</span>().<span class='ident'>opaque</span>());
+        <span class='self'>self</span>.<span class='ident'>current_element_info</span> <span class='op'>=</span> <span class='prelude-val'>None</span>;
+    }
+
+    <span class='doccomment'>/// Returns true if the current element being traversed is being styled for</span>
+    <span class='doccomment'>/// the first time.</span>
+    <span class='doccomment'>///</span>
+    <span class='doccomment'>/// Panics if called while no element is being traversed.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_initial_style</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+        <span class='self'>self</span>.<span class='ident'>current_element_info</span>.<span class='ident'>as_ref</span>().<span class='ident'>unwrap</span>().<span class='ident'>is_initial_style</span>
+    }
+}
+
+<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>debug_assertions</span>)]</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> <span class='ident'>Drop</span> <span class='kw'>for</span> <span class='ident'>ThreadLocalStyleContext</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>drop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
+        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>current_element_info</span>.<span class='ident'>is_none</span>());
     }
 }
 

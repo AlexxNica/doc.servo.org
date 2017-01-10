@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["set_recording_detour",""],["write_data",""],["write_msg",""],["write_payload",""]],"static":[["WEBRENDER_RECORDING_DETOUR",""]],"struct":[["WEBRENDER_RECORDING_DETOUR",""]],"trait":[["ApiRecordingReceiver",""]]});
+initSidebarItems({"fn":[["set_recording_detour",""],["write_data",""],["write_msg",""],["write_payload",""]],"static":[["CURRENT_FRAME_NUMBER",""],["WEBRENDER_RECORDING_DETOUR",""],["WEBRENDER_RECORDING_HEADER",""]],"struct":[["WEBRENDER_RECORDING_DETOUR",""]],"trait":[["ApiRecordingReceiver",""]]});
