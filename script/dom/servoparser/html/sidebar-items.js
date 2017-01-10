@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["insert",""]],"struct":[["Sink",""],["Tokenizer",""]]});
+initSidebarItems({"struct":[["Sink",""],["Tokenizer",""]]});
