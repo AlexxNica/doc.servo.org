@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["sStaticMethods",""],["sStaticMethods_specs",""]],"fn":[["ConstructorEnabled",""],["CreateInterfaceObjects",""],["DefineDOMInterface",""],["GetProtoObject",""],["escape",""]],"static":[["INTERFACE_OBJECT_CLASS",""],["PrototypeClass",""]]});
+initSidebarItems({"constant":[["sStaticMethods",""],["sStaticMethods_specs",""]],"fn":[["ConstructorEnabled",""],["CreateInterfaceObjects",""],["DefineDOMInterface",""],["GetProtoObject",""],["escape",""],["supports",""]],"static":[["INTERFACE_OBJECT_CLASS",""],["PrototypeClass",""]]});
