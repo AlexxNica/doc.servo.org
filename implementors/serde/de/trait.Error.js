@@ -11,7 +11,7 @@ implementors["offscreen_gl_context"] = [];
 implementors["script"] = ["impl <a class='trait' href='serde/de/trait.Error.html' title='serde::de::Error'>Error</a> for <a class='enum' href='bincode/serde/reader/enum.DeserializeError.html' title='bincode::serde::reader::DeserializeError'>DeserializeError</a>",];
 implementors["serde"] = [];
 implementors["serde_json"] = ["impl <a class='trait' href='serde/de/trait.Error.html' title='serde::de::Error'>Error</a> for <a class='enum' href='serde_json/error/enum.Error.html' title='serde_json::error::Error'>Error</a>",];
-implementors["servo"] = ["impl <a class='trait' href='serde/de/trait.Error.html' title='serde::de::Error'>Error</a> for <a class='enum' href='serde_json/error/enum.Error.html' title='serde_json::error::Error'>Error</a>","impl <a class='trait' href='serde/de/trait.Error.html' title='serde::de::Error'>Error</a> for <a class='enum' href='bincode/serde/reader/enum.DeserializeError.html' title='bincode::serde::reader::DeserializeError'>DeserializeError</a>",];
+implementors["servo"] = ["impl <a class='trait' href='serde/de/trait.Error.html' title='serde::de::Error'>Error</a> for <a class='enum' href='bincode/serde/reader/enum.DeserializeError.html' title='bincode::serde::reader::DeserializeError'>DeserializeError</a>","impl <a class='trait' href='serde/de/trait.Error.html' title='serde::de::Error'>Error</a> for <a class='enum' href='serde_json/error/enum.Error.html' title='serde_json::error::Error'>Error</a>",];
 implementors["servo_config"] = [];
 implementors["string_cache"] = [];
 implementors["style"] = [];

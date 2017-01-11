@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["EncodingError",""]],"struct":[["Encoder",""],["Writer",""]],"type":[["Result",""]]});
+initSidebarItems({"enum":[["EncodingError",""]],"struct":[["Encoder","PNG Encoder"],["Writer","PNG writer"]],"type":[["Result",""]]});

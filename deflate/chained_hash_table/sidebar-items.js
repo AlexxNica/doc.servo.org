@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["HASH_MASK",""],["HASH_SHIFT",""],["WINDOW_MASK",""],["WINDOW_SIZE",""]],"fn":[["init_array",""],["update_hash","Returns a new hash value based on the previous value and the next byte"],["update_hash_conf",""]],"struct":[["ChainedHashTable",""]]});
