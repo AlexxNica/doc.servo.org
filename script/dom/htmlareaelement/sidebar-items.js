@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLAreaElement",""]]});
+initSidebarItems({"enum":[["Area",""],["Shape",""]],"struct":[["HTMLAreaElement",""]]});

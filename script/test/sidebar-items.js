@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["normalize_value",""]],"mod":[["size_of",""]],"struct":[["ByteString","Encapsulates the IDL `ByteString` type."],["DOMRefCell","A mutable field in the DOM."],["DOMString","A DOMString."],["JS","A traced reference to a DOM object"],["Node","An HTML node."]]});
+initSidebarItems({"fn":[["normalize_value",""]],"mod":[["area",""],["size_of",""]],"struct":[["ByteString","Encapsulates the IDL `ByteString` type."],["DOMRefCell","A mutable field in the DOM."],["DOMString","A DOMString."],["JS","A traced reference to a DOM object"],["Node","An HTML node."]]});
