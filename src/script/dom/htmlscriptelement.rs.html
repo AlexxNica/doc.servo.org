@@ -773,27 +773,6 @@
 <span id="728">728</span>
 <span id="729">729</span>
 <span id="730">730</span>
-<span id="731">731</span>
-<span id="732">732</span>
-<span id="733">733</span>
-<span id="734">734</span>
-<span id="735">735</span>
-<span id="736">736</span>
-<span id="737">737</span>
-<span id="738">738</span>
-<span id="739">739</span>
-<span id="740">740</span>
-<span id="741">741</span>
-<span id="742">742</span>
-<span id="743">743</span>
-<span id="744">744</span>
-<span id="745">745</span>
-<span id="746">746</span>
-<span id="747">747</span>
-<span id="748">748</span>
-<span id="749">749</span>
-<span id="750">750</span>
-<span id="751">751</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -801,7 +780,6 @@
 
 <span class='kw'>use</span> <span class='ident'>document_loader</span>::<span class='ident'>LoadType</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>attr</span>::<span class='ident'>Attr</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>codegen</span>::<span class='ident'>Bindings</span>::<span class='ident'>AttrBinding</span>::<span class='ident'>AttrMethods</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>codegen</span>::<span class='ident'>Bindings</span>::<span class='ident'>DocumentBinding</span>::<span class='ident'>DocumentMethods</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>codegen</span>::<span class='ident'>Bindings</span>::<span class='ident'>HTMLScriptElementBinding</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>codegen</span>::<span class='ident'>Bindings</span>::<span class='ident'>HTMLScriptElementBinding</span>::<span class='ident'>HTMLScriptElementMethods</span>;
@@ -814,6 +792,7 @@
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>str</span>::<span class='ident'>DOMString</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>document</span>::<span class='ident'>Document</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>element</span>::{<span class='ident'>AttributeMutation</span>, <span class='ident'>Element</span>, <span class='ident'>ElementCreator</span>};
+<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>element</span>::{<span class='ident'>cors_setting_for_element</span>, <span class='ident'>reflect_cross_origin_attribute</span>, <span class='ident'>set_cross_origin_attribute</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>event</span>::{<span class='ident'>Event</span>, <span class='ident'>EventBubbles</span>, <span class='ident'>EventCancelable</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>eventdispatcher</span>::<span class='ident'>EventStatus</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>globalscope</span>::<span class='ident'>GlobalScope</span>;
@@ -1166,12 +1145,7 @@
                               .<span class='ident'>unwrap_or_else</span>(<span class='op'>||</span> <span class='ident'>doc</span>.<span class='ident'>encoding</span>());
 
         <span class='comment'>// Step 14.</span>
-        <span class='kw'>let</span> <span class='ident'>cors_setting</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>GetCrossOrigin</span>() {
-            <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>s</span>) <span class='kw'>if</span> <span class='op'>*</span><span class='ident'>s</span> <span class='op'>==</span> <span class='string'>&quot;anonymous&quot;</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>CorsSettings</span>::<span class='ident'>Anonymous</span>),
-            <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>s</span>) <span class='kw'>if</span> <span class='op'>*</span><span class='ident'>s</span> <span class='op'>==</span> <span class='string'>&quot;use-credentials&quot;</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>CorsSettings</span>::<span class='ident'>UseCredentials</span>),
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
-            _ <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>()
-        };
+        <span class='kw'>let</span> <span class='ident'>cors_setting</span> <span class='op'>=</span> <span class='ident'>cors_setting_for_element</span>(<span class='ident'>element</span>);
 
         <span class='comment'>// TODO: Step 15: Module script credentials mode.</span>
 
@@ -1504,28 +1478,12 @@
 
     <span class='comment'>// https://html.spec.whatwg.org/multipage/#dom-script-crossorigin</span>
     <span class='kw'>fn</span> <span class='ident'>GetCrossOrigin</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>DOMString</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>element</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Element</span><span class='op'>&gt;</span>();
-        <span class='kw'>let</span> <span class='ident'>attr</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>get_attribute</span>(<span class='kw-2'>&amp;</span><span class='macro'>ns</span><span class='macro'>!</span>(), <span class='kw-2'>&amp;</span><span class='macro'>local_name</span><span class='macro'>!</span>(<span class='string'>&quot;crossorigin&quot;</span>));
-
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>mut</span> <span class='ident'>val</span>) <span class='op'>=</span> <span class='ident'>attr</span>.<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>v</span><span class='op'>|</span> <span class='ident'>v</span>.<span class='ident'>Value</span>()) {
-            <span class='ident'>val</span>.<span class='ident'>make_ascii_lowercase</span>();
-            <span class='kw'>if</span> <span class='ident'>val</span> <span class='op'>==</span> <span class='string'>&quot;anonymous&quot;</span> <span class='op'>||</span> <span class='ident'>val</span> <span class='op'>==</span> <span class='string'>&quot;use-credentials&quot;</span> {
-                <span class='kw'>return</span> <span class='prelude-val'>Some</span>(<span class='ident'>val</span>);
-            }
-            <span class='kw'>return</span> <span class='prelude-val'>Some</span>(<span class='ident'>DOMString</span>::<span class='ident'>from</span>(<span class='string'>&quot;anonymous&quot;</span>));
-        }
-        <span class='prelude-val'>None</span>
+        <span class='ident'>reflect_cross_origin_attribute</span>(<span class='self'>self</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Element</span><span class='op'>&gt;</span>())
     }
 
     <span class='comment'>// https://html.spec.whatwg.org/multipage/#dom-script-crossorigin</span>
     <span class='kw'>fn</span> <span class='ident'>SetCrossOrigin</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>value</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>DOMString</span><span class='op'>&gt;</span>) {
-        <span class='kw'>let</span> <span class='ident'>element</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Element</span><span class='op'>&gt;</span>();
-        <span class='kw'>match</span> <span class='ident'>value</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>val</span>) <span class='op'>=&gt;</span> <span class='ident'>element</span>.<span class='ident'>set_string_attribute</span>(<span class='kw-2'>&amp;</span><span class='macro'>local_name</span><span class='macro'>!</span>(<span class='string'>&quot;crossorigin&quot;</span>), <span class='ident'>val</span>),
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
-                <span class='ident'>element</span>.<span class='ident'>remove_attribute</span>(<span class='kw-2'>&amp;</span><span class='macro'>ns</span><span class='macro'>!</span>(), <span class='kw-2'>&amp;</span><span class='macro'>local_name</span><span class='macro'>!</span>(<span class='string'>&quot;crossorigin&quot;</span>));
-            }
-        }
+        <span class='ident'>set_cross_origin_attribute</span>(<span class='self'>self</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Element</span><span class='op'>&gt;</span>(), <span class='ident'>value</span>);
     }
 
     <span class='comment'>// https://html.spec.whatwg.org/multipage/#dom-script-text</span>
