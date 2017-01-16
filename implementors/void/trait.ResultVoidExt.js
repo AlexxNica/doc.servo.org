@@ -2,6 +2,7 @@
 implementors["gfx"] = [];
 implementors["html5ever"] = [];
 implementors["layout_thread"] = [];
+implementors["net"] = [];
 implementors["script"] = [];
 implementors["servo"] = [];
 implementors["string_cache"] = [];
