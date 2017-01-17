@@ -6,7 +6,6 @@ implementors["image"] = [];
 implementors["layout_thread"] = [];
 implementors["net"] = [];
 implementors["net_traits"] = [];
-implementors["num"] = [];
 implementors["num_traits"] = [];
 implementors["offscreen_gl_context"] = [];
 implementors["script"] = [];

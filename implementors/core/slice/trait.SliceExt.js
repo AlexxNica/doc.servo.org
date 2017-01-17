@@ -22,7 +22,6 @@ implementors["mio"] = [];
 implementors["net"] = [];
 implementors["net_traits"] = [];
 implementors["nix"] = [];
-implementors["num"] = [];
 implementors["offscreen_gl_context"] = [];
 implementors["openssl"] = [];
 implementors["phf"] = [];
