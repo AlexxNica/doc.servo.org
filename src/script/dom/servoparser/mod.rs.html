@@ -624,6 +624,18 @@
 <span id="579">579</span>
 <span id="580">580</span>
 <span id="581">581</span>
+<span id="582">582</span>
+<span id="583">583</span>
+<span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -631,7 +643,7 @@
 
 <span class='kw'>use</span> <span class='ident'>document_loader</span>::{<span class='ident'>DocumentLoader</span>, <span class='ident'>LoadType</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>cell</span>::<span class='ident'>DOMRefCell</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>codegen</span>::<span class='ident'>Bindings</span>::<span class='ident'>DocumentBinding</span>::<span class='ident'>DocumentMethods</span>;
+<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>codegen</span>::<span class='ident'>Bindings</span>::<span class='ident'>DocumentBinding</span>::{<span class='ident'>DocumentMethods</span>, <span class='ident'>DocumentReadyState</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>codegen</span>::<span class='ident'>Bindings</span>::<span class='ident'>HTMLImageElementBinding</span>::<span class='ident'>HTMLImageElementMethods</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>codegen</span>::<span class='ident'>Bindings</span>::<span class='ident'>NodeBinding</span>::<span class='ident'>NodeMethods</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>codegen</span>::<span class='ident'>Bindings</span>::<span class='ident'>ServoParserBinding</span>;
@@ -647,8 +659,9 @@
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>htmlformelement</span>::<span class='ident'>HTMLFormElement</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>htmlimageelement</span>::<span class='ident'>HTMLImageElement</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>htmlscriptelement</span>::{<span class='ident'>HTMLScriptElement</span>, <span class='ident'>ScriptResult</span>};
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>node</span>::{<span class='ident'>Node</span>, <span class='ident'>NodeSiblingIterator</span>};
+<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>node</span>::{<span class='ident'>Node</span>, <span class='ident'>NodeDamage</span>, <span class='ident'>NodeSiblingIterator</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>text</span>::<span class='ident'>Text</span>;
+<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>window</span>::<span class='ident'>ReflowReason</span>;
 <span class='kw'>use</span> <span class='ident'>encoding</span>::<span class='ident'>all</span>::<span class='ident'>UTF_8</span>;
 <span class='kw'>use</span> <span class='ident'>encoding</span>::<span class='ident'>types</span>::{<span class='ident'>DecoderTrap</span>, <span class='ident'>Encoding</span>};
 <span class='kw'>use</span> <span class='ident'>html5ever</span>::<span class='ident'>tokenizer</span>::<span class='ident'>buffer_queue</span>::<span class='ident'>BufferQueue</span>;
@@ -661,11 +674,13 @@
 <span class='kw'>use</span> <span class='ident'>network_listener</span>::<span class='ident'>PreInvoke</span>;
 <span class='kw'>use</span> <span class='ident'>profile_traits</span>::<span class='ident'>time</span>::{<span class='ident'>TimerMetadata</span>, <span class='ident'>TimerMetadataFrameType</span>};
 <span class='kw'>use</span> <span class='ident'>profile_traits</span>::<span class='ident'>time</span>::{<span class='ident'>TimerMetadataReflowType</span>, <span class='ident'>ProfilerCategory</span>, <span class='ident'>profile</span>};
+<span class='kw'>use</span> <span class='ident'>script_layout_interface</span>::<span class='ident'>message</span>::<span class='ident'>ReflowQueryType</span>;
 <span class='kw'>use</span> <span class='ident'>script_thread</span>::<span class='ident'>ScriptThread</span>;
 <span class='kw'>use</span> <span class='ident'>servo_config</span>::<span class='ident'>resource_files</span>::<span class='ident'>read_resource_file</span>;
 <span class='kw'>use</span> <span class='ident'>servo_url</span>::<span class='ident'>ServoUrl</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>Cell</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
+<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>context</span>::<span class='ident'>ReflowGoal</span>;
 
 <span class='kw'>mod</span> <span class='ident'>html</span>;
 <span class='kw'>mod</span> <span class='ident'>xml</span>;
@@ -960,20 +975,29 @@
         }
     }
 
+    <span class='comment'>// https://html.spec.whatwg.org/multipage/#the-end</span>
     <span class='kw'>fn</span> <span class='ident'>finish</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
         <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='self'>self</span>.<span class='ident'>suspended</span>.<span class='ident'>get</span>());
         <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>last_chunk_received</span>.<span class='ident'>get</span>());
         <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>script_input</span>.<span class='ident'>borrow</span>().<span class='ident'>is_empty</span>());
         <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>network_input</span>.<span class='ident'>borrow</span>().<span class='ident'>is_empty</span>());
 
-        <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>end</span>();
-        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;finished parsing&quot;</span>);
+        <span class='comment'>// Step 1.</span>
+        <span class='self'>self</span>.<span class='ident'>document</span>.<span class='ident'>set_ready_state</span>(<span class='ident'>DocumentReadyState</span>::<span class='ident'>Interactive</span>);
 
+        <span class='comment'>// Step 2.</span>
+        <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>end</span>();
         <span class='self'>self</span>.<span class='ident'>document</span>.<span class='ident'>set_current_parser</span>(<span class='prelude-val'>None</span>);
 
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>pipeline</span> {
-            <span class='ident'>ScriptThread</span>::<span class='ident'>parsing_complete</span>(<span class='ident'>pipeline</span>);
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>pipeline</span>.<span class='ident'>is_some</span>() {
+            <span class='self'>self</span>.<span class='ident'>document</span>.<span class='ident'>disarm_reflow_timeout</span>();
+            <span class='self'>self</span>.<span class='ident'>document</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Node</span><span class='op'>&gt;</span>().<span class='ident'>dirty</span>(<span class='ident'>NodeDamage</span>::<span class='ident'>OtherNodeDamage</span>);
+            <span class='kw'>let</span> <span class='ident'>window</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>document</span>.<span class='ident'>window</span>();
+            <span class='ident'>window</span>.<span class='ident'>reflow</span>(<span class='ident'>ReflowGoal</span>::<span class='ident'>ForDisplay</span>, <span class='ident'>ReflowQueryType</span>::<span class='ident'>NoQuery</span>, <span class='ident'>ReflowReason</span>::<span class='ident'>FirstLoad</span>);
         }
+
+        <span class='comment'>// Step 3.</span>
+        <span class='self'>self</span>.<span class='ident'>document</span>.<span class='ident'>process_deferred_scripts</span>();
     }
 }
 
