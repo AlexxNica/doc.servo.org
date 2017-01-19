@@ -3493,6 +3493,10 @@
 <span id="3448">3448</span>
 <span id="3449">3449</span>
 <span id="3450">3450</span>
+<span id="3451">3451</span>
+<span id="3452">3452</span>
+<span id="3453">3453</span>
+<span id="3454">3454</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -3628,6 +3632,7 @@
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>selector_parser</span>::{<span class='ident'>RestyleDamage</span>, <span class='ident'>Snapshot</span>};
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>str</span>::{<span class='ident'>split_html_space_chars</span>, <span class='ident'>str_join</span>};
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>stylesheets</span>::<span class='ident'>Stylesheet</span>;
+<span class='kw'>use</span> <span class='ident'>task_source</span>::<span class='ident'>TaskSource</span>;
 <span class='kw'>use</span> <span class='ident'>time</span>;
 <span class='kw'>use</span> <span class='ident'>url</span>::<span class='ident'>percent_encoding</span>::<span class='ident'>percent_decode</span>;
 
@@ -5068,13 +5073,11 @@
         }
 
         <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>loader</span>.<span class='ident'>borrow</span>().<span class='ident'>is_blocked</span>() <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>loader</span>.<span class='ident'>borrow</span>().<span class='ident'>events_inhibited</span>() {
-            <span class='comment'>// Schedule a task to fire a &quot;load&quot; event (if no blocking loads have arrived in the mean time)</span>
-            <span class='comment'>// NOTE: we can end up executing this code more than once, in case more blocking loads arrive.</span>
+            <span class='self'>self</span>.<span class='ident'>loader</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>inhibit_events</span>();
+            <span class='comment'>// Schedule a task to fire a &quot;load&quot; event.</span>
             <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Document loads are complete.&quot;</span>);
-            <span class='kw'>let</span> <span class='ident'>win</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>window</span>();
-            <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>MainThreadScriptMsg</span>::<span class='ident'>DocumentLoadsComplete</span>(
-                <span class='ident'>win</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>GlobalScope</span><span class='op'>&gt;</span>().<span class='ident'>pipeline_id</span>());
-            <span class='ident'>win</span>.<span class='ident'>main_thread_script_chan</span>().<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
+            <span class='kw'>let</span> <span class='ident'>handler</span> <span class='op'>=</span> <span class='kw'>box</span> <span class='ident'>DocumentProgressHandler</span>::<span class='ident'>new</span>(<span class='ident'>Trusted</span>::<span class='ident'>new</span>(<span class='self'>self</span>));
+            <span class='self'>self</span>.<span class='ident'>window</span>.<span class='ident'>dom_manipulation_task_source</span>().<span class='ident'>queue</span>(<span class='ident'>handler</span>, <span class='self'>self</span>.<span class='ident'>window</span>.<span class='ident'>upcast</span>()).<span class='ident'>unwrap</span>();
         }
     }
 
@@ -6810,6 +6813,9 @@
 
     <span class='kw'>fn</span> <span class='ident'>dispatch_load</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
         <span class='kw'>let</span> <span class='ident'>document</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>addr</span>.<span class='ident'>root</span>();
+        <span class='kw'>if</span> <span class='ident'>document</span>.<span class='ident'>browsing_context</span>().<span class='ident'>is_none</span>() {
+            <span class='kw'>return</span>;
+        }
         <span class='kw'>let</span> <span class='ident'>window</span> <span class='op'>=</span> <span class='ident'>document</span>.<span class='ident'>window</span>();
         <span class='kw'>let</span> <span class='ident'>event</span> <span class='op'>=</span> <span class='ident'>Event</span>::<span class='ident'>new</span>(<span class='ident'>window</span>.<span class='ident'>upcast</span>(),
                                <span class='macro'>atom</span><span class='macro'>!</span>(<span class='string'>&quot;load&quot;</span>),
@@ -6826,7 +6832,6 @@
 
         <span class='comment'>// http://w3c.github.io/navigation-timing/#widl-PerformanceNavigationTiming-loadEventEnd</span>
         <span class='ident'>update_with_current_time_ms</span>(<span class='kw-2'>&amp;</span><span class='ident'>document</span>.<span class='ident'>load_event_end</span>);
-
 
         <span class='ident'>window</span>.<span class='ident'>reflow</span>(<span class='ident'>ReflowGoal</span>::<span class='ident'>ForDisplay</span>,
                       <span class='ident'>ReflowQueryType</span>::<span class='ident'>NoQuery</span>,
@@ -6845,6 +6850,9 @@
         <span class='kw'>if</span> <span class='ident'>window</span>.<span class='ident'>is_alive</span>() {
             <span class='self'>self</span>.<span class='ident'>set_ready_state_complete</span>();
             <span class='self'>self</span>.<span class='ident'>dispatch_load</span>();
+            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>fragment</span>) <span class='op'>=</span> <span class='ident'>document</span>.<span class='ident'>url</span>().<span class='ident'>fragment</span>() {
+                <span class='ident'>document</span>.<span class='ident'>check_and_scroll_fragment</span>(<span class='ident'>fragment</span>);
+            }
         }
     }
 }
