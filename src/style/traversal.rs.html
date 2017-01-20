@@ -629,17 +629,6 @@
 <span id="584">584</span>
 <span id="585">585</span>
 <span id="586">586</span>
-<span id="587">587</span>
-<span id="588">588</span>
-<span id="589">589</span>
-<span id="590">590</span>
-<span id="591">591</span>
-<span id="592">592</span>
-<span id="593">593</span>
-<span id="594">594</span>
-<span id="595">595</span>
-<span id="596">596</span>
-<span id="597">597</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -659,15 +648,7 @@
 <span class='kw'>use</span> <span class='ident'>servo_config</span>::<span class='ident'>opts</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>BorrowMut</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>atomic</span>::{<span class='ident'>AtomicUsize</span>, <span class='ident'>ATOMIC_USIZE_INIT</span>, <span class='ident'>Ordering</span>};
 <span class='kw'>use</span> <span class='ident'>stylist</span>::<span class='ident'>Stylist</span>;
-
-<span class='doccomment'>/// Style sharing candidate cache hits. These are only used when</span>
-<span class='doccomment'>/// `-Z style-sharing-stats` is given.</span>
-<span class='kw'>pub</span> <span class='kw'>static</span> <span class='ident'>STYLE_SHARING_CACHE_HITS</span>: <span class='ident'>AtomicUsize</span> <span class='op'>=</span> <span class='ident'>ATOMIC_USIZE_INIT</span>;
-
-<span class='doccomment'>/// Style sharing candidate cache misses.</span>
-<span class='kw'>pub</span> <span class='kw'>static</span> <span class='ident'>STYLE_SHARING_CACHE_MISSES</span>: <span class='ident'>AtomicUsize</span> <span class='op'>=</span> <span class='ident'>ATOMIC_USIZE_INIT</span>;
 
 <span class='doccomment'>/// A per-traversal-level chunk of data. This is sent down by the traversal, and</span>
 <span class='doccomment'>/// currently only holds the dom depth for the bloom filter.</span>
@@ -1029,6 +1010,7 @@
           <span class='ident'>D</span>: <span class='ident'>DomTraversal</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>
 {
     <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>begin_element</span>(<span class='ident'>element</span>, <span class='kw-2'>&amp;</span><span class='ident'>data</span>);
+    <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>statistics</span>.<span class='ident'>elements_traversed</span> <span class='op'>+=</span> <span class='number'>1</span>;
     <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>data</span>.<span class='ident'>get_restyle</span>().<span class='ident'>map_or</span>(<span class='bool-val'>true</span>, <span class='op'>|</span><span class='ident'>r</span><span class='op'>|</span> <span class='ident'>r</span>.<span class='ident'>snapshot</span>.<span class='ident'>is_none</span>()),
                   <span class='string'>&quot;Snapshots should be expanded by the caller&quot;</span>);
 
@@ -1089,6 +1071,7 @@
     <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
           <span class='ident'>D</span>: <span class='ident'>DomTraversal</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>,
 {
+    <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>statistics</span>.<span class='ident'>elements_styled</span> <span class='op'>+=</span> <span class='number'>1</span>;
     <span class='kw'>let</span> <span class='ident'>shared_context</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>shared</span>;
     <span class='comment'>// Ensure the bloom filter is up to date.</span>
     <span class='kw'>let</span> <span class='ident'>dom_depth</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>bloom_filter</span>
@@ -1115,11 +1098,8 @@
         <span class='ident'>StyleSharingResult</span>::<span class='ident'>CannotShare</span> <span class='op'>=&gt;</span> {
             <span class='kw'>let</span> <span class='ident'>match_results</span>;
             <span class='kw'>let</span> <span class='ident'>shareable_element</span> <span class='op'>=</span> {
-                <span class='kw'>if</span> <span class='ident'>opts</span>::<span class='ident'>get</span>().<span class='ident'>style_sharing_stats</span> {
-                    <span class='ident'>STYLE_SHARING_CACHE_MISSES</span>.<span class='ident'>fetch_add</span>(<span class='number'>1</span>, <span class='ident'>Ordering</span>::<span class='ident'>Relaxed</span>);
-                }
-
                 <span class='comment'>// Perform the CSS selector matching.</span>
+                <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>statistics</span>.<span class='ident'>elements_matched</span> <span class='op'>+=</span> <span class='number'>1</span>;
                 <span class='kw'>let</span> <span class='ident'>filter</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>bloom_filter</span>.<span class='ident'>filter</span>();
                 <span class='ident'>match_results</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>match_element</span>(<span class='ident'>context</span>, <span class='prelude-val'>Some</span>(<span class='ident'>filter</span>));
                 <span class='kw'>if</span> <span class='ident'>match_results</span>.<span class='ident'>primary_is_shareable</span>() {
@@ -1148,9 +1128,7 @@
             }
         }
         <span class='ident'>StyleSharingResult</span>::<span class='ident'>StyleWasShared</span>(<span class='ident'>index</span>) <span class='op'>=&gt;</span> {
-            <span class='kw'>if</span> <span class='ident'>opts</span>::<span class='ident'>get</span>().<span class='ident'>style_sharing_stats</span> {
-                <span class='ident'>STYLE_SHARING_CACHE_HITS</span>.<span class='ident'>fetch_add</span>(<span class='number'>1</span>, <span class='ident'>Ordering</span>::<span class='ident'>Relaxed</span>);
-            }
+            <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>statistics</span>.<span class='ident'>styles_shared</span> <span class='op'>+=</span> <span class='number'>1</span>;
             <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>style_sharing_candidate_cache</span>.<span class='ident'>touch</span>(<span class='ident'>index</span>);
         }
     }
