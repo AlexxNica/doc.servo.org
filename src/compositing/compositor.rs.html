@@ -1762,6 +1762,43 @@
 <span id="1717">1717</span>
 <span id="1718">1718</span>
 <span id="1719">1719</span>
+<span id="1720">1720</span>
+<span id="1721">1721</span>
+<span id="1722">1722</span>
+<span id="1723">1723</span>
+<span id="1724">1724</span>
+<span id="1725">1725</span>
+<span id="1726">1726</span>
+<span id="1727">1727</span>
+<span id="1728">1728</span>
+<span id="1729">1729</span>
+<span id="1730">1730</span>
+<span id="1731">1731</span>
+<span id="1732">1732</span>
+<span id="1733">1733</span>
+<span id="1734">1734</span>
+<span id="1735">1735</span>
+<span id="1736">1736</span>
+<span id="1737">1737</span>
+<span id="1738">1738</span>
+<span id="1739">1739</span>
+<span id="1740">1740</span>
+<span id="1741">1741</span>
+<span id="1742">1742</span>
+<span id="1743">1743</span>
+<span id="1744">1744</span>
+<span id="1745">1745</span>
+<span id="1746">1746</span>
+<span id="1747">1747</span>
+<span id="1748">1748</span>
+<span id="1749">1749</span>
+<span id="1750">1750</span>
+<span id="1751">1751</span>
+<span id="1752">1752</span>
+<span id="1753">1753</span>
+<span id="1754">1754</span>
+<span id="1755">1755</span>
+<span id="1756">1756</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1804,7 +1841,7 @@
 <span class='kw'>use</span> <span class='ident'>time</span>::{<span class='ident'>precise_time_ns</span>, <span class='ident'>precise_time_s</span>};
 <span class='kw'>use</span> <span class='ident'>touch</span>::{<span class='ident'>TouchHandler</span>, <span class='ident'>TouchAction</span>};
 <span class='kw'>use</span> <span class='ident'>webrender</span>;
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='self'>self</span>, <span class='ident'>ScrollEventPhase</span>, <span class='ident'>ServoScrollRootId</span>, <span class='ident'>LayoutPoint</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='self'>self</span>, <span class='ident'>ScrollEventPhase</span>, <span class='ident'>ServoScrollRootId</span>, <span class='ident'>LayoutPoint</span>, <span class='ident'>ScrollLocation</span>};
 <span class='kw'>use</span> <span class='ident'>windowing</span>::{<span class='self'>self</span>, <span class='ident'>MouseWindowEvent</span>, <span class='ident'>WindowEvent</span>, <span class='ident'>WindowMethods</span>, <span class='ident'>WindowNavigateMsg</span>};
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>PartialEq</span>)]</span>
@@ -1992,8 +2029,8 @@
 <span class='kw'>struct</span> <span class='ident'>ScrollZoomEvent</span> {
     <span class='doccomment'>/// Change the pinch zoom level by this factor</span>
     <span class='ident'>magnification</span>: <span class='ident'>f32</span>,
-    <span class='doccomment'>/// Scroll by this offset</span>
-    <span class='ident'>delta</span>: <span class='ident'>TypedPoint2D</span><span class='op'>&lt;</span><span class='ident'>f32</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>,
+    <span class='doccomment'>/// Scroll by this offset, or to Start or End</span>
+    <span class='ident'>scroll_location</span>: <span class='ident'>ScrollLocation</span>,
     <span class='doccomment'>/// Apply changes to the frame at this location</span>
     <span class='ident'>cursor</span>: <span class='ident'>TypedPoint2D</span><span class='op'>&lt;</span><span class='ident'>i32</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>,
     <span class='doccomment'>/// The scroll event phase.</span>
@@ -2792,7 +2829,10 @@
         <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>touch_handler</span>.<span class='ident'>on_touch_move</span>(<span class='ident'>identifier</span>, <span class='ident'>point</span>) {
             <span class='ident'>TouchAction</span>::<span class='ident'>Scroll</span>(<span class='ident'>delta</span>) <span class='op'>=&gt;</span> {
                 <span class='kw'>match</span> <span class='ident'>point</span>.<span class='ident'>cast</span>() {
-                    <span class='prelude-val'>Some</span>(<span class='ident'>point</span>) <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>on_scroll_window_event</span>(<span class='ident'>delta</span>, <span class='ident'>point</span>),
+                    <span class='prelude-val'>Some</span>(<span class='ident'>point</span>) <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>on_scroll_window_event</span>(<span class='ident'>ScrollLocation</span>::<span class='ident'>Delta</span>(
+                                                               <span class='ident'>webrender_traits</span>::<span class='ident'>LayerPoint</span>::<span class='ident'>from_untyped</span>(
+                                                               <span class='kw-2'>&amp;</span><span class='ident'>delta</span>.<span class='ident'>to_untyped</span>())),
+                                                               <span class='ident'>point</span>),
                     <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='macro'>error</span><span class='macro'>!</span>(<span class='string'>&quot;Point cast failed.&quot;</span>),
                 }
             }
@@ -2800,7 +2840,8 @@
                 <span class='kw'>let</span> <span class='ident'>cursor</span> <span class='op'>=</span> <span class='ident'>TypedPoint2D</span>::<span class='ident'>new</span>(<span class='op'>-</span><span class='number'>1</span>, <span class='op'>-</span><span class='number'>1</span>);  <span class='comment'>// Make sure this hits the base layer.</span>
                 <span class='self'>self</span>.<span class='ident'>pending_scroll_zoom_events</span>.<span class='ident'>push</span>(<span class='ident'>ScrollZoomEvent</span> {
                     <span class='ident'>magnification</span>: <span class='ident'>magnification</span>,
-                    <span class='ident'>delta</span>: <span class='ident'>scroll_delta</span>,
+                    <span class='ident'>scroll_location</span>: <span class='ident'>ScrollLocation</span>::<span class='ident'>Delta</span>(<span class='ident'>webrender_traits</span>::<span class='ident'>LayerPoint</span>::<span class='ident'>from_untyped</span>(
+                                                           <span class='kw-2'>&amp;</span><span class='ident'>scroll_delta</span>.<span class='ident'>to_untyped</span>())),
                     <span class='ident'>cursor</span>: <span class='ident'>cursor</span>,
                     <span class='ident'>phase</span>: <span class='ident'>ScrollEventPhase</span>::<span class='ident'>Move</span>(<span class='bool-val'>true</span>),
                     <span class='ident'>event_count</span>: <span class='number'>1</span>,
@@ -2861,7 +2902,7 @@
     }
 
     <span class='kw'>fn</span> <span class='ident'>on_scroll_window_event</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                              <span class='ident'>delta</span>: <span class='ident'>TypedPoint2D</span><span class='op'>&lt;</span><span class='ident'>f32</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>,
+                              <span class='ident'>scroll_location</span>: <span class='ident'>ScrollLocation</span>,
                               <span class='ident'>cursor</span>: <span class='ident'>TypedPoint2D</span><span class='op'>&lt;</span><span class='ident'>i32</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>) {
         <span class='kw'>let</span> <span class='ident'>event_phase</span> <span class='op'>=</span> <span class='kw'>match</span> (<span class='self'>self</span>.<span class='ident'>scroll_in_progress</span>, <span class='self'>self</span>.<span class='ident'>in_scroll_transaction</span>) {
             (<span class='bool-val'>false</span>, <span class='prelude-val'>None</span>) <span class='op'>=&gt;</span> <span class='ident'>ScrollEventPhase</span>::<span class='ident'>Start</span>,
@@ -2872,7 +2913,7 @@
         <span class='self'>self</span>.<span class='ident'>in_scroll_transaction</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>Instant</span>::<span class='ident'>now</span>());
         <span class='self'>self</span>.<span class='ident'>pending_scroll_zoom_events</span>.<span class='ident'>push</span>(<span class='ident'>ScrollZoomEvent</span> {
             <span class='ident'>magnification</span>: <span class='number'>1.0</span>,
-            <span class='ident'>delta</span>: <span class='ident'>delta</span>,
+            <span class='ident'>scroll_location</span>: <span class='ident'>scroll_location</span>,
             <span class='ident'>cursor</span>: <span class='ident'>cursor</span>,
             <span class='ident'>phase</span>: <span class='ident'>event_phase</span>,
             <span class='ident'>event_count</span>: <span class='number'>1</span>,
@@ -2880,12 +2921,12 @@
     }
 
     <span class='kw'>fn</span> <span class='ident'>on_scroll_start_window_event</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                                    <span class='ident'>delta</span>: <span class='ident'>TypedPoint2D</span><span class='op'>&lt;</span><span class='ident'>f32</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>,
+                                    <span class='ident'>scroll_location</span>: <span class='ident'>ScrollLocation</span>,
                                     <span class='ident'>cursor</span>: <span class='ident'>TypedPoint2D</span><span class='op'>&lt;</span><span class='ident'>i32</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>) {
         <span class='self'>self</span>.<span class='ident'>scroll_in_progress</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
         <span class='self'>self</span>.<span class='ident'>pending_scroll_zoom_events</span>.<span class='ident'>push</span>(<span class='ident'>ScrollZoomEvent</span> {
             <span class='ident'>magnification</span>: <span class='number'>1.0</span>,
-            <span class='ident'>delta</span>: <span class='ident'>delta</span>,
+            <span class='ident'>scroll_location</span>: <span class='ident'>scroll_location</span>,
             <span class='ident'>cursor</span>: <span class='ident'>cursor</span>,
             <span class='ident'>phase</span>: <span class='ident'>ScrollEventPhase</span>::<span class='ident'>Start</span>,
             <span class='ident'>event_count</span>: <span class='number'>1</span>,
@@ -2893,12 +2934,12 @@
     }
 
     <span class='kw'>fn</span> <span class='ident'>on_scroll_end_window_event</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                                  <span class='ident'>delta</span>: <span class='ident'>TypedPoint2D</span><span class='op'>&lt;</span><span class='ident'>f32</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>,
+                                  <span class='ident'>scroll_location</span>: <span class='ident'>ScrollLocation</span>,
                                   <span class='ident'>cursor</span>: <span class='ident'>TypedPoint2D</span><span class='op'>&lt;</span><span class='ident'>i32</span>, <span class='ident'>DevicePixel</span><span class='op'>&gt;</span>) {
         <span class='self'>self</span>.<span class='ident'>scroll_in_progress</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
         <span class='self'>self</span>.<span class='ident'>pending_scroll_zoom_events</span>.<span class='ident'>push</span>(<span class='ident'>ScrollZoomEvent</span> {
             <span class='ident'>magnification</span>: <span class='number'>1.0</span>,
-            <span class='ident'>delta</span>: <span class='ident'>delta</span>,
+            <span class='ident'>scroll_location</span>: <span class='ident'>scroll_location</span>,
             <span class='ident'>cursor</span>: <span class='ident'>cursor</span>,
             <span class='ident'>phase</span>: <span class='ident'>ScrollEventPhase</span>::<span class='ident'>End</span>,
             <span class='ident'>event_count</span>: <span class='number'>1</span>,
@@ -2911,14 +2952,34 @@
         <span class='comment'>// Batch up all scroll events into one, or else we&#39;ll do way too much painting.</span>
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>last_combined_event</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ScrollZoomEvent</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='prelude-val'>None</span>;
         <span class='kw'>for</span> <span class='ident'>scroll_event</span> <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>pending_scroll_zoom_events</span>.<span class='ident'>drain</span>(..) {
-            <span class='kw'>let</span> <span class='ident'>this_delta</span> <span class='op'>=</span> <span class='ident'>scroll_event</span>.<span class='ident'>delta</span>;
             <span class='kw'>let</span> <span class='ident'>this_cursor</span> <span class='op'>=</span> <span class='ident'>scroll_event</span>.<span class='ident'>cursor</span>;
+
+            <span class='kw'>let</span> <span class='ident'>this_delta</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>scroll_event</span>.<span class='ident'>scroll_location</span> {
+                <span class='ident'>ScrollLocation</span>::<span class='ident'>Delta</span>(<span class='ident'>delta</span>) <span class='op'>=&gt;</span> <span class='ident'>delta</span>,
+                <span class='ident'>ScrollLocation</span>::<span class='ident'>Start</span> <span class='op'>|</span> <span class='ident'>ScrollLocation</span>::<span class='ident'>End</span> <span class='op'>=&gt;</span> {
+                    <span class='comment'>// If this is an event which is scrolling to the start or end of the page,</span>
+                    <span class='comment'>// disregard other pending events and exit the loop.</span>
+                    <span class='ident'>last_combined_event</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>scroll_event</span>);
+                    <span class='kw'>break</span>;
+                }
+            };
+
             <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>combined_event</span>) <span class='op'>=</span> <span class='ident'>last_combined_event</span> {
                 <span class='kw'>if</span> <span class='ident'>combined_event</span>.<span class='ident'>phase</span> <span class='op'>!=</span> <span class='ident'>scroll_event</span>.<span class='ident'>phase</span> {
-                    <span class='kw'>let</span> <span class='ident'>delta</span> <span class='op'>=</span> (<span class='ident'>combined_event</span>.<span class='ident'>delta</span> <span class='op'>/</span> <span class='self'>self</span>.<span class='ident'>scale</span>).<span class='ident'>to_untyped</span>();
+                    <span class='kw'>let</span> <span class='ident'>combined_delta</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>combined_event</span>.<span class='ident'>scroll_location</span> {
+                        <span class='ident'>ScrollLocation</span>::<span class='ident'>Delta</span>(<span class='ident'>delta</span>) <span class='op'>=&gt;</span> <span class='ident'>delta</span>,
+                        <span class='ident'>ScrollLocation</span>::<span class='ident'>Start</span> <span class='op'>|</span> <span class='ident'>ScrollLocation</span>::<span class='ident'>End</span> <span class='op'>=&gt;</span> {
+                            <span class='comment'>// If this is an event which is scrolling to the start or end of the page,</span>
+                            <span class='comment'>// disregard other pending events and exit the loop.</span>
+                            <span class='ident'>last_combined_event</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>scroll_event</span>);
+                            <span class='kw'>break</span>;
+                        }
+                    };
+                    <span class='kw'>let</span> <span class='ident'>delta</span> <span class='op'>=</span> (<span class='ident'>TypedPoint2D</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>combined_delta</span>.<span class='ident'>to_untyped</span>()) <span class='op'>/</span> <span class='self'>self</span>.<span class='ident'>scale</span>)
+                                 .<span class='ident'>to_untyped</span>();
+                    <span class='kw'>let</span> <span class='ident'>delta</span> <span class='op'>=</span> <span class='ident'>webrender_traits</span>::<span class='ident'>LayerPoint</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>delta</span>);
                     <span class='kw'>let</span> <span class='ident'>cursor</span> <span class='op'>=</span>
                         (<span class='ident'>combined_event</span>.<span class='ident'>cursor</span>.<span class='ident'>to_f32</span>() <span class='op'>/</span> <span class='self'>self</span>.<span class='ident'>scale</span>).<span class='ident'>to_untyped</span>();
-                    <span class='kw'>let</span> <span class='ident'>delta</span> <span class='op'>=</span> <span class='ident'>webrender_traits</span>::<span class='ident'>LayerPoint</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>delta</span>);
                     <span class='kw'>let</span> <span class='ident'>location</span> <span class='op'>=</span> <span class='ident'>webrender_traits</span>::<span class='ident'>ScrollLocation</span>::<span class='ident'>Delta</span>(<span class='ident'>delta</span>);
                     <span class='kw'>let</span> <span class='ident'>cursor</span> <span class='op'>=</span> <span class='ident'>webrender_traits</span>::<span class='ident'>WorldPoint</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>cursor</span>);
                     <span class='self'>self</span>.<span class='ident'>webrender_api</span>.<span class='ident'>scroll</span>(<span class='ident'>location</span>, <span class='ident'>cursor</span>, <span class='ident'>combined_event</span>.<span class='ident'>phase</span>);
@@ -2930,7 +2991,8 @@
                 (<span class='ident'>last_combined_event</span> @ <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='prelude-val'>None</span>, _) <span class='op'>=&gt;</span> {
                     <span class='op'>*</span><span class='ident'>last_combined_event</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>ScrollZoomEvent</span> {
                         <span class='ident'>magnification</span>: <span class='ident'>scroll_event</span>.<span class='ident'>magnification</span>,
-                        <span class='ident'>delta</span>: <span class='ident'>this_delta</span>,
+                        <span class='ident'>scroll_location</span>: <span class='ident'>ScrollLocation</span>::<span class='ident'>Delta</span>(<span class='ident'>webrender_traits</span>::<span class='ident'>LayerPoint</span>::<span class='ident'>from_untyped</span>(
+                                                               <span class='kw-2'>&amp;</span><span class='ident'>this_delta</span>.<span class='ident'>to_untyped</span>())),
                         <span class='ident'>cursor</span>: <span class='ident'>this_cursor</span>,
                         <span class='ident'>phase</span>: <span class='ident'>scroll_event</span>.<span class='ident'>phase</span>,
                         <span class='ident'>event_count</span>: <span class='number'>1</span>,
@@ -2942,30 +3004,41 @@
                     <span class='comment'>// fling. This causes events to get bunched up occasionally, causing</span>
                     <span class='comment'>// nasty-looking &quot;pops&quot;. To mitigate this, during a fling we average</span>
                     <span class='comment'>// deltas instead of summing them.</span>
-                    <span class='kw'>let</span> <span class='ident'>old_event_count</span> <span class='op'>=</span>
-                        <span class='ident'>ScaleFactor</span>::<span class='ident'>new</span>(<span class='ident'>last_combined_event</span>.<span class='ident'>event_count</span> <span class='kw'>as</span> <span class='ident'>f32</span>);
-                    <span class='ident'>last_combined_event</span>.<span class='ident'>event_count</span> <span class='op'>+=</span> <span class='number'>1</span>;
-                    <span class='kw'>let</span> <span class='ident'>new_event_count</span> <span class='op'>=</span>
-                        <span class='ident'>ScaleFactor</span>::<span class='ident'>new</span>(<span class='ident'>last_combined_event</span>.<span class='ident'>event_count</span> <span class='kw'>as</span> <span class='ident'>f32</span>);
-                    <span class='ident'>last_combined_event</span>.<span class='ident'>delta</span> <span class='op'>=</span>
-                        (<span class='ident'>last_combined_event</span>.<span class='ident'>delta</span> <span class='op'>*</span> <span class='ident'>old_event_count</span> <span class='op'>+</span> <span class='ident'>this_delta</span>) <span class='op'>/</span>
-                        <span class='ident'>new_event_count</span>;
+                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>ScrollLocation</span>::<span class='ident'>Delta</span>(<span class='ident'>delta</span>) <span class='op'>=</span> <span class='ident'>last_combined_event</span>.<span class='ident'>scroll_location</span> {
+                        <span class='kw'>let</span> <span class='ident'>old_event_count</span> <span class='op'>=</span>
+                            <span class='ident'>ScaleFactor</span>::<span class='ident'>new</span>(<span class='ident'>last_combined_event</span>.<span class='ident'>event_count</span> <span class='kw'>as</span> <span class='ident'>f32</span>);
+                        <span class='ident'>last_combined_event</span>.<span class='ident'>event_count</span> <span class='op'>+=</span> <span class='number'>1</span>;
+                        <span class='kw'>let</span> <span class='ident'>new_event_count</span> <span class='op'>=</span>
+                            <span class='ident'>ScaleFactor</span>::<span class='ident'>new</span>(<span class='ident'>last_combined_event</span>.<span class='ident'>event_count</span> <span class='kw'>as</span> <span class='ident'>f32</span>);
+                        <span class='ident'>last_combined_event</span>.<span class='ident'>scroll_location</span> <span class='op'>=</span> <span class='ident'>ScrollLocation</span>::<span class='ident'>Delta</span>(
+                            (<span class='ident'>delta</span> <span class='op'>*</span> <span class='ident'>old_event_count</span> <span class='op'>+</span> <span class='ident'>this_delta</span>) <span class='op'>/</span>
+                            <span class='ident'>new_event_count</span>);
+                    }
                 }
                 (<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>last_combined_event</span>), _) <span class='op'>=&gt;</span> {
-                    <span class='ident'>last_combined_event</span>.<span class='ident'>delta</span> <span class='op'>=</span> <span class='ident'>last_combined_event</span>.<span class='ident'>delta</span> <span class='op'>+</span> <span class='ident'>this_delta</span>;
-                    <span class='ident'>last_combined_event</span>.<span class='ident'>event_count</span> <span class='op'>+=</span> <span class='number'>1</span>
+                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>ScrollLocation</span>::<span class='ident'>Delta</span>(<span class='ident'>delta</span>) <span class='op'>=</span> <span class='ident'>last_combined_event</span>.<span class='ident'>scroll_location</span> {
+                        <span class='ident'>last_combined_event</span>.<span class='ident'>scroll_location</span> <span class='op'>=</span> <span class='ident'>ScrollLocation</span>::<span class='ident'>Delta</span>(<span class='ident'>delta</span> <span class='op'>+</span> <span class='ident'>this_delta</span>);
+                        <span class='ident'>last_combined_event</span>.<span class='ident'>event_count</span> <span class='op'>+=</span> <span class='number'>1</span>
+                    }
                 }
             }
         }
 
         <span class='comment'>// TODO(gw): Support zoom (WR issue #28).</span>
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>combined_event</span>) <span class='op'>=</span> <span class='ident'>last_combined_event</span> {
-            <span class='kw'>let</span> <span class='ident'>delta</span> <span class='op'>=</span> (<span class='ident'>combined_event</span>.<span class='ident'>delta</span> <span class='op'>/</span> <span class='self'>self</span>.<span class='ident'>scale</span>).<span class='ident'>to_untyped</span>();
-            <span class='kw'>let</span> <span class='ident'>delta</span> <span class='op'>=</span> <span class='ident'>webrender_traits</span>::<span class='ident'>LayoutPoint</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>delta</span>);
+            <span class='kw'>let</span> <span class='ident'>scroll_location</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>combined_event</span>.<span class='ident'>scroll_location</span> {
+                <span class='ident'>ScrollLocation</span>::<span class='ident'>Delta</span>(<span class='ident'>delta</span>) <span class='op'>=&gt;</span> {
+                    <span class='kw'>let</span> <span class='ident'>scaled_delta</span> <span class='op'>=</span> (<span class='ident'>TypedPoint2D</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>delta</span>.<span class='ident'>to_untyped</span>()) <span class='op'>/</span> <span class='self'>self</span>.<span class='ident'>scale</span>)
+                                       .<span class='ident'>to_untyped</span>();
+                    <span class='kw'>let</span> <span class='ident'>calculated_delta</span> <span class='op'>=</span> <span class='ident'>webrender_traits</span>::<span class='ident'>LayoutPoint</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>scaled_delta</span>);
+                                           <span class='ident'>ScrollLocation</span>::<span class='ident'>Delta</span>(<span class='ident'>calculated_delta</span>)
+                },
+                <span class='comment'>// Leave ScrollLocation unchanged if it is Start or End location.</span>
+                <span class='ident'>sl</span> @ <span class='ident'>ScrollLocation</span>::<span class='ident'>Start</span> <span class='op'>|</span> <span class='ident'>sl</span> @ <span class='ident'>ScrollLocation</span>::<span class='ident'>End</span> <span class='op'>=&gt;</span> <span class='ident'>sl</span>,
+            };
             <span class='kw'>let</span> <span class='ident'>cursor</span> <span class='op'>=</span> (<span class='ident'>combined_event</span>.<span class='ident'>cursor</span>.<span class='ident'>to_f32</span>() <span class='op'>/</span> <span class='self'>self</span>.<span class='ident'>scale</span>).<span class='ident'>to_untyped</span>();
-            <span class='kw'>let</span> <span class='ident'>location</span> <span class='op'>=</span> <span class='ident'>webrender_traits</span>::<span class='ident'>ScrollLocation</span>::<span class='ident'>Delta</span>(<span class='ident'>delta</span>);
             <span class='kw'>let</span> <span class='ident'>cursor</span> <span class='op'>=</span> <span class='ident'>webrender_traits</span>::<span class='ident'>WorldPoint</span>::<span class='ident'>from_untyped</span>(<span class='kw-2'>&amp;</span><span class='ident'>cursor</span>);
-            <span class='self'>self</span>.<span class='ident'>webrender_api</span>.<span class='ident'>scroll</span>(<span class='ident'>location</span>, <span class='ident'>cursor</span>, <span class='ident'>combined_event</span>.<span class='ident'>phase</span>);
+            <span class='self'>self</span>.<span class='ident'>webrender_api</span>.<span class='ident'>scroll</span>(<span class='ident'>scroll_location</span>, <span class='ident'>cursor</span>, <span class='ident'>combined_event</span>.<span class='ident'>phase</span>);
             <span class='self'>self</span>.<span class='ident'>waiting_for_results_of_scroll</span> <span class='op'>=</span> <span class='bool-val'>true</span>
         }
 
@@ -3060,7 +3133,7 @@
     <span class='kw'>fn</span> <span class='ident'>on_pinch_zoom_window_event</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>magnification</span>: <span class='ident'>f32</span>) {
         <span class='self'>self</span>.<span class='ident'>pending_scroll_zoom_events</span>.<span class='ident'>push</span>(<span class='ident'>ScrollZoomEvent</span> {
             <span class='ident'>magnification</span>: <span class='ident'>magnification</span>,
-            <span class='ident'>delta</span>: <span class='ident'>TypedPoint2D</span>::<span class='ident'>zero</span>(), <span class='comment'>// TODO: Scroll to keep the center in view?</span>
+            <span class='ident'>scroll_location</span>: <span class='ident'>ScrollLocation</span>::<span class='ident'>Delta</span>(<span class='ident'>TypedPoint2D</span>::<span class='ident'>zero</span>()), <span class='comment'>// TODO: Scroll to keep the center in view?</span>
             <span class='ident'>cursor</span>:  <span class='ident'>TypedPoint2D</span>::<span class='ident'>new</span>(<span class='op'>-</span><span class='number'>1</span>, <span class='op'>-</span><span class='number'>1</span>), <span class='comment'>// Make sure this hits the base layer.</span>
             <span class='ident'>phase</span>: <span class='ident'>ScrollEventPhase</span>::<span class='ident'>Move</span>(<span class='bool-val'>true</span>),
             <span class='ident'>event_count</span>: <span class='number'>1</span>,
@@ -3457,6 +3530,7 @@
         }
     }
 }
+
 
 <span class='doccomment'>/// Why we performed a composite. This is used for debugging.</span>
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Debug</span>)]</span>
