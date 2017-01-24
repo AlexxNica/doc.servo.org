@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["MoveCell","A mutable memory location that steals ownership."]]});

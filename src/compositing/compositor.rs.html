@@ -1799,6 +1799,16 @@
 <span id="1754">1754</span>
 <span id="1755">1755</span>
 <span id="1756">1756</span>
+<span id="1757">1757</span>
+<span id="1758">1758</span>
+<span id="1759">1759</span>
+<span id="1760">1760</span>
+<span id="1761">1761</span>
+<span id="1762">1762</span>
+<span id="1763">1763</span>
+<span id="1764">1764</span>
+<span id="1765">1765</span>
+<span id="1766">1766</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1890,7 +1900,7 @@
 
 <span class='kw'>impl</span> <span class='ident'>ConvertFragmentTypeFromWebRender</span> <span class='kw'>for</span> <span class='ident'>webrender_traits</span>::<span class='ident'>FragmentType</span> {
     <span class='kw'>fn</span> <span class='ident'>from_webrender</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>FragmentType</span> {
-        <span class='kw'>match</span> <span class='op'>*</span><span class='self'>self</span> {
+        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='self'>self</span> {
             <span class='ident'>webrender_traits</span>::<span class='ident'>FragmentType</span>::<span class='ident'>FragmentBody</span> <span class='op'>=&gt;</span> <span class='ident'>FragmentType</span>::<span class='ident'>FragmentBody</span>,
             <span class='ident'>webrender_traits</span>::<span class='ident'>FragmentType</span>::<span class='ident'>BeforePseudoContent</span> <span class='op'>=&gt;</span> {
                 <span class='ident'>FragmentType</span>::<span class='ident'>BeforePseudoContent</span>
@@ -2144,13 +2154,15 @@
 
 <span class='kw'>struct</span> <span class='ident'>RenderNotifier</span> {
     <span class='ident'>compositor_proxy</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>CompositorProxy</span><span class='op'>&gt;</span>,
+    <span class='ident'>constellation_chan</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>ConstellationMsg</span><span class='op'>&gt;</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>RenderNotifier</span> {
     <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>compositor_proxy</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>CompositorProxy</span><span class='op'>&gt;</span>,
-           _: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>ConstellationMsg</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>RenderNotifier</span> {
+           <span class='ident'>constellation_chan</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>ConstellationMsg</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>RenderNotifier</span> {
         <span class='ident'>RenderNotifier</span> {
             <span class='ident'>compositor_proxy</span>: <span class='ident'>compositor_proxy</span>,
+            <span class='ident'>constellation_chan</span>: <span class='ident'>constellation_chan</span>,
         }
     }
 }
@@ -2165,8 +2177,16 @@
     }
 
     <span class='kw'>fn</span> <span class='ident'>pipeline_size_changed</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                             _: <span class='ident'>webrender_traits</span>::<span class='ident'>PipelineId</span>,
-                             _: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>webrender_traits</span>::<span class='ident'>LayoutSize</span><span class='op'>&gt;</span>) {
+                             <span class='ident'>pipeline_id</span>: <span class='ident'>webrender_traits</span>::<span class='ident'>PipelineId</span>,
+                             <span class='ident'>size</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>webrender_traits</span>::<span class='ident'>LayoutSize</span><span class='op'>&gt;</span>) {
+        <span class='kw'>let</span> <span class='ident'>pipeline_id</span> <span class='op'>=</span> <span class='ident'>pipeline_id</span>.<span class='ident'>from_webrender</span>();
+
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>size</span>) <span class='op'>=</span> <span class='ident'>size</span> {
+            <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ConstellationMsg</span>::<span class='ident'>FrameSize</span>(<span class='ident'>pipeline_id</span>, <span class='ident'>size</span>.<span class='ident'>to_untyped</span>());
+            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>constellation_chan</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>) {
+                <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;Compositor resize to constellation failed ({}).&quot;</span>, <span class='ident'>e</span>);
+            }
+        }
     }
 }
 
@@ -2989,7 +3009,7 @@
 
             <span class='kw'>match</span> (<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>last_combined_event</span>, <span class='ident'>scroll_event</span>.<span class='ident'>phase</span>) {
                 (<span class='ident'>last_combined_event</span> @ <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='prelude-val'>None</span>, _) <span class='op'>=&gt;</span> {
-                    <span class='op'>*</span><span class='ident'>last_combined_event</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>ScrollZoomEvent</span> {
+                    <span class='kw-2'>*</span><span class='ident'>last_combined_event</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>ScrollZoomEvent</span> {
                         <span class='ident'>magnification</span>: <span class='ident'>scroll_event</span>.<span class='ident'>magnification</span>,
                         <span class='ident'>scroll_location</span>: <span class='ident'>ScrollLocation</span>::<span class='ident'>Delta</span>(<span class='ident'>webrender_traits</span>::<span class='ident'>LayerPoint</span>::<span class='ident'>from_untyped</span>(
                                                                <span class='kw-2'>&amp;</span><span class='ident'>this_delta</span>.<span class='ident'>to_untyped</span>())),
@@ -3054,11 +3074,11 @@
             <span class='kw'>if</span> (<span class='ident'>pipeline_details</span>.<span class='ident'>animations_running</span> <span class='op'>||</span>
                 <span class='ident'>pipeline_details</span>.<span class='ident'>animation_callbacks_running</span>) <span class='op'>&amp;&amp;</span>
                <span class='ident'>pipeline_details</span>.<span class='ident'>visible</span> {
-                   <span class='ident'>pipeline_ids</span>.<span class='ident'>push</span>(<span class='op'>*</span><span class='ident'>pipeline_id</span>);
+                   <span class='ident'>pipeline_ids</span>.<span class='ident'>push</span>(<span class='kw-2'>*</span><span class='ident'>pipeline_id</span>);
             }
         }
         <span class='kw'>for</span> <span class='ident'>pipeline_id</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>pipeline_ids</span> {
-            <span class='self'>self</span>.<span class='ident'>tick_animations_for_pipeline</span>(<span class='op'>*</span><span class='ident'>pipeline_id</span>)
+            <span class='self'>self</span>.<span class='ident'>tick_animations_for_pipeline</span>(<span class='kw-2'>*</span><span class='ident'>pipeline_id</span>)
         }
     }
 
@@ -3232,7 +3252,7 @@
                     <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>webrender_traits</span>::<span class='ident'>Epoch</span>(<span class='ident'>epoch</span>)) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>webrender</span>
                                                                       .<span class='ident'>current_epoch</span>(<span class='ident'>webrender_pipeline_id</span>) {
                         <span class='kw'>let</span> <span class='ident'>epoch</span> <span class='op'>=</span> <span class='ident'>Epoch</span>(<span class='ident'>epoch</span>);
-                        <span class='ident'>pipeline_epochs</span>.<span class='ident'>insert</span>(<span class='op'>*</span><span class='ident'>id</span>, <span class='ident'>epoch</span>);
+                        <span class='ident'>pipeline_epochs</span>.<span class='ident'>insert</span>(<span class='kw-2'>*</span><span class='ident'>id</span>, <span class='ident'>epoch</span>);
                     }
                 }
 
@@ -3341,7 +3361,7 @@
                     <span class='ident'>width</span>: <span class='ident'>img</span>.<span class='ident'>width</span>(),
                     <span class='ident'>height</span>: <span class='ident'>img</span>.<span class='ident'>height</span>(),
                     <span class='ident'>format</span>: <span class='ident'>PixelFormat</span>::<span class='ident'>RGB8</span>,
-                    <span class='ident'>bytes</span>: <span class='ident'>IpcSharedMemory</span>::<span class='ident'>from_bytes</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>img</span>),
+                    <span class='ident'>bytes</span>: <span class='ident'>IpcSharedMemory</span>::<span class='ident'>from_bytes</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>img</span>),
                     <span class='ident'>id</span>: <span class='prelude-val'>None</span>,
                 })
             }
@@ -3452,7 +3472,7 @@
         }
         <span class='kw'>if</span> <span class='ident'>found_recomposite_msg</span> {
             <span class='ident'>compositor_messages</span>.<span class='ident'>retain</span>(<span class='op'>|</span><span class='ident'>msg</span><span class='op'>|</span> {
-                <span class='kw'>match</span> <span class='op'>*</span><span class='ident'>msg</span> {
+                <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>msg</span> {
                     <span class='ident'>Msg</span>::<span class='ident'>DelayedCompositionTimeout</span>(_) <span class='op'>=&gt;</span> <span class='bool-val'>false</span>,
                     _ <span class='op'>=&gt;</span> <span class='bool-val'>true</span>,
                 }

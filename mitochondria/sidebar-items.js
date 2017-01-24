@@ -1,1 +1,0 @@
-initSidebarItems({"mod":[["move_",""],["once",""]],"struct":[["MoveCell","A mutable memory location that steals ownership."],["OnceCell","A mutable memory location that can be set only once."]]});
