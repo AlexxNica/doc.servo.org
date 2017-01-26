@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/registry/src/github.com-1ecc6299db9ec823/syntex_syntax-0.50.0/src/parse/parser.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/registry/src/github.com-1ecc6299db9ec823/syntex_syntax-0.54.0/src/parse/parser.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>parser.rs.html -- source</title>
@@ -6215,7 +6215,6 @@
 <span id="6170">6170</span>
 <span id="6171">6171</span>
 <span id="6172">6172</span>
-<span id="6173">6173</span>
 </pre><pre class='rust '>
 <span class='comment'>// Copyright 2012-2014 The Rust Project Developers. See the COPYRIGHT</span>
 <span class='comment'>// file at the top-level directory of this distribution and at</span>
@@ -6257,7 +6256,7 @@
 <span class='kw'>use</span> <span class='ident'>ast</span>::{<span class='ident'>ViewPath</span>, <span class='ident'>ViewPathGlob</span>, <span class='ident'>ViewPathList</span>, <span class='ident'>ViewPathSimple</span>};
 <span class='kw'>use</span> <span class='ident'>ast</span>::{<span class='ident'>Visibility</span>, <span class='ident'>WhereClause</span>};
 <span class='kw'>use</span> <span class='ident'>ast</span>::{<span class='ident'>BinOpKind</span>, <span class='ident'>UnOp</span>};
-<span class='kw'>use</span> <span class='ident'>ast</span>;
+<span class='kw'>use</span> {<span class='ident'>ast</span>, <span class='ident'>attr</span>};
 <span class='kw'>use</span> <span class='ident'>codemap</span>::{<span class='self'>self</span>, <span class='ident'>CodeMap</span>, <span class='ident'>Spanned</span>, <span class='ident'>spanned</span>, <span class='ident'>respan</span>};
 <span class='kw'>use</span> <span class='ident'>syntax_pos</span>::{<span class='self'>self</span>, <span class='ident'>Span</span>, <span class='ident'>BytePos</span>, <span class='ident'>mk_sp</span>};
 <span class='kw'>use</span> <span class='ident'>errors</span>::{<span class='self'>self</span>, <span class='ident'>DiagnosticBuilder</span>};
@@ -6267,13 +6266,14 @@
 <span class='kw'>use</span> <span class='ident'>parse</span>::<span class='ident'>common</span>::<span class='ident'>SeqSep</span>;
 <span class='kw'>use</span> <span class='ident'>parse</span>::<span class='ident'>lexer</span>::{<span class='ident'>Reader</span>, <span class='ident'>TokenAndSpan</span>};
 <span class='kw'>use</span> <span class='ident'>parse</span>::<span class='ident'>obsolete</span>::<span class='ident'>ObsoleteSyntax</span>;
-<span class='kw'>use</span> <span class='ident'>parse</span>::<span class='ident'>token</span>::{<span class='self'>self</span>, <span class='ident'>intern</span>, <span class='ident'>keywords</span>, <span class='ident'>MatchNt</span>, <span class='ident'>SubstNt</span>, <span class='ident'>InternedString</span>};
-<span class='kw'>use</span> <span class='ident'>parse</span>::{<span class='ident'>new_sub_parser_from_file</span>, <span class='ident'>ParseSess</span>};
+<span class='kw'>use</span> <span class='ident'>parse</span>::<span class='ident'>token</span>::{<span class='self'>self</span>, <span class='ident'>MatchNt</span>, <span class='ident'>SubstNt</span>};
+<span class='kw'>use</span> <span class='ident'>parse</span>::{<span class='ident'>new_sub_parser_from_file</span>, <span class='ident'>ParseSess</span>, <span class='ident'>Directory</span>, <span class='ident'>DirectoryOwnership</span>};
 <span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>parser</span>::{<span class='ident'>AssocOp</span>, <span class='ident'>Fixity</span>};
 <span class='kw'>use</span> <span class='ident'>print</span>::<span class='ident'>pprust</span>;
 <span class='kw'>use</span> <span class='ident'>ptr</span>::<span class='ident'>P</span>;
 <span class='kw'>use</span> <span class='ident'>parse</span>::<span class='ident'>PResult</span>;
 <span class='kw'>use</span> <span class='ident'>tokenstream</span>::{<span class='self'>self</span>, <span class='ident'>Delimited</span>, <span class='ident'>SequenceRepetition</span>, <span class='ident'>TokenTree</span>};
+<span class='kw'>use</span> <span class='ident'>symbol</span>::{<span class='ident'>Symbol</span>, <span class='ident'>keywords</span>};
 <span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>ThinVec</span>;
 
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>HashSet</span>;
@@ -6286,7 +6286,6 @@
     <span class='kw'>pub</span> <span class='ident'>flags</span> <span class='ident'>Restrictions</span>: <span class='ident'>u8</span> {
         <span class='kw'>const</span> <span class='ident'>RESTRICTION_STMT_EXPR</span>         <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>0</span>,
         <span class='kw'>const</span> <span class='ident'>RESTRICTION_NO_STRUCT_LITERAL</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>1</span>,
-        <span class='kw'>const</span> <span class='ident'>NO_NONINLINE_MOD</span>  <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>2</span>,
     }
 }
 
@@ -6297,9 +6296,6 @@
     }
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>restriction_no_struct_literal</span>() <span class='op'>-&gt;</span> <span class='self'>Self</span> {
         <span class='ident'>RESTRICTION_NO_STRUCT_LITERAL</span>
-    }
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>no_noninline_mod</span>() <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='ident'>NO_NONINLINE_MOD</span>
     }
 }
 
@@ -6318,13 +6314,6 @@
     <span class='doccomment'>/// A path with a lifetime and type parameters with double colons before</span>
     <span class='doccomment'>/// the type parameters; e.g. `foo::bar::&lt;&#39;a&gt;::Baz::&lt;T&gt;`, used in expressions or patterns.</span>
     <span class='ident'>Expr</span>,
-}
-
-<span class='doccomment'>/// How to parse a bound, whether to allow bound modifiers such as `?`.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>BoundParsingMode</span> {
-    <span class='ident'>Bare</span>,
-    <span class='ident'>Modified</span>,
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>Copy</span>, <span class='ident'>PartialEq</span>)]</span>
@@ -6431,12 +6420,9 @@
     <span class='doccomment'>/// extra detail when the same error is seen twice</span>
     <span class='kw'>pub</span> <span class='ident'>obsolete_set</span>: <span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='ident'>ObsoleteSyntax</span><span class='op'>&gt;</span>,
     <span class='doccomment'>/// Used to determine the path to externally loaded source files</span>
-    <span class='kw'>pub</span> <span class='ident'>directory</span>: <span class='ident'>PathBuf</span>,
+    <span class='kw'>pub</span> <span class='ident'>directory</span>: <span class='ident'>Directory</span>,
     <span class='doccomment'>/// Stack of open delimiters and their spans. Used for error message.</span>
     <span class='kw'>pub</span> <span class='ident'>open_braces</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span>(<span class='ident'>token</span>::<span class='ident'>DelimToken</span>, <span class='ident'>Span</span>)<span class='op'>&gt;</span>,
-    <span class='doccomment'>/// Flag if this parser &quot;owns&quot; the directory that it is currently parsing</span>
-    <span class='doccomment'>/// in. This will affect how nested files are looked up.</span>
-    <span class='kw'>pub</span> <span class='ident'>owns_directory</span>: <span class='ident'>bool</span>,
     <span class='doccomment'>/// Name of the root module this parser originated from. If `None`, then the</span>
     <span class='doccomment'>/// name is not known. This does not change while the parser is descending</span>
     <span class='doccomment'>/// into modules, and sub-parsers have new values for this name.</span>
@@ -6476,8 +6462,9 @@
 }
 
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ModulePathSuccess</span> {
-    <span class='kw'>pub</span> <span class='ident'>path</span>: ::<span class='ident'>std</span>::<span class='ident'>path</span>::<span class='ident'>PathBuf</span>,
-    <span class='kw'>pub</span> <span class='ident'>owns_directory</span>: <span class='ident'>bool</span>,
+    <span class='kw'>pub</span> <span class='ident'>path</span>: <span class='ident'>PathBuf</span>,
+    <span class='kw'>pub</span> <span class='ident'>directory_ownership</span>: <span class='ident'>DirectoryOwnership</span>,
+    <span class='ident'>warn</span>: <span class='ident'>bool</span>,
 }
 
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ModulePathError</span> {
@@ -6508,12 +6495,11 @@
 }
 
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>sess</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>ParseSess</span>, <span class='ident'>rdr</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>Reader</span><span class='op'>+</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='ident'>Parser</span>::<span class='ident'>new_with_doc_flag</span>(<span class='ident'>sess</span>, <span class='ident'>rdr</span>, <span class='bool-val'>false</span>)
-    }
-
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new_with_doc_flag</span>(<span class='ident'>sess</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>ParseSess</span>, <span class='ident'>rdr</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>Reader</span><span class='op'>+</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>, <span class='ident'>desugar_doc_comments</span>: <span class='ident'>bool</span>)
-                             <span class='op'>-&gt;</span> <span class='self'>Self</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>sess</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>ParseSess</span>,
+               <span class='ident'>rdr</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>Reader</span><span class='op'>+</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>,
+               <span class='ident'>directory</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Directory</span><span class='op'>&gt;</span>,
+               <span class='ident'>desugar_doc_comments</span>: <span class='ident'>bool</span>)
+               <span class='op'>-&gt;</span> <span class='self'>Self</span> {
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>Parser</span> {
             <span class='ident'>reader</span>: <span class='ident'>rdr</span>,
             <span class='ident'>sess</span>: <span class='ident'>sess</span>,
@@ -6527,9 +6513,8 @@
             <span class='ident'>quote_depth</span>: <span class='number'>0</span>,
             <span class='ident'>parsing_token_tree</span>: <span class='bool-val'>false</span>,
             <span class='ident'>obsolete_set</span>: <span class='ident'>HashSet</span>::<span class='ident'>new</span>(),
-            <span class='ident'>directory</span>: <span class='ident'>PathBuf</span>::<span class='ident'>new</span>(),
+            <span class='ident'>directory</span>: <span class='ident'>Directory</span> { <span class='ident'>path</span>: <span class='ident'>PathBuf</span>::<span class='ident'>new</span>(), <span class='ident'>ownership</span>: <span class='ident'>DirectoryOwnership</span>::<span class='ident'>Owned</span> },
             <span class='ident'>open_braces</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
-            <span class='ident'>owns_directory</span>: <span class='bool-val'>true</span>,
             <span class='ident'>root_module_name</span>: <span class='prelude-val'>None</span>,
             <span class='ident'>expected_tokens</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
             <span class='ident'>tts</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
@@ -6540,9 +6525,11 @@
         <span class='kw'>let</span> <span class='ident'>tok</span> <span class='op'>=</span> <span class='ident'>parser</span>.<span class='ident'>next_tok</span>();
         <span class='ident'>parser</span>.<span class='ident'>token</span> <span class='op'>=</span> <span class='ident'>tok</span>.<span class='ident'>tok</span>;
         <span class='ident'>parser</span>.<span class='ident'>span</span> <span class='op'>=</span> <span class='ident'>tok</span>.<span class='ident'>sp</span>;
-        <span class='kw'>if</span> <span class='ident'>parser</span>.<span class='ident'>span</span> <span class='op'>!=</span> <span class='ident'>syntax_pos</span>::<span class='ident'>DUMMY_SP</span> {
-            <span class='ident'>parser</span>.<span class='ident'>directory</span> <span class='op'>=</span> <span class='ident'>PathBuf</span>::<span class='ident'>from</span>(<span class='ident'>sess</span>.<span class='ident'>codemap</span>().<span class='ident'>span_to_filename</span>(<span class='ident'>parser</span>.<span class='ident'>span</span>));
-            <span class='ident'>parser</span>.<span class='ident'>directory</span>.<span class='ident'>pop</span>();
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>directory</span>) <span class='op'>=</span> <span class='ident'>directory</span> {
+            <span class='ident'>parser</span>.<span class='ident'>directory</span> <span class='op'>=</span> <span class='ident'>directory</span>;
+        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>parser</span>.<span class='ident'>span</span> <span class='op'>!=</span> <span class='ident'>syntax_pos</span>::<span class='ident'>DUMMY_SP</span> {
+            <span class='ident'>parser</span>.<span class='ident'>directory</span>.<span class='ident'>path</span> <span class='op'>=</span> <span class='ident'>PathBuf</span>::<span class='ident'>from</span>(<span class='ident'>sess</span>.<span class='ident'>codemap</span>().<span class='ident'>span_to_filename</span>(<span class='ident'>parser</span>.<span class='ident'>span</span>));
+            <span class='ident'>parser</span>.<span class='ident'>directory</span>.<span class='ident'>path</span>.<span class='ident'>pop</span>();
         }
         <span class='ident'>parser</span>
     }
@@ -7230,10 +7217,6 @@
         <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>sess</span>.<span class='ident'>span_diagnostic</span>
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>id_to_interned_str</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>id</span>: <span class='ident'>Ident</span>) <span class='op'>-&gt;</span> <span class='ident'>InternedString</span> {
-        <span class='ident'>id</span>.<span class='ident'>name</span>.<span class='ident'>as_str</span>()
-    }
-
     <span class='doccomment'>/// Is the current token one of the keywords that signals a bare function</span>
     <span class='doccomment'>/// type?</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>token_is_bare_fn_keyword</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
@@ -7280,7 +7263,7 @@
                                                      <span class='ident'>trait_ref</span>: <span class='ident'>trait_ref</span>,
                                                      <span class='ident'>span</span>: <span class='ident'>mk_sp</span>(<span class='ident'>lo</span>, <span class='ident'>hi</span>)};
             <span class='kw'>let</span> <span class='ident'>other_bounds</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>eat</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>BinOp</span>(<span class='ident'>token</span>::<span class='ident'>Plus</span>)) {
-                <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_ty_param_bounds</span>(<span class='ident'>BoundParsingMode</span>::<span class='ident'>Bare</span>))
+                <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_ty_param_bounds</span>())
             } <span class='kw'>else</span> {
                 <span class='ident'>P</span>::<span class='ident'>new</span>()
             };
@@ -7298,7 +7281,7 @@
         The `impl` has already been consumed.
         */</span>
 
-        <span class='kw'>let</span> <span class='ident'>bounds</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_ty_param_bounds</span>(<span class='ident'>BoundParsingMode</span>::<span class='ident'>Modified</span>));
+        <span class='kw'>let</span> <span class='ident'>bounds</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_ty_param_bounds</span>());
 
         <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>bounds</span>.<span class='ident'>iter</span>().<span class='ident'>any</span>(<span class='op'>|</span><span class='ident'>b</span><span class='op'>|</span> <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>TraitTyParamBound</span>(..) <span class='op'>=</span> <span class='kw-2'>*</span><span class='ident'>b</span> { <span class='bool-val'>true</span> } <span class='kw'>else</span> { <span class='bool-val'>false</span> }) {
             <span class='self'>self</span>.<span class='ident'>span_err</span>(<span class='self'>self</span>.<span class='ident'>prev_span</span>, <span class='string'>&quot;at least one trait must be specified&quot;</span>);
@@ -7510,7 +7493,7 @@
             <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='ident'>lhs</span>);
         }
 
-        <span class='kw'>let</span> <span class='ident'>bounds</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_ty_param_bounds</span>(<span class='ident'>BoundParsingMode</span>::<span class='ident'>Bare</span>));
+        <span class='kw'>let</span> <span class='ident'>bounds</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_ty_param_bounds</span>());
 
         <span class='comment'>// In type grammar, `+` is treated like a binary operator,</span>
         <span class='comment'>// and hence both L and R side are required.</span>
@@ -7755,34 +7738,28 @@
                     <span class='comment'>// float literals, so all the handling is done</span>
                     <span class='comment'>// internally.</span>
                     <span class='ident'>token</span>::<span class='ident'>Integer</span>(<span class='ident'>s</span>) <span class='op'>=&gt;</span> {
-                        (<span class='bool-val'>false</span>, <span class='ident'>parse</span>::<span class='ident'>integer_lit</span>(<span class='kw-2'>&amp;</span><span class='ident'>s</span>.<span class='ident'>as_str</span>(),
-                                                   <span class='ident'>suf</span>.<span class='ident'>as_ref</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> <span class='ident'>s</span>.<span class='ident'>as_str</span>()),
-                                                   <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>sess</span>.<span class='ident'>span_diagnostic</span>,
-                                                   <span class='self'>self</span>.<span class='ident'>span</span>))
+                        <span class='kw'>let</span> <span class='ident'>diag</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>sess</span>.<span class='ident'>span_diagnostic</span>;
+                        (<span class='bool-val'>false</span>, <span class='ident'>parse</span>::<span class='ident'>integer_lit</span>(<span class='kw-2'>&amp;</span><span class='ident'>s</span>.<span class='ident'>as_str</span>(), <span class='ident'>suf</span>, <span class='ident'>diag</span>, <span class='self'>self</span>.<span class='ident'>span</span>))
                     }
                     <span class='ident'>token</span>::<span class='ident'>Float</span>(<span class='ident'>s</span>) <span class='op'>=&gt;</span> {
-                        (<span class='bool-val'>false</span>, <span class='ident'>parse</span>::<span class='ident'>float_lit</span>(<span class='kw-2'>&amp;</span><span class='ident'>s</span>.<span class='ident'>as_str</span>(),
-                                                 <span class='ident'>suf</span>.<span class='ident'>as_ref</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> <span class='ident'>s</span>.<span class='ident'>as_str</span>()),
-                                                  <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>sess</span>.<span class='ident'>span_diagnostic</span>,
-                                                 <span class='self'>self</span>.<span class='ident'>span</span>))
+                        <span class='kw'>let</span> <span class='ident'>diag</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>sess</span>.<span class='ident'>span_diagnostic</span>;
+                        (<span class='bool-val'>false</span>, <span class='ident'>parse</span>::<span class='ident'>float_lit</span>(<span class='kw-2'>&amp;</span><span class='ident'>s</span>.<span class='ident'>as_str</span>(), <span class='ident'>suf</span>, <span class='ident'>diag</span>, <span class='self'>self</span>.<span class='ident'>span</span>))
                     }
 
                     <span class='ident'>token</span>::<span class='ident'>Str_</span>(<span class='ident'>s</span>) <span class='op'>=&gt;</span> {
-                        (<span class='bool-val'>true</span>,
-                         <span class='ident'>LitKind</span>::<span class='ident'>Str</span>(<span class='ident'>token</span>::<span class='ident'>intern_and_get_ident</span>(<span class='kw-2'>&amp;</span><span class='ident'>parse</span>::<span class='ident'>str_lit</span>(<span class='kw-2'>&amp;</span><span class='ident'>s</span>.<span class='ident'>as_str</span>())),
-                                      <span class='ident'>ast</span>::<span class='ident'>StrStyle</span>::<span class='ident'>Cooked</span>))
+                        <span class='kw'>let</span> <span class='ident'>s</span> <span class='op'>=</span> <span class='ident'>Symbol</span>::<span class='ident'>intern</span>(<span class='kw-2'>&amp;</span><span class='ident'>parse</span>::<span class='ident'>str_lit</span>(<span class='kw-2'>&amp;</span><span class='ident'>s</span>.<span class='ident'>as_str</span>()));
+                        (<span class='bool-val'>true</span>, <span class='ident'>LitKind</span>::<span class='ident'>Str</span>(<span class='ident'>s</span>, <span class='ident'>ast</span>::<span class='ident'>StrStyle</span>::<span class='ident'>Cooked</span>))
                     }
                     <span class='ident'>token</span>::<span class='ident'>StrRaw</span>(<span class='ident'>s</span>, <span class='ident'>n</span>) <span class='op'>=&gt;</span> {
-                        (<span class='bool-val'>true</span>,
-                         <span class='ident'>LitKind</span>::<span class='ident'>Str</span>(
-                            <span class='ident'>token</span>::<span class='ident'>intern_and_get_ident</span>(<span class='kw-2'>&amp;</span><span class='ident'>parse</span>::<span class='ident'>raw_str_lit</span>(<span class='kw-2'>&amp;</span><span class='ident'>s</span>.<span class='ident'>as_str</span>())),
-                            <span class='ident'>ast</span>::<span class='ident'>StrStyle</span>::<span class='ident'>Raw</span>(<span class='ident'>n</span>)))
+                        <span class='kw'>let</span> <span class='ident'>s</span> <span class='op'>=</span> <span class='ident'>Symbol</span>::<span class='ident'>intern</span>(<span class='kw-2'>&amp;</span><span class='ident'>parse</span>::<span class='ident'>raw_str_lit</span>(<span class='kw-2'>&amp;</span><span class='ident'>s</span>.<span class='ident'>as_str</span>()));
+                        (<span class='bool-val'>true</span>, <span class='ident'>LitKind</span>::<span class='ident'>Str</span>(<span class='ident'>s</span>, <span class='ident'>ast</span>::<span class='ident'>StrStyle</span>::<span class='ident'>Raw</span>(<span class='ident'>n</span>)))
                     }
-                    <span class='ident'>token</span>::<span class='ident'>ByteStr</span>(<span class='ident'>i</span>) <span class='op'>=&gt;</span>
-                        (<span class='bool-val'>true</span>, <span class='ident'>LitKind</span>::<span class='ident'>ByteStr</span>(<span class='ident'>parse</span>::<span class='ident'>byte_str_lit</span>(<span class='kw-2'>&amp;</span><span class='ident'>i</span>.<span class='ident'>as_str</span>()))),
-                    <span class='ident'>token</span>::<span class='ident'>ByteStrRaw</span>(<span class='ident'>i</span>, _) <span class='op'>=&gt;</span>
-                        (<span class='bool-val'>true</span>,
-                         <span class='ident'>LitKind</span>::<span class='ident'>ByteStr</span>(<span class='ident'>Rc</span>::<span class='ident'>new</span>(<span class='ident'>i</span>.<span class='ident'>to_string</span>().<span class='ident'>into_bytes</span>()))),
+                    <span class='ident'>token</span>::<span class='ident'>ByteStr</span>(<span class='ident'>i</span>) <span class='op'>=&gt;</span> {
+                        (<span class='bool-val'>true</span>, <span class='ident'>LitKind</span>::<span class='ident'>ByteStr</span>(<span class='ident'>parse</span>::<span class='ident'>byte_str_lit</span>(<span class='kw-2'>&amp;</span><span class='ident'>i</span>.<span class='ident'>as_str</span>())))
+                    }
+                    <span class='ident'>token</span>::<span class='ident'>ByteStrRaw</span>(<span class='ident'>i</span>, _) <span class='op'>=&gt;</span> {
+                        (<span class='bool-val'>true</span>, <span class='ident'>LitKind</span>::<span class='ident'>ByteStr</span>(<span class='ident'>Rc</span>::<span class='ident'>new</span>(<span class='ident'>i</span>.<span class='ident'>to_string</span>().<span class='ident'>into_bytes</span>())))
+                    }
                 };
 
                 <span class='kw'>if</span> <span class='ident'>suffix_illegal</span> {
@@ -7865,7 +7842,6 @@
         } <span class='kw'>else</span> {
             <span class='ident'>ast</span>::<span class='ident'>Path</span> {
                 <span class='ident'>span</span>: <span class='ident'>span</span>,
-                <span class='ident'>global</span>: <span class='bool-val'>false</span>,
                 <span class='ident'>segments</span>: <span class='macro'>vec</span><span class='macro'>!</span>[]
             }
         };
@@ -7909,7 +7885,7 @@
         <span class='comment'>// Parse any number of segments and bound sets. A segment is an</span>
         <span class='comment'>// identifier followed by an optional lifetime and a set of types.</span>
         <span class='comment'>// A bound set is a set of type parameter bounds.</span>
-        <span class='kw'>let</span> <span class='ident'>segments</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>mode</span> {
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>segments</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>mode</span> {
             <span class='ident'>PathStyle</span>::<span class='ident'>Type</span> <span class='op'>=&gt;</span> {
                 <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_path_segments_without_colons</span>())
             }
@@ -7921,13 +7897,16 @@
             }
         };
 
+        <span class='kw'>if</span> <span class='ident'>is_global</span> {
+            <span class='ident'>segments</span>.<span class='ident'>insert</span>(<span class='number'>0</span>, <span class='ident'>ast</span>::<span class='ident'>PathSegment</span>::<span class='ident'>crate_root</span>());
+        }
+
         <span class='comment'>// Assemble the span.</span>
         <span class='kw'>let</span> <span class='ident'>span</span> <span class='op'>=</span> <span class='ident'>mk_sp</span>(<span class='ident'>lo</span>, <span class='self'>self</span>.<span class='ident'>prev_span</span>.<span class='ident'>hi</span>);
 
         <span class='comment'>// Assemble the result.</span>
         <span class='prelude-val'>Ok</span>(<span class='ident'>ast</span>::<span class='ident'>Path</span> {
             <span class='ident'>span</span>: <span class='ident'>span</span>,
-            <span class='ident'>global</span>: <span class='ident'>is_global</span>,
             <span class='ident'>segments</span>: <span class='ident'>segments</span>,
         })
     }
@@ -7956,12 +7935,11 @@
             <span class='comment'>// Parse types, optionally.</span>
             <span class='kw'>let</span> <span class='ident'>parameters</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>eat_lt</span>() {
                 <span class='kw'>let</span> (<span class='ident'>lifetimes</span>, <span class='ident'>types</span>, <span class='ident'>bindings</span>) <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_generic_values_after_lt</span>());
-
-                <span class='ident'>ast</span>::<span class='ident'>PathParameters</span>::<span class='ident'>AngleBracketed</span>(<span class='ident'>ast</span>::<span class='ident'>AngleBracketedParameterData</span> {
+                <span class='ident'>ast</span>::<span class='ident'>AngleBracketedParameterData</span> {
                     <span class='ident'>lifetimes</span>: <span class='ident'>lifetimes</span>,
                     <span class='ident'>types</span>: <span class='ident'>P</span>::<span class='ident'>from_vec</span>(<span class='ident'>types</span>),
                     <span class='ident'>bindings</span>: <span class='ident'>P</span>::<span class='ident'>from_vec</span>(<span class='ident'>bindings</span>),
-                })
+                }.<span class='ident'>into</span>()
             } <span class='kw'>else</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>eat</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>OpenDelim</span>(<span class='ident'>token</span>::<span class='ident'>Paren</span>)) {
                 <span class='kw'>let</span> <span class='ident'>lo</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>prev_span</span>.<span class='ident'>lo</span>;
 
@@ -7978,18 +7956,17 @@
 
                 <span class='kw'>let</span> <span class='ident'>hi</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>prev_span</span>.<span class='ident'>hi</span>;
 
-                <span class='ident'>ast</span>::<span class='ident'>PathParameters</span>::<span class='ident'>Parenthesized</span>(<span class='ident'>ast</span>::<span class='ident'>ParenthesizedParameterData</span> {
+                <span class='prelude-val'>Some</span>(<span class='ident'>P</span>(<span class='ident'>ast</span>::<span class='ident'>PathParameters</span>::<span class='ident'>Parenthesized</span>(<span class='ident'>ast</span>::<span class='ident'>ParenthesizedParameterData</span> {
                     <span class='ident'>span</span>: <span class='ident'>mk_sp</span>(<span class='ident'>lo</span>, <span class='ident'>hi</span>),
                     <span class='ident'>inputs</span>: <span class='ident'>inputs</span>,
                     <span class='ident'>output</span>: <span class='ident'>output_ty</span>,
-                })
+                })))
             } <span class='kw'>else</span> {
-                <span class='ident'>ast</span>::<span class='ident'>PathParameters</span>::<span class='ident'>none</span>()
+                <span class='prelude-val'>None</span>
             };
 
             <span class='comment'>// Assemble and push the result.</span>
-            <span class='ident'>segments</span>.<span class='ident'>push</span>(<span class='ident'>ast</span>::<span class='ident'>PathSegment</span> { <span class='ident'>identifier</span>: <span class='ident'>identifier</span>,
-                                             <span class='ident'>parameters</span>: <span class='ident'>parameters</span> });
+            <span class='ident'>segments</span>.<span class='ident'>push</span>(<span class='ident'>ast</span>::<span class='ident'>PathSegment</span> { <span class='ident'>identifier</span>: <span class='ident'>identifier</span>, <span class='ident'>parameters</span>: <span class='ident'>parameters</span> });
 
             <span class='comment'>// Continue only if we see a `::`</span>
             <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>eat</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>ModSep</span>) {
@@ -8008,10 +7985,7 @@
 
             <span class='comment'>// If we do not see a `::`, stop.</span>
             <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>eat</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>ModSep</span>) {
-                <span class='ident'>segments</span>.<span class='ident'>push</span>(<span class='ident'>ast</span>::<span class='ident'>PathSegment</span> {
-                    <span class='ident'>identifier</span>: <span class='ident'>identifier</span>,
-                    <span class='ident'>parameters</span>: <span class='ident'>ast</span>::<span class='ident'>PathParameters</span>::<span class='ident'>none</span>()
-                });
+                <span class='ident'>segments</span>.<span class='ident'>push</span>(<span class='ident'>identifier</span>.<span class='ident'>into</span>());
                 <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='ident'>segments</span>);
             }
 
@@ -8019,14 +7993,13 @@
             <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>eat_lt</span>() {
                 <span class='comment'>// Consumed `a::b::&lt;`, go look for types</span>
                 <span class='kw'>let</span> (<span class='ident'>lifetimes</span>, <span class='ident'>types</span>, <span class='ident'>bindings</span>) <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_generic_values_after_lt</span>());
-                <span class='kw'>let</span> <span class='ident'>parameters</span> <span class='op'>=</span> <span class='ident'>ast</span>::<span class='ident'>AngleBracketedParameterData</span> {
-                    <span class='ident'>lifetimes</span>: <span class='ident'>lifetimes</span>,
-                    <span class='ident'>types</span>: <span class='ident'>P</span>::<span class='ident'>from_vec</span>(<span class='ident'>types</span>),
-                    <span class='ident'>bindings</span>: <span class='ident'>P</span>::<span class='ident'>from_vec</span>(<span class='ident'>bindings</span>),
-                };
                 <span class='ident'>segments</span>.<span class='ident'>push</span>(<span class='ident'>ast</span>::<span class='ident'>PathSegment</span> {
                     <span class='ident'>identifier</span>: <span class='ident'>identifier</span>,
-                    <span class='ident'>parameters</span>: <span class='ident'>ast</span>::<span class='ident'>PathParameters</span>::<span class='ident'>AngleBracketed</span>(<span class='ident'>parameters</span>),
+                    <span class='ident'>parameters</span>: <span class='ident'>ast</span>::<span class='ident'>AngleBracketedParameterData</span> {
+                        <span class='ident'>lifetimes</span>: <span class='ident'>lifetimes</span>,
+                        <span class='ident'>types</span>: <span class='ident'>P</span>::<span class='ident'>from_vec</span>(<span class='ident'>types</span>),
+                        <span class='ident'>bindings</span>: <span class='ident'>P</span>::<span class='ident'>from_vec</span>(<span class='ident'>bindings</span>),
+                    }.<span class='ident'>into</span>(),
                 });
 
                 <span class='comment'>// Consumed `a::b::&lt;T,U&gt;`, check for `::` before proceeding</span>
@@ -8035,10 +8008,7 @@
                 }
             } <span class='kw'>else</span> {
                 <span class='comment'>// Consumed `a::`, go look for `b`</span>
-                <span class='ident'>segments</span>.<span class='ident'>push</span>(<span class='ident'>ast</span>::<span class='ident'>PathSegment</span> {
-                    <span class='ident'>identifier</span>: <span class='ident'>identifier</span>,
-                    <span class='ident'>parameters</span>: <span class='ident'>ast</span>::<span class='ident'>PathParameters</span>::<span class='ident'>none</span>(),
-                });
+                <span class='ident'>segments</span>.<span class='ident'>push</span>(<span class='ident'>identifier</span>.<span class='ident'>into</span>());
             }
         }
     }
@@ -8053,10 +8023,7 @@
             <span class='kw'>let</span> <span class='ident'>identifier</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_path_segment_ident</span>());
 
             <span class='comment'>// Assemble and push the result.</span>
-            <span class='ident'>segments</span>.<span class='ident'>push</span>(<span class='ident'>ast</span>::<span class='ident'>PathSegment</span> {
-                <span class='ident'>identifier</span>: <span class='ident'>identifier</span>,
-                <span class='ident'>parameters</span>: <span class='ident'>ast</span>::<span class='ident'>PathParameters</span>::<span class='ident'>none</span>()
-            });
+            <span class='ident'>segments</span>.<span class='ident'>push</span>(<span class='ident'>identifier</span>.<span class='ident'>into</span>());
 
             <span class='comment'>// If we do not see a `::` or see `::{`/`::*`, stop.</span>
             <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>check</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>ModSep</span>) <span class='op'>||</span> <span class='self'>self</span>.<span class='ident'>is_import_coupler</span>() {
@@ -8501,15 +8468,25 @@
                         <span class='ident'>ex</span> <span class='op'>=</span> <span class='ident'>ExprKind</span>::<span class='ident'>Ret</span>(<span class='prelude-val'>None</span>);
                     }
                 } <span class='kw'>else</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>eat_keyword</span>(<span class='ident'>keywords</span>::<span class='ident'>Break</span>) {
-                    <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>token</span>.<span class='ident'>is_lifetime</span>() {
-                        <span class='ident'>ex</span> <span class='op'>=</span> <span class='ident'>ExprKind</span>::<span class='ident'>Break</span>(<span class='prelude-val'>Some</span>(<span class='ident'>Spanned</span> {
+                    <span class='kw'>let</span> <span class='ident'>lt</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>token</span>.<span class='ident'>is_lifetime</span>() {
+                        <span class='kw'>let</span> <span class='ident'>spanned_lt</span> <span class='op'>=</span> <span class='ident'>Spanned</span> {
                             <span class='ident'>node</span>: <span class='self'>self</span>.<span class='ident'>get_lifetime</span>(),
                             <span class='ident'>span</span>: <span class='self'>self</span>.<span class='ident'>span</span>
-                        }));
+                        };
                         <span class='self'>self</span>.<span class='ident'>bump</span>();
+                        <span class='prelude-val'>Some</span>(<span class='ident'>spanned_lt</span>)
                     } <span class='kw'>else</span> {
-                        <span class='ident'>ex</span> <span class='op'>=</span> <span class='ident'>ExprKind</span>::<span class='ident'>Break</span>(<span class='prelude-val'>None</span>);
-                    }
+                        <span class='prelude-val'>None</span>
+                    };
+                    <span class='kw'>let</span> <span class='ident'>e</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>token</span>.<span class='ident'>can_begin_expr</span>()
+                               <span class='op'>&amp;&amp;</span> <span class='op'>!</span>(<span class='self'>self</span>.<span class='ident'>token</span> <span class='op'>==</span> <span class='ident'>token</span>::<span class='ident'>OpenDelim</span>(<span class='ident'>token</span>::<span class='ident'>Brace</span>)
+                                    <span class='op'>&amp;&amp;</span> <span class='self'>self</span>.<span class='ident'>restrictions</span>.<span class='ident'>contains</span>(
+                                           <span class='ident'>Restrictions</span>::<span class='ident'>restriction_no_struct_literal</span>())) {
+                        <span class='prelude-val'>Some</span>(<span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_expr</span>()))
+                    } <span class='kw'>else</span> {
+                        <span class='prelude-val'>None</span>
+                    };
+                    <span class='ident'>ex</span> <span class='op'>=</span> <span class='ident'>ExprKind</span>::<span class='ident'>Break</span>(<span class='ident'>lt</span>, <span class='ident'>e</span>);
                     <span class='ident'>hi</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>prev_span</span>.<span class='ident'>hi</span>;
                 } <span class='kw'>else</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>token</span>.<span class='ident'>is_keyword</span>(<span class='ident'>keywords</span>::<span class='ident'>Let</span>) {
                     <span class='comment'>// Catch this syntax error here, instead of in `check_strict_keywords`, so</span>
@@ -8776,7 +8753,7 @@
                     <span class='kw'>let</span> <span class='ident'>prev_span</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>prev_span</span>;
                     <span class='kw'>let</span> <span class='ident'>fstr</span> <span class='op'>=</span> <span class='ident'>n</span>.<span class='ident'>as_str</span>();
                     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>err</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>diagnostic</span>().<span class='ident'>struct_span_err</span>(<span class='ident'>prev_span</span>,
-                        <span class='kw-2'>&amp;</span><span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;unexpected token: `{}`&quot;</span>, <span class='ident'>n</span>.<span class='ident'>as_str</span>()));
+                        <span class='kw-2'>&amp;</span><span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;unexpected token: `{}`&quot;</span>, <span class='ident'>n</span>));
                     <span class='kw'>if</span> <span class='ident'>fstr</span>.<span class='ident'>chars</span>().<span class='ident'>all</span>(<span class='op'>|</span><span class='ident'>x</span><span class='op'>|</span> <span class='string'>&quot;0123456789.&quot;</span>.<span class='ident'>contains</span>(<span class='ident'>x</span>)) {
                         <span class='kw'>let</span> <span class='ident'>float</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>fstr</span>.<span class='ident'>parse</span>::<span class='op'>&lt;</span><span class='ident'>f64</span><span class='op'>&gt;</span>().<span class='ident'>ok</span>() {
                             <span class='prelude-val'>Some</span>(<span class='ident'>f</span>) <span class='op'>=&gt;</span> <span class='ident'>f</span>,
@@ -8859,7 +8836,7 @@
                                       })));
                 } <span class='kw'>else</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>token</span>.<span class='ident'>is_keyword</span>(<span class='ident'>keywords</span>::<span class='ident'>Crate</span>) {
                     <span class='kw'>let</span> <span class='ident'>ident</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>token</span> {
-                        <span class='ident'>token</span>::<span class='ident'>Ident</span>(<span class='ident'>id</span>) <span class='op'>=&gt;</span> <span class='ident'>ast</span>::<span class='ident'>Ident</span> { <span class='ident'>name</span>: <span class='ident'>token</span>::<span class='ident'>intern</span>(<span class='string'>&quot;$crate&quot;</span>), ..<span class='ident'>id</span> },
+                        <span class='ident'>token</span>::<span class='ident'>Ident</span>(<span class='ident'>id</span>) <span class='op'>=&gt;</span> <span class='ident'>ast</span>::<span class='ident'>Ident</span> { <span class='ident'>name</span>: <span class='ident'>Symbol</span>::<span class='ident'>intern</span>(<span class='string'>&quot;$crate&quot;</span>), ..<span class='ident'>id</span> },
                         _ <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(),
                     };
                     <span class='self'>self</span>.<span class='ident'>bump</span>();
@@ -9983,9 +9960,7 @@
     <span class='doccomment'>/// Emit an expected item after attributes error.</span>
     <span class='kw'>fn</span> <span class='ident'>expected_item_err</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>attrs</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Attribute</span>]) {
         <span class='kw'>let</span> <span class='ident'>message</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>attrs</span>.<span class='ident'>last</span>() {
-            <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='ident'>Attribute</span> { <span class='ident'>node</span>: <span class='ident'>ast</span>::<span class='ident'>Attribute_</span> { <span class='ident'>is_sugared_doc</span>: <span class='bool-val'>true</span>, .. }, .. }) <span class='op'>=&gt;</span> {
-                <span class='string'>&quot;expected item after doc comment&quot;</span>
-            }
+            <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='ident'>Attribute</span> { <span class='ident'>is_sugared_doc</span>: <span class='bool-val'>true</span>, .. }) <span class='op'>=&gt;</span> <span class='string'>&quot;expected item after doc comment&quot;</span>,
             _ <span class='op'>=&gt;</span> <span class='string'>&quot;expected item after attributes&quot;</span>,
         };
 
@@ -10209,9 +10184,11 @@
             }
         } <span class='kw'>else</span> {
             <span class='comment'>// FIXME: Bad copy of attrs</span>
-            <span class='kw'>let</span> <span class='ident'>restrictions</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>restrictions</span> <span class='op'>|</span> <span class='ident'>Restrictions</span>::<span class='ident'>no_noninline_mod</span>();
-            <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>with_res</span>(<span class='ident'>restrictions</span>,
-                                <span class='op'>|</span><span class='ident'>this</span><span class='op'>|</span> <span class='ident'>this</span>.<span class='ident'>parse_item_</span>(<span class='ident'>attrs</span>.<span class='ident'>clone</span>(), <span class='bool-val'>false</span>, <span class='bool-val'>true</span>))) {
+            <span class='kw'>let</span> <span class='ident'>old_directory_ownership</span> <span class='op'>=</span>
+                <span class='ident'>mem</span>::<span class='ident'>replace</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>directory</span>.<span class='ident'>ownership</span>, <span class='ident'>DirectoryOwnership</span>::<span class='ident'>UnownedViaBlock</span>);
+            <span class='kw'>let</span> <span class='ident'>item</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_item_</span>(<span class='ident'>attrs</span>.<span class='ident'>clone</span>(), <span class='bool-val'>false</span>, <span class='bool-val'>true</span>));
+            <span class='self'>self</span>.<span class='ident'>directory</span>.<span class='ident'>ownership</span> <span class='op'>=</span> <span class='ident'>old_directory_ownership</span>;
+            <span class='kw'>match</span> <span class='ident'>item</span> {
                 <span class='prelude-val'>Some</span>(<span class='ident'>i</span>) <span class='op'>=&gt;</span> <span class='ident'>Stmt</span> {
                     <span class='ident'>id</span>: <span class='ident'>ast</span>::<span class='ident'>DUMMY_NODE_ID</span>,
                     <span class='ident'>span</span>: <span class='ident'>mk_sp</span>(<span class='ident'>lo</span>, <span class='ident'>i</span>.<span class='ident'>span</span>.<span class='ident'>hi</span>),
@@ -10383,14 +10360,12 @@
 
     <span class='comment'>// Parses a sequence of bounds if a `:` is found,</span>
     <span class='comment'>// otherwise returns empty list.</span>
-    <span class='kw'>fn</span> <span class='ident'>parse_colon_then_ty_param_bounds</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                                        <span class='ident'>mode</span>: <span class='ident'>BoundParsingMode</span>)
-                                        <span class='op'>-&gt;</span> <span class='ident'>PResult</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>TyParamBounds</span><span class='op'>&gt;</span>
+    <span class='kw'>fn</span> <span class='ident'>parse_colon_then_ty_param_bounds</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>PResult</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>TyParamBounds</span><span class='op'>&gt;</span>
     {
         <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>eat</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>Colon</span>) {
             <span class='prelude-val'>Ok</span>(<span class='ident'>P</span>::<span class='ident'>new</span>())
         } <span class='kw'>else</span> {
-            <span class='self'>self</span>.<span class='ident'>parse_ty_param_bounds</span>(<span class='ident'>mode</span>)
+            <span class='self'>self</span>.<span class='ident'>parse_ty_param_bounds</span>()
         }
     }
 
@@ -10398,9 +10373,7 @@
     <span class='comment'>// where   boundseq  = ( polybound + boundseq ) | polybound</span>
     <span class='comment'>// and     polybound = ( &#39;for&#39; &#39;&lt;&#39; &#39;region &#39;&gt;&#39; )? bound</span>
     <span class='comment'>// and     bound     = &#39;region | trait_ref</span>
-    <span class='kw'>fn</span> <span class='ident'>parse_ty_param_bounds</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                             <span class='ident'>mode</span>: <span class='ident'>BoundParsingMode</span>)
-                             <span class='op'>-&gt;</span> <span class='ident'>PResult</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>TyParamBounds</span><span class='op'>&gt;</span>
+    <span class='kw'>fn</span> <span class='ident'>parse_ty_param_bounds</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>PResult</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>TyParamBounds</span><span class='op'>&gt;</span>
     {
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
         <span class='kw'>loop</span> {
@@ -10419,16 +10392,10 @@
                     }));
                     <span class='self'>self</span>.<span class='ident'>bump</span>();
                 }
-                <span class='ident'>token</span>::<span class='ident'>ModSep</span> <span class='op'>|</span> <span class='ident'>token</span>::<span class='ident'>Ident</span>(..) <span class='op'>=&gt;</span> {
+                _ <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>token</span>.<span class='ident'>is_path_start</span>() <span class='op'>||</span> <span class='self'>self</span>.<span class='ident'>token</span>.<span class='ident'>is_keyword</span>(<span class='ident'>keywords</span>::<span class='ident'>For</span>) <span class='op'>=&gt;</span> {
                     <span class='kw'>let</span> <span class='ident'>poly_trait_ref</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_poly_trait_ref</span>());
                     <span class='kw'>let</span> <span class='ident'>modifier</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>ate_question</span> {
-                        <span class='kw'>if</span> <span class='ident'>mode</span> <span class='op'>==</span> <span class='ident'>BoundParsingMode</span>::<span class='ident'>Modified</span> {
-                            <span class='ident'>TraitBoundModifier</span>::<span class='ident'>Maybe</span>
-                        } <span class='kw'>else</span> {
-                            <span class='self'>self</span>.<span class='ident'>span_err</span>(<span class='ident'>question_span</span>,
-                                          <span class='string'>&quot;unexpected `?`&quot;</span>);
-                            <span class='ident'>TraitBoundModifier</span>::<span class='prelude-val'>None</span>
-                        }
+                        <span class='ident'>TraitBoundModifier</span>::<span class='ident'>Maybe</span>
                     } <span class='kw'>else</span> {
                         <span class='ident'>TraitBoundModifier</span>::<span class='prelude-val'>None</span>
                     };
@@ -10450,7 +10417,7 @@
         <span class='kw'>let</span> <span class='ident'>span</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>span</span>;
         <span class='kw'>let</span> <span class='ident'>ident</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_ident</span>());
 
-        <span class='kw'>let</span> <span class='ident'>bounds</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_colon_then_ty_param_bounds</span>(<span class='ident'>BoundParsingMode</span>::<span class='ident'>Modified</span>));
+        <span class='kw'>let</span> <span class='ident'>bounds</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_colon_then_ty_param_bounds</span>());
 
         <span class='kw'>let</span> <span class='ident'>default</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>check</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>Eq</span>) {
             <span class='self'>self</span>.<span class='ident'>bump</span>();
@@ -10629,6 +10596,23 @@
             <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='ident'>where_clause</span>);
         }
 
+        <span class='comment'>// This is a temporary hack.</span>
+        <span class='comment'>//</span>
+        <span class='comment'>// We are considering adding generics to the `where` keyword as an alternative higher-rank</span>
+        <span class='comment'>// parameter syntax (as in `where&lt;&#39;a&gt;` or `where&lt;T&gt;`. To avoid that being a breaking</span>
+        <span class='comment'>// change, for now we refuse to parse `where &lt; (ident | lifetime) (&gt; | , | :)`.</span>
+        <span class='kw'>if</span> <span class='ident'>token</span>::<span class='ident'>Lt</span> <span class='op'>==</span> <span class='self'>self</span>.<span class='ident'>token</span> {
+            <span class='kw'>let</span> <span class='ident'>ident_or_lifetime</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>look_ahead</span>(<span class='number'>1</span>, <span class='op'>|</span><span class='ident'>t</span><span class='op'>|</span> <span class='ident'>t</span>.<span class='ident'>is_ident</span>() <span class='op'>||</span> <span class='ident'>t</span>.<span class='ident'>is_lifetime</span>());
+            <span class='kw'>if</span> <span class='ident'>ident_or_lifetime</span> {
+                <span class='kw'>let</span> <span class='ident'>gt_comma_or_colon</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>look_ahead</span>(<span class='number'>2</span>, <span class='op'>|</span><span class='ident'>t</span><span class='op'>|</span> {
+                    <span class='kw-2'>*</span><span class='ident'>t</span> <span class='op'>==</span> <span class='ident'>token</span>::<span class='ident'>Gt</span> <span class='op'>||</span> <span class='kw-2'>*</span><span class='ident'>t</span> <span class='op'>==</span> <span class='ident'>token</span>::<span class='ident'>Comma</span> <span class='op'>||</span> <span class='kw-2'>*</span><span class='ident'>t</span> <span class='op'>==</span> <span class='ident'>token</span>::<span class='ident'>Colon</span>
+                });
+                <span class='kw'>if</span> <span class='ident'>gt_comma_or_colon</span> {
+                    <span class='self'>self</span>.<span class='ident'>span_err</span>(<span class='self'>self</span>.<span class='ident'>span</span>, <span class='string'>&quot;syntax `where&lt;T&gt;` is reserved for future use&quot;</span>);
+                }
+            }
+        }
+
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>parsed_something</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
         <span class='kw'>loop</span> {
             <span class='kw'>let</span> <span class='ident'>lo</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>span</span>.<span class='ident'>lo</span>;
@@ -10674,7 +10658,7 @@
                     <span class='kw'>let</span> <span class='ident'>bounded_ty</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_ty</span>());
 
                     <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>eat</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>Colon</span>) {
-                        <span class='kw'>let</span> <span class='ident'>bounds</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_ty_param_bounds</span>(<span class='ident'>BoundParsingMode</span>::<span class='ident'>Bare</span>));
+                        <span class='kw'>let</span> <span class='ident'>bounds</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_ty_param_bounds</span>());
                         <span class='kw'>let</span> <span class='ident'>hi</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>prev_span</span>.<span class='ident'>hi</span>;
                         <span class='kw'>let</span> <span class='ident'>span</span> <span class='op'>=</span> <span class='ident'>mk_sp</span>(<span class='ident'>lo</span>, <span class='ident'>hi</span>);
 
@@ -11069,7 +11053,7 @@
             <span class='ident'>Visibility</span>::<span class='ident'>Inherited</span> <span class='op'>=&gt;</span> (),
             _ <span class='op'>=&gt;</span> {
                 <span class='kw'>let</span> <span class='ident'>is_macro_rules</span>: <span class='ident'>bool</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>token</span> {
-                    <span class='ident'>token</span>::<span class='ident'>Ident</span>(<span class='ident'>sid</span>) <span class='op'>=&gt;</span> <span class='ident'>sid</span>.<span class='ident'>name</span> <span class='op'>==</span> <span class='ident'>intern</span>(<span class='string'>&quot;macro_rules&quot;</span>),
+                    <span class='ident'>token</span>::<span class='ident'>Ident</span>(<span class='ident'>sid</span>) <span class='op'>=&gt;</span> <span class='ident'>sid</span>.<span class='ident'>name</span> <span class='op'>==</span> <span class='ident'>Symbol</span>::<span class='ident'>intern</span>(<span class='string'>&quot;macro_rules&quot;</span>),
                     _ <span class='op'>=&gt;</span> <span class='bool-val'>false</span>,
                 };
                 <span class='kw'>if</span> <span class='ident'>is_macro_rules</span> {
@@ -11136,7 +11120,7 @@
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>tps</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_generics</span>());
 
         <span class='comment'>// Parse supertrait bounds.</span>
-        <span class='kw'>let</span> <span class='ident'>bounds</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_colon_then_ty_param_bounds</span>(<span class='ident'>BoundParsingMode</span>::<span class='ident'>Bare</span>));
+        <span class='kw'>let</span> <span class='ident'>bounds</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_colon_then_ty_param_bounds</span>());
 
         <span class='ident'>tps</span>.<span class='ident'>where_clause</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_where_clause</span>());
 
@@ -11443,7 +11427,7 @@
         } <span class='kw'>else</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>eat_keyword</span>(<span class='ident'>keywords</span>::<span class='ident'>Crate</span>) {
             <span class='ident'>pub_crate</span>(<span class='self'>self</span>)
         } <span class='kw'>else</span> {
-            <span class='kw'>let</span> <span class='ident'>path</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_path</span>(<span class='ident'>PathStyle</span>::<span class='ident'>Mod</span>));
+            <span class='kw'>let</span> <span class='ident'>path</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_path</span>(<span class='ident'>PathStyle</span>::<span class='ident'>Mod</span>)).<span class='ident'>default_to_global</span>();
             <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>expect</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>CloseDelim</span>(<span class='ident'>token</span>::<span class='ident'>Paren</span>)));
             <span class='prelude-val'>Ok</span>(<span class='ident'>Visibility</span>::<span class='ident'>Restricted</span> { <span class='ident'>path</span>: <span class='ident'>P</span>(<span class='ident'>path</span>), <span class='ident'>id</span>: <span class='ident'>ast</span>::<span class='ident'>DUMMY_NODE_ID</span> })
         }
@@ -11514,39 +11498,53 @@
             <span class='self'>self</span>.<span class='ident'>bump</span>();
             <span class='kw'>if</span> <span class='ident'>in_cfg</span> {
                 <span class='comment'>// This mod is in an external file. Let&#39;s go get it!</span>
-                <span class='kw'>let</span> (<span class='ident'>m</span>, <span class='ident'>attrs</span>) <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>eval_src_mod</span>(<span class='ident'>id</span>, <span class='kw-2'>&amp;</span><span class='ident'>outer_attrs</span>, <span class='ident'>id_span</span>));
-                <span class='prelude-val'>Ok</span>((<span class='ident'>id</span>, <span class='ident'>m</span>, <span class='prelude-val'>Some</span>(<span class='ident'>attrs</span>)))
+                <span class='kw'>let</span> <span class='ident'>ModulePathSuccess</span> { <span class='ident'>path</span>, <span class='ident'>directory_ownership</span>, <span class='ident'>warn</span> } <span class='op'>=</span>
+                    <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>submod_path</span>(<span class='ident'>id</span>, <span class='kw-2'>&amp;</span><span class='ident'>outer_attrs</span>, <span class='ident'>id_span</span>));
+                <span class='kw'>let</span> (<span class='ident'>module</span>, <span class='kw-2'>mut</span> <span class='ident'>attrs</span>) <span class='op'>=</span>
+                    <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>eval_src_mod</span>(<span class='ident'>path</span>, <span class='ident'>directory_ownership</span>, <span class='ident'>id</span>.<span class='ident'>to_string</span>(), <span class='ident'>id_span</span>));
+                <span class='kw'>if</span> <span class='ident'>warn</span> {
+                    <span class='kw'>let</span> <span class='ident'>attr</span> <span class='op'>=</span> <span class='ident'>ast</span>::<span class='ident'>Attribute</span> {
+                        <span class='ident'>id</span>: <span class='ident'>attr</span>::<span class='ident'>mk_attr_id</span>(),
+                        <span class='ident'>style</span>: <span class='ident'>ast</span>::<span class='ident'>AttrStyle</span>::<span class='ident'>Outer</span>,
+                        <span class='ident'>value</span>: <span class='ident'>ast</span>::<span class='ident'>MetaItem</span> {
+                            <span class='ident'>name</span>: <span class='ident'>Symbol</span>::<span class='ident'>intern</span>(<span class='string'>&quot;warn_directory_ownership&quot;</span>),
+                            <span class='ident'>node</span>: <span class='ident'>ast</span>::<span class='ident'>MetaItemKind</span>::<span class='ident'>Word</span>,
+                            <span class='ident'>span</span>: <span class='ident'>syntax_pos</span>::<span class='ident'>DUMMY_SP</span>,
+                        },
+                        <span class='ident'>is_sugared_doc</span>: <span class='bool-val'>false</span>,
+                        <span class='ident'>span</span>: <span class='ident'>syntax_pos</span>::<span class='ident'>DUMMY_SP</span>,
+                    };
+                    <span class='ident'>attr</span>::<span class='ident'>mark_known</span>(<span class='kw-2'>&amp;</span><span class='ident'>attr</span>);
+                    <span class='ident'>attrs</span>.<span class='ident'>push</span>(<span class='ident'>attr</span>);
+                }
+                <span class='prelude-val'>Ok</span>((<span class='ident'>id</span>, <span class='ident'>module</span>, <span class='prelude-val'>Some</span>(<span class='ident'>attrs</span>)))
             } <span class='kw'>else</span> {
                 <span class='kw'>let</span> <span class='ident'>placeholder</span> <span class='op'>=</span> <span class='ident'>ast</span>::<span class='ident'>Mod</span> { <span class='ident'>inner</span>: <span class='ident'>syntax_pos</span>::<span class='ident'>DUMMY_SP</span>, <span class='ident'>items</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>() };
                 <span class='prelude-val'>Ok</span>((<span class='ident'>id</span>, <span class='ident'>ItemKind</span>::<span class='ident'>Mod</span>(<span class='ident'>placeholder</span>), <span class='prelude-val'>None</span>))
             }
         } <span class='kw'>else</span> {
-            <span class='kw'>let</span> <span class='ident'>directory</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>directory</span>.<span class='ident'>clone</span>();
-            <span class='kw'>let</span> <span class='ident'>restrictions</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>push_directory</span>(<span class='ident'>id</span>, <span class='kw-2'>&amp;</span><span class='ident'>outer_attrs</span>);
+            <span class='kw'>let</span> <span class='ident'>old_directory</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>directory</span>.<span class='ident'>clone</span>();
+            <span class='self'>self</span>.<span class='ident'>push_directory</span>(<span class='ident'>id</span>, <span class='kw-2'>&amp;</span><span class='ident'>outer_attrs</span>);
             <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>expect</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>OpenDelim</span>(<span class='ident'>token</span>::<span class='ident'>Brace</span>)));
             <span class='kw'>let</span> <span class='ident'>mod_inner_lo</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>span</span>.<span class='ident'>lo</span>;
             <span class='kw'>let</span> <span class='ident'>attrs</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_inner_attributes</span>());
-            <span class='kw'>let</span> <span class='ident'>m</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>with_res</span>(<span class='ident'>restrictions</span>, <span class='op'>|</span><span class='ident'>this</span><span class='op'>|</span> {
-                <span class='ident'>this</span>.<span class='ident'>parse_mod_items</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>CloseDelim</span>(<span class='ident'>token</span>::<span class='ident'>Brace</span>), <span class='ident'>mod_inner_lo</span>)
-            }));
-            <span class='self'>self</span>.<span class='ident'>directory</span> <span class='op'>=</span> <span class='ident'>directory</span>;
-            <span class='prelude-val'>Ok</span>((<span class='ident'>id</span>, <span class='ident'>ItemKind</span>::<span class='ident'>Mod</span>(<span class='ident'>m</span>), <span class='prelude-val'>Some</span>(<span class='ident'>attrs</span>)))
+            <span class='kw'>let</span> <span class='ident'>module</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_mod_items</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>CloseDelim</span>(<span class='ident'>token</span>::<span class='ident'>Brace</span>), <span class='ident'>mod_inner_lo</span>));
+            <span class='self'>self</span>.<span class='ident'>directory</span> <span class='op'>=</span> <span class='ident'>old_directory</span>;
+            <span class='prelude-val'>Ok</span>((<span class='ident'>id</span>, <span class='ident'>ItemKind</span>::<span class='ident'>Mod</span>(<span class='ident'>module</span>), <span class='prelude-val'>Some</span>(<span class='ident'>attrs</span>)))
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>push_directory</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>id</span>: <span class='ident'>Ident</span>, <span class='ident'>attrs</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Attribute</span>]) <span class='op'>-&gt;</span> <span class='ident'>Restrictions</span> {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>path</span>) <span class='op'>=</span> ::<span class='ident'>attr</span>::<span class='ident'>first_attr_value_str_by_name</span>(<span class='ident'>attrs</span>, <span class='string'>&quot;path&quot;</span>) {
-            <span class='self'>self</span>.<span class='ident'>directory</span>.<span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>path</span>);
-            <span class='self'>self</span>.<span class='ident'>restrictions</span> <span class='op'>-</span> <span class='ident'>Restrictions</span>::<span class='ident'>no_noninline_mod</span>()
+    <span class='kw'>fn</span> <span class='ident'>push_directory</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>id</span>: <span class='ident'>Ident</span>, <span class='ident'>attrs</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Attribute</span>]) {
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>path</span>) <span class='op'>=</span> <span class='ident'>attr</span>::<span class='ident'>first_attr_value_str_by_name</span>(<span class='ident'>attrs</span>, <span class='string'>&quot;path&quot;</span>) {
+            <span class='self'>self</span>.<span class='ident'>directory</span>.<span class='ident'>path</span>.<span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>path</span>.<span class='ident'>as_str</span>());
+            <span class='self'>self</span>.<span class='ident'>directory</span>.<span class='ident'>ownership</span> <span class='op'>=</span> <span class='ident'>DirectoryOwnership</span>::<span class='ident'>Owned</span>;
         } <span class='kw'>else</span> {
-            <span class='kw'>let</span> <span class='ident'>default_path</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>id_to_interned_str</span>(<span class='ident'>id</span>);
-            <span class='self'>self</span>.<span class='ident'>directory</span>.<span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>default_path</span>);
-            <span class='self'>self</span>.<span class='ident'>restrictions</span>
+            <span class='self'>self</span>.<span class='ident'>directory</span>.<span class='ident'>path</span>.<span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>id</span>.<span class='ident'>name</span>.<span class='ident'>as_str</span>());
         }
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>submod_path_from_attr</span>(<span class='ident'>attrs</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>ast</span>::<span class='ident'>Attribute</span>], <span class='ident'>dir_path</span>: <span class='kw-2'>&amp;</span><span class='ident'>Path</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>PathBuf</span><span class='op'>&gt;</span> {
-        ::<span class='ident'>attr</span>::<span class='ident'>first_attr_value_str_by_name</span>(<span class='ident'>attrs</span>, <span class='string'>&quot;path&quot;</span>).<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>d</span><span class='op'>|</span> <span class='ident'>dir_path</span>.<span class='ident'>join</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>d</span>))
+        <span class='ident'>attr</span>::<span class='ident'>first_attr_value_str_by_name</span>(<span class='ident'>attrs</span>, <span class='string'>&quot;path&quot;</span>).<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>d</span><span class='op'>|</span> <span class='ident'>dir_path</span>.<span class='ident'>join</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>d</span>.<span class='ident'>as_str</span>()))
     }
 
     <span class='doccomment'>/// Returns either a path to a module, or .</span>
@@ -11561,8 +11559,16 @@
         <span class='kw'>let</span> <span class='ident'>secondary_exists</span> <span class='op'>=</span> <span class='ident'>codemap</span>.<span class='ident'>file_exists</span>(<span class='kw-2'>&amp;</span><span class='ident'>secondary_path</span>);
 
         <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='kw'>match</span> (<span class='ident'>default_exists</span>, <span class='ident'>secondary_exists</span>) {
-            (<span class='bool-val'>true</span>, <span class='bool-val'>false</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>ModulePathSuccess</span> { <span class='ident'>path</span>: <span class='ident'>default_path</span>, <span class='ident'>owns_directory</span>: <span class='bool-val'>false</span> }),
-            (<span class='bool-val'>false</span>, <span class='bool-val'>true</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>ModulePathSuccess</span> { <span class='ident'>path</span>: <span class='ident'>secondary_path</span>, <span class='ident'>owns_directory</span>: <span class='bool-val'>true</span> }),
+            (<span class='bool-val'>true</span>, <span class='bool-val'>false</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>ModulePathSuccess</span> {
+                <span class='ident'>path</span>: <span class='ident'>default_path</span>,
+                <span class='ident'>directory_ownership</span>: <span class='ident'>DirectoryOwnership</span>::<span class='ident'>UnownedViaMod</span>(<span class='bool-val'>false</span>),
+                <span class='ident'>warn</span>: <span class='bool-val'>false</span>,
+            }),
+            (<span class='bool-val'>false</span>, <span class='bool-val'>true</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>ModulePathSuccess</span> {
+                <span class='ident'>path</span>: <span class='ident'>secondary_path</span>,
+                <span class='ident'>directory_ownership</span>: <span class='ident'>DirectoryOwnership</span>::<span class='ident'>Owned</span>,
+                <span class='ident'>warn</span>: <span class='bool-val'>false</span>,
+            }),
             (<span class='bool-val'>false</span>, <span class='bool-val'>false</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(<span class='ident'>ModulePathError</span> {
                 <span class='ident'>err_msg</span>: <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;file not found for module `{}`&quot;</span>, <span class='ident'>mod_name</span>),
                 <span class='ident'>help_msg</span>: <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;name the file either {} or {} inside the directory {:?}&quot;</span>,
@@ -11590,13 +11596,20 @@
                    <span class='ident'>id</span>: <span class='ident'>ast</span>::<span class='ident'>Ident</span>,
                    <span class='ident'>outer_attrs</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>ast</span>::<span class='ident'>Attribute</span>],
                    <span class='ident'>id_sp</span>: <span class='ident'>Span</span>) <span class='op'>-&gt;</span> <span class='ident'>PResult</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>ModulePathSuccess</span><span class='op'>&gt;</span> {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>p</span>) <span class='op'>=</span> <span class='ident'>Parser</span>::<span class='ident'>submod_path_from_attr</span>(<span class='ident'>outer_attrs</span>, <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>directory</span>) {
-            <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='ident'>ModulePathSuccess</span> { <span class='ident'>path</span>: <span class='ident'>p</span>, <span class='ident'>owns_directory</span>: <span class='bool-val'>true</span> });
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>path</span>) <span class='op'>=</span> <span class='ident'>Parser</span>::<span class='ident'>submod_path_from_attr</span>(<span class='ident'>outer_attrs</span>, <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>directory</span>.<span class='ident'>path</span>) {
+            <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='ident'>ModulePathSuccess</span> {
+                <span class='ident'>directory_ownership</span>: <span class='kw'>match</span> <span class='ident'>path</span>.<span class='ident'>file_name</span>().<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> <span class='ident'>s</span>.<span class='ident'>to_str</span>()) {
+                    <span class='prelude-val'>Some</span>(<span class='string'>&quot;mod.rs&quot;</span>) <span class='op'>=&gt;</span> <span class='ident'>DirectoryOwnership</span>::<span class='ident'>Owned</span>,
+                    _ <span class='op'>=&gt;</span> <span class='ident'>DirectoryOwnership</span>::<span class='ident'>UnownedViaMod</span>(<span class='bool-val'>true</span>),
+                },
+                <span class='ident'>path</span>: <span class='ident'>path</span>,
+                <span class='ident'>warn</span>: <span class='bool-val'>false</span>,
+            });
         }
 
-        <span class='kw'>let</span> <span class='ident'>paths</span> <span class='op'>=</span> <span class='ident'>Parser</span>::<span class='ident'>default_submod_path</span>(<span class='ident'>id</span>, <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>directory</span>, <span class='self'>self</span>.<span class='ident'>sess</span>.<span class='ident'>codemap</span>());
+        <span class='kw'>let</span> <span class='ident'>paths</span> <span class='op'>=</span> <span class='ident'>Parser</span>::<span class='ident'>default_submod_path</span>(<span class='ident'>id</span>, <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>directory</span>.<span class='ident'>path</span>, <span class='self'>self</span>.<span class='ident'>sess</span>.<span class='ident'>codemap</span>());
 
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>restrictions</span>.<span class='ident'>contains</span>(<span class='ident'>NO_NONINLINE_MOD</span>) {
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>DirectoryOwnership</span>::<span class='ident'>UnownedViaBlock</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>directory</span>.<span class='ident'>ownership</span> {
             <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span>
                 <span class='string'>&quot;Cannot declare a non-inline module inside a block unless it has a path attribute&quot;</span>;
             <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>err</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>diagnostic</span>().<span class='ident'>struct_span_err</span>(<span class='ident'>id_sp</span>, <span class='ident'>msg</span>);
@@ -11606,10 +11619,15 @@
                 <span class='ident'>err</span>.<span class='ident'>span_note</span>(<span class='ident'>id_sp</span>, <span class='kw-2'>&amp;</span><span class='ident'>msg</span>);
             }
             <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>err</span>);
-        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>owns_directory</span> {
+        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>DirectoryOwnership</span>::<span class='ident'>UnownedViaMod</span>(<span class='ident'>warn</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>directory</span>.<span class='ident'>ownership</span> {
+            <span class='kw'>if</span> <span class='ident'>warn</span> {
+                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>result</span>) <span class='op'>=</span> <span class='ident'>paths</span>.<span class='ident'>result</span> {
+                    <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='ident'>ModulePathSuccess</span> { <span class='ident'>warn</span>: <span class='bool-val'>true</span>, ..<span class='ident'>result</span> });
+                }
+            }
             <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>err</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>diagnostic</span>().<span class='ident'>struct_span_err</span>(<span class='ident'>id_sp</span>,
                 <span class='string'>&quot;cannot declare a new module at this location&quot;</span>);
-            <span class='kw'>let</span> <span class='ident'>this_module</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>directory</span>.<span class='ident'>file_name</span>() {
+            <span class='kw'>let</span> <span class='ident'>this_module</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>directory</span>.<span class='ident'>path</span>.<span class='ident'>file_name</span>() {
                 <span class='prelude-val'>Some</span>(<span class='ident'>file_name</span>) <span class='op'>=&gt;</span> <span class='ident'>file_name</span>.<span class='ident'>to_str</span>().<span class='ident'>unwrap</span>().<span class='ident'>to_owned</span>(),
                 <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>root_module_name</span>.<span class='ident'>as_ref</span>().<span class='ident'>unwrap</span>().<span class='ident'>clone</span>(),
             };
@@ -11622,8 +11640,10 @@
                               <span class='kw-2'>&amp;</span><span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;... or maybe `use` the module `{}` instead \
                                         of possibly redeclaring it&quot;</span>,
                                        <span class='ident'>paths</span>.<span class='ident'>name</span>));
-            }
-            <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>err</span>);
+                <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>err</span>);
+            } <span class='kw'>else</span> {
+                <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>err</span>);
+            };
         }
 
         <span class='kw'>match</span> <span class='ident'>paths</span>.<span class='ident'>result</span> {
@@ -11634,25 +11654,11 @@
 
     <span class='doccomment'>/// Read a module from a source file.</span>
     <span class='kw'>fn</span> <span class='ident'>eval_src_mod</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                    <span class='ident'>id</span>: <span class='ident'>ast</span>::<span class='ident'>Ident</span>,
-                    <span class='ident'>outer_attrs</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>ast</span>::<span class='ident'>Attribute</span>],
+                    <span class='ident'>path</span>: <span class='ident'>PathBuf</span>,
+                    <span class='ident'>directory_ownership</span>: <span class='ident'>DirectoryOwnership</span>,
+                    <span class='ident'>name</span>: <span class='ident'>String</span>,
                     <span class='ident'>id_sp</span>: <span class='ident'>Span</span>)
                     <span class='op'>-&gt;</span> <span class='ident'>PResult</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, (<span class='ident'>ast</span>::<span class='ident'>ItemKind</span>, <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>ast</span>::<span class='ident'>Attribute</span><span class='op'>&gt;</span> )<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>ModulePathSuccess</span> { <span class='ident'>path</span>, <span class='ident'>owns_directory</span> } <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>submod_path</span>(<span class='ident'>id</span>,
-                                                                          <span class='ident'>outer_attrs</span>,
-                                                                          <span class='ident'>id_sp</span>));
-
-        <span class='self'>self</span>.<span class='ident'>eval_src_mod_from_path</span>(<span class='ident'>path</span>,
-                                    <span class='ident'>owns_directory</span>,
-                                    <span class='ident'>id</span>.<span class='ident'>to_string</span>(),
-                                    <span class='ident'>id_sp</span>)
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>eval_src_mod_from_path</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                              <span class='ident'>path</span>: <span class='ident'>PathBuf</span>,
-                              <span class='ident'>owns_directory</span>: <span class='ident'>bool</span>,
-                              <span class='ident'>name</span>: <span class='ident'>String</span>,
-                              <span class='ident'>id_sp</span>: <span class='ident'>Span</span>) <span class='op'>-&gt;</span> <span class='ident'>PResult</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, (<span class='ident'>ast</span>::<span class='ident'>ItemKind</span>, <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>ast</span>::<span class='ident'>Attribute</span><span class='op'>&gt;</span> )<span class='op'>&gt;</span> {
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>included_mod_stack</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>sess</span>.<span class='ident'>included_mod_stack</span>.<span class='ident'>borrow_mut</span>();
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>i</span>) <span class='op'>=</span> <span class='ident'>included_mod_stack</span>.<span class='ident'>iter</span>().<span class='ident'>position</span>(<span class='op'>|</span><span class='ident'>p</span><span class='op'>|</span> <span class='kw-2'>*</span><span class='ident'>p</span> <span class='op'>==</span> <span class='ident'>path</span>) {
             <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>err</span> <span class='op'>=</span> <span class='ident'>String</span>::<span class='ident'>from</span>(<span class='string'>&quot;circular modules: &quot;</span>);
@@ -11667,7 +11673,8 @@
         <span class='ident'>included_mod_stack</span>.<span class='ident'>push</span>(<span class='ident'>path</span>.<span class='ident'>clone</span>());
         <span class='ident'>drop</span>(<span class='ident'>included_mod_stack</span>);
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>p0</span> <span class='op'>=</span> <span class='ident'>new_sub_parser_from_file</span>(<span class='self'>self</span>.<span class='ident'>sess</span>, <span class='kw-2'>&amp;</span><span class='ident'>path</span>, <span class='ident'>owns_directory</span>, <span class='prelude-val'>Some</span>(<span class='ident'>name</span>), <span class='ident'>id_sp</span>);
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>p0</span> <span class='op'>=</span>
+            <span class='ident'>new_sub_parser_from_file</span>(<span class='self'>self</span>.<span class='ident'>sess</span>, <span class='kw-2'>&amp;</span><span class='ident'>path</span>, <span class='ident'>directory_ownership</span>, <span class='prelude-val'>Some</span>(<span class='ident'>name</span>), <span class='ident'>id_sp</span>);
         <span class='kw'>let</span> <span class='ident'>mod_inner_lo</span> <span class='op'>=</span> <span class='ident'>p0</span>.<span class='ident'>span</span>.<span class='ident'>lo</span>;
         <span class='kw'>let</span> <span class='ident'>mod_attrs</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>p0</span>.<span class='ident'>parse_inner_attributes</span>());
         <span class='kw'>let</span> <span class='ident'>m0</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>p0</span>.<span class='ident'>parse_mod_items</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>Eof</span>, <span class='ident'>mod_inner_lo</span>));
@@ -12308,9 +12315,9 @@
         <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>check</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>OpenDelim</span>(<span class='ident'>token</span>::<span class='ident'>Brace</span>)) <span class='op'>||</span> <span class='self'>self</span>.<span class='ident'>check</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>BinOp</span>(<span class='ident'>token</span>::<span class='ident'>Star</span>)) <span class='op'>||</span>
            <span class='self'>self</span>.<span class='ident'>is_import_coupler</span>() {
             <span class='comment'>// `{foo, bar}`, `::{foo, bar}`, `*`, or `::*`.</span>
+            <span class='self'>self</span>.<span class='ident'>eat</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>ModSep</span>);
             <span class='kw'>let</span> <span class='ident'>prefix</span> <span class='op'>=</span> <span class='ident'>ast</span>::<span class='ident'>Path</span> {
-                <span class='ident'>global</span>: <span class='self'>self</span>.<span class='ident'>eat</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>ModSep</span>),
-                <span class='ident'>segments</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
+                <span class='ident'>segments</span>: <span class='macro'>vec</span><span class='macro'>!</span>[<span class='ident'>ast</span>::<span class='ident'>PathSegment</span>::<span class='ident'>crate_root</span>()],
                 <span class='ident'>span</span>: <span class='ident'>mk_sp</span>(<span class='ident'>lo</span>, <span class='self'>self</span>.<span class='ident'>span</span>.<span class='ident'>hi</span>),
             };
             <span class='kw'>let</span> <span class='ident'>view_path_kind</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>eat</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>::<span class='ident'>BinOp</span>(<span class='ident'>token</span>::<span class='ident'>Star</span>)) {
@@ -12320,7 +12327,7 @@
             };
             <span class='prelude-val'>Ok</span>(<span class='ident'>P</span>(<span class='ident'>spanned</span>(<span class='ident'>lo</span>, <span class='self'>self</span>.<span class='ident'>span</span>.<span class='ident'>hi</span>, <span class='ident'>view_path_kind</span>)))
         } <span class='kw'>else</span> {
-            <span class='kw'>let</span> <span class='ident'>prefix</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_path</span>(<span class='ident'>PathStyle</span>::<span class='ident'>Mod</span>));
+            <span class='kw'>let</span> <span class='ident'>prefix</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_path</span>(<span class='ident'>PathStyle</span>::<span class='ident'>Mod</span>)).<span class='ident'>default_to_global</span>();
             <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>is_import_coupler</span>() {
                 <span class='comment'>// `foo::bar::{a, b}` or `foo::bar::*`</span>
                 <span class='self'>self</span>.<span class='ident'>bump</span>();
@@ -12360,26 +12367,17 @@
         })
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_optional_str</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>)
-                              <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span>(<span class='ident'>InternedString</span>,
-                                         <span class='ident'>ast</span>::<span class='ident'>StrStyle</span>,
-                                         <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ast</span>::<span class='ident'>Name</span><span class='op'>&gt;</span>)<span class='op'>&gt;</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_optional_str</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span>(<span class='ident'>Symbol</span>, <span class='ident'>ast</span>::<span class='ident'>StrStyle</span>, <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ast</span>::<span class='ident'>Name</span><span class='op'>&gt;</span>)<span class='op'>&gt;</span> {
         <span class='kw'>let</span> <span class='ident'>ret</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>token</span> {
-            <span class='ident'>token</span>::<span class='ident'>Literal</span>(<span class='ident'>token</span>::<span class='ident'>Str_</span>(<span class='ident'>s</span>), <span class='ident'>suf</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>s</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>id_to_interned_str</span>(<span class='ident'>ast</span>::<span class='ident'>Ident</span>::<span class='ident'>with_empty_ctxt</span>(<span class='ident'>s</span>));
-                (<span class='ident'>s</span>, <span class='ident'>ast</span>::<span class='ident'>StrStyle</span>::<span class='ident'>Cooked</span>, <span class='ident'>suf</span>)
-            }
-            <span class='ident'>token</span>::<span class='ident'>Literal</span>(<span class='ident'>token</span>::<span class='ident'>StrRaw</span>(<span class='ident'>s</span>, <span class='ident'>n</span>), <span class='ident'>suf</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>s</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>id_to_interned_str</span>(<span class='ident'>ast</span>::<span class='ident'>Ident</span>::<span class='ident'>with_empty_ctxt</span>(<span class='ident'>s</span>));
-                (<span class='ident'>s</span>, <span class='ident'>ast</span>::<span class='ident'>StrStyle</span>::<span class='ident'>Raw</span>(<span class='ident'>n</span>), <span class='ident'>suf</span>)
-            }
+            <span class='ident'>token</span>::<span class='ident'>Literal</span>(<span class='ident'>token</span>::<span class='ident'>Str_</span>(<span class='ident'>s</span>), <span class='ident'>suf</span>) <span class='op'>=&gt;</span> (<span class='ident'>s</span>, <span class='ident'>ast</span>::<span class='ident'>StrStyle</span>::<span class='ident'>Cooked</span>, <span class='ident'>suf</span>),
+            <span class='ident'>token</span>::<span class='ident'>Literal</span>(<span class='ident'>token</span>::<span class='ident'>StrRaw</span>(<span class='ident'>s</span>, <span class='ident'>n</span>), <span class='ident'>suf</span>) <span class='op'>=&gt;</span> (<span class='ident'>s</span>, <span class='ident'>ast</span>::<span class='ident'>StrStyle</span>::<span class='ident'>Raw</span>(<span class='ident'>n</span>), <span class='ident'>suf</span>),
             _ <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>None</span>
         };
         <span class='self'>self</span>.<span class='ident'>bump</span>();
         <span class='prelude-val'>Some</span>(<span class='ident'>ret</span>)
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_str</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>PResult</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, (<span class='ident'>InternedString</span>, <span class='ident'>StrStyle</span>)<span class='op'>&gt;</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_str</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>PResult</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, (<span class='ident'>Symbol</span>, <span class='ident'>StrStyle</span>)<span class='op'>&gt;</span> {
         <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>parse_optional_str</span>() {
             <span class='prelude-val'>Some</span>((<span class='ident'>s</span>, <span class='ident'>style</span>, <span class='ident'>suf</span>)) <span class='op'>=&gt;</span> {
                 <span class='kw'>let</span> <span class='ident'>sp</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>prev_span</span>;

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/registry/src/github.com-1ecc6299db9ec823/syntex_syntax-0.50.0/src/ext/expand.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/registry/src/github.com-1ecc6299db9ec823/syntex_syntax-0.54.0/src/ext/expand.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>expand.rs.html -- source</title>
@@ -1045,6 +1045,12 @@
 <span id="1000">1000</span>
 <span id="1001">1001</span>
 <span id="1002">1002</span>
+<span id="1003">1003</span>
+<span id="1004">1004</span>
+<span id="1005">1005</span>
+<span id="1006">1006</span>
+<span id="1007">1007</span>
+<span id="1008">1008</span>
 </pre><pre class='rust '>
 <span class='comment'>// Copyright 2012-2014 The Rust Project Developers. See the COPYRIGHT</span>
 <span class='comment'>// file at the top-level directory of this distribution and at</span>
@@ -1070,12 +1076,13 @@
 <span class='kw'>use</span> <span class='ident'>feature_gate</span>::{<span class='self'>self</span>, <span class='ident'>Features</span>};
 <span class='kw'>use</span> <span class='ident'>fold</span>;
 <span class='kw'>use</span> <span class='ident'>fold</span>::<span class='kw-2'>*</span>;
-<span class='kw'>use</span> <span class='ident'>parse</span>::{<span class='ident'>ParseSess</span>, <span class='ident'>PResult</span>, <span class='ident'>lexer</span>};
+<span class='kw'>use</span> <span class='ident'>parse</span>::{<span class='ident'>ParseSess</span>, <span class='ident'>DirectoryOwnership</span>, <span class='ident'>PResult</span>, <span class='ident'>lexer</span>};
 <span class='kw'>use</span> <span class='ident'>parse</span>::<span class='ident'>parser</span>::<span class='ident'>Parser</span>;
-<span class='kw'>use</span> <span class='ident'>parse</span>::<span class='ident'>token</span>::{<span class='self'>self</span>, <span class='ident'>intern</span>, <span class='ident'>keywords</span>};
+<span class='kw'>use</span> <span class='ident'>parse</span>::<span class='ident'>token</span>;
 <span class='kw'>use</span> <span class='ident'>print</span>::<span class='ident'>pprust</span>;
 <span class='kw'>use</span> <span class='ident'>ptr</span>::<span class='ident'>P</span>;
 <span class='kw'>use</span> <span class='ident'>std_inject</span>;
+<span class='kw'>use</span> <span class='ident'>symbol</span>::<span class='ident'>keywords</span>;
 <span class='kw'>use</span> <span class='ident'>tokenstream</span>::{<span class='ident'>TokenTree</span>, <span class='ident'>TokenStream</span>};
 <span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>small_vector</span>::<span class='ident'>SmallVector</span>;
 <span class='kw'>use</span> <span class='ident'>visit</span>::<span class='ident'>Visitor</span>;
@@ -1133,7 +1140,7 @@
                 }
             }
 
-            <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>visit_with</span><span class='op'>&lt;</span><span class='ident'>V</span>: <span class='ident'>Visitor</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>visitor</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>V</span>) {
+            <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>visit_with</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>V</span>: <span class='ident'>Visitor</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;&gt;</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='self'>self</span>, <span class='ident'>visitor</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>V</span>) {
                 <span class='kw'>match</span> <span class='kw-2'>*</span><span class='self'>self</span> {
                     <span class='ident'>Expansion</span>::<span class='ident'>OptExpr</span>(<span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>expr</span>)) <span class='op'>=&gt;</span> <span class='ident'>visitor</span>.<span class='ident'>visit_expr</span>(<span class='ident'>expr</span>),
                     <span class='ident'>Expansion</span>::<span class='ident'>OptExpr</span>(<span class='prelude-val'>None</span>) <span class='op'>=&gt;</span> {}
@@ -1206,7 +1213,6 @@
 
 <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>InvocationKind</span> {
     <span class='ident'>Bang</span> {
-        <span class='ident'>attrs</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>ast</span>::<span class='ident'>Attribute</span><span class='op'>&gt;</span>,
         <span class='ident'>mac</span>: <span class='ident'>ast</span>::<span class='ident'>Mac</span>,
         <span class='ident'>ident</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Ident</span><span class='op'>&gt;</span>,
         <span class='ident'>span</span>: <span class='ident'>Span</span>,
@@ -1239,7 +1245,7 @@
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expand_crate</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>krate</span>: <span class='ident'>ast</span>::<span class='ident'>Crate</span>) <span class='op'>-&gt;</span> <span class='ident'>ast</span>::<span class='ident'>Crate</span> {
         <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>crate_root</span> <span class='op'>=</span> <span class='ident'>std_inject</span>::<span class='ident'>injected_crate_name</span>(<span class='kw-2'>&amp;</span><span class='ident'>krate</span>);
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>module</span> <span class='op'>=</span> <span class='ident'>ModuleData</span> {
-            <span class='ident'>mod_path</span>: <span class='macro'>vec</span><span class='macro'>!</span>[<span class='ident'>token</span>::<span class='ident'>str_to_ident</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>ecfg</span>.<span class='ident'>crate_name</span>)],
+            <span class='ident'>mod_path</span>: <span class='macro'>vec</span><span class='macro'>!</span>[<span class='ident'>Ident</span>::<span class='ident'>from_str</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>ecfg</span>.<span class='ident'>crate_name</span>)],
             <span class='ident'>directory</span>: <span class='ident'>PathBuf</span>::<span class='ident'>from</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>codemap</span>().<span class='ident'>span_to_filename</span>(<span class='ident'>krate</span>.<span class='ident'>span</span>)),
         };
         <span class='ident'>module</span>.<span class='ident'>directory</span>.<span class='ident'>pop</span>();
@@ -1298,7 +1304,7 @@
                     <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>resolve_macro</span>(<span class='ident'>scope</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>.<span class='ident'>node</span>.<span class='ident'>path</span>, <span class='ident'>force</span>)
                 }
                 <span class='ident'>InvocationKind</span>::<span class='ident'>Attr</span> { <span class='kw-2'>ref</span> <span class='ident'>attr</span>, .. } <span class='op'>=&gt;</span> {
-                    <span class='kw'>let</span> <span class='ident'>ident</span> <span class='op'>=</span> <span class='ident'>ast</span>::<span class='ident'>Ident</span>::<span class='ident'>with_empty_ctxt</span>(<span class='ident'>intern</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>attr</span>.<span class='ident'>name</span>()));
+                    <span class='kw'>let</span> <span class='ident'>ident</span> <span class='op'>=</span> <span class='ident'>Ident</span>::<span class='ident'>with_empty_ctxt</span>(<span class='ident'>attr</span>.<span class='ident'>name</span>());
                     <span class='kw'>let</span> <span class='ident'>path</span> <span class='op'>=</span> <span class='ident'>ast</span>::<span class='ident'>Path</span>::<span class='ident'>from_ident</span>(<span class='ident'>attr</span>.<span class='ident'>span</span>, <span class='ident'>ident</span>);
                     <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>resolve_macro</span>(<span class='ident'>scope</span>, <span class='kw-2'>&amp;</span><span class='ident'>path</span>, <span class='ident'>force</span>)
                 }
@@ -1327,7 +1333,7 @@
             <span class='kw'>if</span> <span class='ident'>expansions</span>.<span class='ident'>len</span>() <span class='op'>&lt;</span> <span class='ident'>depth</span> {
                 <span class='ident'>expansions</span>.<span class='ident'>push</span>(<span class='ident'>Vec</span>::<span class='ident'>new</span>());
             }
-            <span class='ident'>expansions</span>[<span class='ident'>depth</span> <span class='op'>-</span> <span class='number'>1</span>].<span class='ident'>push</span>((<span class='ident'>mark</span>.<span class='ident'>as_u32</span>(), <span class='ident'>expansion</span>));
+            <span class='ident'>expansions</span>[<span class='ident'>depth</span> <span class='op'>-</span> <span class='number'>1</span>].<span class='ident'>push</span>((<span class='ident'>mark</span>, <span class='ident'>expansion</span>));
             <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>ecfg</span>.<span class='ident'>single_step</span> {
                 <span class='ident'>invocations</span>.<span class='ident'>extend</span>(<span class='ident'>new_invocations</span>.<span class='ident'>into_iter</span>().<span class='ident'>rev</span>());
             }
@@ -1338,7 +1344,7 @@
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>placeholder_expander</span> <span class='op'>=</span> <span class='ident'>PlaceholderExpander</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>cx</span>, <span class='self'>self</span>.<span class='ident'>monotonic</span>);
         <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>expansions</span>) <span class='op'>=</span> <span class='ident'>expansions</span>.<span class='ident'>pop</span>() {
             <span class='kw'>for</span> (<span class='ident'>mark</span>, <span class='ident'>expansion</span>) <span class='kw'>in</span> <span class='ident'>expansions</span>.<span class='ident'>into_iter</span>().<span class='ident'>rev</span>() {
-                <span class='ident'>placeholder_expander</span>.<span class='ident'>add</span>(<span class='ident'>ast</span>::<span class='ident'>NodeId</span>::<span class='ident'>from_u32</span>(<span class='ident'>mark</span>), <span class='ident'>expansion</span>);
+                <span class='ident'>placeholder_expander</span>.<span class='ident'>add</span>(<span class='ident'>mark</span>.<span class='ident'>as_placeholder_id</span>(), <span class='ident'>expansion</span>);
             }
         }
 
@@ -1393,7 +1399,7 @@
         };
 
         <span class='ident'>attr</span>::<span class='ident'>mark_used</span>(<span class='kw-2'>&amp;</span><span class='ident'>attr</span>);
-        <span class='kw'>let</span> <span class='ident'>name</span> <span class='op'>=</span> <span class='ident'>intern</span>(<span class='kw-2'>&amp;</span><span class='ident'>attr</span>.<span class='ident'>name</span>());
+        <span class='kw'>let</span> <span class='ident'>name</span> <span class='op'>=</span> <span class='ident'>attr</span>.<span class='ident'>name</span>();
         <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>bt_push</span>(<span class='ident'>ExpnInfo</span> {
             <span class='ident'>call_site</span>: <span class='ident'>attr</span>.<span class='ident'>span</span>,
             <span class='ident'>callee</span>: <span class='ident'>NameAndSpan</span> {
@@ -1405,12 +1411,12 @@
 
         <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>ext</span> {
             <span class='ident'>MultiModifier</span>(<span class='kw-2'>ref</span> <span class='ident'>mac</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>items</span> <span class='op'>=</span> <span class='ident'>mac</span>.<span class='ident'>expand</span>(<span class='self'>self</span>.<span class='ident'>cx</span>, <span class='ident'>attr</span>.<span class='ident'>span</span>, <span class='kw-2'>&amp;</span><span class='ident'>attr</span>.<span class='ident'>node</span>.<span class='ident'>value</span>, <span class='ident'>item</span>);
+                <span class='kw'>let</span> <span class='ident'>items</span> <span class='op'>=</span> <span class='ident'>mac</span>.<span class='ident'>expand</span>(<span class='self'>self</span>.<span class='ident'>cx</span>, <span class='ident'>attr</span>.<span class='ident'>span</span>, <span class='kw-2'>&amp;</span><span class='ident'>attr</span>.<span class='ident'>value</span>, <span class='ident'>item</span>);
                 <span class='ident'>kind</span>.<span class='ident'>expect_from_annotatables</span>(<span class='ident'>items</span>)
             }
             <span class='ident'>MultiDecorator</span>(<span class='kw-2'>ref</span> <span class='ident'>mac</span>) <span class='op'>=&gt;</span> {
                 <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>items</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
-                <span class='ident'>mac</span>.<span class='ident'>expand</span>(<span class='self'>self</span>.<span class='ident'>cx</span>, <span class='ident'>attr</span>.<span class='ident'>span</span>, <span class='kw-2'>&amp;</span><span class='ident'>attr</span>.<span class='ident'>node</span>.<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>item</span>,
+                <span class='ident'>mac</span>.<span class='ident'>expand</span>(<span class='self'>self</span>.<span class='ident'>cx</span>, <span class='ident'>attr</span>.<span class='ident'>span</span>, <span class='kw-2'>&amp;</span><span class='ident'>attr</span>.<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>item</span>,
                            <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>|</span><span class='ident'>item</span><span class='op'>|</span> <span class='ident'>items</span>.<span class='ident'>push</span>(<span class='ident'>item</span>));
                 <span class='ident'>items</span>.<span class='ident'>push</span>(<span class='ident'>item</span>);
                 <span class='ident'>kind</span>.<span class='ident'>expect_from_annotatables</span>(<span class='ident'>items</span>)
@@ -1437,26 +1443,13 @@
     <span class='doccomment'>/// Expand a macro invocation. Returns the result of expansion.</span>
     <span class='kw'>fn</span> <span class='ident'>expand_bang_invoc</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>invoc</span>: <span class='ident'>Invocation</span>, <span class='ident'>ext</span>: <span class='ident'>Rc</span><span class='op'>&lt;</span><span class='ident'>SyntaxExtension</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>Expansion</span> {
         <span class='kw'>let</span> (<span class='ident'>mark</span>, <span class='ident'>kind</span>) <span class='op'>=</span> (<span class='ident'>invoc</span>.<span class='ident'>expansion_data</span>.<span class='ident'>mark</span>, <span class='ident'>invoc</span>.<span class='ident'>expansion_kind</span>);
-        <span class='kw'>let</span> (<span class='ident'>attrs</span>, <span class='ident'>mac</span>, <span class='ident'>ident</span>, <span class='ident'>span</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>invoc</span>.<span class='ident'>kind</span> {
-            <span class='ident'>InvocationKind</span>::<span class='ident'>Bang</span> { <span class='ident'>attrs</span>, <span class='ident'>mac</span>, <span class='ident'>ident</span>, <span class='ident'>span</span> } <span class='op'>=&gt;</span> (<span class='ident'>attrs</span>, <span class='ident'>mac</span>, <span class='ident'>ident</span>, <span class='ident'>span</span>),
+        <span class='kw'>let</span> (<span class='ident'>mac</span>, <span class='ident'>ident</span>, <span class='ident'>span</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>invoc</span>.<span class='ident'>kind</span> {
+            <span class='ident'>InvocationKind</span>::<span class='ident'>Bang</span> { <span class='ident'>mac</span>, <span class='ident'>ident</span>, <span class='ident'>span</span> } <span class='op'>=&gt;</span> (<span class='ident'>mac</span>, <span class='ident'>ident</span>, <span class='ident'>span</span>),
             _ <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(),
         };
         <span class='kw'>let</span> <span class='ident'>Mac_</span> { <span class='ident'>path</span>, <span class='ident'>tts</span>, .. } <span class='op'>=</span> <span class='ident'>mac</span>.<span class='ident'>node</span>;
 
-        <span class='comment'>// Detect use of feature-gated or invalid attributes on macro invoations</span>
-        <span class='comment'>// since they will not be detected after macro expansion.</span>
-        <span class='kw'>for</span> <span class='ident'>attr</span> <span class='kw'>in</span> <span class='ident'>attrs</span>.<span class='ident'>iter</span>() {
-            <span class='ident'>feature_gate</span>::<span class='ident'>check_attribute</span>(<span class='kw-2'>&amp;</span><span class='ident'>attr</span>, <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>parse_sess</span>,
-                                          <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>parse_sess</span>.<span class='ident'>codemap</span>(),
-                                          <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>ecfg</span>.<span class='ident'>features</span>.<span class='ident'>unwrap</span>());
-        }
-
-        <span class='kw'>if</span> <span class='ident'>path</span>.<span class='ident'>segments</span>.<span class='ident'>len</span>() <span class='op'>&gt;</span> <span class='number'>1</span> <span class='op'>||</span> <span class='ident'>path</span>.<span class='ident'>global</span> <span class='op'>||</span> <span class='op'>!</span><span class='ident'>path</span>.<span class='ident'>segments</span>[<span class='number'>0</span>].<span class='ident'>parameters</span>.<span class='ident'>is_empty</span>() {
-            <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>span_err</span>(<span class='ident'>path</span>.<span class='ident'>span</span>, <span class='string'>&quot;expected macro name without module separators&quot;</span>);
-            <span class='kw'>return</span> <span class='ident'>kind</span>.<span class='ident'>dummy</span>(<span class='ident'>span</span>);
-        }
-
-        <span class='kw'>let</span> <span class='ident'>extname</span> <span class='op'>=</span> <span class='ident'>path</span>.<span class='ident'>segments</span>[<span class='number'>0</span>].<span class='ident'>identifier</span>.<span class='ident'>name</span>;
+        <span class='kw'>let</span> <span class='ident'>extname</span> <span class='op'>=</span> <span class='ident'>path</span>.<span class='ident'>segments</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>().<span class='ident'>identifier</span>.<span class='ident'>name</span>;
         <span class='kw'>let</span> <span class='ident'>ident</span> <span class='op'>=</span> <span class='ident'>ident</span>.<span class='ident'>unwrap_or</span>(<span class='ident'>keywords</span>::<span class='ident'>Invalid</span>.<span class='ident'>ident</span>());
         <span class='kw'>let</span> <span class='ident'>marked_tts</span> <span class='op'>=</span> <span class='ident'>mark_tts</span>(<span class='kw-2'>&amp;</span><span class='ident'>tts</span>, <span class='ident'>mark</span>);
         <span class='kw'>let</span> <span class='ident'>opt_expanded</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>ext</span> {
@@ -1496,7 +1489,7 @@
                     }
                 });
 
-                <span class='ident'>kind</span>.<span class='ident'>make_from</span>(<span class='ident'>expander</span>.<span class='ident'>expand</span>(<span class='self'>self</span>.<span class='ident'>cx</span>, <span class='ident'>span</span>, <span class='ident'>ident</span>, <span class='ident'>marked_tts</span>, <span class='ident'>attrs</span>))
+                <span class='ident'>kind</span>.<span class='ident'>make_from</span>(<span class='ident'>expander</span>.<span class='ident'>expand</span>(<span class='self'>self</span>.<span class='ident'>cx</span>, <span class='ident'>span</span>, <span class='ident'>ident</span>, <span class='ident'>marked_tts</span>))
             }
 
             <span class='ident'>MultiDecorator</span>(..) <span class='op'>|</span> <span class='ident'>MultiModifier</span>(..) <span class='op'>|</span> <span class='ident'>SyntaxExtension</span>::<span class='ident'>AttrProcMacro</span>(..) <span class='op'>=&gt;</span> {
@@ -1651,13 +1644,11 @@
                 ..<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>clone</span>()
             },
         });
-        <span class='ident'>placeholder</span>(<span class='ident'>expansion_kind</span>, <span class='ident'>ast</span>::<span class='ident'>NodeId</span>::<span class='ident'>from_u32</span>(<span class='ident'>mark</span>.<span class='ident'>as_u32</span>()))
+        <span class='ident'>placeholder</span>(<span class='ident'>expansion_kind</span>, <span class='ident'>mark</span>.<span class='ident'>as_placeholder_id</span>())
     }
 
-    <span class='kw'>fn</span> <span class='ident'>collect_bang</span>(
-        <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>mac</span>: <span class='ident'>ast</span>::<span class='ident'>Mac</span>, <span class='ident'>attrs</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>ast</span>::<span class='ident'>Attribute</span><span class='op'>&gt;</span>, <span class='ident'>span</span>: <span class='ident'>Span</span>, <span class='ident'>kind</span>: <span class='ident'>ExpansionKind</span>,
-    ) <span class='op'>-&gt;</span> <span class='ident'>Expansion</span> {
-        <span class='self'>self</span>.<span class='ident'>collect</span>(<span class='ident'>kind</span>, <span class='ident'>InvocationKind</span>::<span class='ident'>Bang</span> { <span class='ident'>attrs</span>: <span class='ident'>attrs</span>, <span class='ident'>mac</span>: <span class='ident'>mac</span>, <span class='ident'>ident</span>: <span class='prelude-val'>None</span>, <span class='ident'>span</span>: <span class='ident'>span</span> })
+    <span class='kw'>fn</span> <span class='ident'>collect_bang</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>mac</span>: <span class='ident'>ast</span>::<span class='ident'>Mac</span>, <span class='ident'>span</span>: <span class='ident'>Span</span>, <span class='ident'>kind</span>: <span class='ident'>ExpansionKind</span>) <span class='op'>-&gt;</span> <span class='ident'>Expansion</span> {
+        <span class='self'>self</span>.<span class='ident'>collect</span>(<span class='ident'>kind</span>, <span class='ident'>InvocationKind</span>::<span class='ident'>Bang</span> { <span class='ident'>mac</span>: <span class='ident'>mac</span>, <span class='ident'>ident</span>: <span class='prelude-val'>None</span>, <span class='ident'>span</span>: <span class='ident'>span</span> })
     }
 
     <span class='kw'>fn</span> <span class='ident'>collect_attr</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>attr</span>: <span class='ident'>ast</span>::<span class='ident'>Attribute</span>, <span class='ident'>item</span>: <span class='ident'>Annotatable</span>, <span class='ident'>kind</span>: <span class='ident'>ExpansionKind</span>)
@@ -1677,6 +1668,16 @@
 
     <span class='kw'>fn</span> <span class='ident'>configure</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>HasAttrs</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>node</span>: <span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
         <span class='self'>self</span>.<span class='ident'>cfg</span>.<span class='ident'>configure</span>(<span class='ident'>node</span>)
+    }
+
+    <span class='comment'>// Detect use of feature-gated or invalid attributes on macro invocations</span>
+    <span class='comment'>// since they will not be detected after macro expansion.</span>
+    <span class='kw'>fn</span> <span class='ident'>check_attributes</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>attrs</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>ast</span>::<span class='ident'>Attribute</span>]) {
+        <span class='kw'>let</span> <span class='ident'>codemap</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>parse_sess</span>.<span class='ident'>codemap</span>();
+        <span class='kw'>let</span> <span class='ident'>features</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>ecfg</span>.<span class='ident'>features</span>.<span class='ident'>unwrap</span>();
+        <span class='kw'>for</span> <span class='ident'>attr</span> <span class='kw'>in</span> <span class='ident'>attrs</span>.<span class='ident'>iter</span>() {
+            <span class='ident'>feature_gate</span>::<span class='ident'>check_attribute</span>(<span class='kw-2'>&amp;</span><span class='ident'>attr</span>, <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>parse_sess</span>, <span class='ident'>codemap</span>, <span class='ident'>features</span>);
+        }
     }
 }
 
@@ -1706,7 +1707,7 @@
                             .<span class='ident'>new_filemap</span>(<span class='ident'>String</span>::<span class='ident'>from</span>(<span class='string'>&quot;&lt;macro expansion&gt;&quot;</span>), <span class='prelude-val'>None</span>, <span class='ident'>text</span>);
 
     <span class='kw'>let</span> <span class='ident'>lexer</span> <span class='op'>=</span> <span class='ident'>lexer</span>::<span class='ident'>StringReader</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>parse_sess</span>.<span class='ident'>span_diagnostic</span>, <span class='ident'>filemap</span>);
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>Parser</span>::<span class='ident'>new</span>(<span class='ident'>parse_sess</span>, <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>lexer</span>));
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>Parser</span>::<span class='ident'>new</span>(<span class='ident'>parse_sess</span>, <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>lexer</span>), <span class='prelude-val'>None</span>, <span class='bool-val'>false</span>);
     <span class='macro'>panictry</span><span class='macro'>!</span>(<span class='ident'>parser</span>.<span class='ident'>parse_all_token_trees</span>())
 }
 
@@ -1717,11 +1718,12 @@
 
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>ast</span>::<span class='ident'>ExprKind</span>::<span class='ident'>Mac</span>(<span class='ident'>mac</span>) <span class='op'>=</span> <span class='ident'>expr</span>.<span class='ident'>node</span> {
             <span class='comment'>// FIXME(syntex): ignore unknown macros</span>
-            <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>find_mac</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>).<span class='ident'>is_none</span>() {
+            <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>resolve_macro</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>.<span class='ident'>node</span>.<span class='ident'>path</span>, <span class='bool-val'>false</span>).<span class='ident'>is_err</span>() {
                 <span class='kw'>return</span> <span class='ident'>P</span>(<span class='ident'>ast</span>::<span class='ident'>Expr</span> { <span class='ident'>node</span>: <span class='ident'>ast</span>::<span class='ident'>ExprKind</span>::<span class='ident'>Mac</span>(<span class='ident'>mac</span>), .. <span class='ident'>expr</span> });
             }
 
-            <span class='self'>self</span>.<span class='ident'>collect_bang</span>(<span class='ident'>mac</span>, <span class='ident'>expr</span>.<span class='ident'>attrs</span>.<span class='ident'>into</span>(), <span class='ident'>expr</span>.<span class='ident'>span</span>, <span class='ident'>ExpansionKind</span>::<span class='ident'>Expr</span>).<span class='ident'>make_expr</span>()
+            <span class='self'>self</span>.<span class='ident'>check_attributes</span>(<span class='kw-2'>&amp;</span><span class='ident'>expr</span>.<span class='ident'>attrs</span>);
+            <span class='self'>self</span>.<span class='ident'>collect_bang</span>(<span class='ident'>mac</span>, <span class='ident'>expr</span>.<span class='ident'>span</span>, <span class='ident'>ExpansionKind</span>::<span class='ident'>Expr</span>).<span class='ident'>make_expr</span>()
         } <span class='kw'>else</span> {
             <span class='ident'>P</span>(<span class='ident'>noop_fold_expr</span>(<span class='ident'>expr</span>, <span class='self'>self</span>))
         }
@@ -1733,12 +1735,12 @@
 
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>ast</span>::<span class='ident'>ExprKind</span>::<span class='ident'>Mac</span>(<span class='ident'>mac</span>) <span class='op'>=</span> <span class='ident'>expr</span>.<span class='ident'>node</span> {
             <span class='comment'>// FIXME(syntex): ignore unknown macros</span>
-            <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>find_mac</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>).<span class='ident'>is_none</span>() {
+            <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>resolve_macro</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>.<span class='ident'>node</span>.<span class='ident'>path</span>, <span class='bool-val'>false</span>).<span class='ident'>is_err</span>() {
                 <span class='kw'>return</span> <span class='prelude-val'>Some</span>(<span class='ident'>P</span>(<span class='ident'>ast</span>::<span class='ident'>Expr</span> { <span class='ident'>node</span>: <span class='ident'>ast</span>::<span class='ident'>ExprKind</span>::<span class='ident'>Mac</span>(<span class='ident'>mac</span>), .. <span class='ident'>expr</span> }));
             }
 
-            <span class='self'>self</span>.<span class='ident'>collect_bang</span>(<span class='ident'>mac</span>, <span class='ident'>expr</span>.<span class='ident'>attrs</span>.<span class='ident'>into</span>(), <span class='ident'>expr</span>.<span class='ident'>span</span>, <span class='ident'>ExpansionKind</span>::<span class='ident'>OptExpr</span>)
-                .<span class='ident'>make_opt_expr</span>()
+            <span class='self'>self</span>.<span class='ident'>check_attributes</span>(<span class='kw-2'>&amp;</span><span class='ident'>expr</span>.<span class='ident'>attrs</span>);
+            <span class='self'>self</span>.<span class='ident'>collect_bang</span>(<span class='ident'>mac</span>, <span class='ident'>expr</span>.<span class='ident'>span</span>, <span class='ident'>ExpansionKind</span>::<span class='ident'>OptExpr</span>).<span class='ident'>make_opt_expr</span>()
         } <span class='kw'>else</span> {
             <span class='prelude-val'>Some</span>(<span class='ident'>P</span>(<span class='ident'>noop_fold_expr</span>(<span class='ident'>expr</span>, <span class='self'>self</span>)))
         }
@@ -1753,11 +1755,11 @@
         <span class='ident'>pat</span>.<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>pat</span><span class='op'>|</span> <span class='kw'>match</span> <span class='ident'>pat</span>.<span class='ident'>node</span> {
             <span class='ident'>PatKind</span>::<span class='ident'>Mac</span>(<span class='ident'>mac</span>) <span class='op'>=&gt;</span> {
                 <span class='comment'>// FIXME(syntex): ignore unknown macros</span>
-                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>find_mac</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>).<span class='ident'>is_none</span>() {
+                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>resolve_macro</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>.<span class='ident'>node</span>.<span class='ident'>path</span>, <span class='bool-val'>false</span>).<span class='ident'>is_err</span>() {
                     <span class='kw'>return</span> <span class='ident'>P</span>(<span class='ident'>ast</span>::<span class='ident'>Pat</span> { <span class='ident'>node</span>: <span class='ident'>PatKind</span>::<span class='ident'>Mac</span>(<span class='ident'>mac</span>), .. <span class='ident'>pat</span> });
                 }
 
-                <span class='self'>self</span>.<span class='ident'>collect_bang</span>(<span class='ident'>mac</span>, <span class='ident'>Vec</span>::<span class='ident'>new</span>(), <span class='ident'>pat</span>.<span class='ident'>span</span>, <span class='ident'>ExpansionKind</span>::<span class='ident'>Pat</span>).<span class='ident'>make_pat</span>()
+                <span class='self'>self</span>.<span class='ident'>collect_bang</span>(<span class='ident'>mac</span>, <span class='ident'>pat</span>.<span class='ident'>span</span>, <span class='ident'>ExpansionKind</span>::<span class='ident'>Pat</span>).<span class='ident'>make_pat</span>()
             }
             _ <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(),
         })
@@ -1771,7 +1773,7 @@
 
         <span class='kw'>let</span> (<span class='ident'>mac</span>, <span class='ident'>style</span>, <span class='ident'>attrs</span>) <span class='op'>=</span> <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>StmtKind</span>::<span class='ident'>Mac</span>(<span class='ident'>mac</span>) <span class='op'>=</span> <span class='ident'>stmt</span>.<span class='ident'>node</span> {
             <span class='comment'>// FIXME(syntex): ignore unknown macros.</span>
-            <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>find_mac</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>.<span class='number'>0</span>).<span class='ident'>is_none</span>() {
+            <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>resolve_macro</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>.<span class='number'>0</span>.<span class='ident'>node</span>.<span class='ident'>path</span>, <span class='bool-val'>false</span>).<span class='ident'>is_err</span>() {
                 <span class='kw'>let</span> <span class='ident'>stmt</span> <span class='op'>=</span> <span class='ident'>ast</span>::<span class='ident'>Stmt</span> { <span class='ident'>node</span>: <span class='ident'>StmtKind</span>::<span class='ident'>Mac</span>(<span class='ident'>mac</span>), .. <span class='ident'>stmt</span> };
                 <span class='kw'>return</span> <span class='ident'>SmallVector</span>::<span class='ident'>one</span>(<span class='ident'>stmt</span>);
             }
@@ -1785,8 +1787,8 @@
             }).<span class='ident'>collect</span>()
         };
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>placeholder</span> <span class='op'>=</span>
-            <span class='self'>self</span>.<span class='ident'>collect_bang</span>(<span class='ident'>mac</span>, <span class='ident'>attrs</span>.<span class='ident'>into</span>(), <span class='ident'>stmt</span>.<span class='ident'>span</span>, <span class='ident'>ExpansionKind</span>::<span class='ident'>Stmts</span>).<span class='ident'>make_stmts</span>();
+        <span class='self'>self</span>.<span class='ident'>check_attributes</span>(<span class='kw-2'>&amp;</span><span class='ident'>attrs</span>);
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>placeholder</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>collect_bang</span>(<span class='ident'>mac</span>, <span class='ident'>stmt</span>.<span class='ident'>span</span>, <span class='ident'>ExpansionKind</span>::<span class='ident'>Stmts</span>).<span class='ident'>make_stmts</span>();
 
         <span class='comment'>// If this is a macro invocation with a semicolon, then apply that</span>
         <span class='comment'>// semicolon to the final statement produced by expansion.</span>
@@ -1800,9 +1802,10 @@
     }
 
     <span class='kw'>fn</span> <span class='ident'>fold_block</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>block</span>: <span class='ident'>P</span><span class='op'>&lt;</span><span class='ident'>Block</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>P</span><span class='op'>&lt;</span><span class='ident'>Block</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>no_noninline_mod</span> <span class='op'>=</span> <span class='ident'>mem</span>::<span class='ident'>replace</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>no_noninline_mod</span>, <span class='bool-val'>true</span>);
+        <span class='kw'>let</span> <span class='ident'>old_directory_ownership</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>directory_ownership</span>;
+        <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>directory_ownership</span> <span class='op'>=</span> <span class='ident'>DirectoryOwnership</span>::<span class='ident'>UnownedViaBlock</span>;
         <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>noop_fold_block</span>(<span class='ident'>block</span>, <span class='self'>self</span>);
-        <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>no_noninline_mod</span> <span class='op'>=</span> <span class='ident'>no_noninline_mod</span>;
+        <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>directory_ownership</span> <span class='op'>=</span> <span class='ident'>old_directory_ownership</span>;
         <span class='ident'>result</span>
     }
 
@@ -1817,24 +1820,27 @@
 
         <span class='kw'>match</span> <span class='ident'>item</span>.<span class='ident'>node</span> {
             <span class='ident'>ast</span>::<span class='ident'>ItemKind</span>::<span class='ident'>Mac</span>(..) <span class='op'>=&gt;</span> {
-                <span class='kw'>if</span> <span class='kw'>match</span> <span class='ident'>item</span>.<span class='ident'>node</span> {
-                    <span class='ident'>ItemKind</span>::<span class='ident'>Mac</span>(<span class='kw-2'>ref</span> <span class='ident'>mac</span>) <span class='op'>=&gt;</span> <span class='ident'>mac</span>.<span class='ident'>node</span>.<span class='ident'>path</span>.<span class='ident'>segments</span>.<span class='ident'>is_empty</span>(),
-                    _ <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(),
-                } {
-                    <span class='kw'>return</span> <span class='ident'>SmallVector</span>::<span class='ident'>one</span>(<span class='ident'>item</span>);
-                }
+                <span class='self'>self</span>.<span class='ident'>check_attributes</span>(<span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>attrs</span>);
+                <span class='kw'>let</span> <span class='ident'>is_macro_def</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>ItemKind</span>::<span class='ident'>Mac</span>(<span class='kw-2'>ref</span> <span class='ident'>mac</span>) <span class='op'>=</span> <span class='ident'>item</span>.<span class='ident'>node</span> {
+                    <span class='ident'>mac</span>.<span class='ident'>node</span>.<span class='ident'>path</span>.<span class='ident'>segments</span>[<span class='number'>0</span>].<span class='ident'>identifier</span>.<span class='ident'>name</span> <span class='op'>==</span> <span class='string'>&quot;macro_rules&quot;</span>
+                } <span class='kw'>else</span> {
+                    <span class='macro'>unreachable</span><span class='macro'>!</span>()
+                };
 
-                <span class='ident'>item</span>.<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>item</span><span class='op'>|</span> <span class='kw'>match</span> <span class='ident'>item</span>.<span class='ident'>node</span> {
+                <span class='ident'>item</span>.<span class='ident'>and_then</span>(<span class='op'>|</span><span class='kw-2'>mut</span> <span class='ident'>item</span><span class='op'>|</span> <span class='kw'>match</span> <span class='ident'>item</span>.<span class='ident'>node</span> {
+                    <span class='ident'>ItemKind</span>::<span class='ident'>Mac</span>(_) <span class='kw'>if</span> <span class='ident'>is_macro_def</span> <span class='op'>=&gt;</span> {
+                        <span class='ident'>item</span>.<span class='ident'>id</span> <span class='op'>=</span> <span class='ident'>Mark</span>::<span class='ident'>fresh</span>().<span class='ident'>as_placeholder_id</span>();
+                        <span class='ident'>SmallVector</span>::<span class='ident'>one</span>(<span class='ident'>P</span>(<span class='ident'>item</span>))
+                    }
                     <span class='ident'>ItemKind</span>::<span class='ident'>Mac</span>(<span class='ident'>mac</span>) <span class='op'>=&gt;</span> {
                         <span class='comment'>// FIXME(syntex): ignore unknown macros</span>
-                        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>find_mac</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>).<span class='ident'>is_none</span>() {
+                        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>resolve_macro</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>.<span class='ident'>node</span>.<span class='ident'>path</span>, <span class='bool-val'>false</span>).<span class='ident'>is_err</span>() {
                             <span class='kw'>let</span> <span class='ident'>item</span> <span class='op'>=</span> <span class='ident'>ast</span>::<span class='ident'>Item</span> { <span class='ident'>node</span>: <span class='ident'>ItemKind</span>::<span class='ident'>Mac</span>(<span class='ident'>mac</span>), .. <span class='ident'>item</span> };
                             <span class='kw'>return</span> <span class='ident'>SmallVector</span>::<span class='ident'>one</span>(<span class='ident'>P</span>(<span class='ident'>item</span>));
                         }
 
                         <span class='self'>self</span>.<span class='ident'>collect</span>(<span class='ident'>ExpansionKind</span>::<span class='ident'>Items</span>, <span class='ident'>InvocationKind</span>::<span class='ident'>Bang</span> {
                             <span class='ident'>mac</span>: <span class='ident'>mac</span>,
-                            <span class='ident'>attrs</span>: <span class='ident'>item</span>.<span class='ident'>attrs</span>,
                             <span class='ident'>ident</span>: <span class='prelude-val'>Some</span>(<span class='ident'>item</span>.<span class='ident'>ident</span>),
                             <span class='ident'>span</span>: <span class='ident'>item</span>.<span class='ident'>span</span>,
                         }).<span class='ident'>make_items</span>()
@@ -1847,7 +1853,7 @@
                     <span class='kw'>return</span> <span class='ident'>noop_fold_item</span>(<span class='ident'>item</span>, <span class='self'>self</span>);
                 }
 
-                <span class='kw'>let</span> <span class='ident'>orig_no_noninline_mod</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>no_noninline_mod</span>;
+                <span class='kw'>let</span> <span class='ident'>orig_directory_ownership</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>directory_ownership</span>;
                 <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>module</span> <span class='op'>=</span> (<span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>module</span>).<span class='ident'>clone</span>();
                 <span class='ident'>module</span>.<span class='ident'>mod_path</span>.<span class='ident'>push</span>(<span class='ident'>item</span>.<span class='ident'>ident</span>);
 
@@ -1858,23 +1864,28 @@
 
                 <span class='kw'>if</span> <span class='ident'>inline_module</span> {
                     <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>path</span>) <span class='op'>=</span> <span class='ident'>attr</span>::<span class='ident'>first_attr_value_str_by_name</span>(<span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>attrs</span>, <span class='string'>&quot;path&quot;</span>) {
-                        <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>no_noninline_mod</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-                        <span class='ident'>module</span>.<span class='ident'>directory</span>.<span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>path</span>);
+                        <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>directory_ownership</span> <span class='op'>=</span> <span class='ident'>DirectoryOwnership</span>::<span class='ident'>Owned</span>;
+                        <span class='ident'>module</span>.<span class='ident'>directory</span>.<span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>path</span>.<span class='ident'>as_str</span>());
                     } <span class='kw'>else</span> {
                         <span class='ident'>module</span>.<span class='ident'>directory</span>.<span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>item</span>.<span class='ident'>ident</span>.<span class='ident'>name</span>.<span class='ident'>as_str</span>());
                     }
                 } <span class='kw'>else</span> {
-                    <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>no_noninline_mod</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-                    <span class='ident'>module</span>.<span class='ident'>directory</span> <span class='op'>=</span>
+                    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>path</span> <span class='op'>=</span>
                         <span class='ident'>PathBuf</span>::<span class='ident'>from</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>parse_sess</span>.<span class='ident'>codemap</span>().<span class='ident'>span_to_filename</span>(<span class='ident'>inner</span>));
-                    <span class='ident'>module</span>.<span class='ident'>directory</span>.<span class='ident'>pop</span>();
+                    <span class='kw'>let</span> <span class='ident'>directory_ownership</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>path</span>.<span class='ident'>file_name</span>().<span class='ident'>unwrap</span>().<span class='ident'>to_str</span>() {
+                        <span class='prelude-val'>Some</span>(<span class='string'>&quot;mod.rs&quot;</span>) <span class='op'>=&gt;</span> <span class='ident'>DirectoryOwnership</span>::<span class='ident'>Owned</span>,
+                        _ <span class='op'>=&gt;</span> <span class='ident'>DirectoryOwnership</span>::<span class='ident'>UnownedViaMod</span>(<span class='bool-val'>false</span>),
+                    };
+                    <span class='ident'>path</span>.<span class='ident'>pop</span>();
+                    <span class='ident'>module</span>.<span class='ident'>directory</span> <span class='op'>=</span> <span class='ident'>path</span>;
+                    <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>directory_ownership</span> <span class='op'>=</span> <span class='ident'>directory_ownership</span>;
                 }
 
                 <span class='kw'>let</span> <span class='ident'>orig_module</span> <span class='op'>=</span>
                     <span class='ident'>mem</span>::<span class='ident'>replace</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>module</span>, <span class='ident'>Rc</span>::<span class='ident'>new</span>(<span class='ident'>module</span>));
                 <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>noop_fold_item</span>(<span class='ident'>item</span>, <span class='self'>self</span>);
                 <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>module</span> <span class='op'>=</span> <span class='ident'>orig_module</span>;
-                <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>no_noninline_mod</span> <span class='op'>=</span> <span class='ident'>orig_no_noninline_mod</span>;
+                <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>directory_ownership</span> <span class='op'>=</span> <span class='ident'>orig_directory_ownership</span>;
                 <span class='kw'>return</span> <span class='ident'>result</span>;
             }
             <span class='comment'>// Ensure that test functions are accessible from the test harness.</span>
@@ -1901,13 +1912,14 @@
         <span class='kw'>match</span> <span class='ident'>item</span>.<span class='ident'>node</span> {
             <span class='ident'>ast</span>::<span class='ident'>TraitItemKind</span>::<span class='ident'>Macro</span>(<span class='ident'>mac</span>) <span class='op'>=&gt;</span> {
                 <span class='comment'>// FIXME(syntex): ignore unknown macros</span>
-                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>find_mac</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>).<span class='ident'>is_none</span>() {
+                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>resolve_macro</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>.<span class='ident'>node</span>.<span class='ident'>path</span>, <span class='bool-val'>false</span>).<span class='ident'>is_err</span>() {
                     <span class='kw'>let</span> <span class='ident'>item</span> <span class='op'>=</span> <span class='ident'>ast</span>::<span class='ident'>TraitItem</span> { <span class='ident'>node</span>: <span class='ident'>ast</span>::<span class='ident'>TraitItemKind</span>::<span class='ident'>Macro</span>(<span class='ident'>mac</span>), .. <span class='ident'>item</span> };
                     <span class='kw'>return</span> <span class='ident'>SmallVector</span>::<span class='ident'>one</span>(<span class='ident'>item</span>);
                 }
 
                 <span class='kw'>let</span> <span class='ident'>ast</span>::<span class='ident'>TraitItem</span> { <span class='ident'>attrs</span>, <span class='ident'>span</span>, .. } <span class='op'>=</span> <span class='ident'>item</span>;
-                <span class='self'>self</span>.<span class='ident'>collect_bang</span>(<span class='ident'>mac</span>, <span class='ident'>attrs</span>, <span class='ident'>span</span>, <span class='ident'>ExpansionKind</span>::<span class='ident'>TraitItems</span>).<span class='ident'>make_trait_items</span>()
+                <span class='self'>self</span>.<span class='ident'>check_attributes</span>(<span class='kw-2'>&amp;</span><span class='ident'>attrs</span>);
+                <span class='self'>self</span>.<span class='ident'>collect_bang</span>(<span class='ident'>mac</span>, <span class='ident'>span</span>, <span class='ident'>ExpansionKind</span>::<span class='ident'>TraitItems</span>).<span class='ident'>make_trait_items</span>()
             }
             _ <span class='op'>=&gt;</span> <span class='ident'>fold</span>::<span class='ident'>noop_fold_trait_item</span>(<span class='ident'>item</span>, <span class='self'>self</span>),
         }
@@ -1925,13 +1937,14 @@
         <span class='kw'>match</span> <span class='ident'>item</span>.<span class='ident'>node</span> {
             <span class='ident'>ast</span>::<span class='ident'>ImplItemKind</span>::<span class='ident'>Macro</span>(<span class='ident'>mac</span>) <span class='op'>=&gt;</span> {
                 <span class='comment'>// FIXME(syntex): ignore unknown macros</span>
-                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>find_mac</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>).<span class='ident'>is_none</span>() {
+                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>resolve_macro</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>.<span class='ident'>node</span>.<span class='ident'>path</span>, <span class='bool-val'>false</span>).<span class='ident'>is_err</span>() {
                     <span class='kw'>let</span> <span class='ident'>item</span> <span class='op'>=</span> <span class='ident'>ast</span>::<span class='ident'>ImplItem</span> { <span class='ident'>node</span>: <span class='ident'>ast</span>::<span class='ident'>ImplItemKind</span>::<span class='ident'>Macro</span>(<span class='ident'>mac</span>), .. <span class='ident'>item</span> };
                     <span class='kw'>return</span> <span class='ident'>SmallVector</span>::<span class='ident'>one</span>(<span class='ident'>item</span>);
                 }
 
                 <span class='kw'>let</span> <span class='ident'>ast</span>::<span class='ident'>ImplItem</span> { <span class='ident'>attrs</span>, <span class='ident'>span</span>, .. } <span class='op'>=</span> <span class='ident'>item</span>;
-                <span class='self'>self</span>.<span class='ident'>collect_bang</span>(<span class='ident'>mac</span>, <span class='ident'>attrs</span>, <span class='ident'>span</span>, <span class='ident'>ExpansionKind</span>::<span class='ident'>ImplItems</span>).<span class='ident'>make_impl_items</span>()
+                <span class='self'>self</span>.<span class='ident'>check_attributes</span>(<span class='kw-2'>&amp;</span><span class='ident'>attrs</span>);
+                <span class='self'>self</span>.<span class='ident'>collect_bang</span>(<span class='ident'>mac</span>, <span class='ident'>span</span>, <span class='ident'>ExpansionKind</span>::<span class='ident'>ImplItems</span>).<span class='ident'>make_impl_items</span>()
             }
             _ <span class='op'>=&gt;</span> <span class='ident'>fold</span>::<span class='ident'>noop_fold_impl_item</span>(<span class='ident'>item</span>, <span class='self'>self</span>),
         }
@@ -1946,11 +1959,11 @@
         <span class='kw'>match</span> <span class='ident'>ty</span>.<span class='ident'>node</span> {
             <span class='ident'>ast</span>::<span class='ident'>TyKind</span>::<span class='ident'>Mac</span>(<span class='ident'>mac</span>) <span class='op'>=&gt;</span> {
                 <span class='comment'>// FIXME(syntex): ignore unknown macros</span>
-                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>find_mac</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>).<span class='ident'>is_none</span>() {
+                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>resolver</span>.<span class='ident'>resolve_macro</span>(<span class='self'>self</span>.<span class='ident'>cx</span>.<span class='ident'>current_expansion</span>.<span class='ident'>mark</span>, <span class='kw-2'>&amp;</span><span class='ident'>mac</span>.<span class='ident'>node</span>.<span class='ident'>path</span>, <span class='bool-val'>false</span>).<span class='ident'>is_err</span>() {
                     <span class='kw'>return</span> <span class='ident'>P</span>(<span class='ident'>ast</span>::<span class='ident'>Ty</span> { <span class='ident'>node</span>: <span class='ident'>ast</span>::<span class='ident'>TyKind</span>::<span class='ident'>Mac</span>(<span class='ident'>mac</span>), .. <span class='ident'>ty</span> });
                 }
 
-                <span class='self'>self</span>.<span class='ident'>collect_bang</span>(<span class='ident'>mac</span>, <span class='ident'>Vec</span>::<span class='ident'>new</span>(), <span class='ident'>ty</span>.<span class='ident'>span</span>, <span class='ident'>ExpansionKind</span>::<span class='ident'>Ty</span>).<span class='ident'>make_ty</span>()
+                <span class='self'>self</span>.<span class='ident'>collect_bang</span>(<span class='ident'>mac</span>, <span class='ident'>ty</span>.<span class='ident'>span</span>, <span class='ident'>ExpansionKind</span>::<span class='ident'>Ty</span>).<span class='ident'>make_ty</span>()
             }
             _ <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(),
         }
@@ -2019,7 +2032,6 @@
         <span class='kw'>fn</span> <span class='ident'>enable_allow_internal_unstable</span> <span class='op'>=</span> <span class='ident'>allow_internal_unstable</span>,
         <span class='kw'>fn</span> <span class='ident'>enable_custom_derive</span> <span class='op'>=</span> <span class='ident'>custom_derive</span>,
         <span class='kw'>fn</span> <span class='ident'>enable_pushpop_unsafe</span> <span class='op'>=</span> <span class='ident'>pushpop_unsafe</span>,
-        <span class='kw'>fn</span> <span class='ident'>enable_proc_macro</span> <span class='op'>=</span> <span class='ident'>proc_macro</span>,
     }
 }
 

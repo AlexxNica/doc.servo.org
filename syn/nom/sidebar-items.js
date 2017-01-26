@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["IResult",""]],"fn":[["many0",""],["str_chars",""]]});
+initSidebarItems({"enum":[["IResult",""]],"fn":[["many0",""]]});

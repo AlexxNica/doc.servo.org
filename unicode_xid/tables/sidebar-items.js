@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["UNICODE_VERSION","The version of Unicode that this version of unicode-derived-property is based on."]],"fn":[["bsearch_range_table",""]],"mod":[["derived_property",""]]});
+initSidebarItems({"constant":[["UNICODE_VERSION","The version of Unicode that this version of unicode-xid is based on."]],"fn":[["bsearch_range_table",""]],"mod":[["derived_property",""]]});
