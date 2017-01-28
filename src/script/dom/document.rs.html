@@ -3548,6 +3548,27 @@
 <span id="3503">3503</span>
 <span id="3504">3504</span>
 <span id="3505">3505</span>
+<span id="3506">3506</span>
+<span id="3507">3507</span>
+<span id="3508">3508</span>
+<span id="3509">3509</span>
+<span id="3510">3510</span>
+<span id="3511">3511</span>
+<span id="3512">3512</span>
+<span id="3513">3513</span>
+<span id="3514">3514</span>
+<span id="3515">3515</span>
+<span id="3516">3516</span>
+<span id="3517">3517</span>
+<span id="3518">3518</span>
+<span id="3519">3519</span>
+<span id="3520">3520</span>
+<span id="3521">3521</span>
+<span id="3522">3522</span>
+<span id="3523">3523</span>
+<span id="3524">3524</span>
+<span id="3525">3525</span>
+<span id="3526">3526</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -3659,7 +3680,8 @@
 <span class='kw'>use</span> <span class='ident'>script_layout_interface</span>::<span class='ident'>message</span>::{<span class='ident'>Msg</span>, <span class='ident'>ReflowQueryType</span>};
 <span class='kw'>use</span> <span class='ident'>script_runtime</span>::{<span class='ident'>CommonScriptMsg</span>, <span class='ident'>ScriptThreadEventCategory</span>};
 <span class='kw'>use</span> <span class='ident'>script_thread</span>::{<span class='ident'>MainThreadScriptMsg</span>, <span class='ident'>Runnable</span>};
-<span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>AnimationState</span>, <span class='ident'>CompositorEvent</span>, <span class='ident'>MouseButton</span>, <span class='ident'>MouseEventType</span>, <span class='ident'>MozBrowserEvent</span>};
+<span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>AnimationState</span>, <span class='ident'>CompositorEvent</span>, <span class='ident'>DocumentActivity</span>};
+<span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>MouseButton</span>, <span class='ident'>MouseEventType</span>, <span class='ident'>MozBrowserEvent</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>ScriptMsg</span> <span class='kw'>as</span> <span class='ident'>ConstellationMsg</span>, <span class='ident'>TouchpadPressurePhase</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>TouchEventType</span>, <span class='ident'>TouchId</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::<span class='ident'>UntrustedNodeAddress</span>;
@@ -3742,7 +3764,7 @@
     <span class='ident'>last_modified</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>,
     <span class='ident'>encoding</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>EncodingRef</span><span class='op'>&gt;</span>,
     <span class='ident'>is_html_document</span>: <span class='ident'>bool</span>,
-    <span class='ident'>is_fully_active</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>bool</span><span class='op'>&gt;</span>,
+    <span class='ident'>activity</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>DocumentActivity</span><span class='op'>&gt;</span>,
     <span class='ident'>url</span>: <span class='ident'>DOMRefCell</span><span class='op'>&lt;</span><span class='ident'>ServoUrl</span><span class='op'>&gt;</span>,
     <span class='ident'>quirks_mode</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>QuirksMode</span><span class='op'>&gt;</span>,
     <span class='doccomment'>/// Caches for the getElement methods</span>
@@ -3783,7 +3805,7 @@
     <span class='ident'>asap_scripts_set</span>: <span class='ident'>DOMRefCell</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>HTMLScriptElement</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>,
     <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#concept-n-noscript</span>
     <span class='doccomment'>/// True if scripting is enabled for all scripts in this document</span>
-    <span class='ident'>scripting_enabled</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>bool</span><span class='op'>&gt;</span>,
+    <span class='ident'>scripting_enabled</span>: <span class='ident'>bool</span>,
     <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#animation-frame-callback-identifier</span>
     <span class='doccomment'>/// Current identifier of animation frame callback</span>
     <span class='ident'>animation_frame_ident</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>,
@@ -3938,17 +3960,33 @@
         <span class='self'>self</span>.<span class='ident'>trigger_mozbrowser_event</span>(<span class='ident'>MozBrowserEvent</span>::<span class='ident'>SecurityChange</span>(<span class='ident'>https_state</span>));
     }
 
-    <span class='comment'>// https://html.spec.whatwg.org/multipage/#fully-active</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_fully_active</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>is_fully_active</span>.<span class='ident'>get</span>()
+        <span class='self'>self</span>.<span class='ident'>activity</span>.<span class='ident'>get</span>() <span class='op'>==</span> <span class='ident'>DocumentActivity</span>::<span class='ident'>FullyActive</span>
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>fully_activate</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>is_fully_active</span>.<span class='ident'>set</span>(<span class='bool-val'>true</span>)
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_active</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+        <span class='self'>self</span>.<span class='ident'>activity</span>.<span class='ident'>get</span>() <span class='op'>!=</span> <span class='ident'>DocumentActivity</span>::<span class='ident'>Inactive</span>
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>fully_deactivate</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>is_fully_active</span>.<span class='ident'>set</span>(<span class='bool-val'>false</span>)
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_activity</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>activity</span>: <span class='ident'>DocumentActivity</span>) {
+        <span class='comment'>// This function should only be called on documents with a browsing context</span>
+        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>browsing_context</span>.<span class='ident'>is_some</span>());
+        <span class='comment'>// Set the document&#39;s activity level, reflow if necessary, and suspend or resume timers.</span>
+        <span class='kw'>if</span> <span class='ident'>activity</span> <span class='op'>!=</span> <span class='self'>self</span>.<span class='ident'>activity</span>.<span class='ident'>get</span>() {
+            <span class='self'>self</span>.<span class='ident'>activity</span>.<span class='ident'>set</span>(<span class='ident'>activity</span>);
+            <span class='kw'>if</span> <span class='ident'>activity</span> <span class='op'>==</span> <span class='ident'>DocumentActivity</span>::<span class='ident'>FullyActive</span> {
+                <span class='self'>self</span>.<span class='ident'>title_changed</span>();
+                <span class='self'>self</span>.<span class='ident'>dirty_all_nodes</span>();
+                <span class='self'>self</span>.<span class='ident'>window</span>().<span class='ident'>reflow</span>(
+                    <span class='ident'>ReflowGoal</span>::<span class='ident'>ForDisplay</span>,
+                    <span class='ident'>ReflowQueryType</span>::<span class='ident'>NoQuery</span>,
+                    <span class='ident'>ReflowReason</span>::<span class='ident'>CachedPageNeededReflow</span>
+                );
+                <span class='self'>self</span>.<span class='ident'>window</span>().<span class='ident'>resume</span>();
+            } <span class='kw'>else</span> {
+                <span class='self'>self</span>.<span class='ident'>window</span>().<span class='ident'>suspend</span>();
+            }
+        }
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>origin</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>Origin</span> {
@@ -4235,7 +4273,7 @@
 
     <span class='doccomment'>/// Return whether scripting is enabled or not</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_scripting_enabled</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>scripting_enabled</span>.<span class='ident'>get</span>()
+        <span class='self'>self</span>.<span class='ident'>scripting_enabled</span>
     }
 
     <span class='doccomment'>/// Return the element that currently has focus.</span>
@@ -5443,6 +5481,7 @@
                          <span class='ident'>is_html_document</span>: <span class='ident'>IsHTMLDocument</span>,
                          <span class='ident'>content_type</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>DOMString</span><span class='op'>&gt;</span>,
                          <span class='ident'>last_modified</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>,
+                         <span class='ident'>activity</span>: <span class='ident'>DocumentActivity</span>,
                          <span class='ident'>source</span>: <span class='ident'>DocumentSource</span>,
                          <span class='ident'>doc_loader</span>: <span class='ident'>DocumentLoader</span>,
                          <span class='ident'>referrer</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>,
@@ -5478,7 +5517,7 @@
             <span class='comment'>// https://dom.spec.whatwg.org/#concept-document-encoding</span>
             <span class='ident'>encoding</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='ident'>UTF_8</span>),
             <span class='ident'>is_html_document</span>: <span class='ident'>is_html_document</span> <span class='op'>==</span> <span class='ident'>IsHTMLDocument</span>::<span class='ident'>HTMLDocument</span>,
-            <span class='ident'>is_fully_active</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='bool-val'>false</span>),
+            <span class='ident'>activity</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='ident'>activity</span>),
             <span class='ident'>id_map</span>: <span class='ident'>DOMRefCell</span>::<span class='ident'>new</span>(<span class='ident'>HashMap</span>::<span class='ident'>new</span>()),
             <span class='ident'>tag_map</span>: <span class='ident'>DOMRefCell</span>::<span class='ident'>new</span>(<span class='ident'>HashMap</span>::<span class='ident'>new</span>()),
             <span class='ident'>tagns_map</span>: <span class='ident'>DOMRefCell</span>::<span class='ident'>new</span>(<span class='ident'>HashMap</span>::<span class='ident'>new</span>()),
@@ -5503,7 +5542,7 @@
             <span class='ident'>deferred_scripts</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
             <span class='ident'>asap_in_order_scripts_list</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
             <span class='ident'>asap_scripts_set</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
-            <span class='ident'>scripting_enabled</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='ident'>browsing_context</span>.<span class='ident'>is_some</span>()),
+            <span class='ident'>scripting_enabled</span>: <span class='ident'>browsing_context</span>.<span class='ident'>is_some</span>(),
             <span class='ident'>animation_frame_ident</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='number'>0</span>),
             <span class='ident'>animation_frame_list</span>: <span class='ident'>DOMRefCell</span>::<span class='ident'>new</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]),
             <span class='ident'>running_animation_callbacks</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='bool-val'>false</span>),
@@ -5546,6 +5585,7 @@
                          <span class='ident'>IsHTMLDocument</span>::<span class='ident'>NonHTMLDocument</span>,
                          <span class='prelude-val'>None</span>,
                          <span class='prelude-val'>None</span>,
+                         <span class='ident'>DocumentActivity</span>::<span class='ident'>Inactive</span>,
                          <span class='ident'>DocumentSource</span>::<span class='ident'>NotFromParser</span>,
                          <span class='ident'>docloader</span>,
                          <span class='prelude-val'>None</span>,
@@ -5559,6 +5599,7 @@
                <span class='ident'>doctype</span>: <span class='ident'>IsHTMLDocument</span>,
                <span class='ident'>content_type</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>DOMString</span><span class='op'>&gt;</span>,
                <span class='ident'>last_modified</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>,
+               <span class='ident'>activity</span>: <span class='ident'>DocumentActivity</span>,
                <span class='ident'>source</span>: <span class='ident'>DocumentSource</span>,
                <span class='ident'>doc_loader</span>: <span class='ident'>DocumentLoader</span>,
                <span class='ident'>referrer</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>,
@@ -5571,6 +5612,7 @@
                                                                       <span class='ident'>doctype</span>,
                                                                       <span class='ident'>content_type</span>,
                                                                       <span class='ident'>last_modified</span>,
+                                                                      <span class='ident'>activity</span>,
                                                                       <span class='ident'>source</span>,
                                                                       <span class='ident'>doc_loader</span>,
                                                                       <span class='ident'>referrer</span>,
@@ -5644,6 +5686,7 @@
                                         <span class='ident'>doctype</span>,
                                         <span class='prelude-val'>None</span>,
                                         <span class='prelude-val'>None</span>,
+                                        <span class='ident'>DocumentActivity</span>::<span class='ident'>Inactive</span>,
                                         <span class='ident'>DocumentSource</span>::<span class='ident'>NotFromParser</span>,
                                         <span class='ident'>DocumentLoader</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>loader</span>()),
                                         <span class='prelude-val'>None</span>,
@@ -6800,8 +6843,7 @@
 
         <span class='comment'>// Step 2.</span>
         <span class='comment'>// TODO: handle throw-on-dynamic-markup-insertion counter.</span>
-        <span class='comment'>// FIXME: this should check for being active rather than fully active</span>
-        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>is_fully_active</span>() {
+        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>is_active</span>() {
             <span class='comment'>// Step 3.</span>
             <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(());
         }
