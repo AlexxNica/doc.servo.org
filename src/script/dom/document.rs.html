@@ -3569,6 +3569,15 @@
 <span id="3524">3524</span>
 <span id="3525">3525</span>
 <span id="3526">3526</span>
+<span id="3527">3527</span>
+<span id="3528">3528</span>
+<span id="3529">3529</span>
+<span id="3530">3530</span>
+<span id="3531">3531</span>
+<span id="3532">3532</span>
+<span id="3533">3533</span>
+<span id="3534">3534</span>
+<span id="3535">3535</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -3756,13 +3765,12 @@
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Document</span> {
     <span class='ident'>node</span>: <span class='ident'>Node</span>,
     <span class='ident'>window</span>: <span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>Window</span><span class='op'>&gt;</span>,
-    <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#concept-document-bc</span>
-    <span class='ident'>browsing_context</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>BrowsingContext</span><span class='op'>&gt;&gt;</span>,
     <span class='ident'>implementation</span>: <span class='ident'>MutNullableJS</span><span class='op'>&lt;</span><span class='ident'>DOMImplementation</span><span class='op'>&gt;</span>,
     <span class='ident'>location</span>: <span class='ident'>MutNullableJS</span><span class='op'>&lt;</span><span class='ident'>Location</span><span class='op'>&gt;</span>,
     <span class='ident'>content_type</span>: <span class='ident'>DOMString</span>,
     <span class='ident'>last_modified</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>,
     <span class='ident'>encoding</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>EncodingRef</span><span class='op'>&gt;</span>,
+    <span class='ident'>has_browsing_context</span>: <span class='ident'>bool</span>,
     <span class='ident'>is_html_document</span>: <span class='ident'>bool</span>,
     <span class='ident'>activity</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>DocumentActivity</span><span class='op'>&gt;</span>,
     <span class='ident'>url</span>: <span class='ident'>DOMRefCell</span><span class='op'>&lt;</span><span class='ident'>ServoUrl</span><span class='op'>&gt;</span>,
@@ -3941,8 +3949,12 @@
 
     <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#concept-document-bc</span>
     <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>browsing_context</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>BrowsingContext</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>browsing_context</span>.<span class='ident'>as_ref</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>browsing_context</span><span class='op'>|</span> <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='kw-2'>*</span><span class='ident'>browsing_context</span>)
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>browsing_context</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>BrowsingContext</span><span class='op'>&gt;&gt;</span> {
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>has_browsing_context</span> {
+            <span class='prelude-val'>Some</span>(<span class='self'>self</span>.<span class='ident'>window</span>.<span class='ident'>browsing_context</span>())
+        } <span class='kw'>else</span> {
+            <span class='prelude-val'>None</span>
+        }
     }
 
     <span class='attribute'>#[<span class='ident'>inline</span>]</span>
@@ -3970,7 +3982,7 @@
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_activity</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>activity</span>: <span class='ident'>DocumentActivity</span>) {
         <span class='comment'>// This function should only be called on documents with a browsing context</span>
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>browsing_context</span>.<span class='ident'>is_some</span>());
+        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>has_browsing_context</span>);
         <span class='comment'>// Set the document&#39;s activity level, reflow if necessary, and suspend or resume timers.</span>
         <span class='kw'>if</span> <span class='ident'>activity</span> <span class='op'>!=</span> <span class='self'>self</span>.<span class='ident'>activity</span>.<span class='ident'>get</span>() {
             <span class='self'>self</span>.<span class='ident'>activity</span>.<span class='ident'>set</span>(<span class='ident'>activity</span>);
@@ -5140,7 +5152,7 @@
                 <span class='self'>self</span>.<span class='ident'>process_deferred_scripts</span>();
             },
             <span class='ident'>LoadType</span>::<span class='ident'>PageSource</span>(_) <span class='op'>=&gt;</span> {
-                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>browsing_context</span>.<span class='ident'>is_some</span>() {
+                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>has_browsing_context</span> {
                     <span class='comment'>// Disarm the reflow timer and trigger the initial reflow.</span>
                     <span class='self'>self</span>.<span class='ident'>reflow_timeout</span>.<span class='ident'>set</span>(<span class='prelude-val'>None</span>);
                     <span class='self'>self</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Node</span><span class='op'>&gt;</span>().<span class='ident'>dirty</span>(<span class='ident'>NodeDamage</span>::<span class='ident'>OtherNodeDamage</span>);
@@ -5402,7 +5414,7 @@
 
     <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#cookie-averse-document-object</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_cookie_averse</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>browsing_context</span>.<span class='ident'>is_none</span>() <span class='op'>||</span> <span class='op'>!</span><span class='ident'>url_has_network_scheme</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>url</span>())
+        <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>has_browsing_context</span> <span class='op'>||</span> <span class='op'>!</span><span class='ident'>url_has_network_scheme</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>url</span>())
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>nodes_from_point</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>client_point</span>: <span class='kw-2'>&amp;</span><span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>UntrustedNodeAddress</span><span class='op'>&gt;</span> {
@@ -5473,9 +5485,15 @@
     }
 }
 
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>HeapSizeOf</span>, <span class='ident'>JSTraceable</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>)]</span>
+<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>HasBrowsingContext</span> {
+    <span class='ident'>No</span>,
+    <span class='ident'>Yes</span>,
+}
+
 <span class='kw'>impl</span> <span class='ident'>Document</span> {
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new_inherited</span>(<span class='ident'>window</span>: <span class='kw-2'>&amp;</span><span class='ident'>Window</span>,
-                         <span class='ident'>browsing_context</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>BrowsingContext</span><span class='op'>&gt;</span>,
+                         <span class='ident'>has_browsing_context</span>: <span class='ident'>HasBrowsingContext</span>,
                          <span class='ident'>url</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ServoUrl</span><span class='op'>&gt;</span>,
                          <span class='ident'>origin</span>: <span class='ident'>Origin</span>,
                          <span class='ident'>is_html_document</span>: <span class='ident'>IsHTMLDocument</span>,
@@ -5498,7 +5516,7 @@
         <span class='ident'>Document</span> {
             <span class='ident'>node</span>: <span class='ident'>Node</span>::<span class='ident'>new_document_node</span>(),
             <span class='ident'>window</span>: <span class='ident'>JS</span>::<span class='ident'>from_ref</span>(<span class='ident'>window</span>),
-            <span class='ident'>browsing_context</span>: <span class='ident'>browsing_context</span>.<span class='ident'>map</span>(<span class='ident'>JS</span>::<span class='ident'>from_ref</span>),
+            <span class='ident'>has_browsing_context</span>: <span class='ident'>has_browsing_context</span> <span class='op'>==</span> <span class='ident'>HasBrowsingContext</span>::<span class='ident'>Yes</span>,
             <span class='ident'>implementation</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
             <span class='ident'>location</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
             <span class='ident'>content_type</span>: <span class='kw'>match</span> <span class='ident'>content_type</span> {
@@ -5542,7 +5560,7 @@
             <span class='ident'>deferred_scripts</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
             <span class='ident'>asap_in_order_scripts_list</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
             <span class='ident'>asap_scripts_set</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
-            <span class='ident'>scripting_enabled</span>: <span class='ident'>browsing_context</span>.<span class='ident'>is_some</span>(),
+            <span class='ident'>scripting_enabled</span>: <span class='ident'>has_browsing_context</span> <span class='op'>==</span> <span class='ident'>HasBrowsingContext</span>::<span class='ident'>Yes</span>,
             <span class='ident'>animation_frame_ident</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='number'>0</span>),
             <span class='ident'>animation_frame_list</span>: <span class='ident'>DOMRefCell</span>::<span class='ident'>new</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]),
             <span class='ident'>running_animation_callbacks</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='bool-val'>false</span>),
@@ -5579,7 +5597,7 @@
         <span class='kw'>let</span> <span class='ident'>doc</span> <span class='op'>=</span> <span class='ident'>window</span>.<span class='ident'>Document</span>();
         <span class='kw'>let</span> <span class='ident'>docloader</span> <span class='op'>=</span> <span class='ident'>DocumentLoader</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>doc</span>.<span class='ident'>loader</span>());
         <span class='prelude-val'>Ok</span>(<span class='ident'>Document</span>::<span class='ident'>new</span>(<span class='ident'>window</span>,
-                         <span class='prelude-val'>None</span>,
+                         <span class='ident'>HasBrowsingContext</span>::<span class='ident'>No</span>,
                          <span class='prelude-val'>None</span>,
                          <span class='ident'>doc</span>.<span class='ident'>origin</span>().<span class='ident'>alias</span>(),
                          <span class='ident'>IsHTMLDocument</span>::<span class='ident'>NonHTMLDocument</span>,
@@ -5593,7 +5611,7 @@
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>window</span>: <span class='kw-2'>&amp;</span><span class='ident'>Window</span>,
-               <span class='ident'>browsing_context</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>BrowsingContext</span><span class='op'>&gt;</span>,
+               <span class='ident'>has_browsing_context</span>: <span class='ident'>HasBrowsingContext</span>,
                <span class='ident'>url</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ServoUrl</span><span class='op'>&gt;</span>,
                <span class='ident'>origin</span>: <span class='ident'>Origin</span>,
                <span class='ident'>doctype</span>: <span class='ident'>IsHTMLDocument</span>,
@@ -5606,7 +5624,7 @@
                <span class='ident'>referrer_policy</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ReferrerPolicy</span><span class='op'>&gt;</span>)
                <span class='op'>-&gt;</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>Document</span><span class='op'>&gt;</span> {
         <span class='kw'>let</span> <span class='ident'>document</span> <span class='op'>=</span> <span class='ident'>reflect_dom_object</span>(<span class='kw'>box</span> <span class='ident'>Document</span>::<span class='ident'>new_inherited</span>(<span class='ident'>window</span>,
-                                                                      <span class='ident'>browsing_context</span>,
+                                                                      <span class='ident'>has_browsing_context</span>,
                                                                       <span class='ident'>url</span>,
                                                                       <span class='ident'>origin</span>,
                                                                       <span class='ident'>doctype</span>,
@@ -5679,7 +5697,7 @@
                 <span class='ident'>IsHTMLDocument</span>::<span class='ident'>NonHTMLDocument</span>
             };
             <span class='kw'>let</span> <span class='ident'>new_doc</span> <span class='op'>=</span> <span class='ident'>Document</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>window</span>(),
-                                        <span class='prelude-val'>None</span>,
+                                        <span class='ident'>HasBrowsingContext</span>::<span class='ident'>No</span>,
                                         <span class='prelude-val'>None</span>,
                                         <span class='comment'>// https://github.com/whatwg/html/issues/2109</span>
                                         <span class='ident'>Origin</span>::<span class='ident'>opaque_identifier</span>(),
@@ -6583,10 +6601,10 @@
 
     <span class='comment'>// https://html.spec.whatwg.org/multipage/#dom-document-defaultview</span>
     <span class='kw'>fn</span> <span class='ident'>GetDefaultView</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>Window</span><span class='op'>&gt;&gt;</span> {
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>browsing_context</span>.<span class='ident'>is_none</span>() {
-            <span class='prelude-val'>None</span>
-        } <span class='kw'>else</span> {
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>has_browsing_context</span> {
             <span class='prelude-val'>Some</span>(<span class='ident'>Root</span>::<span class='ident'>from_ref</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>window</span>))
+        } <span class='kw'>else</span> {
+            <span class='prelude-val'>None</span>
         }
     }
 
