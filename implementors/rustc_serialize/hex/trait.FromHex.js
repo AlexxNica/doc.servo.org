@@ -1,8 +1,6 @@
 (function() {var implementors = {};
 implementors["gfx"] = [];
-implementors["glutin"] = [];
 implementors["hyper"] = [];
-implementors["image"] = [];
 implementors["layout_thread"] = [];
 implementors["mio"] = [];
 implementors["net"] = [];
