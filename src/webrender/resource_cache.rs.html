@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/2251e98/webrender/src/resource_cache.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/c8ca454/webrender/src/resource_cache.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>resource_cache.rs.html -- source</title>
@@ -795,38 +795,6 @@
 <span id="750">750</span>
 <span id="751">751</span>
 <span id="752">752</span>
-<span id="753">753</span>
-<span id="754">754</span>
-<span id="755">755</span>
-<span id="756">756</span>
-<span id="757">757</span>
-<span id="758">758</span>
-<span id="759">759</span>
-<span id="760">760</span>
-<span id="761">761</span>
-<span id="762">762</span>
-<span id="763">763</span>
-<span id="764">764</span>
-<span id="765">765</span>
-<span id="766">766</span>
-<span id="767">767</span>
-<span id="768">768</span>
-<span id="769">769</span>
-<span id="770">770</span>
-<span id="771">771</span>
-<span id="772">772</span>
-<span id="773">773</span>
-<span id="774">774</span>
-<span id="775">775</span>
-<span id="776">776</span>
-<span id="777">777</span>
-<span id="778">778</span>
-<span id="779">779</span>
-<span id="780">780</span>
-<span id="781">781</span>
-<span id="782">782</span>
-<span id="783">783</span>
-<span id="784">784</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -851,8 +819,8 @@
 <span class='kw'>use</span> <span class='ident'>texture_cache</span>::{<span class='ident'>TextureCache</span>, <span class='ident'>TextureCacheItemId</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>Epoch</span>, <span class='ident'>FontKey</span>, <span class='ident'>GlyphKey</span>, <span class='ident'>ImageKey</span>, <span class='ident'>ImageFormat</span>, <span class='ident'>ImageRendering</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>FontRenderMode</span>, <span class='ident'>ImageData</span>, <span class='ident'>GlyphDimensions</span>, <span class='ident'>WebGLContextId</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>DevicePoint</span>, <span class='ident'>DeviceIntSize</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::<span class='ident'>ExternalImageId</span>;
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>DevicePoint</span>, <span class='ident'>DeviceIntSize</span>, <span class='ident'>ImageDescriptor</span>, <span class='ident'>ColorF</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ExternalImageId</span>, <span class='ident'>GlyphOptions</span>, <span class='ident'>GlyphInstance</span>};
 <span class='kw'>use</span> <span class='ident'>threadpool</span>::<span class='ident'>ThreadPool</span>;
 
 <span class='macro'>thread_local</span><span class='macro'>!</span>(<span class='kw'>pub</span> <span class='kw'>static</span> <span class='ident'>FONT_CONTEXT</span>: <span class='ident'>RefCell</span><span class='op'>&lt;</span><span class='ident'>FontContext</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>RefCell</span>::<span class='ident'>new</span>(<span class='ident'>FontContext</span>::<span class='ident'>new</span>()));
@@ -866,7 +834,7 @@
     <span class='doccomment'>/// Add a new font.</span>
     <span class='ident'>AddFont</span>(<span class='ident'>FontKey</span>, <span class='ident'>FontTemplate</span>),
     <span class='doccomment'>/// Request glyphs for a text run.</span>
-    <span class='ident'>RequestGlyphs</span>(<span class='ident'>FontKey</span>, <span class='ident'>Au</span>, <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>, <span class='ident'>FontRenderMode</span>),
+    <span class='ident'>RequestGlyphs</span>(<span class='ident'>FontKey</span>, <span class='ident'>Au</span>, <span class='ident'>ColorF</span>, <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>GlyphInstance</span><span class='op'>&gt;</span>, <span class='ident'>FontRenderMode</span>, <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>GlyphOptions</span><span class='op'>&gt;</span>),
     <span class='doccomment'>/// Finished requesting glyphs. Reply with new glyphs.</span>
     <span class='ident'>EndFrame</span>,
 }
@@ -896,27 +864,29 @@
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>RenderedGlyphKey</span> {
     <span class='kw'>pub</span> <span class='ident'>key</span>: <span class='ident'>GlyphKey</span>,
     <span class='kw'>pub</span> <span class='ident'>render_mode</span>: <span class='ident'>FontRenderMode</span>,
+    <span class='kw'>pub</span> <span class='ident'>glyph_options</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>GlyphOptions</span><span class='op'>&gt;</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>RenderedGlyphKey</span> {
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>font_key</span>: <span class='ident'>FontKey</span>,
                <span class='ident'>size</span>: <span class='ident'>Au</span>,
+               <span class='ident'>color</span>: <span class='ident'>ColorF</span>,
                <span class='ident'>index</span>: <span class='ident'>u32</span>,
-               <span class='ident'>render_mode</span>: <span class='ident'>FontRenderMode</span>) <span class='op'>-&gt;</span> <span class='ident'>RenderedGlyphKey</span> {
+               <span class='ident'>x</span>: <span class='ident'>f32</span>,
+               <span class='ident'>y</span>: <span class='ident'>f32</span>,
+               <span class='ident'>render_mode</span>: <span class='ident'>FontRenderMode</span>,
+               <span class='ident'>glyph_options</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>GlyphOptions</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>RenderedGlyphKey</span> {
         <span class='ident'>RenderedGlyphKey</span> {
-            <span class='ident'>key</span>: <span class='ident'>GlyphKey</span>::<span class='ident'>new</span>(<span class='ident'>font_key</span>, <span class='ident'>size</span>, <span class='ident'>index</span>),
+            <span class='ident'>key</span>: <span class='ident'>GlyphKey</span>::<span class='ident'>new</span>(<span class='ident'>font_key</span>, <span class='ident'>size</span>, <span class='ident'>color</span>, <span class='ident'>index</span>, <span class='ident'>x</span>, <span class='ident'>y</span>, <span class='ident'>render_mode</span>),
             <span class='ident'>render_mode</span>: <span class='ident'>render_mode</span>,
+            <span class='ident'>glyph_options</span>: <span class='ident'>glyph_options</span>,
         }
     }
 }
 
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ImageProperties</span> {
-    <span class='kw'>pub</span> <span class='ident'>format</span>: <span class='ident'>ImageFormat</span>,
-    <span class='kw'>pub</span> <span class='ident'>is_opaque</span>: <span class='ident'>bool</span>,
+    <span class='kw'>pub</span> <span class='ident'>descriptor</span>: <span class='ident'>ImageDescriptor</span>,
     <span class='kw'>pub</span> <span class='ident'>external_id</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ExternalImageId</span><span class='op'>&gt;</span>,
-    <span class='kw'>pub</span> <span class='ident'>width</span>: <span class='ident'>u32</span>,
-    <span class='kw'>pub</span> <span class='ident'>height</span>: <span class='ident'>u32</span>,
-    <span class='kw'>pub</span> <span class='ident'>stride</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>,
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>)]</span>
@@ -928,12 +898,8 @@
 
 <span class='kw'>struct</span> <span class='ident'>ImageResource</span> {
     <span class='ident'>data</span>: <span class='ident'>ImageData</span>,
-    <span class='ident'>width</span>: <span class='ident'>u32</span>,
-    <span class='ident'>height</span>: <span class='ident'>u32</span>,
-    <span class='ident'>stride</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>,
-    <span class='ident'>format</span>: <span class='ident'>ImageFormat</span>,
+    <span class='ident'>descriptor</span>: <span class='ident'>ImageDescriptor</span>,
     <span class='ident'>epoch</span>: <span class='ident'>Epoch</span>,
-    <span class='ident'>is_opaque</span>: <span class='ident'>bool</span>,
 }
 
 <span class='kw'>struct</span> <span class='ident'>CachedImageInfo</span> {
@@ -1075,21 +1041,10 @@
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_image_template</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
                               <span class='ident'>image_key</span>: <span class='ident'>ImageKey</span>,
-                              <span class='ident'>width</span>: <span class='ident'>u32</span>,
-                              <span class='ident'>height</span>: <span class='ident'>u32</span>,
-                              <span class='ident'>stride</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>,
-                              <span class='ident'>format</span>: <span class='ident'>ImageFormat</span>,
+                              <span class='ident'>descriptor</span>: <span class='ident'>ImageDescriptor</span>,
                               <span class='ident'>data</span>: <span class='ident'>ImageData</span>) {
-        <span class='kw'>let</span> <span class='ident'>is_opaque</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>data</span> {
-            <span class='ident'>ImageData</span>::<span class='ident'>Raw</span>(<span class='kw-2'>ref</span> <span class='ident'>bytes</span>) <span class='op'>=&gt;</span> <span class='ident'>is_image_opaque</span>(<span class='ident'>format</span>, <span class='ident'>bytes</span>),
-            <span class='ident'>ImageData</span>::<span class='ident'>External</span>(..) <span class='op'>=&gt;</span> <span class='bool-val'>false</span>,           <span class='comment'>// TODO: Allow providing this through API.</span>
-        };
         <span class='kw'>let</span> <span class='ident'>resource</span> <span class='op'>=</span> <span class='ident'>ImageResource</span> {
-            <span class='ident'>is_opaque</span>: <span class='ident'>is_opaque</span>,
-            <span class='ident'>width</span>: <span class='ident'>width</span>,
-            <span class='ident'>height</span>: <span class='ident'>height</span>,
-            <span class='ident'>stride</span>: <span class='ident'>stride</span>,
-            <span class='ident'>format</span>: <span class='ident'>format</span>,
+            <span class='ident'>descriptor</span>: <span class='ident'>descriptor</span>,
             <span class='ident'>data</span>: <span class='ident'>data</span>,
             <span class='ident'>epoch</span>: <span class='ident'>Epoch</span>(<span class='number'>0</span>),
         };
@@ -1099,9 +1054,7 @@
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>update_image_template</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
                                  <span class='ident'>image_key</span>: <span class='ident'>ImageKey</span>,
-                                 <span class='ident'>width</span>: <span class='ident'>u32</span>,
-                                 <span class='ident'>height</span>: <span class='ident'>u32</span>,
-                                 <span class='ident'>format</span>: <span class='ident'>ImageFormat</span>,
+                                 <span class='ident'>descriptor</span>: <span class='ident'>ImageDescriptor</span>,
                                  <span class='ident'>bytes</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>) {
         <span class='kw'>let</span> <span class='ident'>next_epoch</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>image_templates</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>image_key</span>) {
             <span class='prelude-val'>Some</span>(<span class='ident'>image</span>) <span class='op'>=&gt;</span> {
@@ -1122,11 +1075,7 @@
         };
 
         <span class='kw'>let</span> <span class='ident'>resource</span> <span class='op'>=</span> <span class='ident'>ImageResource</span> {
-            <span class='ident'>is_opaque</span>: <span class='ident'>is_image_opaque</span>(<span class='ident'>format</span>, <span class='kw-2'>&amp;</span><span class='ident'>bytes</span>),
-            <span class='ident'>width</span>: <span class='ident'>width</span>,
-            <span class='ident'>height</span>: <span class='ident'>height</span>,
-            <span class='ident'>stride</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>format</span>: <span class='ident'>format</span>,
+            <span class='ident'>descriptor</span>: <span class='ident'>descriptor</span>,
             <span class='ident'>data</span>: <span class='ident'>ImageData</span>::<span class='ident'>new</span>(<span class='ident'>bytes</span>),
             <span class='ident'>epoch</span>: <span class='ident'>next_epoch</span>,
         };
@@ -1180,8 +1129,10 @@
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>request_glyphs</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
                           <span class='ident'>key</span>: <span class='ident'>FontKey</span>,
                           <span class='ident'>size</span>: <span class='ident'>Au</span>,
-                          <span class='ident'>glyph_indices</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u32</span>],
-                          <span class='ident'>render_mode</span>: <span class='ident'>FontRenderMode</span>) {
+                          <span class='ident'>color</span>: <span class='ident'>ColorF</span>,
+                          <span class='ident'>glyph_instances</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>GlyphInstance</span>],
+                          <span class='ident'>render_mode</span>: <span class='ident'>FontRenderMode</span>,
+                          <span class='ident'>glyph_options</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>GlyphOptions</span><span class='op'>&gt;</span>) {
         <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>state</span> <span class='op'>==</span> <span class='ident'>State</span>::<span class='ident'>AddResources</span>);
         <span class='kw'>let</span> <span class='ident'>render_mode</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>get_glyph_render_mode</span>(<span class='ident'>render_mode</span>);
         <span class='comment'>// Immediately request that the glyph cache thread start</span>
@@ -1189,8 +1140,10 @@
         <span class='comment'>// already cached.</span>
         <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>GlyphCacheMsg</span>::<span class='ident'>RequestGlyphs</span>(<span class='ident'>key</span>,
                                                <span class='ident'>size</span>,
-                                               <span class='ident'>glyph_indices</span>.<span class='ident'>to_vec</span>(),
-                                               <span class='ident'>render_mode</span>);
+                                               <span class='ident'>color</span>,
+                                               <span class='ident'>glyph_instances</span>.<span class='ident'>to_vec</span>(),
+                                               <span class='ident'>render_mode</span>,
+                                               <span class='ident'>glyph_options</span>);
         <span class='self'>self</span>.<span class='ident'>glyph_cache_tx</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
     }
 
@@ -1205,19 +1158,27 @@
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_glyphs</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
                          <span class='ident'>font_key</span>: <span class='ident'>FontKey</span>,
                          <span class='ident'>size</span>: <span class='ident'>Au</span>,
-                         <span class='ident'>glyph_indices</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u32</span>],
+                         <span class='ident'>color</span>: <span class='ident'>ColorF</span>,
+                         <span class='ident'>glyph_instances</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>GlyphInstance</span>],
                          <span class='ident'>render_mode</span>: <span class='ident'>FontRenderMode</span>,
+                         <span class='ident'>glyph_options</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>GlyphOptions</span><span class='op'>&gt;</span>,
                          <span class='kw-2'>mut</span> <span class='ident'>f</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>SourceTexture</span> <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>FnMut</span>(<span class='ident'>usize</span>, <span class='ident'>DevicePoint</span>, <span class='ident'>DevicePoint</span>) {
         <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>state</span> <span class='op'>==</span> <span class='ident'>State</span>::<span class='ident'>QueryResources</span>);
         <span class='kw'>let</span> <span class='ident'>cache</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>cached_glyphs</span>.<span class='ident'>as_ref</span>().<span class='ident'>unwrap</span>();
         <span class='kw'>let</span> <span class='ident'>render_mode</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>get_glyph_render_mode</span>(<span class='ident'>render_mode</span>);
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>glyph_key</span> <span class='op'>=</span> <span class='ident'>RenderedGlyphKey</span>::<span class='ident'>new</span>(<span class='ident'>font_key</span>,
                                                   <span class='ident'>size</span>,
+                                                  <span class='ident'>color</span>,
                                                   <span class='number'>0</span>,
-                                                  <span class='ident'>render_mode</span>);
+                                                  <span class='number'>0.0</span>, <span class='number'>0.0</span>,
+                                                  <span class='ident'>render_mode</span>,
+                                                  <span class='ident'>glyph_options</span>);
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>texture_id</span> <span class='op'>=</span> <span class='prelude-val'>None</span>;
-        <span class='kw'>for</span> (<span class='ident'>loop_index</span>, <span class='ident'>glyph_index</span>) <span class='kw'>in</span> <span class='ident'>glyph_indices</span>.<span class='ident'>iter</span>().<span class='ident'>enumerate</span>() {
-            <span class='ident'>glyph_key</span>.<span class='ident'>key</span>.<span class='ident'>index</span> <span class='op'>=</span> <span class='kw-2'>*</span><span class='ident'>glyph_index</span>;
+        <span class='kw'>for</span> (<span class='ident'>loop_index</span>, <span class='ident'>glyph_instance</span>) <span class='kw'>in</span> <span class='ident'>glyph_instances</span>.<span class='ident'>iter</span>().<span class='ident'>enumerate</span>() {
+            <span class='ident'>glyph_key</span>.<span class='ident'>key</span>.<span class='ident'>index</span> <span class='op'>=</span> <span class='ident'>glyph_instance</span>.<span class='ident'>index</span>;
+            <span class='ident'>glyph_key</span>.<span class='ident'>key</span>.<span class='ident'>set_subpixel_offset</span>(<span class='ident'>glyph_instance</span>.<span class='ident'>x</span>, <span class='ident'>glyph_instance</span>.<span class='ident'>y</span>,
+                                              <span class='ident'>render_mode</span>);
+
             <span class='kw'>let</span> <span class='ident'>image_id</span> <span class='op'>=</span> <span class='ident'>cache</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>glyph_key</span>, <span class='self'>self</span>.<span class='ident'>current_frame_id</span>);
             <span class='kw'>let</span> <span class='ident'>cache_item</span> <span class='op'>=</span> <span class='ident'>image_id</span>.<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>image_id</span><span class='op'>|</span> <span class='self'>self</span>.<span class='ident'>texture_cache</span>.<span class='ident'>get</span>(<span class='ident'>image_id</span>));
             <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>cache_item</span>) <span class='op'>=</span> <span class='ident'>cache_item</span> {
@@ -1293,12 +1254,8 @@
         };
 
         <span class='ident'>ImageProperties</span> {
-            <span class='ident'>format</span>: <span class='ident'>image_template</span>.<span class='ident'>format</span>,
-            <span class='ident'>is_opaque</span>: <span class='ident'>image_template</span>.<span class='ident'>is_opaque</span>,
+            <span class='ident'>descriptor</span>: <span class='ident'>image_template</span>.<span class='ident'>descriptor</span>,
             <span class='ident'>external_id</span>: <span class='ident'>external_id</span>,
-            <span class='ident'>width</span>: <span class='ident'>image_template</span>.<span class='ident'>width</span>,
-            <span class='ident'>height</span>: <span class='ident'>image_template</span>.<span class='ident'>height</span>,
-            <span class='ident'>stride</span>: <span class='ident'>image_template</span>.<span class='ident'>stride</span>,
         }
     }
 
@@ -1353,10 +1310,13 @@
                             <span class='kw'>if</span> <span class='ident'>glyph</span>.<span class='ident'>width</span> <span class='op'>&gt;</span> <span class='number'>0</span> <span class='op'>&amp;&amp;</span> <span class='ident'>glyph</span>.<span class='ident'>height</span> <span class='op'>&gt;</span> <span class='number'>0</span> {
                                 <span class='kw'>let</span> <span class='ident'>image_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>texture_cache</span>.<span class='ident'>new_item_id</span>();
                                 <span class='self'>self</span>.<span class='ident'>texture_cache</span>.<span class='ident'>insert</span>(<span class='ident'>image_id</span>,
-                                                          <span class='ident'>glyph</span>.<span class='ident'>width</span>,
-                                                          <span class='ident'>glyph</span>.<span class='ident'>height</span>,
-                                                          <span class='prelude-val'>None</span>,
-                                                          <span class='ident'>ImageFormat</span>::<span class='ident'>RGBA8</span>,
+                                                          <span class='ident'>ImageDescriptor</span> {
+                                                              <span class='ident'>width</span>: <span class='ident'>glyph</span>.<span class='ident'>width</span>,
+                                                              <span class='ident'>height</span>: <span class='ident'>glyph</span>.<span class='ident'>height</span>,
+                                                              <span class='ident'>stride</span>: <span class='prelude-val'>None</span>,
+                                                              <span class='ident'>format</span>: <span class='ident'>ImageFormat</span>::<span class='ident'>RGBA8</span>,
+                                                              <span class='ident'>is_opaque</span>: <span class='bool-val'>false</span>,
+                                                          },
                                                           <span class='ident'>TextureFilter</span>::<span class='ident'>Linear</span>,
                                                           <span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>glyph</span>.<span class='ident'>bytes</span>));
                                 <span class='prelude-val'>Some</span>(<span class='ident'>image_id</span>)
@@ -1388,10 +1348,7 @@
                             <span class='kw'>if</span> <span class='ident'>entry</span>.<span class='ident'>get</span>().<span class='ident'>epoch</span> <span class='op'>!=</span> <span class='ident'>image_template</span>.<span class='ident'>epoch</span> {
                                 <span class='comment'>// TODO: Can we avoid the clone of the bytes here?</span>
                                 <span class='self'>self</span>.<span class='ident'>texture_cache</span>.<span class='ident'>update</span>(<span class='ident'>image_id</span>,
-                                                          <span class='ident'>image_template</span>.<span class='ident'>width</span>,
-                                                          <span class='ident'>image_template</span>.<span class='ident'>height</span>,
-                                                          <span class='ident'>image_template</span>.<span class='ident'>stride</span>,
-                                                          <span class='ident'>image_template</span>.<span class='ident'>format</span>,
+                                                          <span class='ident'>image_template</span>.<span class='ident'>descriptor</span>,
                                                           <span class='ident'>bytes</span>.<span class='ident'>clone</span>());
 
                                 <span class='comment'>// Update the cached epoch</span>
@@ -1411,10 +1368,7 @@
 
                             <span class='comment'>// TODO: Can we avoid the clone of the bytes here?</span>
                             <span class='self'>self</span>.<span class='ident'>texture_cache</span>.<span class='ident'>insert</span>(<span class='ident'>image_id</span>,
-                                                      <span class='ident'>image_template</span>.<span class='ident'>width</span>,
-                                                      <span class='ident'>image_template</span>.<span class='ident'>height</span>,
-                                                      <span class='ident'>image_template</span>.<span class='ident'>stride</span>,
-                                                      <span class='ident'>image_template</span>.<span class='ident'>format</span>,
+                                                      <span class='ident'>image_template</span>.<span class='ident'>descriptor</span>,
                                                       <span class='ident'>filter</span>,
                                                       <span class='ident'>bytes</span>.<span class='ident'>clone</span>());
 
@@ -1462,30 +1416,6 @@
 <span class='kw'>impl</span> <span class='ident'>Resource</span> <span class='kw'>for</span> <span class='ident'>CachedImageInfo</span> {
     <span class='kw'>fn</span> <span class='ident'>texture_cache_item_id</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>TextureCacheItemId</span><span class='op'>&gt;</span> {
         <span class='prelude-val'>Some</span>(<span class='self'>self</span>.<span class='ident'>texture_cache_id</span>)
-    }
-}
-
-<span class='comment'>// TODO(gw): If this ever shows up in profiles, consider calculating</span>
-<span class='comment'>// this lazily on demand, possibly via the resource cache thread.</span>
-<span class='comment'>// It can probably be made a lot faster with SIMD too!</span>
-<span class='comment'>// This assumes that A8 textures are never opaque, since they are</span>
-<span class='comment'>// typically used for alpha masks. We could revisit that if it</span>
-<span class='comment'>// ever becomes an issue in real world usage.</span>
-<span class='kw'>fn</span> <span class='ident'>is_image_opaque</span>(<span class='ident'>format</span>: <span class='ident'>ImageFormat</span>, <span class='ident'>bytes</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>]) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-    <span class='kw'>match</span> <span class='ident'>format</span> {
-        <span class='ident'>ImageFormat</span>::<span class='ident'>RGBA8</span> <span class='op'>=&gt;</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>is_opaque</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
-            <span class='kw'>for</span> <span class='ident'>i</span> <span class='kw'>in</span> <span class='number'>0</span>..(<span class='ident'>bytes</span>.<span class='ident'>len</span>() <span class='op'>/</span> <span class='number'>4</span>) {
-                <span class='kw'>if</span> <span class='ident'>bytes</span>[<span class='ident'>i</span> <span class='op'>*</span> <span class='number'>4</span> <span class='op'>+</span> <span class='number'>3</span>] <span class='op'>!=</span> <span class='number'>255</span> {
-                    <span class='ident'>is_opaque</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-                    <span class='kw'>break</span>;
-                }
-            }
-            <span class='ident'>is_opaque</span>
-        }
-        <span class='ident'>ImageFormat</span>::<span class='ident'>RGB8</span> <span class='op'>=&gt;</span> <span class='bool-val'>true</span>,
-        <span class='ident'>ImageFormat</span>::<span class='ident'>A8</span> <span class='op'>=&gt;</span> <span class='bool-val'>false</span>,
-        <span class='ident'>ImageFormat</span>::<span class='ident'>Invalid</span> <span class='op'>|</span> <span class='ident'>ImageFormat</span>::<span class='ident'>RGBAF32</span> <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(),
     }
 }
 
@@ -1549,18 +1479,22 @@
                         });
                     }
                 }
-                <span class='ident'>GlyphCacheMsg</span>::<span class='ident'>RequestGlyphs</span>(<span class='ident'>key</span>, <span class='ident'>size</span>, <span class='ident'>indices</span>, <span class='ident'>render_mode</span>) <span class='op'>=&gt;</span> {
+                <span class='ident'>GlyphCacheMsg</span>::<span class='ident'>RequestGlyphs</span>(<span class='ident'>key</span>, <span class='ident'>size</span>, <span class='ident'>color</span>, <span class='ident'>glyph_instances</span>, <span class='ident'>render_mode</span>, <span class='ident'>glyph_options</span>) <span class='op'>=&gt;</span> {
                     <span class='comment'>// Request some glyphs for a text run.</span>
                     <span class='comment'>// For any glyph that isn&#39;t currently in the cache,</span>
                     <span class='comment'>// immeediately push a job to the worker thread pool</span>
                     <span class='comment'>// to start rasterizing this glyph now!</span>
                     <span class='kw'>let</span> <span class='ident'>glyph_cache</span> <span class='op'>=</span> <span class='ident'>glyph_cache</span>.<span class='ident'>as_mut</span>().<span class='ident'>unwrap</span>();
 
-                    <span class='kw'>for</span> <span class='ident'>glyph_index</span> <span class='kw'>in</span> <span class='ident'>indices</span> {
+                    <span class='kw'>for</span> <span class='ident'>glyph_instance</span> <span class='kw'>in</span> <span class='ident'>glyph_instances</span> {
                         <span class='kw'>let</span> <span class='ident'>glyph_key</span> <span class='op'>=</span> <span class='ident'>RenderedGlyphKey</span>::<span class='ident'>new</span>(<span class='ident'>key</span>,
                                                               <span class='ident'>size</span>,
-                                                              <span class='ident'>glyph_index</span>,
-                                                              <span class='ident'>render_mode</span>);
+                                                              <span class='ident'>color</span>,
+                                                              <span class='ident'>glyph_instance</span>.<span class='ident'>index</span>,
+                                                              <span class='ident'>glyph_instance</span>.<span class='ident'>x</span>,
+                                                              <span class='ident'>glyph_instance</span>.<span class='ident'>y</span>,
+                                                              <span class='ident'>render_mode</span>,
+                                                              <span class='ident'>glyph_options</span>);
 
                         <span class='ident'>glyph_cache</span>.<span class='ident'>mark_as_needed</span>(<span class='kw-2'>&amp;</span><span class='ident'>glyph_key</span>, <span class='ident'>current_frame_id</span>);
                         <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>glyph_cache</span>.<span class='ident'>contains_key</span>(<span class='kw-2'>&amp;</span><span class='ident'>glyph_key</span>) <span class='op'>&amp;&amp;</span>
@@ -1572,8 +1506,10 @@
                                     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>font_context</span> <span class='op'>=</span> <span class='ident'>font_context</span>.<span class='ident'>borrow_mut</span>();
                                     <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>font_context</span>.<span class='ident'>rasterize_glyph</span>(<span class='ident'>glyph_key</span>.<span class='ident'>key</span>.<span class='ident'>font_key</span>,
                                                                               <span class='ident'>glyph_key</span>.<span class='ident'>key</span>.<span class='ident'>size</span>,
+                                                                              <span class='ident'>glyph_key</span>.<span class='ident'>key</span>.<span class='ident'>color</span>,
                                                                               <span class='ident'>glyph_key</span>.<span class='ident'>key</span>.<span class='ident'>index</span>,
-                                                                              <span class='ident'>render_mode</span>);
+                                                                              <span class='ident'>render_mode</span>,
+                                                                              <span class='ident'>glyph_options</span>);
                                     <span class='ident'>glyph_tx</span>.<span class='ident'>send</span>((<span class='ident'>glyph_key</span>, <span class='ident'>result</span>)).<span class='ident'>unwrap</span>();
                                 });
                             });

@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["TransformedRectKind",""]],"fn":[["lerp",""],["pack_as_float",""],["rect_from_points",""],["rect_from_points_f",""],["rect_is_empty",""],["subtract_rect",""]],"struct":[["ProfileScope",""],["TransformedRect",""]],"trait":[["MatrixHelpers",""],["RectHelpers",""]]});
+initSidebarItems({"enum":[["TransformedRectKind",""]],"fn":[["lerp",""],["pack_as_float",""],["rect_from_points_f",""],["rect_is_empty",""],["subtract_rect",""]],"struct":[["ProfileScope",""],["TransformedRect",""]],"trait":[["MatrixHelpers",""],["RectHelpers",""]]});
