@@ -481,6 +481,17 @@
 <span id="436">436</span>
 <span id="437">437</span>
 <span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -495,12 +506,13 @@
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>str</span>::<span class='ident'>DOMString</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>cssrule</span>::<span class='ident'>CSSRule</span>;
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>element</span>::<span class='ident'>Element</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>node</span>::{<span class='ident'>Node</span>, <span class='ident'>NodeDamage</span>, <span class='ident'>window_from_node</span>};
+<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>node</span>::{<span class='ident'>Node</span>, <span class='ident'>window_from_node</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>window</span>::<span class='ident'>Window</span>;
 <span class='kw'>use</span> <span class='ident'>parking_lot</span>::<span class='ident'>RwLock</span>;
 <span class='kw'>use</span> <span class='ident'>servo_url</span>::<span class='ident'>ServoUrl</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ascii</span>::<span class='ident'>AsciiExt</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>Arc</span>;
+<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>attr</span>::<span class='ident'>AttrValue</span>;
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>parser</span>::<span class='ident'>ParserContextExtraData</span>;
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>properties</span>::{<span class='ident'>Importance</span>, <span class='ident'>PropertyDeclarationBlock</span>, <span class='ident'>PropertyId</span>, <span class='ident'>LonghandId</span>, <span class='ident'>ShorthandId</span>};
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>properties</span>::{<span class='ident'>parse_one_declaration</span>, <span class='ident'>parse_style_attribute</span>};
@@ -537,16 +549,12 @@
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>changed</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
         <span class='kw'>match</span> <span class='kw-2'>*</span><span class='self'>self</span> {
             <span class='ident'>CSSStyleOwner</span>::<span class='ident'>Element</span>(<span class='kw-2'>ref</span> <span class='ident'>el</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>attr</span> <span class='op'>=</span> <span class='ident'>el</span>.<span class='ident'>style_attribute</span>().<span class='ident'>borrow_mut</span>();
-                <span class='kw'>let</span> (<span class='ident'>result</span>, <span class='ident'>needs_clear</span>) <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>attr</span>.<span class='ident'>is_some</span>() {
+                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>attr</span> <span class='op'>=</span> <span class='ident'>el</span>.<span class='ident'>style_attribute</span>().<span class='ident'>borrow_mut</span>().<span class='ident'>take</span>();
+                <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>attr</span>.<span class='ident'>is_some</span>() {
                     <span class='kw'>let</span> <span class='ident'>lock</span> <span class='op'>=</span> <span class='ident'>attr</span>.<span class='ident'>as_ref</span>().<span class='ident'>unwrap</span>();
                     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>pdb</span> <span class='op'>=</span> <span class='ident'>lock</span>.<span class='ident'>write</span>();
                     <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>f</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>pdb</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>changed</span>);
-                    <span class='kw'>if</span> <span class='ident'>changed</span> {
-                        <span class='ident'>el</span>.<span class='ident'>set_style_attr</span>(<span class='ident'>pdb</span>.<span class='ident'>to_css_string</span>());
-                        <span class='ident'>el</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Node</span><span class='op'>&gt;</span>().<span class='ident'>dirty</span>(<span class='ident'>NodeDamage</span>::<span class='ident'>NodeStyleDamaged</span>);
-                    }
-                    (<span class='ident'>result</span>, <span class='ident'>pdb</span>.<span class='ident'>declarations</span>.<span class='ident'>is_empty</span>())
+                    <span class='ident'>result</span>
                 } <span class='kw'>else</span> {
                     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>pdb</span> <span class='op'>=</span> <span class='ident'>PropertyDeclarationBlock</span> {
                         <span class='ident'>important_count</span>: <span class='number'>0</span>,
@@ -556,18 +564,32 @@
 
                     <span class='comment'>// Here `changed` is somewhat silly, because we know the</span>
                     <span class='comment'>// exact conditions under it changes.</span>
-                    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>pdb</span>.<span class='ident'>declarations</span>.<span class='ident'>is_empty</span>() {
-                        <span class='ident'>el</span>.<span class='ident'>set_style_attr</span>(<span class='ident'>pdb</span>.<span class='ident'>to_css_string</span>());
-                        <span class='ident'>el</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>Node</span><span class='op'>&gt;</span>().<span class='ident'>dirty</span>(<span class='ident'>NodeDamage</span>::<span class='ident'>NodeStyleDamaged</span>);
-                        <span class='kw-2'>*</span><span class='ident'>attr</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>RwLock</span>::<span class='ident'>new</span>(<span class='ident'>pdb</span>)));
+                    <span class='ident'>changed</span> <span class='op'>=</span> <span class='op'>!</span><span class='ident'>pdb</span>.<span class='ident'>declarations</span>.<span class='ident'>is_empty</span>();
+                    <span class='kw'>if</span> <span class='ident'>changed</span> {
+                        <span class='ident'>attr</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>RwLock</span>::<span class='ident'>new</span>(<span class='ident'>pdb</span>)));
                     }
 
-                    (<span class='ident'>result</span>, <span class='bool-val'>false</span>)
+                    <span class='ident'>result</span>
                 };
 
-                <span class='kw'>if</span> <span class='ident'>needs_clear</span> {
-                    <span class='kw-2'>*</span><span class='ident'>attr</span> <span class='op'>=</span> <span class='prelude-val'>None</span>;
+                <span class='kw'>if</span> <span class='ident'>changed</span> {
+                    <span class='comment'>// Note that there&#39;s no need to remove the attribute here if</span>
+                    <span class='comment'>// the declaration block is empty[1], and if `attr` is</span>
+                    <span class='comment'>// `None` it means that it necessarily didn&#39;t change, so no</span>
+                    <span class='comment'>// need to go through all the set_attribute machinery.</span>
+                    <span class='comment'>//</span>
+                    <span class='comment'>// [1]: https://github.com/whatwg/html/issues/2306</span>
+                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>pdb</span>) <span class='op'>=</span> <span class='ident'>attr</span> {
+                        <span class='kw'>let</span> <span class='ident'>serialization</span> <span class='op'>=</span> <span class='ident'>pdb</span>.<span class='ident'>read</span>().<span class='ident'>to_css_string</span>();
+                        <span class='ident'>el</span>.<span class='ident'>set_attribute</span>(<span class='kw-2'>&amp;</span><span class='macro'>local_name</span><span class='macro'>!</span>(<span class='string'>&quot;style&quot;</span>),
+                                         <span class='ident'>AttrValue</span>::<span class='ident'>Declaration</span>(<span class='ident'>serialization</span>,
+                                                                <span class='ident'>pdb</span>));
+                    }
+                } <span class='kw'>else</span> {
+                    <span class='comment'>// Remember to put it back.</span>
+                    <span class='kw-2'>*</span><span class='ident'>el</span>.<span class='ident'>style_attribute</span>().<span class='ident'>borrow_mut</span>() <span class='op'>=</span> <span class='ident'>attr</span>;
                 }
+
                 <span class='ident'>result</span>
             }
             <span class='ident'>CSSStyleOwner</span>::<span class='ident'>CSSRule</span>(<span class='kw-2'>ref</span> <span class='ident'>rule</span>, <span class='kw-2'>ref</span> <span class='ident'>pdb</span>) <span class='op'>=&gt;</span> {

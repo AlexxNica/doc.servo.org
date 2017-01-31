@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["WebDriverResponse",""]],"struct":[["Cookie",""],["CookieResponse",""],["ElementRectResponse",""],["NewSessionResponse",""],["ValueResponse",""],["WindowPositionResponse",""],["WindowSizeResponse",""]]});
+initSidebarItems({"enum":[["WebDriverResponse",""]],"struct":[["CloseWindowResponse",""],["Cookie",""],["CookieResponse",""],["ElementRectResponse",""],["NewSessionResponse",""],["ValueResponse",""],["WindowPositionResponse",""],["WindowSizeResponse",""]]});

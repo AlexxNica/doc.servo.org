@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["trace",""]],"mod":[["uw","Unwind library interface used for backtraces"]],"struct":[["UnwindFrame",""]]});
+initSidebarItems({"fn":[["trace",""]],"mod":[["uw","Unwind library interface used for backtraces"]],"struct":[["Frame",""]]});
