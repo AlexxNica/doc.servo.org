@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["LENGTH_MASK",""],["LITERAL_MASK",""]],"struct":[["LZValue",""]]});
+initSidebarItems({"enum":[["LZType",""]],"struct":[["LZValue",""],["StoredLength",""]]});
