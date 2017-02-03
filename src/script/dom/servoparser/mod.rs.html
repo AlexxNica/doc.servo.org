@@ -618,6 +618,13 @@
 <span id="573">573</span>
 <span id="574">574</span>
 <span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+<span id="582">582</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1054,6 +1061,7 @@
 
     <span class='kw'>fn</span> <span class='ident'>process_response</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>meta_result</span>: <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>FetchMetadata</span>, <span class='ident'>NetworkError</span><span class='op'>&gt;</span>) {
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>ssl_error</span> <span class='op'>=</span> <span class='prelude-val'>None</span>;
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>network_error</span> <span class='op'>=</span> <span class='prelude-val'>None</span>;
         <span class='kw'>let</span> <span class='ident'>metadata</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>meta_result</span> {
             <span class='prelude-val'>Ok</span>(<span class='ident'>meta</span>) <span class='op'>=&gt;</span> {
                 <span class='prelude-val'>Some</span>(<span class='kw'>match</span> <span class='ident'>meta</span> {
@@ -1064,6 +1072,13 @@
             <span class='prelude-val'>Err</span>(<span class='ident'>NetworkError</span>::<span class='ident'>SslValidation</span>(<span class='ident'>url</span>, <span class='ident'>reason</span>)) <span class='op'>=&gt;</span> {
                 <span class='ident'>ssl_error</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>reason</span>);
                 <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>meta</span> <span class='op'>=</span> <span class='ident'>Metadata</span>::<span class='ident'>default</span>(<span class='ident'>url</span>);
+                <span class='kw'>let</span> <span class='ident'>mime</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Mime</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='string'>&quot;text/html&quot;</span>.<span class='ident'>parse</span>().<span class='ident'>ok</span>();
+                <span class='ident'>meta</span>.<span class='ident'>set_content_type</span>(<span class='ident'>mime</span>.<span class='ident'>as_ref</span>());
+                <span class='prelude-val'>Some</span>(<span class='ident'>meta</span>)
+            },
+            <span class='prelude-val'>Err</span>(<span class='ident'>NetworkError</span>::<span class='ident'>Internal</span>(<span class='ident'>reason</span>)) <span class='op'>=&gt;</span> {
+                <span class='ident'>network_error</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>reason</span>);
+                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>meta</span> <span class='op'>=</span> <span class='ident'>Metadata</span>::<span class='ident'>default</span>(<span class='self'>self</span>.<span class='ident'>url</span>.<span class='ident'>clone</span>());
                 <span class='kw'>let</span> <span class='ident'>mime</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Mime</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='string'>&quot;text/html&quot;</span>.<span class='ident'>parse</span>().<span class='ident'>ok</span>();
                 <span class='ident'>meta</span>.<span class='ident'>set_content_type</span>(<span class='ident'>mime</span>.<span class='ident'>as_ref</span>());
                 <span class='prelude-val'>Some</span>(<span class='ident'>meta</span>)
@@ -1104,6 +1119,14 @@
                 <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>reason</span>) <span class='op'>=</span> <span class='ident'>ssl_error</span> {
                     <span class='self'>self</span>.<span class='ident'>is_synthesized_document</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
                     <span class='kw'>let</span> <span class='ident'>page_bytes</span> <span class='op'>=</span> <span class='ident'>read_resource_file</span>(<span class='string'>&quot;badcert.html&quot;</span>).<span class='ident'>unwrap</span>();
+                    <span class='kw'>let</span> <span class='ident'>page</span> <span class='op'>=</span> <span class='ident'>String</span>::<span class='ident'>from_utf8</span>(<span class='ident'>page_bytes</span>).<span class='ident'>unwrap</span>();
+                    <span class='kw'>let</span> <span class='ident'>page</span> <span class='op'>=</span> <span class='ident'>page</span>.<span class='ident'>replace</span>(<span class='string'>&quot;${reason}&quot;</span>, <span class='kw-2'>&amp;</span><span class='ident'>reason</span>);
+                    <span class='ident'>parser</span>.<span class='ident'>push_input_chunk</span>(<span class='ident'>page</span>);
+                    <span class='ident'>parser</span>.<span class='ident'>parse_sync</span>();
+                }
+                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>reason</span>) <span class='op'>=</span> <span class='ident'>network_error</span> {
+                    <span class='self'>self</span>.<span class='ident'>is_synthesized_document</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
+                    <span class='kw'>let</span> <span class='ident'>page_bytes</span> <span class='op'>=</span> <span class='ident'>read_resource_file</span>(<span class='string'>&quot;neterror.html&quot;</span>).<span class='ident'>unwrap</span>();
                     <span class='kw'>let</span> <span class='ident'>page</span> <span class='op'>=</span> <span class='ident'>String</span>::<span class='ident'>from_utf8</span>(<span class='ident'>page_bytes</span>).<span class='ident'>unwrap</span>();
                     <span class='kw'>let</span> <span class='ident'>page</span> <span class='op'>=</span> <span class='ident'>page</span>.<span class='ident'>replace</span>(<span class='string'>&quot;${reason}&quot;</span>, <span class='kw-2'>&amp;</span><span class='ident'>reason</span>);
                     <span class='ident'>parser</span>.<span class='ident'>push_input_chunk</span>(<span class='ident'>page</span>);
@@ -1150,16 +1173,7 @@
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span>,
         };
 
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Err</span>(<span class='ident'>NetworkError</span>::<span class='ident'>Internal</span>(<span class='kw-2'>ref</span> <span class='ident'>reason</span>)) <span class='op'>=</span> <span class='ident'>status</span> {
-            <span class='comment'>// Show an error page for network errors,</span>
-            <span class='comment'>// certificate errors are handled earlier.</span>
-            <span class='self'>self</span>.<span class='ident'>is_synthesized_document</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
-            <span class='kw'>let</span> <span class='ident'>page_bytes</span> <span class='op'>=</span> <span class='ident'>read_resource_file</span>(<span class='string'>&quot;neterror.html&quot;</span>).<span class='ident'>unwrap</span>();
-            <span class='kw'>let</span> <span class='ident'>page</span> <span class='op'>=</span> <span class='ident'>String</span>::<span class='ident'>from_utf8</span>(<span class='ident'>page_bytes</span>).<span class='ident'>unwrap</span>();
-            <span class='kw'>let</span> <span class='ident'>page</span> <span class='op'>=</span> <span class='ident'>page</span>.<span class='ident'>replace</span>(<span class='string'>&quot;${reason}&quot;</span>, <span class='ident'>reason</span>);
-            <span class='ident'>parser</span>.<span class='ident'>push_input_chunk</span>(<span class='ident'>page</span>);
-            <span class='ident'>parser</span>.<span class='ident'>parse_sync</span>();
-        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Err</span>(<span class='ident'>err</span>) <span class='op'>=</span> <span class='ident'>status</span> {
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Err</span>(<span class='ident'>err</span>) <span class='op'>=</span> <span class='ident'>status</span> {
             <span class='comment'>// TODO(Savago): we should send a notification to callers #5463.</span>
             <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Failed to load page URL {}, error: {:?}&quot;</span>, <span class='self'>self</span>.<span class='ident'>url</span>, <span class='ident'>err</span>);
         }
