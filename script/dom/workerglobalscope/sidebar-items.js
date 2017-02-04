@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["prepare_workerscope_init",""]],"struct":[["FlushPromiseJobs",""],["WorkerGlobalScope",""]]});
+initSidebarItems({"fn":[["prepare_workerscope_init",""]],"struct":[["WorkerGlobalScope",""]]});

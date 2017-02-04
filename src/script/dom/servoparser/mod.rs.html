@@ -625,6 +625,91 @@
 <span id="580">580</span>
 <span id="581">581</span>
 <span id="582">582</span>
+<span id="583">583</span>
+<span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -666,6 +751,7 @@
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::<span class='ident'>DocumentActivity</span>;
 <span class='kw'>use</span> <span class='ident'>servo_config</span>::<span class='ident'>resource_files</span>::<span class='ident'>read_resource_file</span>;
 <span class='kw'>use</span> <span class='ident'>servo_url</span>::<span class='ident'>ServoUrl</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ascii</span>::<span class='ident'>AsciiExt</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>Cell</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
 
@@ -703,6 +789,10 @@
     <span class='ident'>suspended</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>bool</span><span class='op'>&gt;</span>,
     <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#script-nesting-level</span>
     <span class='ident'>script_nesting_level</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span>,
+    <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#abort-a-parser</span>
+    <span class='ident'>aborted</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>bool</span><span class='op'>&gt;</span>,
+    <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#script-created-parser</span>
+    <span class='ident'>script_created_parser</span>: <span class='ident'>bool</span>,
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>PartialEq</span>)]</span>
@@ -715,7 +805,8 @@
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_html_document</span>(<span class='ident'>document</span>: <span class='kw-2'>&amp;</span><span class='ident'>Document</span>, <span class='ident'>input</span>: <span class='ident'>DOMString</span>, <span class='ident'>url</span>: <span class='ident'>ServoUrl</span>) {
         <span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>ServoParser</span>::<span class='ident'>new</span>(<span class='ident'>document</span>,
                                       <span class='ident'>Tokenizer</span>::<span class='ident'>Html</span>(<span class='self'>self</span>::<span class='ident'>html</span>::<span class='ident'>Tokenizer</span>::<span class='ident'>new</span>(<span class='ident'>document</span>, <span class='ident'>url</span>, <span class='prelude-val'>None</span>)),
-                                      <span class='ident'>LastChunkState</span>::<span class='ident'>NotReceived</span>);
+                                      <span class='ident'>LastChunkState</span>::<span class='ident'>NotReceived</span>,
+                                      <span class='ident'>ParserKind</span>::<span class='ident'>Normal</span>);
         <span class='ident'>parser</span>.<span class='ident'>parse_chunk</span>(<span class='ident'>String</span>::<span class='ident'>from</span>(<span class='ident'>input</span>));
     }
 
@@ -757,7 +848,8 @@
                                       <span class='ident'>Tokenizer</span>::<span class='ident'>Html</span>(<span class='self'>self</span>::<span class='ident'>html</span>::<span class='ident'>Tokenizer</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>document</span>,
                                                                                  <span class='ident'>url</span>.<span class='ident'>clone</span>(),
                                                                                  <span class='prelude-val'>Some</span>(<span class='ident'>fragment_context</span>))),
-                                      <span class='ident'>LastChunkState</span>::<span class='ident'>Received</span>);
+                                      <span class='ident'>LastChunkState</span>::<span class='ident'>Received</span>,
+                                      <span class='ident'>ParserKind</span>::<span class='ident'>Normal</span>);
         <span class='ident'>parser</span>.<span class='ident'>parse_chunk</span>(<span class='ident'>String</span>::<span class='ident'>from</span>(<span class='ident'>input</span>));
 
         <span class='comment'>// Step 14.</span>
@@ -767,15 +859,32 @@
         }
     }
 
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_html_script_input</span>(<span class='ident'>document</span>: <span class='kw-2'>&amp;</span><span class='ident'>Document</span>, <span class='ident'>url</span>: <span class='ident'>ServoUrl</span>, <span class='ident'>type_</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) {
+        <span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>ServoParser</span>::<span class='ident'>new</span>(<span class='ident'>document</span>,
+                                      <span class='ident'>Tokenizer</span>::<span class='ident'>Html</span>(<span class='self'>self</span>::<span class='ident'>html</span>::<span class='ident'>Tokenizer</span>::<span class='ident'>new</span>(<span class='ident'>document</span>, <span class='ident'>url</span>, <span class='prelude-val'>None</span>)),
+                                      <span class='ident'>LastChunkState</span>::<span class='ident'>NotReceived</span>,
+                                      <span class='ident'>ParserKind</span>::<span class='ident'>ScriptCreated</span>);
+        <span class='ident'>document</span>.<span class='ident'>set_current_parser</span>(<span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='ident'>parser</span>));
+        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>type_</span>.<span class='ident'>eq_ignore_ascii_case</span>(<span class='string'>&quot;text/html&quot;</span>) {
+            <span class='ident'>parser</span>.<span class='ident'>parse_chunk</span>(<span class='string'>&quot;&lt;pre&gt;\n&quot;</span>.<span class='ident'>to_owned</span>());
+            <span class='ident'>parser</span>.<span class='ident'>tokenizer</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>set_plaintext_state</span>();
+        }
+    }
+
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_xml_document</span>(<span class='ident'>document</span>: <span class='kw-2'>&amp;</span><span class='ident'>Document</span>, <span class='ident'>input</span>: <span class='ident'>DOMString</span>, <span class='ident'>url</span>: <span class='ident'>ServoUrl</span>) {
         <span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>ServoParser</span>::<span class='ident'>new</span>(<span class='ident'>document</span>,
                                       <span class='ident'>Tokenizer</span>::<span class='ident'>Xml</span>(<span class='self'>self</span>::<span class='ident'>xml</span>::<span class='ident'>Tokenizer</span>::<span class='ident'>new</span>(<span class='ident'>document</span>, <span class='ident'>url</span>)),
-                                      <span class='ident'>LastChunkState</span>::<span class='ident'>NotReceived</span>);
+                                      <span class='ident'>LastChunkState</span>::<span class='ident'>NotReceived</span>,
+                                      <span class='ident'>ParserKind</span>::<span class='ident'>Normal</span>);
         <span class='ident'>parser</span>.<span class='ident'>parse_chunk</span>(<span class='ident'>String</span>::<span class='ident'>from</span>(<span class='ident'>input</span>));
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>script_nesting_level</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
         <span class='self'>self</span>.<span class='ident'>script_nesting_level</span>.<span class='ident'>get</span>()
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_script_created</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+        <span class='self'>self</span>.<span class='ident'>script_created_parser</span>
     }
 
     <span class='doccomment'>/// Corresponds to the latter part of the &quot;Otherwise&quot; branch of the &#39;An end</span>
@@ -814,9 +923,13 @@
         }
     }
 
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>can_write</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+        <span class='self'>self</span>.<span class='ident'>script_created_parser</span> <span class='op'>||</span> <span class='self'>self</span>.<span class='ident'>script_nesting_level</span>.<span class='ident'>get</span>() <span class='op'>&gt;</span> <span class='number'>0</span>
+    }
+
     <span class='doccomment'>/// Steps 6-8 of https://html.spec.whatwg.org/multipage/#document.write()</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>write</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>text</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>DOMString</span><span class='op'>&gt;</span>) {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>script_nesting_level</span>.<span class='ident'>get</span>() <span class='op'>&gt;</span> <span class='number'>0</span>);
+        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>can_write</span>());
 
         <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>document</span>.<span class='ident'>has_pending_parsing_blocking_script</span>() {
             <span class='comment'>// There is already a pending parsing blocking script so the</span>
@@ -853,10 +966,47 @@
         <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>input</span>.<span class='ident'>is_empty</span>());
     }
 
+    <span class='comment'>// Steps 4-6 of https://html.spec.whatwg.org/multipage/#dom-document-close</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>close</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
+        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>script_created_parser</span>);
+
+        <span class='comment'>// Step 4.</span>
+        <span class='self'>self</span>.<span class='ident'>last_chunk_received</span>.<span class='ident'>set</span>(<span class='bool-val'>true</span>);
+
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>suspended</span>.<span class='ident'>get</span>() {
+            <span class='comment'>// Step 5.</span>
+            <span class='kw'>return</span>;
+        }
+
+        <span class='comment'>// Step 6.</span>
+        <span class='self'>self</span>.<span class='ident'>parse_sync</span>();
+    }
+
+    <span class='comment'>// https://html.spec.whatwg.org/multipage/#abort-a-parser</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>abort</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
+        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='self'>self</span>.<span class='ident'>aborted</span>.<span class='ident'>get</span>());
+        <span class='self'>self</span>.<span class='ident'>aborted</span>.<span class='ident'>set</span>(<span class='bool-val'>true</span>);
+
+        <span class='comment'>// Step 1.</span>
+        <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>script_input</span>.<span class='ident'>borrow_mut</span>() <span class='op'>=</span> <span class='ident'>BufferQueue</span>::<span class='ident'>new</span>();
+        <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>network_input</span>.<span class='ident'>borrow_mut</span>() <span class='op'>=</span> <span class='ident'>BufferQueue</span>::<span class='ident'>new</span>();
+
+        <span class='comment'>// Step 2.</span>
+        <span class='self'>self</span>.<span class='ident'>document</span>.<span class='ident'>set_ready_state</span>(<span class='ident'>DocumentReadyState</span>::<span class='ident'>Interactive</span>);
+
+        <span class='comment'>// Step 3.</span>
+        <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>end</span>();
+        <span class='self'>self</span>.<span class='ident'>document</span>.<span class='ident'>set_current_parser</span>(<span class='prelude-val'>None</span>);
+
+        <span class='comment'>// Step 4.</span>
+        <span class='self'>self</span>.<span class='ident'>document</span>.<span class='ident'>set_ready_state</span>(<span class='ident'>DocumentReadyState</span>::<span class='ident'>Interactive</span>);
+    }
+
     <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unrooted_must_root</span>)]</span>
     <span class='kw'>fn</span> <span class='ident'>new_inherited</span>(<span class='ident'>document</span>: <span class='kw-2'>&amp;</span><span class='ident'>Document</span>,
                      <span class='ident'>tokenizer</span>: <span class='ident'>Tokenizer</span>,
-                     <span class='ident'>last_chunk_state</span>: <span class='ident'>LastChunkState</span>)
+                     <span class='ident'>last_chunk_state</span>: <span class='ident'>LastChunkState</span>,
+                     <span class='ident'>kind</span>: <span class='ident'>ParserKind</span>)
                      <span class='op'>-&gt;</span> <span class='self'>Self</span> {
         <span class='ident'>ServoParser</span> {
             <span class='ident'>reflector</span>: <span class='ident'>Reflector</span>::<span class='ident'>new</span>(),
@@ -867,15 +1017,18 @@
             <span class='ident'>last_chunk_received</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='ident'>last_chunk_state</span> <span class='op'>==</span> <span class='ident'>LastChunkState</span>::<span class='ident'>Received</span>),
             <span class='ident'>suspended</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
             <span class='ident'>script_nesting_level</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
+            <span class='ident'>aborted</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
+            <span class='ident'>script_created_parser</span>: <span class='ident'>kind</span> <span class='op'>==</span> <span class='ident'>ParserKind</span>::<span class='ident'>ScriptCreated</span>,
         }
     }
 
     <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unrooted_must_root</span>)]</span>
     <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>document</span>: <span class='kw-2'>&amp;</span><span class='ident'>Document</span>,
            <span class='ident'>tokenizer</span>: <span class='ident'>Tokenizer</span>,
-           <span class='ident'>last_chunk_state</span>: <span class='ident'>LastChunkState</span>)
+           <span class='ident'>last_chunk_state</span>: <span class='ident'>LastChunkState</span>,
+           <span class='ident'>kind</span>: <span class='ident'>ParserKind</span>)
            <span class='op'>-&gt;</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='self'>Self</span><span class='op'>&gt;</span> {
-        <span class='ident'>reflect_dom_object</span>(<span class='kw'>box</span> <span class='ident'>ServoParser</span>::<span class='ident'>new_inherited</span>(<span class='ident'>document</span>, <span class='ident'>tokenizer</span>, <span class='ident'>last_chunk_state</span>),
+        <span class='ident'>reflect_dom_object</span>(<span class='kw'>box</span> <span class='ident'>ServoParser</span>::<span class='ident'>new_inherited</span>(<span class='ident'>document</span>, <span class='ident'>tokenizer</span>, <span class='ident'>last_chunk_state</span>, <span class='ident'>kind</span>),
                            <span class='ident'>document</span>.<span class='ident'>window</span>(),
                            <span class='ident'>ServoParserBinding</span>::<span class='ident'>Wrap</span>)
     }
@@ -929,6 +1082,7 @@
     {
         <span class='kw'>loop</span> {
             <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='self'>self</span>.<span class='ident'>suspended</span>.<span class='ident'>get</span>());
+            <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='self'>self</span>.<span class='ident'>aborted</span>.<span class='ident'>get</span>());
 
             <span class='self'>self</span>.<span class='ident'>document</span>.<span class='ident'>reflow_if_reflow_timer_expired</span>();
             <span class='kw'>let</span> <span class='ident'>script</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>feed</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>borrow_mut</span>()) {
@@ -984,6 +1138,12 @@
         <span class='ident'>next</span>.<span class='ident'>remove_self</span>();
         <span class='prelude-val'>Some</span>(<span class='ident'>next</span>)
     }
+}
+
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>HeapSizeOf</span>, <span class='ident'>JSTraceable</span>, <span class='ident'>PartialEq</span>)]</span>
+<span class='kw'>enum</span> <span class='ident'>ParserKind</span> {
+    <span class='ident'>Normal</span>,
+    <span class='ident'>ScriptCreated</span>,
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>HeapSizeOf</span>, <span class='ident'>JSTraceable</span>)]</span>
@@ -1090,6 +1250,9 @@
             <span class='prelude-val'>Some</span>(<span class='ident'>parser</span>) <span class='op'>=&gt;</span> <span class='ident'>parser</span>,
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span>,
         };
+        <span class='kw'>if</span> <span class='ident'>parser</span>.<span class='ident'>aborted</span>.<span class='ident'>get</span>() {
+            <span class='kw'>return</span>;
+        }
 
         <span class='self'>self</span>.<span class='ident'>parser</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>Trusted</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>parser</span>));
 
@@ -1156,15 +1319,19 @@
     }
 
     <span class='kw'>fn</span> <span class='ident'>process_response_chunk</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>payload</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>) {
-        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>is_synthesized_document</span> {
-            <span class='comment'>// FIXME: use Vec&lt;u8&gt; (html5ever #34)</span>
-            <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='ident'>UTF_8</span>.<span class='ident'>decode</span>(<span class='kw-2'>&amp;</span><span class='ident'>payload</span>, <span class='ident'>DecoderTrap</span>::<span class='ident'>Replace</span>).<span class='ident'>unwrap</span>();
-            <span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>parser</span>.<span class='ident'>as_ref</span>() {
-                <span class='prelude-val'>Some</span>(<span class='ident'>parser</span>) <span class='op'>=&gt;</span> <span class='ident'>parser</span>.<span class='ident'>root</span>(),
-                <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span>,
-            };
-            <span class='ident'>parser</span>.<span class='ident'>parse_chunk</span>(<span class='ident'>data</span>);
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>is_synthesized_document</span> {
+            <span class='kw'>return</span>;
         }
+        <span class='comment'>// FIXME: use Vec&lt;u8&gt; (html5ever #34)</span>
+        <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='ident'>UTF_8</span>.<span class='ident'>decode</span>(<span class='kw-2'>&amp;</span><span class='ident'>payload</span>, <span class='ident'>DecoderTrap</span>::<span class='ident'>Replace</span>).<span class='ident'>unwrap</span>();
+        <span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>parser</span>.<span class='ident'>as_ref</span>() {
+            <span class='prelude-val'>Some</span>(<span class='ident'>parser</span>) <span class='op'>=&gt;</span> <span class='ident'>parser</span>.<span class='ident'>root</span>(),
+            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span>,
+        };
+        <span class='kw'>if</span> <span class='ident'>parser</span>.<span class='ident'>aborted</span>.<span class='ident'>get</span>() {
+            <span class='kw'>return</span>;
+        }
+        <span class='ident'>parser</span>.<span class='ident'>parse_chunk</span>(<span class='ident'>data</span>);
     }
 
     <span class='kw'>fn</span> <span class='ident'>process_response_eof</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>status</span>: <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), <span class='ident'>NetworkError</span><span class='op'>&gt;</span>) {
@@ -1172,6 +1339,9 @@
             <span class='prelude-val'>Some</span>(<span class='ident'>parser</span>) <span class='op'>=&gt;</span> <span class='ident'>parser</span>.<span class='ident'>root</span>(),
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span>,
         };
+        <span class='kw'>if</span> <span class='ident'>parser</span>.<span class='ident'>aborted</span>.<span class='ident'>get</span>() {
+            <span class='kw'>return</span>;
+        }
 
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Err</span>(<span class='ident'>err</span>) <span class='op'>=</span> <span class='ident'>status</span> {
             <span class='comment'>// TODO(Savago): we should send a notification to callers #5463.</span>

@@ -625,10 +625,11 @@
 <span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>panic</span>::<span class='ident'>maybe_resume_unwind</span>;
 <span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>rust</span>::{<span class='ident'>CompileOptionsWrapper</span>, <span class='ident'>Runtime</span>, <span class='ident'>get_object_class</span>};
 <span class='kw'>use</span> <span class='ident'>libc</span>;
+<span class='kw'>use</span> <span class='ident'>microtask</span>::<span class='ident'>Microtask</span>;
 <span class='kw'>use</span> <span class='ident'>msg</span>::<span class='ident'>constellation_msg</span>::<span class='ident'>PipelineId</span>;
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::{<span class='ident'>CoreResourceThread</span>, <span class='ident'>ResourceThreads</span>, <span class='ident'>IpcSend</span>};
 <span class='kw'>use</span> <span class='ident'>profile_traits</span>::{<span class='ident'>mem</span>, <span class='ident'>time</span>};
-<span class='kw'>use</span> <span class='ident'>script_runtime</span>::{<span class='ident'>CommonScriptMsg</span>, <span class='ident'>EnqueuedPromiseCallback</span>, <span class='ident'>ScriptChan</span>, <span class='ident'>ScriptPort</span>};
+<span class='kw'>use</span> <span class='ident'>script_runtime</span>::{<span class='ident'>CommonScriptMsg</span>, <span class='ident'>ScriptChan</span>, <span class='ident'>ScriptPort</span>};
 <span class='kw'>use</span> <span class='ident'>script_thread</span>::{<span class='ident'>MainThreadScriptChan</span>, <span class='ident'>RunnableWrapper</span>, <span class='ident'>ScriptThread</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>MsDuration</span>, <span class='ident'>ScriptMsg</span> <span class='kw'>as</span> <span class='ident'>ConstellationMsg</span>, <span class='ident'>TimerEvent</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>TimerEventId</span>, <span class='ident'>TimerEventRequest</span>, <span class='ident'>TimerSource</span>};
@@ -1044,25 +1045,24 @@
         <span class='macro'>unreachable</span><span class='macro'>!</span>();
     }
 
-    <span class='doccomment'>/// Start the process of executing the pending promise callbacks. They will be invoked</span>
-    <span class='doccomment'>/// in FIFO order, synchronously, at some point in the future.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>flush_promise_jobs</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
+    <span class='doccomment'>/// Perform a microtask checkpoint.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>perform_a_microtask_checkpoint</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
         <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>is</span>::<span class='op'>&lt;</span><span class='ident'>Window</span><span class='op'>&gt;</span>() {
-            <span class='kw'>return</span> <span class='ident'>ScriptThread</span>::<span class='ident'>flush_promise_jobs</span>(<span class='self'>self</span>);
+            <span class='kw'>return</span> <span class='ident'>ScriptThread</span>::<span class='ident'>invoke_perform_a_microtask_checkpoint</span>();
         }
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>worker</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>downcast</span>::<span class='op'>&lt;</span><span class='ident'>WorkerGlobalScope</span><span class='op'>&gt;</span>() {
-            <span class='kw'>return</span> <span class='ident'>worker</span>.<span class='ident'>flush_promise_jobs</span>();
+            <span class='kw'>return</span> <span class='ident'>worker</span>.<span class='ident'>perform_a_microtask_checkpoint</span>();
         }
         <span class='macro'>unreachable</span><span class='macro'>!</span>();
     }
 
-    <span class='doccomment'>/// Enqueue a promise callback for subsequent execution.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>enqueue_promise_job</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>job</span>: <span class='ident'>EnqueuedPromiseCallback</span>) {
+    <span class='doccomment'>/// Enqueue a microtask for subsequent execution.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>enqueue_microtask</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>job</span>: <span class='ident'>Microtask</span>) {
         <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>is</span>::<span class='op'>&lt;</span><span class='ident'>Window</span><span class='op'>&gt;</span>() {
-            <span class='kw'>return</span> <span class='ident'>ScriptThread</span>::<span class='ident'>enqueue_promise_job</span>(<span class='ident'>job</span>, <span class='self'>self</span>);
+            <span class='kw'>return</span> <span class='ident'>ScriptThread</span>::<span class='ident'>enqueue_microtask</span>(<span class='ident'>job</span>);
         }
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>worker</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>downcast</span>::<span class='op'>&lt;</span><span class='ident'>WorkerGlobalScope</span><span class='op'>&gt;</span>() {
-            <span class='kw'>return</span> <span class='ident'>worker</span>.<span class='ident'>enqueue_promise_job</span>(<span class='ident'>job</span>);
+            <span class='kw'>return</span> <span class='ident'>worker</span>.<span class='ident'>enqueue_microtask</span>(<span class='ident'>job</span>);
         }
         <span class='macro'>unreachable</span><span class='macro'>!</span>();
     }

@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Microtask",""]],"struct":[["EnqueuedPromiseCallback","A promise callback scheduled to run during the next microtask checkpoint (#4283)."],["MicrotaskQueue","A collection of microtasks in FIFO order."]]});
