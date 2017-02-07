@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["MAX_COORD",""]],"enum":[["ClipSource",""]],"struct":[["ClipAddressRange",""],["MaskCacheInfo",""]]});
+initSidebarItems({"enum":[["ClipSource",""]],"struct":[["ClipAddressRange",""],["MaskCacheInfo",""]]});

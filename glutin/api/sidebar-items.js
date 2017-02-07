@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["caca",""],["dlopen",""],["egl",""],["glx",""],["osmesa",""],["wayland",""],["x11",""]]});
+initSidebarItems({"mod":[["caca",""],["dlopen",""],["egl",""],["glx",""],["osmesa",""],["x11",""]]});

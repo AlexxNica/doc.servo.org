@@ -8,7 +8,6 @@ implementors["net"] = [];
 implementors["net_traits"] = [];
 implementors["script"] = [];
 implementors["servo"] = [];
-implementors["wayland_window"] = [];
 implementors["webrender"] = [];
 implementors["websocket"] = [];
 implementors["webvr_traits"] = [];

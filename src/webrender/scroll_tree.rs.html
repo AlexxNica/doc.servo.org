@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/c8ca454/webrender/src/scroll_tree.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/512b4a1/webrender/src/scroll_tree.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>scroll_tree.rs.html -- source</title>
@@ -402,6 +402,41 @@
 <span id="357">357</span>
 <span id="358">358</span>
 <span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -421,8 +456,15 @@
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ScrollTree</span> {
     <span class='kw'>pub</span> <span class='ident'>layers</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerId</span>, <span class='ident'>Layer</span>, <span class='ident'>BuildHasherDefault</span><span class='op'>&lt;</span><span class='ident'>FnvHasher</span><span class='op'>&gt;&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>pending_scroll_offsets</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span>(<span class='ident'>PipelineId</span>, <span class='ident'>ServoScrollRootId</span>), <span class='ident'>LayerPoint</span><span class='op'>&gt;</span>,
+
+    <span class='doccomment'>/// The ScrollLayerId of the currently scrolling layer. Used to allow the same</span>
+    <span class='doccomment'>/// layer to scroll even if a touch operation leaves the boundaries of that layer.</span>
     <span class='kw'>pub</span> <span class='ident'>current_scroll_layer_id</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerId</span><span class='op'>&gt;</span>,
-    <span class='kw'>pub</span> <span class='ident'>current_reference_frame_id</span>: <span class='ident'>usize</span>,
+
+    <span class='doccomment'>/// The current reference frame id, used for giving a unique id to all new</span>
+    <span class='doccomment'>/// reference frames. The ScrollTree increments this by one every time a</span>
+    <span class='doccomment'>/// reference frame is created.</span>
+    <span class='ident'>current_reference_frame_id</span>: <span class='ident'>usize</span>,
 
     <span class='doccomment'>/// The root reference frame, which is the true root of the ScrollTree. Initially</span>
     <span class='doccomment'>/// this ID is not valid, which is indicated by ```layers``` being empty.</span>
@@ -431,6 +473,10 @@
     <span class='doccomment'>/// The root scroll layer, which is the first child of the root reference frame.</span>
     <span class='doccomment'>/// Initially this ID is not valid, which is indicated by ```layers``` being empty.</span>
     <span class='kw'>pub</span> <span class='ident'>topmost_scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
+
+    <span class='doccomment'>/// A set of pipelines which should be discarded the next time this</span>
+    <span class='doccomment'>/// tree is drained.</span>
+    <span class='kw'>pub</span> <span class='ident'>pipelines_to_discard</span>: <span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='ident'>PipelineId</span><span class='op'>&gt;</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>ScrollTree</span> {
@@ -443,6 +489,7 @@
             <span class='ident'>root_reference_frame_id</span>: <span class='ident'>ScrollLayerId</span>::<span class='ident'>root_reference_frame</span>(<span class='ident'>dummy_pipeline</span>),
             <span class='ident'>topmost_scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>::<span class='ident'>root_scroll_layer</span>(<span class='ident'>dummy_pipeline</span>),
             <span class='ident'>current_reference_frame_id</span>: <span class='number'>1</span>,
+            <span class='ident'>pipelines_to_discard</span>: <span class='ident'>HashSet</span>::<span class='ident'>new</span>(),
         }
     }
 
@@ -542,8 +589,12 @@
 
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>scroll_states</span> <span class='op'>=</span> <span class='ident'>HashMap</span>::<span class='ident'>with_hasher</span>(<span class='ident'>Default</span>::<span class='ident'>default</span>());
         <span class='kw'>for</span> (<span class='ident'>layer_id</span>, <span class='ident'>old_layer</span>) <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>drain</span>() {
-            <span class='ident'>scroll_states</span>.<span class='ident'>insert</span>(<span class='ident'>layer_id</span>, <span class='ident'>old_layer</span>.<span class='ident'>scrolling</span>);
+            <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>pipelines_to_discard</span>.<span class='ident'>contains</span>(<span class='kw-2'>&amp;</span><span class='ident'>layer_id</span>.<span class='ident'>pipeline_id</span>) {
+                <span class='ident'>scroll_states</span>.<span class='ident'>insert</span>(<span class='ident'>layer_id</span>, <span class='ident'>old_layer</span>.<span class='ident'>scrolling</span>);
+            }
         }
+
+        <span class='self'>self</span>.<span class='ident'>pipelines_to_discard</span>.<span class='ident'>clear</span>();
         <span class='ident'>scroll_states</span>
     }
 
@@ -553,6 +604,7 @@
                          <span class='ident'>scroll_root_id</span>: <span class='ident'>ServoScrollRootId</span>)
                          <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
         <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>is_empty</span>() {
+            <span class='self'>self</span>.<span class='ident'>pending_scroll_offsets</span>.<span class='ident'>insert</span>((<span class='ident'>pipeline_id</span>, <span class='ident'>scroll_root_id</span>), <span class='ident'>origin</span>);
             <span class='kw'>return</span> <span class='bool-val'>false</span>;
         }
 
@@ -595,11 +647,20 @@
             <span class='ident'>phase</span>,
             <span class='self'>self</span>.<span class='ident'>find_scrolling_layer_at_point</span>(<span class='kw-2'>&amp;</span><span class='ident'>cursor</span>),
             <span class='self'>self</span>.<span class='ident'>current_scroll_layer_id</span>) {
-            (<span class='ident'>ScrollEventPhase</span>::<span class='ident'>Start</span>, <span class='ident'>scroll_layer_id</span>, _) <span class='op'>=&gt;</span> {
-                <span class='self'>self</span>.<span class='ident'>current_scroll_layer_id</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>scroll_layer_id</span>);
+            (<span class='ident'>ScrollEventPhase</span>::<span class='ident'>Start</span>, <span class='ident'>scroll_layer_at_point_id</span>, _) <span class='op'>=&gt;</span> {
+                <span class='self'>self</span>.<span class='ident'>current_scroll_layer_id</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>scroll_layer_at_point_id</span>);
+                <span class='ident'>scroll_layer_at_point_id</span>
+            },
+            (_, <span class='ident'>scroll_layer_at_point_id</span>, <span class='prelude-val'>Some</span>(<span class='ident'>cached_scroll_layer_id</span>)) <span class='op'>=&gt;</span> {
+                <span class='kw'>let</span> <span class='ident'>scroll_layer_id</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>cached_scroll_layer_id</span>) {
+                    <span class='prelude-val'>Some</span>(_) <span class='op'>=&gt;</span> <span class='ident'>cached_scroll_layer_id</span>,
+                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
+                        <span class='self'>self</span>.<span class='ident'>current_scroll_layer_id</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>scroll_layer_at_point_id</span>);
+                        <span class='ident'>scroll_layer_at_point_id</span>
+                    },
+                };
                 <span class='ident'>scroll_layer_id</span>
             },
-            (_, _, <span class='prelude-val'>Some</span>(<span class='ident'>scroll_layer_id</span>)) <span class='op'>=&gt;</span> <span class='ident'>scroll_layer_id</span>,
             (_, _, <span class='prelude-val'>None</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='bool-val'>false</span>,
         };
 
@@ -730,8 +791,8 @@
 
             <span class='kw'>let</span> <span class='ident'>pipeline_id</span> <span class='op'>=</span> <span class='ident'>scroll_layer_id</span>.<span class='ident'>pipeline_id</span>;
             <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>pending_offset</span>) <span class='op'>=</span>
-                <span class='self'>self</span>.<span class='ident'>pending_scroll_offsets</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span>(<span class='ident'>pipeline_id</span>, <span class='ident'>scroll_root_id</span>)) {
-                <span class='ident'>layer</span>.<span class='ident'>set_scroll_origin</span>(<span class='ident'>pending_offset</span>);
+                <span class='self'>self</span>.<span class='ident'>pending_scroll_offsets</span>.<span class='ident'>remove</span>(<span class='kw-2'>&amp;</span>(<span class='ident'>pipeline_id</span>, <span class='ident'>scroll_root_id</span>)) {
+                <span class='ident'>layer</span>.<span class='ident'>set_scroll_origin</span>(<span class='kw-2'>&amp;</span><span class='ident'>pending_offset</span>);
             }
         }
 
@@ -759,6 +820,15 @@
 
         <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>parent_id</span> <span class='op'>!=</span> <span class='ident'>id</span>);
         <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>parent_id</span>).<span class='ident'>unwrap</span>().<span class='ident'>add_child</span>(<span class='ident'>id</span>);
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>discard_frame_state_for_pipeline</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>) {
+        <span class='self'>self</span>.<span class='ident'>pipelines_to_discard</span>.<span class='ident'>insert</span>(<span class='ident'>pipeline_id</span>);
+
+        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>current_scroll_layer_id</span> {
+            <span class='prelude-val'>Some</span>(<span class='ident'>id</span>) <span class='kw'>if</span> <span class='ident'>id</span>.<span class='ident'>pipeline_id</span> <span class='op'>==</span> <span class='ident'>pipeline_id</span> <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>current_scroll_layer_id</span> <span class='op'>=</span> <span class='prelude-val'>None</span>,
+            _ <span class='op'>=&gt;</span> {}
+        }
     }
 }
 

@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["GpuStore","A CPU-side buffer storing content to be uploaded to the GPU."],["GpuStoreAddress",""]]});
+initSidebarItems({"struct":[["GpuStore","A CPU-side buffer storing content to be uploaded to the GPU."],["GpuStoreAddress",""]],"trait":[["GpuStoreLayout",""]]});
