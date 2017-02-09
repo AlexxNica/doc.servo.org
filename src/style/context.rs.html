@@ -290,6 +290,47 @@
 <span id="245">245</span>
 <span id="246">246</span>
 <span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -302,12 +343,14 @@
 <span class='kw'>use</span> <span class='ident'>app_units</span>::<span class='ident'>Au</span>;
 <span class='kw'>use</span> <span class='ident'>bloom</span>::<span class='ident'>StyleBloom</span>;
 <span class='kw'>use</span> <span class='ident'>data</span>::<span class='ident'>ElementData</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>OpaqueNode</span>, <span class='ident'>TNode</span>, <span class='ident'>TElement</span>};
+<span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>OpaqueNode</span>, <span class='ident'>TNode</span>, <span class='ident'>TElement</span>, <span class='ident'>SendElement</span>};
 <span class='kw'>use</span> <span class='ident'>error_reporting</span>::<span class='ident'>ParseErrorReporter</span>;
 <span class='kw'>use</span> <span class='ident'>euclid</span>::<span class='ident'>Size2D</span>;
 <span class='kw'>use</span> <span class='ident'>matching</span>::<span class='ident'>StyleSharingCandidateCache</span>;
 <span class='kw'>use</span> <span class='ident'>parking_lot</span>::<span class='ident'>RwLock</span>;
 <span class='kw'>use</span> <span class='ident'>properties</span>::<span class='ident'>ComputedValues</span>;
+<span class='kw'>use</span> <span class='ident'>selectors</span>::<span class='ident'>matching</span>::<span class='ident'>ElementSelectorFlags</span>;
+<span class='kw'>use</span> <span class='ident'>servo_config</span>::<span class='ident'>opts</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>HashMap</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>env</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fmt</span>;
@@ -315,6 +358,7 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::{<span class='ident'>Arc</span>, <span class='ident'>Mutex</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::<span class='ident'>Sender</span>;
 <span class='kw'>use</span> <span class='ident'>stylist</span>::<span class='ident'>Stylist</span>;
+<span class='kw'>use</span> <span class='ident'>thread_state</span>;
 <span class='kw'>use</span> <span class='ident'>timer</span>::<span class='ident'>Timer</span>;
 
 <span class='doccomment'>/// This structure is used to create a local style context from a shared one.</span>
@@ -453,7 +497,35 @@
 <span class='kw'>impl</span> <span class='ident'>TraversalStatistics</span> {
     <span class='doccomment'>/// Returns whether statistics dumping is enabled.</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>should_dump</span>() <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw-2'>*</span><span class='ident'>DUMP_STYLE_STATISTICS</span>
+        <span class='kw-2'>*</span><span class='ident'>DUMP_STYLE_STATISTICS</span> <span class='op'>||</span> <span class='ident'>opts</span>::<span class='ident'>get</span>().<span class='ident'>style_sharing_stats</span>
+    }
+}
+
+<span class='doccomment'>/// A task to be run in sequential mode on the parent (non-worker) thread. This</span>
+<span class='doccomment'>/// is used by the style system to queue up work which is not safe to do during</span>
+<span class='doccomment'>/// the parallel traversal.</span>
+<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>SequentialTask</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> {
+    <span class='doccomment'>/// Sets selector flags. This is used when we need to set flags on an</span>
+    <span class='doccomment'>/// element that we don&#39;t have exclusive access to (i.e. the parent).</span>
+    <span class='ident'>SetSelectorFlags</span>(<span class='ident'>SendElement</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>, <span class='ident'>ElementSelectorFlags</span>),
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> <span class='ident'>SequentialTask</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span> {
+    <span class='doccomment'>/// Executes this task.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>execute</span>(<span class='self'>self</span>) {
+        <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>SequentialTask</span>::<span class='kw-2'>*</span>;
+        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>() <span class='op'>==</span> <span class='ident'>thread_state</span>::<span class='ident'>LAYOUT</span>);
+        <span class='kw'>match</span> <span class='self'>self</span> {
+            <span class='ident'>SetSelectorFlags</span>(<span class='ident'>el</span>, <span class='ident'>flags</span>) <span class='op'>=&gt;</span> {
+                <span class='kw'>unsafe</span> { <span class='ident'>el</span>.<span class='ident'>set_selector_flags</span>(<span class='ident'>flags</span>) };
+            }
+        }
+    }
+
+    <span class='doccomment'>/// Creates a task to set the selector flags on an element.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_selector_flags</span>(<span class='ident'>el</span>: <span class='ident'>E</span>, <span class='ident'>flags</span>: <span class='ident'>ElementSelectorFlags</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span> {
+        <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>SequentialTask</span>::<span class='kw-2'>*</span>;
+        <span class='ident'>SetSelectorFlags</span>(<span class='kw'>unsafe</span> { <span class='ident'>SendElement</span>::<span class='ident'>new</span>(<span class='ident'>el</span>) }, <span class='ident'>flags</span>)
     }
 }
 
@@ -470,6 +542,10 @@
     <span class='doccomment'>/// A channel on which new animations that have been triggered by style</span>
     <span class='doccomment'>/// recalculation can be sent.</span>
     <span class='kw'>pub</span> <span class='ident'>new_animations_sender</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>Animation</span><span class='op'>&gt;</span>,
+    <span class='doccomment'>/// A set of tasks to be run (on the parent thread) in sequential mode after</span>
+    <span class='doccomment'>/// the rest of the styling is complete. This is useful for infrequently-needed</span>
+    <span class='doccomment'>/// non-threadsafe operations.</span>
+    <span class='kw'>pub</span> <span class='ident'>tasks</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>SequentialTask</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;&gt;</span>,
     <span class='doccomment'>/// Statistics about the traversal.</span>
     <span class='kw'>pub</span> <span class='ident'>statistics</span>: <span class='ident'>TraversalStatistics</span>,
     <span class='doccomment'>/// Information related to the current element, non-None during processing.</span>
@@ -483,6 +559,7 @@
             <span class='ident'>style_sharing_candidate_cache</span>: <span class='ident'>StyleSharingCandidateCache</span>::<span class='ident'>new</span>(),
             <span class='ident'>bloom_filter</span>: <span class='ident'>StyleBloom</span>::<span class='ident'>new</span>(),
             <span class='ident'>new_animations_sender</span>: <span class='ident'>shared</span>.<span class='ident'>local_context_creation_data</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>().<span class='ident'>new_animations_sender</span>.<span class='ident'>clone</span>(),
+            <span class='ident'>tasks</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
             <span class='ident'>statistics</span>: <span class='ident'>TraversalStatistics</span>::<span class='ident'>default</span>(),
             <span class='ident'>current_element_info</span>: <span class='prelude-val'>None</span>,
         }
@@ -514,10 +591,15 @@
     }
 }
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>debug_assertions</span>)]</span>
 <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> <span class='ident'>Drop</span> <span class='kw'>for</span> <span class='ident'>ThreadLocalStyleContext</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span> {
     <span class='kw'>fn</span> <span class='ident'>drop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
         <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>current_element_info</span>.<span class='ident'>is_none</span>());
+
+        <span class='comment'>// Execute any enqueued sequential tasks.</span>
+        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>() <span class='op'>==</span> <span class='ident'>thread_state</span>::<span class='ident'>LAYOUT</span>);
+        <span class='kw'>for</span> <span class='ident'>task</span> <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>tasks</span>.<span class='ident'>drain</span>(..) {
+            <span class='ident'>task</span>.<span class='ident'>execute</span>();
+        }
     }
 }
 
