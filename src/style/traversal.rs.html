@@ -668,13 +668,6 @@
 <span id="623">623</span>
 <span id="624">624</span>
 <span id="625">625</span>
-<span id="626">626</span>
-<span id="627">627</span>
-<span id="628">628</span>
-<span id="629">629</span>
-<span id="630">630</span>
-<span id="631">631</span>
-<span id="632">632</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -686,9 +679,9 @@
 
 <span class='kw'>use</span> <span class='ident'>atomic_refcell</span>::{<span class='ident'>AtomicRefCell</span>, <span class='ident'>AtomicRefMut</span>};
 <span class='kw'>use</span> <span class='ident'>context</span>::{<span class='ident'>SharedStyleContext</span>, <span class='ident'>StyleContext</span>, <span class='ident'>ThreadLocalStyleContext</span>};
-<span class='kw'>use</span> <span class='ident'>data</span>::{<span class='ident'>ElementData</span>, <span class='ident'>ElementStyles</span>, <span class='ident'>RestyleKind</span>, <span class='ident'>StoredRestyleHint</span>};
+<span class='kw'>use</span> <span class='ident'>data</span>::{<span class='ident'>ElementData</span>, <span class='ident'>ElementStyles</span>, <span class='ident'>StoredRestyleHint</span>};
 <span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>NodeInfo</span>, <span class='ident'>TElement</span>, <span class='ident'>TNode</span>};
-<span class='kw'>use</span> <span class='ident'>matching</span>::{<span class='ident'>MatchMethods</span>, <span class='ident'>StyleSharingResult</span>};
+<span class='kw'>use</span> <span class='ident'>matching</span>::{<span class='ident'>MatchMethods</span>, <span class='ident'>MatchResults</span>};
 <span class='kw'>use</span> <span class='ident'>restyle_hints</span>::{<span class='ident'>RESTYLE_DESCENDANTS</span>, <span class='ident'>RESTYLE_SELF</span>};
 <span class='kw'>use</span> <span class='ident'>selector_parser</span>::<span class='ident'>RestyleDamage</span>;
 <span class='kw'>use</span> <span class='ident'>servo_config</span>::<span class='ident'>opts</span>;
@@ -924,7 +917,7 @@
         <span class='comment'>// recursively drops Servo ElementData when the XBL insertion parent of</span>
         <span class='comment'>// an Element is changed.</span>
         <span class='kw'>if</span> <span class='macro'>cfg</span><span class='macro'>!</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;gecko&quot;</span>) <span class='op'>&amp;&amp;</span> <span class='ident'>thread_local</span>.<span class='ident'>is_initial_style</span>() <span class='op'>&amp;&amp;</span>
-           <span class='ident'>parent_data</span>.<span class='ident'>styles</span>().<span class='ident'>primary</span>.<span class='ident'>values</span>.<span class='ident'>has_moz_binding</span>() {
+           <span class='ident'>parent_data</span>.<span class='ident'>styles</span>().<span class='ident'>primary</span>.<span class='ident'>values</span>().<span class='ident'>has_moz_binding</span>() {
             <span class='kw'>if</span> <span class='ident'>log</span>.<span class='ident'>allow</span>() { <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Parent {:?} has XBL binding, deferring traversal&quot;</span>, <span class='ident'>parent</span>); }
             <span class='kw'>return</span> <span class='bool-val'>false</span>;
         }
@@ -1017,12 +1010,9 @@
         }
 
         <span class='comment'>// Compute our style.</span>
-        <span class='kw'>let</span> <span class='ident'>match_results</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>match_element</span>(<span class='ident'>context</span>);
-        <span class='kw'>let</span> <span class='ident'>shareable</span> <span class='op'>=</span> <span class='ident'>match_results</span>.<span class='ident'>primary_is_shareable</span>();
-        <span class='ident'>element</span>.<span class='ident'>cascade_node</span>(<span class='ident'>context</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>, <span class='ident'>element</span>.<span class='ident'>parent_element</span>(),
-                             <span class='ident'>match_results</span>.<span class='ident'>primary</span>,
-                             <span class='ident'>match_results</span>.<span class='ident'>per_pseudo</span>,
-                             <span class='ident'>shareable</span>);
+        <span class='kw'>let</span> <span class='ident'>match_results</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>match_element</span>(<span class='ident'>context</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>);
+        <span class='ident'>element</span>.<span class='ident'>cascade_element</span>(<span class='ident'>context</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>,
+                                <span class='ident'>match_results</span>.<span class='ident'>primary_is_shareable</span>());
 
         <span class='comment'>// Conservatively mark us as having dirty descendants, since there might</span>
         <span class='comment'>// be other unstyled siblings we miss when walking straight up the parent</span>
@@ -1106,7 +1096,18 @@
 
     <span class='comment'>// Compute style for this element if necessary.</span>
     <span class='kw'>if</span> <span class='ident'>compute_self</span> {
-        <span class='ident'>inherited_style_changed</span> <span class='op'>=</span> <span class='ident'>compute_style</span>(<span class='ident'>traversal</span>, <span class='ident'>traversal_data</span>, <span class='ident'>context</span>, <span class='ident'>element</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>);
+        <span class='ident'>compute_style</span>(<span class='ident'>traversal</span>, <span class='ident'>traversal_data</span>, <span class='ident'>context</span>, <span class='ident'>element</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>);
+
+        <span class='comment'>// If we&#39;re restyling this element to display:none, throw away all style</span>
+        <span class='comment'>// data in the subtree, notify the caller to early-return.</span>
+        <span class='kw'>let</span> <span class='ident'>display_none</span> <span class='op'>=</span> <span class='ident'>data</span>.<span class='ident'>styles</span>().<span class='ident'>is_display_none</span>();
+        <span class='kw'>if</span> <span class='ident'>display_none</span> {
+            <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;New element style is display:none - clearing data from descendants.&quot;</span>);
+            <span class='ident'>clear_descendant_data</span>(<span class='ident'>element</span>, <span class='kw-2'>&amp;</span><span class='op'>|</span><span class='ident'>e</span><span class='op'>|</span> <span class='kw'>unsafe</span> { <span class='ident'>D</span>::<span class='ident'>clear_element_data</span>(<span class='kw-2'>&amp;</span><span class='ident'>e</span>) });
+        }
+
+        <span class='comment'>// FIXME(bholley): Compute this accurately from the call to CalcStyleDifference.</span>
+        <span class='ident'>inherited_style_changed</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
     }
 
     <span class='comment'>// Now that matching and cascading is done, clear the bits corresponding to</span>
@@ -1130,7 +1131,7 @@
 
     <span class='comment'>// Make sure the dirty descendants bit is not set for the root of a</span>
     <span class='comment'>// display:none subtree, even if the style didn&#39;t change (since, if</span>
-    <span class='comment'>// the style did change, we&#39;d have already cleared it in compute_style).</span>
+    <span class='comment'>// the style did change, we&#39;d have already cleared it above).</span>
     <span class='comment'>//</span>
     <span class='comment'>// This keeps the tree in a valid state without requiring the DOM to</span>
     <span class='comment'>// check display:none on the parent when inserting new children (which</span>
@@ -1142,101 +1143,86 @@
     }
 }
 
-<span class='comment'>// Computes style, returning true if the inherited styles changed for this</span>
-<span class='comment'>// element.</span>
 <span class='kw'>fn</span> <span class='ident'>compute_style</span><span class='op'>&lt;</span><span class='ident'>E</span>, <span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>_traversal</span>: <span class='kw-2'>&amp;</span><span class='ident'>D</span>,
                        <span class='ident'>traversal_data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>PerLevelTraversalData</span>,
                        <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>StyleContext</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>,
                        <span class='ident'>element</span>: <span class='ident'>E</span>,
-                       <span class='kw-2'>mut</span> <span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>AtomicRefMut</span><span class='op'>&lt;</span><span class='ident'>ElementData</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>
+                       <span class='kw-2'>mut</span> <span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>AtomicRefMut</span><span class='op'>&lt;</span><span class='ident'>ElementData</span><span class='op'>&gt;</span>)
     <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
           <span class='ident'>D</span>: <span class='ident'>DomTraversal</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>,
 {
+    <span class='kw'>use</span> <span class='ident'>data</span>::<span class='ident'>RestyleKind</span>::<span class='kw-2'>*</span>;
+    <span class='kw'>use</span> <span class='ident'>matching</span>::<span class='ident'>StyleSharingResult</span>::<span class='kw-2'>*</span>;
+
     <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>statistics</span>.<span class='ident'>elements_styled</span> <span class='op'>+=</span> <span class='number'>1</span>;
     <span class='kw'>let</span> <span class='ident'>shared_context</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>shared</span>;
+    <span class='kw'>let</span> <span class='ident'>kind</span> <span class='op'>=</span> <span class='ident'>data</span>.<span class='ident'>restyle_kind</span>();
 
-    <span class='comment'>// TODO(emilio): Make cascade_input less expensive to compute in the cases</span>
-    <span class='comment'>// we don&#39;t need to run selector matching.</span>
-    <span class='kw'>let</span> <span class='ident'>cascade_input</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>data</span>.<span class='ident'>restyle_kind</span>() {
-        <span class='ident'>RestyleKind</span>::<span class='ident'>MatchAndCascade</span> <span class='op'>=&gt;</span> {
-            <span class='comment'>// Check to see whether we can share a style with someone.</span>
-            <span class='kw'>let</span> <span class='ident'>sharing_result</span> <span class='op'>=</span> <span class='kw'>unsafe</span> {
-                <span class='ident'>element</span>.<span class='ident'>share_style_if_possible</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>style_sharing_candidate_cache</span>,
-                                                <span class='ident'>shared_context</span>,
-                                                <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>)
-            };
+    <span class='comment'>// First, try the style sharing cache. If we get a match we can skip the rest</span>
+    <span class='comment'>// of the work.</span>
+    <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>MatchAndCascade</span> <span class='op'>=</span> <span class='ident'>kind</span> {
+        <span class='kw'>let</span> <span class='ident'>sharing_result</span> <span class='op'>=</span> <span class='kw'>unsafe</span> {
+            <span class='kw'>let</span> <span class='ident'>cache</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>style_sharing_candidate_cache</span>;
+            <span class='ident'>element</span>.<span class='ident'>share_style_if_possible</span>(<span class='ident'>cache</span>, <span class='ident'>shared_context</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>)
+        };
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>StyleWasShared</span>(<span class='ident'>index</span>) <span class='op'>=</span> <span class='ident'>sharing_result</span> {
+            <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>statistics</span>.<span class='ident'>styles_shared</span> <span class='op'>+=</span> <span class='number'>1</span>;
+            <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>style_sharing_candidate_cache</span>.<span class='ident'>touch</span>(<span class='ident'>index</span>);
+            <span class='kw'>return</span>;
+        }
+    }
 
-            <span class='kw'>match</span> <span class='ident'>sharing_result</span> {
-                <span class='ident'>StyleSharingResult</span>::<span class='ident'>StyleWasShared</span>(<span class='ident'>index</span>) <span class='op'>=&gt;</span> {
-                    <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>statistics</span>.<span class='ident'>styles_shared</span> <span class='op'>+=</span> <span class='number'>1</span>;
-                    <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>style_sharing_candidate_cache</span>.<span class='ident'>touch</span>(<span class='ident'>index</span>);
-                    <span class='prelude-val'>None</span>
-                }
-                <span class='ident'>StyleSharingResult</span>::<span class='ident'>CannotShare</span> <span class='op'>=&gt;</span> {
-                    <span class='comment'>// Ensure the bloom filter is up to date.</span>
-                    <span class='kw'>let</span> <span class='ident'>dom_depth</span> <span class='op'>=</span>
-                        <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>bloom_filter</span>
-                               .<span class='ident'>insert_parents_recovering</span>(<span class='ident'>element</span>,
-                                                          <span class='ident'>traversal_data</span>.<span class='ident'>current_dom_depth</span>);
+    <span class='kw'>let</span> <span class='ident'>match_results</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>kind</span> {
+        <span class='ident'>MatchAndCascade</span> <span class='op'>=&gt;</span> {
+            <span class='comment'>// Ensure the bloom filter is up to date.</span>
+            <span class='kw'>let</span> <span class='ident'>dom_depth</span> <span class='op'>=</span>
+                <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>bloom_filter</span>
+                       .<span class='ident'>insert_parents_recovering</span>(<span class='ident'>element</span>,
+                                                  <span class='ident'>traversal_data</span>.<span class='ident'>current_dom_depth</span>);
 
-                    <span class='comment'>// Update the dom depth with the up-to-date dom depth.</span>
-                    <span class='comment'>//</span>
-                    <span class='comment'>// Note that this is always the same than the pre-existing depth,</span>
-                    <span class='comment'>// but it can change from unknown to known at this step.</span>
-                    <span class='ident'>traversal_data</span>.<span class='ident'>current_dom_depth</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>dom_depth</span>);
+            <span class='comment'>// Update the dom depth with the up-to-date dom depth.</span>
+            <span class='comment'>//</span>
+            <span class='comment'>// Note that this is always the same than the pre-existing depth,</span>
+            <span class='comment'>// but it can change from unknown to known at this step.</span>
+            <span class='ident'>traversal_data</span>.<span class='ident'>current_dom_depth</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>dom_depth</span>);
 
-                    <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>bloom_filter</span>.<span class='ident'>assert_complete</span>(<span class='ident'>element</span>);
+            <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>bloom_filter</span>.<span class='ident'>assert_complete</span>(<span class='ident'>element</span>);
 
-                    <span class='comment'>// Perform the CSS selector matching.</span>
-                    <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>statistics</span>.<span class='ident'>elements_matched</span> <span class='op'>+=</span> <span class='number'>1</span>;
 
-                    <span class='prelude-val'>Some</span>(<span class='ident'>element</span>.<span class='ident'>match_element</span>(<span class='ident'>context</span>))
-                }
+            <span class='comment'>// Perform CSS selector matching.</span>
+            <span class='ident'>context</span>.<span class='ident'>thread_local</span>.<span class='ident'>statistics</span>.<span class='ident'>elements_matched</span> <span class='op'>+=</span> <span class='number'>1</span>;
+            <span class='ident'>element</span>.<span class='ident'>match_element</span>(<span class='ident'>context</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>)
+        }
+        <span class='ident'>CascadeWithReplacements</span>(<span class='ident'>hint</span>) <span class='op'>=&gt;</span> {
+            <span class='kw'>let</span> <span class='ident'>rule_nodes_changed</span> <span class='op'>=</span>
+                <span class='ident'>element</span>.<span class='ident'>cascade_with_replacements</span>(<span class='ident'>hint</span>, <span class='ident'>context</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>);
+            <span class='ident'>MatchResults</span> {
+                <span class='ident'>primary_relations</span>: <span class='prelude-val'>None</span>,
+                <span class='ident'>rule_nodes_changed</span>: <span class='ident'>rule_nodes_changed</span>,
             }
         }
-        <span class='ident'>RestyleKind</span>::<span class='ident'>CascadeWithReplacements</span>(<span class='ident'>hint</span>) <span class='op'>=&gt;</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>element</span>.<span class='ident'>cascade_with_replacements</span>(<span class='ident'>hint</span>, <span class='ident'>context</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>))
-        }
-        <span class='ident'>RestyleKind</span>::<span class='ident'>CascadeOnly</span> <span class='op'>=&gt;</span> {
-            <span class='comment'>// TODO(emilio): Stop doing this work, and teach cascade_node about</span>
-            <span class='comment'>// the current style instead.</span>
-            <span class='prelude-val'>Some</span>(<span class='ident'>element</span>.<span class='ident'>match_results_from_current_style</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>data</span>))
+        <span class='ident'>CascadeOnly</span> <span class='op'>=&gt;</span> {
+            <span class='ident'>MatchResults</span> {
+                <span class='ident'>primary_relations</span>: <span class='prelude-val'>None</span>,
+                <span class='ident'>rule_nodes_changed</span>: <span class='bool-val'>false</span>,
+            }
         }
     };
 
-    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>match_results</span>) <span class='op'>=</span> <span class='ident'>cascade_input</span> {
-        <span class='comment'>// Perform the CSS cascade.</span>
-        <span class='kw'>let</span> <span class='ident'>shareable</span> <span class='op'>=</span> <span class='ident'>match_results</span>.<span class='ident'>primary_is_shareable</span>();
-        <span class='kw'>unsafe</span> {
-            <span class='ident'>element</span>.<span class='ident'>cascade_node</span>(<span class='ident'>context</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>,
-                                 <span class='ident'>element</span>.<span class='ident'>parent_element</span>(),
-                                 <span class='ident'>match_results</span>.<span class='ident'>primary</span>,
-                                 <span class='ident'>match_results</span>.<span class='ident'>per_pseudo</span>,
-                                 <span class='ident'>shareable</span>);
-        }
-
-        <span class='kw'>if</span> <span class='ident'>shareable</span> {
-            <span class='comment'>// Add ourselves to the LRU cache.</span>
-            <span class='ident'>context</span>.<span class='ident'>thread_local</span>
-                   .<span class='ident'>style_sharing_candidate_cache</span>
-                   .<span class='ident'>insert_if_possible</span>(<span class='kw-2'>&amp;</span><span class='ident'>element</span>,
-                                       <span class='kw-2'>&amp;</span><span class='ident'>data</span>.<span class='ident'>styles</span>().<span class='ident'>primary</span>.<span class='ident'>values</span>,
-                                       <span class='ident'>match_results</span>.<span class='ident'>relations</span>);
-        }
+    <span class='comment'>// Cascade properties and compute values.</span>
+    <span class='kw'>let</span> <span class='ident'>shareable</span> <span class='op'>=</span> <span class='ident'>match_results</span>.<span class='ident'>primary_is_shareable</span>();
+    <span class='kw'>unsafe</span> {
+        <span class='ident'>element</span>.<span class='ident'>cascade_element</span>(<span class='ident'>context</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>, <span class='ident'>shareable</span>);
     }
 
-    <span class='comment'>// If we&#39;re restyling this element to display:none, throw away all style data</span>
-    <span class='comment'>// in the subtree, notify the caller to early-return.</span>
-    <span class='kw'>let</span> <span class='ident'>display_none</span> <span class='op'>=</span> <span class='ident'>data</span>.<span class='ident'>styles</span>().<span class='ident'>is_display_none</span>();
-    <span class='kw'>if</span> <span class='ident'>display_none</span> {
-        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;New element style is display:none - clearing data from descendants.&quot;</span>);
-        <span class='ident'>clear_descendant_data</span>(<span class='ident'>element</span>, <span class='kw-2'>&amp;</span><span class='op'>|</span><span class='ident'>e</span><span class='op'>|</span> <span class='kw'>unsafe</span> { <span class='ident'>D</span>::<span class='ident'>clear_element_data</span>(<span class='kw-2'>&amp;</span><span class='ident'>e</span>) });
+    <span class='comment'>// If the style is shareable, add it to the LRU cache.</span>
+    <span class='kw'>if</span> <span class='ident'>shareable</span> {
+        <span class='ident'>context</span>.<span class='ident'>thread_local</span>
+               .<span class='ident'>style_sharing_candidate_cache</span>
+               .<span class='ident'>insert_if_possible</span>(<span class='kw-2'>&amp;</span><span class='ident'>element</span>,
+                                   <span class='ident'>data</span>.<span class='ident'>styles</span>().<span class='ident'>primary</span>.<span class='ident'>values</span>(),
+                                   <span class='ident'>match_results</span>.<span class='ident'>primary_relations</span>.<span class='ident'>unwrap</span>());
     }
-
-    <span class='comment'>// FIXME(bholley): Compute this accurately from the call to CalcStyleDifference.</span>
-    <span class='kw'>let</span> <span class='ident'>inherited_styles_changed</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
-
-    <span class='ident'>inherited_styles_changed</span>
 }
 
 <span class='kw'>fn</span> <span class='ident'>preprocess_children</span><span class='op'>&lt;</span><span class='ident'>E</span>, <span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>traversal</span>: <span class='kw-2'>&amp;</span><span class='ident'>D</span>,
