@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["ClipRect",""],["T",""]]});
+initSidebarItems({});
