@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["DIALOG_TITLE",""],["NONSECURE_DIALOG_MESSAGE",""],["REQUEST_DIALOG_MESSAGE",""],["ROOT_DESC_CONVERSION_ERROR",""]],"enum":[["Operation",""]],"fn":[["allowed_in_nonsecure_contexts",""],["get_descriptor_permission_state",""],["prompt_user",""]],"struct":[["Permissions",""]],"trait":[["PermissionAlgorithm",""]]});
