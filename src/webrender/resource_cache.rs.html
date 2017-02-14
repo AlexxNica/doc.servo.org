@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/512b4a1/webrender/src/resource_cache.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/3c05fd2/webrender/src/resource_cache.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>resource_cache.rs.html -- source</title>
@@ -793,6 +793,28 @@
 <span id="748">748</span>
 <span id="749">749</span>
 <span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -811,10 +833,11 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>hash</span>::<span class='ident'>BuildHasherDefault</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>hash</span>::<span class='ident'>Hash</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::{<span class='ident'>Arc</span>, <span class='ident'>Barrier</span>};
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::{<span class='ident'>Arc</span>, <span class='ident'>Barrier</span>, <span class='ident'>Mutex</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::{<span class='ident'>channel</span>, <span class='ident'>Receiver</span>, <span class='ident'>Sender</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>thread</span>;
 <span class='kw'>use</span> <span class='ident'>texture_cache</span>::{<span class='ident'>TextureCache</span>, <span class='ident'>TextureCacheItemId</span>};
+<span class='kw'>use</span> <span class='ident'>thread_profiler</span>::<span class='ident'>register_thread_with_profiler</span>;
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>Epoch</span>, <span class='ident'>FontKey</span>, <span class='ident'>GlyphKey</span>, <span class='ident'>ImageKey</span>, <span class='ident'>ImageFormat</span>, <span class='ident'>ImageRendering</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>FontRenderMode</span>, <span class='ident'>ImageData</span>, <span class='ident'>GlyphDimensions</span>, <span class='ident'>WebGLContextId</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>DevicePoint</span>, <span class='ident'>DeviceIntSize</span>, <span class='ident'>ImageDescriptor</span>, <span class='ident'>ColorF</span>};
@@ -1008,8 +1031,9 @@
 
 <span class='kw'>impl</span> <span class='ident'>ResourceCache</span> {
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>texture_cache</span>: <span class='ident'>TextureCache</span>,
+               <span class='ident'>workers</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>ThreadPool</span><span class='op'>&gt;&gt;</span>,
                <span class='ident'>enable_aa</span>: <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='ident'>ResourceCache</span> {
-        <span class='kw'>let</span> (<span class='ident'>glyph_cache_tx</span>, <span class='ident'>glyph_cache_result_queue</span>) <span class='op'>=</span> <span class='ident'>spawn_glyph_cache_thread</span>();
+        <span class='kw'>let</span> (<span class='ident'>glyph_cache_tx</span>, <span class='ident'>glyph_cache_result_queue</span>) <span class='op'>=</span> <span class='ident'>spawn_glyph_cache_thread</span>(<span class='ident'>workers</span>);
 
         <span class='ident'>ResourceCache</span> {
             <span class='ident'>cached_glyphs</span>: <span class='prelude-val'>Some</span>(<span class='ident'>ResourceClassCache</span>::<span class='ident'>new</span>()),
@@ -1175,9 +1199,7 @@
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>texture_id</span> <span class='op'>=</span> <span class='prelude-val'>None</span>;
         <span class='kw'>for</span> (<span class='ident'>loop_index</span>, <span class='ident'>glyph_instance</span>) <span class='kw'>in</span> <span class='ident'>glyph_instances</span>.<span class='ident'>iter</span>().<span class='ident'>enumerate</span>() {
             <span class='ident'>glyph_key</span>.<span class='ident'>key</span>.<span class='ident'>index</span> <span class='op'>=</span> <span class='ident'>glyph_instance</span>.<span class='ident'>index</span>;
-            <span class='ident'>glyph_key</span>.<span class='ident'>key</span>.<span class='ident'>set_subpixel_offset</span>(<span class='ident'>glyph_instance</span>.<span class='ident'>point</span>.<span class='ident'>x</span>,
-                                              <span class='ident'>glyph_instance</span>.<span class='ident'>point</span>.<span class='ident'>y</span>,
-                                              <span class='ident'>render_mode</span>);
+            <span class='ident'>glyph_key</span>.<span class='ident'>key</span>.<span class='ident'>subpixel_point</span>.<span class='ident'>set_offset</span>(<span class='ident'>glyph_instance</span>.<span class='ident'>point</span>, <span class='ident'>render_mode</span>);
 
             <span class='kw'>let</span> <span class='ident'>image_id</span> <span class='op'>=</span> <span class='ident'>cache</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>glyph_key</span>, <span class='self'>self</span>.<span class='ident'>current_frame_id</span>);
             <span class='kw'>let</span> <span class='ident'>cache_item</span> <span class='op'>=</span> <span class='ident'>image_id</span>.<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>image_id</span><span class='op'>|</span> <span class='self'>self</span>.<span class='ident'>texture_cache</span>.<span class='ident'>get</span>(<span class='ident'>image_id</span>));
@@ -1284,6 +1306,8 @@
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>block_until_all_resources_added</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
+        <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;block_until_all_resources_added&quot;</span>);
+
         <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>state</span> <span class='op'>==</span> <span class='ident'>State</span>::<span class='ident'>AddResources</span>);
         <span class='self'>self</span>.<span class='ident'>state</span> <span class='op'>=</span> <span class='ident'>State</span>::<span class='ident'>QueryResources</span>;
 
@@ -1419,7 +1443,10 @@
     }
 }
 
-<span class='kw'>fn</span> <span class='ident'>spawn_glyph_cache_thread</span>() <span class='op'>-&gt;</span> (<span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>GlyphCacheMsg</span><span class='op'>&gt;</span>, <span class='ident'>Receiver</span><span class='op'>&lt;</span><span class='ident'>GlyphCacheResultMsg</span><span class='op'>&gt;</span>) {
+<span class='kw'>fn</span> <span class='ident'>spawn_glyph_cache_thread</span>(<span class='ident'>workers</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>ThreadPool</span><span class='op'>&gt;&gt;</span>) <span class='op'>-&gt;</span> (<span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>GlyphCacheMsg</span><span class='op'>&gt;</span>, <span class='ident'>Receiver</span><span class='op'>&lt;</span><span class='ident'>GlyphCacheResultMsg</span><span class='op'>&gt;</span>) {
+    <span class='kw'>let</span> <span class='ident'>worker_count</span> <span class='op'>=</span> {
+        <span class='ident'>workers</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>().<span class='ident'>max_count</span>()
+    };
     <span class='comment'>// Used for messages from resource cache -&gt; glyph cache thread.</span>
     <span class='kw'>let</span> (<span class='ident'>msg_tx</span>, <span class='ident'>msg_rx</span>) <span class='op'>=</span> <span class='ident'>channel</span>();
     <span class='comment'>// Used for returning results from glyph cache thread -&gt; resource cache.</span>
@@ -1428,12 +1455,19 @@
     <span class='kw'>let</span> (<span class='ident'>glyph_tx</span>, <span class='ident'>glyph_rx</span>) <span class='op'>=</span> <span class='ident'>channel</span>();
 
     <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;GlyphCache&quot;</span>.<span class='ident'>to_string</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span><span class='op'>||</span> {
-        <span class='comment'>// TODO(gw): Use a heuristic to select best # of worker threads.</span>
-        <span class='kw'>let</span> <span class='ident'>worker_count</span> <span class='op'>=</span> <span class='number'>4</span>;
-        <span class='kw'>let</span> <span class='ident'>thread_pool</span> <span class='op'>=</span> <span class='ident'>ThreadPool</span>::<span class='ident'>new</span>(<span class='ident'>worker_count</span>);
-
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>glyph_cache</span> <span class='op'>=</span> <span class='prelude-val'>None</span>;
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>current_frame_id</span> <span class='op'>=</span> <span class='ident'>FrameId</span>(<span class='number'>0</span>);
+
+        <span class='ident'>register_thread_with_profiler</span>(<span class='string'>&quot;GlyphCache&quot;</span>.<span class='ident'>to_string</span>());
+
+        <span class='kw'>let</span> <span class='ident'>barrier</span> <span class='op'>=</span> <span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>Barrier</span>::<span class='ident'>new</span>(<span class='ident'>worker_count</span>));
+        <span class='kw'>for</span> <span class='ident'>i</span> <span class='kw'>in</span> <span class='number'>0</span>..<span class='ident'>worker_count</span> {
+            <span class='kw'>let</span> <span class='ident'>barrier</span> <span class='op'>=</span> <span class='ident'>barrier</span>.<span class='ident'>clone</span>();
+            <span class='ident'>workers</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>().<span class='ident'>execute</span>(<span class='kw'>move</span> <span class='op'>||</span> {
+                <span class='ident'>register_thread_with_profiler</span>(<span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;Glyph Worker {}&quot;</span>, <span class='ident'>i</span>));
+                <span class='ident'>barrier</span>.<span class='ident'>wait</span>();
+            });
+        }
 
         <span class='comment'>// Maintain a set of glyphs that have been requested this</span>
         <span class='comment'>// frame. This ensures the glyph thread won&#39;t rasterize</span>
@@ -1444,8 +1478,11 @@
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>pending_glyphs</span> <span class='op'>=</span> <span class='ident'>HashSet</span>::<span class='ident'>new</span>();
 
         <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>msg</span>) <span class='op'>=</span> <span class='ident'>msg_rx</span>.<span class='ident'>recv</span>() {
+            <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;handle_msg&quot;</span>);
             <span class='kw'>match</span> <span class='ident'>msg</span> {
                 <span class='ident'>GlyphCacheMsg</span>::<span class='ident'>BeginFrame</span>(<span class='ident'>frame_id</span>, <span class='ident'>cache</span>) <span class='op'>=&gt;</span> {
+                    <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;BeginFrame&quot;</span>);
+
                     <span class='comment'>// We are beginning a new frame. Take ownership of the glyph</span>
                     <span class='comment'>// cache hash map, so we can easily see which glyph requests</span>
                     <span class='comment'>// actually need to be rasterized.</span>
@@ -1453,6 +1490,8 @@
                     <span class='ident'>glyph_cache</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>cache</span>);
                 }
                 <span class='ident'>GlyphCacheMsg</span>::<span class='ident'>AddFont</span>(<span class='ident'>font_key</span>, <span class='ident'>font_template</span>) <span class='op'>=&gt;</span> {
+                    <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;AddFont&quot;</span>);
+
                     <span class='comment'>// Add a new font to the font context in each worker thread.</span>
                     <span class='comment'>// Use a barrier to ensure that each worker in the pool handles</span>
                     <span class='comment'>// one of these messages, to ensure that the new font gets</span>
@@ -1461,7 +1500,7 @@
                     <span class='kw'>for</span> _ <span class='kw'>in</span> <span class='number'>0</span>..<span class='ident'>worker_count</span> {
                         <span class='kw'>let</span> <span class='ident'>barrier</span> <span class='op'>=</span> <span class='ident'>barrier</span>.<span class='ident'>clone</span>();
                         <span class='kw'>let</span> <span class='ident'>font_template</span> <span class='op'>=</span> <span class='ident'>font_template</span>.<span class='ident'>clone</span>();
-                        <span class='ident'>thread_pool</span>.<span class='ident'>execute</span>(<span class='kw'>move</span> <span class='op'>||</span> {
+                        <span class='ident'>workers</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>().<span class='ident'>execute</span>(<span class='kw'>move</span> <span class='op'>||</span> {
                             <span class='ident'>FONT_CONTEXT</span>.<span class='ident'>with</span>(<span class='op'>|</span><span class='ident'>font_context</span><span class='op'>|</span> {
                                 <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>font_context</span> <span class='op'>=</span> <span class='ident'>font_context</span>.<span class='ident'>borrow_mut</span>();
                                 <span class='kw'>match</span> <span class='ident'>font_template</span> {
@@ -1480,6 +1519,8 @@
                     }
                 }
                 <span class='ident'>GlyphCacheMsg</span>::<span class='ident'>RequestGlyphs</span>(<span class='ident'>key</span>, <span class='ident'>size</span>, <span class='ident'>color</span>, <span class='ident'>glyph_instances</span>, <span class='ident'>render_mode</span>, <span class='ident'>glyph_options</span>) <span class='op'>=&gt;</span> {
+                    <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;RequestGlyphs&quot;</span>);
+
                     <span class='comment'>// Request some glyphs for a text run.</span>
                     <span class='comment'>// For any glyph that isn&#39;t currently in the cache,</span>
                     <span class='comment'>// immeediately push a job to the worker thread pool</span>
@@ -1500,7 +1541,8 @@
                            <span class='op'>!</span><span class='ident'>pending_glyphs</span>.<span class='ident'>contains</span>(<span class='kw-2'>&amp;</span><span class='ident'>glyph_key</span>) {
                             <span class='kw'>let</span> <span class='ident'>glyph_tx</span> <span class='op'>=</span> <span class='ident'>glyph_tx</span>.<span class='ident'>clone</span>();
                             <span class='ident'>pending_glyphs</span>.<span class='ident'>insert</span>(<span class='ident'>glyph_key</span>.<span class='ident'>clone</span>());
-                            <span class='ident'>thread_pool</span>.<span class='ident'>execute</span>(<span class='kw'>move</span> <span class='op'>||</span> {
+                            <span class='ident'>workers</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>().<span class='ident'>execute</span>(<span class='kw'>move</span> <span class='op'>||</span> {
+                                <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;glyph&quot;</span>);
                                 <span class='ident'>FONT_CONTEXT</span>.<span class='ident'>with</span>(<span class='kw'>move</span> <span class='op'>|</span><span class='ident'>font_context</span><span class='op'>|</span> {
                                     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>font_context</span> <span class='op'>=</span> <span class='ident'>font_context</span>.<span class='ident'>borrow_mut</span>();
                                     <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>font_context</span>.<span class='ident'>rasterize_glyph</span>(<span class='kw-2'>&amp;</span><span class='ident'>glyph_key</span>.<span class='ident'>key</span>,
@@ -1513,6 +1555,8 @@
                     }
                 }
                 <span class='ident'>GlyphCacheMsg</span>::<span class='ident'>EndFrame</span> <span class='op'>=&gt;</span> {
+                    <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;EndFrame&quot;</span>);
+
                     <span class='comment'>// The resource cache has finished requesting glyphs. Block</span>
                     <span class='comment'>// on completion of any pending glyph rasterizing jobs, and then</span>
                     <span class='comment'>// return the list of new glyphs to the resource cache.</span>

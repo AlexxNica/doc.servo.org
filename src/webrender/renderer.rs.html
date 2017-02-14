@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/512b4a1/webrender/src/renderer.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/3c05fd2/webrender/src/renderer.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>renderer.rs.html -- source</title>
@@ -1786,6 +1786,59 @@
 <span id="1741">1741</span>
 <span id="1742">1742</span>
 <span id="1743">1743</span>
+<span id="1744">1744</span>
+<span id="1745">1745</span>
+<span id="1746">1746</span>
+<span id="1747">1747</span>
+<span id="1748">1748</span>
+<span id="1749">1749</span>
+<span id="1750">1750</span>
+<span id="1751">1751</span>
+<span id="1752">1752</span>
+<span id="1753">1753</span>
+<span id="1754">1754</span>
+<span id="1755">1755</span>
+<span id="1756">1756</span>
+<span id="1757">1757</span>
+<span id="1758">1758</span>
+<span id="1759">1759</span>
+<span id="1760">1760</span>
+<span id="1761">1761</span>
+<span id="1762">1762</span>
+<span id="1763">1763</span>
+<span id="1764">1764</span>
+<span id="1765">1765</span>
+<span id="1766">1766</span>
+<span id="1767">1767</span>
+<span id="1768">1768</span>
+<span id="1769">1769</span>
+<span id="1770">1770</span>
+<span id="1771">1771</span>
+<span id="1772">1772</span>
+<span id="1773">1773</span>
+<span id="1774">1774</span>
+<span id="1775">1775</span>
+<span id="1776">1776</span>
+<span id="1777">1777</span>
+<span id="1778">1778</span>
+<span id="1779">1779</span>
+<span id="1780">1780</span>
+<span id="1781">1781</span>
+<span id="1782">1782</span>
+<span id="1783">1783</span>
+<span id="1784">1784</span>
+<span id="1785">1785</span>
+<span id="1786">1786</span>
+<span id="1787">1787</span>
+<span id="1788">1788</span>
+<span id="1789">1789</span>
+<span id="1790">1790</span>
+<span id="1791">1791</span>
+<span id="1792">1792</span>
+<span id="1793">1793</span>
+<span id="1794">1794</span>
+<span id="1795">1795</span>
+<span id="1796">1796</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1815,6 +1868,7 @@
 <span class='kw'>use</span> <span class='ident'>profiler</span>::{<span class='ident'>GpuProfileTag</span>, <span class='ident'>RendererProfileTimers</span>, <span class='ident'>RendererProfileCounters</span>};
 <span class='kw'>use</span> <span class='ident'>record</span>::<span class='ident'>ApiRecordingReceiver</span>;
 <span class='kw'>use</span> <span class='ident'>render_backend</span>::<span class='ident'>RenderBackend</span>;
+<span class='kw'>use</span> <span class='ident'>render_task</span>::<span class='ident'>RenderTaskData</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cmp</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>HashMap</span>;
@@ -1827,9 +1881,11 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::{<span class='ident'>channel</span>, <span class='ident'>Receiver</span>, <span class='ident'>Sender</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>thread</span>;
 <span class='kw'>use</span> <span class='ident'>texture_cache</span>::<span class='ident'>TextureCache</span>;
+<span class='kw'>use</span> <span class='ident'>threadpool</span>::<span class='ident'>ThreadPool</span>;
 <span class='kw'>use</span> <span class='ident'>tiling</span>::{<span class='ident'>AlphaBatchKind</span>, <span class='ident'>BlurCommand</span>, <span class='ident'>Frame</span>, <span class='ident'>PrimitiveBatch</span>, <span class='ident'>PrimitiveBatchData</span>};
-<span class='kw'>use</span> <span class='ident'>tiling</span>::{<span class='ident'>CacheClipInstance</span>, <span class='ident'>PrimitiveInstance</span>, <span class='ident'>RenderTarget</span>, <span class='ident'>RenderTaskData</span>};
+<span class='kw'>use</span> <span class='ident'>tiling</span>::{<span class='ident'>CacheClipInstance</span>, <span class='ident'>PrimitiveInstance</span>, <span class='ident'>RenderTarget</span>};
 <span class='kw'>use</span> <span class='ident'>time</span>::<span class='ident'>precise_time_ns</span>;
+<span class='kw'>use</span> <span class='ident'>thread_profiler</span>::{<span class='ident'>register_thread_with_profiler</span>, <span class='ident'>write_profile</span>};
 <span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>TransformedRectKind</span>;
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ColorF</span>, <span class='ident'>Epoch</span>, <span class='ident'>PipelineId</span>, <span class='ident'>RenderNotifier</span>, <span class='ident'>RenderDispatcher</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ExternalImageId</span>, <span class='ident'>ImageData</span>, <span class='ident'>ImageFormat</span>, <span class='ident'>RenderApiSender</span>, <span class='ident'>RendererKind</span>};
@@ -1850,6 +1906,7 @@
 <span class='kw'>const</span> <span class='ident'>GPU_TAG_PRIM_IMAGE</span>: <span class='ident'>GpuProfileTag</span> <span class='op'>=</span> <span class='ident'>GpuProfileTag</span> { <span class='ident'>label</span>: <span class='string'>&quot;Image&quot;</span>, <span class='ident'>color</span>: <span class='ident'>debug_colors</span>::<span class='ident'>GREEN</span> };
 <span class='kw'>const</span> <span class='ident'>GPU_TAG_PRIM_YUV_IMAGE</span>: <span class='ident'>GpuProfileTag</span> <span class='op'>=</span> <span class='ident'>GpuProfileTag</span> { <span class='ident'>label</span>: <span class='string'>&quot;YuvImage&quot;</span>, <span class='ident'>color</span>: <span class='ident'>debug_colors</span>::<span class='ident'>DARKGREEN</span> };
 <span class='kw'>const</span> <span class='ident'>GPU_TAG_PRIM_BLEND</span>: <span class='ident'>GpuProfileTag</span> <span class='op'>=</span> <span class='ident'>GpuProfileTag</span> { <span class='ident'>label</span>: <span class='string'>&quot;Blend&quot;</span>, <span class='ident'>color</span>: <span class='ident'>debug_colors</span>::<span class='ident'>LIGHTBLUE</span> };
+<span class='kw'>const</span> <span class='ident'>GPU_TAG_PRIM_HW_COMPOSITE</span>: <span class='ident'>GpuProfileTag</span> <span class='op'>=</span> <span class='ident'>GpuProfileTag</span> { <span class='ident'>label</span>: <span class='string'>&quot;HwComposite&quot;</span>, <span class='ident'>color</span>: <span class='ident'>debug_colors</span>::<span class='ident'>DODGERBLUE</span> };
 <span class='kw'>const</span> <span class='ident'>GPU_TAG_PRIM_COMPOSITE</span>: <span class='ident'>GpuProfileTag</span> <span class='op'>=</span> <span class='ident'>GpuProfileTag</span> { <span class='ident'>label</span>: <span class='string'>&quot;Composite&quot;</span>, <span class='ident'>color</span>: <span class='ident'>debug_colors</span>::<span class='ident'>MAGENTA</span> };
 <span class='kw'>const</span> <span class='ident'>GPU_TAG_PRIM_TEXT_RUN</span>: <span class='ident'>GpuProfileTag</span> <span class='op'>=</span> <span class='ident'>GpuProfileTag</span> { <span class='ident'>label</span>: <span class='string'>&quot;TextRun&quot;</span>, <span class='ident'>color</span>: <span class='ident'>debug_colors</span>::<span class='ident'>BLUE</span> };
 <span class='kw'>const</span> <span class='ident'>GPU_TAG_PRIM_GRADIENT</span>: <span class='ident'>GpuProfileTag</span> <span class='op'>=</span> <span class='ident'>GpuProfileTag</span> { <span class='ident'>label</span>: <span class='string'>&quot;Gradient&quot;</span>, <span class='ident'>color</span>: <span class='ident'>debug_colors</span>::<span class='ident'>YELLOW</span> };
@@ -1864,6 +1921,11 @@
 <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>BlendMode</span> {
     <span class='prelude-val'>None</span>,
     <span class='ident'>Alpha</span>,
+
+    <span class='ident'>Multiply</span>,
+    <span class='ident'>Max</span>,
+    <span class='ident'>Min</span>,
+
     <span class='comment'>// Use the color of the text itself as a constant color blend factor.</span>
     <span class='ident'>Subpixel</span>(<span class='ident'>ColorF</span>),
 }
@@ -2203,6 +2265,7 @@
     <span class='ident'>ps_cache_image</span>: <span class='ident'>PrimitiveShader</span>,
 
     <span class='ident'>ps_blend</span>: <span class='ident'>LazilyCompiledShader</span>,
+    <span class='ident'>ps_hw_composite</span>: <span class='ident'>LazilyCompiledShader</span>,
     <span class='ident'>ps_composite</span>: <span class='ident'>LazilyCompiledShader</span>,
 
     <span class='ident'>notifier</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>RenderNotifier</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;&gt;</span>,
@@ -2287,10 +2350,12 @@
     <span class='doccomment'>/// };</span>
     <span class='doccomment'>/// let (renderer, sender) = Renderer::new(opts);</span>
     <span class='doccomment'>/// ```</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>options</span>: <span class='ident'>RendererOptions</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(<span class='ident'>Renderer</span>, <span class='ident'>RenderApiSender</span>), <span class='ident'>InitError</span><span class='op'>&gt;</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='kw-2'>mut</span> <span class='ident'>options</span>: <span class='ident'>RendererOptions</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(<span class='ident'>Renderer</span>, <span class='ident'>RenderApiSender</span>), <span class='ident'>InitError</span><span class='op'>&gt;</span> {
         <span class='kw'>let</span> (<span class='ident'>api_tx</span>, <span class='ident'>api_rx</span>) <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>{ <span class='ident'>channel</span>::<span class='ident'>msg_channel</span>() };
         <span class='kw'>let</span> (<span class='ident'>payload_tx</span>, <span class='ident'>payload_rx</span>) <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>{ <span class='ident'>channel</span>::<span class='ident'>payload_channel</span>() };
         <span class='kw'>let</span> (<span class='ident'>result_tx</span>, <span class='ident'>result_rx</span>) <span class='op'>=</span> <span class='ident'>channel</span>();
+
+        <span class='ident'>register_thread_with_profiler</span>(<span class='string'>&quot;Compositor&quot;</span>.<span class='ident'>to_owned</span>());
 
         <span class='kw'>let</span> <span class='ident'>notifier</span> <span class='op'>=</span> <span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>Mutex</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>));
 
@@ -2444,6 +2509,14 @@
                                       <span class='ident'>options</span>.<span class='ident'>precache_shaders</span>)
         };
 
+        <span class='kw'>let</span> <span class='ident'>ps_hw_composite</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>{
+            <span class='ident'>LazilyCompiledShader</span>::<span class='ident'>new</span>(<span class='ident'>ShaderKind</span>::<span class='ident'>Primitive</span>,
+                                     <span class='string'>&quot;ps_hardware_composite&quot;</span>,
+                                     <span class='kw-2'>&amp;</span>[],
+                                     <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>device</span>,
+                                     <span class='ident'>options</span>.<span class='ident'>precache_shaders</span>)
+        };
+
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>texture_cache</span> <span class='op'>=</span> <span class='ident'>TextureCache</span>::<span class='ident'>new</span>();
 
         <span class='kw'>let</span> <span class='ident'>white_pixels</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[
@@ -2545,6 +2618,10 @@
         <span class='kw'>let</span> <span class='ident'>render_target_debug</span> <span class='op'>=</span> <span class='ident'>options</span>.<span class='ident'>render_target_debug</span>;
         <span class='kw'>let</span> <span class='ident'>payload_tx_for_backend</span> <span class='op'>=</span> <span class='ident'>payload_tx</span>.<span class='ident'>clone</span>();
         <span class='kw'>let</span> <span class='ident'>recorder</span> <span class='op'>=</span> <span class='ident'>options</span>.<span class='ident'>recorder</span>;
+        <span class='kw'>let</span> <span class='ident'>workers</span> <span class='op'>=</span> <span class='ident'>options</span>.<span class='ident'>workers</span>.<span class='ident'>take</span>().<span class='ident'>unwrap_or_else</span>(<span class='op'>||</span>{
+            <span class='comment'>// TODO(gw): Use a heuristic to select best # of worker threads.</span>
+            <span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>Mutex</span>::<span class='ident'>new</span>(<span class='ident'>ThreadPool</span>::<span class='ident'>new_with_name</span>(<span class='string'>&quot;WebRender:Worker&quot;</span>.<span class='ident'>to_string</span>(), <span class='number'>4</span>)))
+        });
         <span class='macro'>try</span><span class='macro'>!</span>{ <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;RenderBackend&quot;</span>.<span class='ident'>to_string</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
             <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>backend</span> <span class='op'>=</span> <span class='ident'>RenderBackend</span>::<span class='ident'>new</span>(<span class='ident'>api_rx</span>,
                                                  <span class='ident'>payload_rx</span>,
@@ -2553,6 +2630,7 @@
                                                  <span class='ident'>device_pixel_ratio</span>,
                                                  <span class='ident'>texture_cache</span>,
                                                  <span class='ident'>enable_aa</span>,
+                                                 <span class='ident'>workers</span>,
                                                  <span class='ident'>backend_notifier</span>,
                                                  <span class='ident'>context_handle</span>,
                                                  <span class='ident'>config</span>,
@@ -2586,6 +2664,7 @@
             <span class='ident'>ps_radial_gradient</span>: <span class='ident'>ps_radial_gradient</span>,
             <span class='ident'>ps_cache_image</span>: <span class='ident'>ps_cache_image</span>,
             <span class='ident'>ps_blend</span>: <span class='ident'>ps_blend</span>,
+            <span class='ident'>ps_hw_composite</span>: <span class='ident'>ps_hw_composite</span>,
             <span class='ident'>ps_composite</span>: <span class='ident'>ps_composite</span>,
             <span class='ident'>notifier</span>: <span class='ident'>notifier</span>,
             <span class='ident'>debug</span>: <span class='ident'>debug_renderer</span>,
@@ -2657,6 +2736,8 @@
     <span class='doccomment'>///</span>
     <span class='doccomment'>/// Should be called before `render()`, as texture cache updates are done here.</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>update</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
+        <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;update&quot;</span>);
+
         <span class='comment'>// Pull any pending results and return the most recent.</span>
         <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>msg</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>result_rx</span>.<span class='ident'>try_recv</span>() {
             <span class='kw'>match</span> <span class='ident'>msg</span> {
@@ -2714,6 +2795,8 @@
     <span class='doccomment'>/// A Frame is supplied by calling [set_root_stacking_context()][newframe].</span>
     <span class='doccomment'>/// [newframe]: ../../webrender_traits/struct.RenderApi.html#method.set_root_stacking_context</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>render</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>framebuffer_size</span>: <span class='ident'>DeviceUintSize</span>) {
+        <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;render&quot;</span>);
+
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>mut</span> <span class='ident'>frame</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>current_frame</span>.<span class='ident'>take</span>() {
             <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>frame</span>) <span class='op'>=</span> <span class='ident'>frame</span>.<span class='ident'>frame</span> {
                 <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>profile_timers</span> <span class='op'>=</span> <span class='ident'>RendererProfileTimers</span>::<span class='ident'>new</span>();
@@ -2933,6 +3016,10 @@
             <span class='ident'>PrimitiveBatchData</span>::<span class='ident'>Instances</span>(<span class='kw-2'>ref</span> <span class='ident'>data</span>) <span class='op'>=&gt;</span> {
                 <span class='kw'>let</span> (<span class='ident'>marker</span>, <span class='ident'>shader</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>batch</span>.<span class='ident'>key</span>.<span class='ident'>kind</span> {
                     <span class='ident'>AlphaBatchKind</span>::<span class='ident'>Composite</span> <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(),
+                    <span class='ident'>AlphaBatchKind</span>::<span class='ident'>HardwareComposite</span> <span class='op'>=&gt;</span> {
+                        <span class='kw'>let</span> <span class='ident'>shader</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>ps_hw_composite</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>device</span>);
+                        (<span class='ident'>GPU_TAG_PRIM_HW_COMPOSITE</span>, <span class='ident'>shader</span>)
+                    }
                     <span class='ident'>AlphaBatchKind</span>::<span class='ident'>Blend</span> <span class='op'>=&gt;</span> {
                         <span class='kw'>let</span> <span class='ident'>shader</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>ps_blend</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>device</span>);
                         (<span class='ident'>GPU_TAG_PRIM_BLEND</span>, <span class='ident'>shader</span>)
@@ -2949,6 +3036,7 @@
                         <span class='kw'>let</span> <span class='ident'>shader</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>batch</span>.<span class='ident'>key</span>.<span class='ident'>blend_mode</span> {
                             <span class='ident'>BlendMode</span>::<span class='ident'>Subpixel</span>(..) <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>ps_text_run_subpixel</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>device</span>, <span class='ident'>transform_kind</span>),
                             <span class='ident'>BlendMode</span>::<span class='ident'>Alpha</span> <span class='op'>|</span> <span class='ident'>BlendMode</span>::<span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>ps_text_run</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>device</span>, <span class='ident'>transform_kind</span>),
+                            _ <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(),
                         };
                         (<span class='ident'>GPU_TAG_PRIM_TEXT_RUN</span>, <span class='ident'>shader</span>)
                     }
@@ -3246,6 +3334,18 @@
                     <span class='ident'>BlendMode</span>::<span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
                         <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>set_blend</span>(<span class='bool-val'>false</span>);
                     }
+                    <span class='ident'>BlendMode</span>::<span class='ident'>Multiply</span> <span class='op'>=&gt;</span> {
+                        <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>set_blend</span>(<span class='bool-val'>true</span>);
+                        <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>set_blend_mode_multiply</span>();
+                    }
+                    <span class='ident'>BlendMode</span>::<span class='ident'>Max</span> <span class='op'>=&gt;</span> {
+                        <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>set_blend</span>(<span class='bool-val'>true</span>);
+                        <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>set_blend_mode_max</span>();
+                    }
+                    <span class='ident'>BlendMode</span>::<span class='ident'>Min</span> <span class='op'>=&gt;</span> {
+                        <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>set_blend</span>(<span class='bool-val'>true</span>);
+                        <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>set_blend_mode_min</span>();
+                    }
                     <span class='ident'>BlendMode</span>::<span class='ident'>Alpha</span> <span class='op'>=&gt;</span> {
                         <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>set_blend</span>(<span class='bool-val'>true</span>);
                         <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>set_blend_mode_alpha</span>();
@@ -3420,6 +3520,10 @@
         <span class='self'>self</span>.<span class='ident'>enable_profiler</span> <span class='op'>=</span> <span class='ident'>enabled</span>;
     }
 
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>save_cpu_profile</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>filename</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) {
+        <span class='ident'>write_profile</span>(<span class='ident'>filename</span>);
+    }
+
     <span class='kw'>fn</span> <span class='ident'>draw_render_target_debug</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
                                 <span class='ident'>framebuffer_size</span>: <span class='kw-2'>&amp;</span><span class='ident'>DeviceUintSize</span>) {
         <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>render_target_debug</span> {
@@ -3508,6 +3612,7 @@
     <span class='kw'>pub</span> <span class='ident'>clear_framebuffer</span>: <span class='ident'>bool</span>,
     <span class='kw'>pub</span> <span class='ident'>clear_color</span>: <span class='ident'>ColorF</span>,
     <span class='kw'>pub</span> <span class='ident'>render_target_debug</span>: <span class='ident'>bool</span>,
+    <span class='kw'>pub</span> <span class='ident'>workers</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>ThreadPool</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>recorder</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ApiRecordingReceiver</span><span class='op'>&gt;&gt;</span>,
 }
 
@@ -3526,6 +3631,7 @@
             <span class='ident'>clear_framebuffer</span>: <span class='bool-val'>true</span>,
             <span class='ident'>clear_color</span>: <span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>1.0</span>, <span class='number'>1.0</span>, <span class='number'>1.0</span>, <span class='number'>1.0</span>),
             <span class='ident'>render_target_debug</span>: <span class='bool-val'>false</span>,
+            <span class='ident'>workers</span>: <span class='prelude-val'>None</span>,
             <span class='ident'>recorder</span>: <span class='prelude-val'>None</span>,
         }
     }

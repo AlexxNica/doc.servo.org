@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/512b4a1/webrender_traits/src/api.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/3c05fd2/webrender_traits/src/api.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>api.rs.html -- source</title>
@@ -305,6 +305,23 @@
 <span id="260">260</span>
 <span id="261">261</span>
 <span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -318,9 +335,10 @@
 <span class='kw'>use</span> {<span class='ident'>FontKey</span>, <span class='ident'>IdNamespace</span>, <span class='ident'>ImageKey</span>, <span class='ident'>NativeFontHandle</span>, <span class='ident'>PipelineId</span>};
 <span class='kw'>use</span> {<span class='ident'>RenderApiSender</span>, <span class='ident'>ResourceId</span>, <span class='ident'>ScrollEventPhase</span>, <span class='ident'>ScrollLayerState</span>, <span class='ident'>ScrollLocation</span>, <span class='ident'>ServoScrollRootId</span>};
 <span class='kw'>use</span> {<span class='ident'>GlyphKey</span>, <span class='ident'>GlyphDimensions</span>, <span class='ident'>ImageData</span>, <span class='ident'>WebGLContextId</span>, <span class='ident'>WebGLCommand</span>};
-<span class='kw'>use</span> {<span class='ident'>DeviceIntSize</span>, <span class='ident'>LayoutPoint</span>, <span class='ident'>LayoutSize</span>, <span class='ident'>WorldPoint</span>};
+<span class='kw'>use</span> {<span class='ident'>DeviceIntSize</span>, <span class='ident'>DynamicProperties</span>, <span class='ident'>LayoutPoint</span>, <span class='ident'>LayoutSize</span>, <span class='ident'>WorldPoint</span>, <span class='ident'>PropertyBindingKey</span>, <span class='ident'>PropertyBindingId</span>};
 <span class='kw'>use</span> <span class='ident'>VRCompositorCommand</span>;
 <span class='kw'>use</span> <span class='ident'>ExternalEvent</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>marker</span>::<span class='ident'>PhantomData</span>;
 
 <span class='kw'>impl</span> <span class='ident'>RenderApiSender</span> {
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>api_sender</span>: <span class='ident'>MsgSender</span><span class='op'>&lt;</span><span class='ident'>ApiMsg</span><span class='op'>&gt;</span>,
@@ -541,8 +559,11 @@
         <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>generate_frame</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
-        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>GenerateFrame</span>;
+    <span class='doccomment'>/// Generate a new frame. Optionally, supply a list of animated</span>
+    <span class='doccomment'>/// property bindings that should be used to resolve bindings</span>
+    <span class='doccomment'>/// in the current display list.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>generate_frame</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>property_bindings</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>DynamicProperties</span><span class='op'>&gt;</span>) {
+        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>GenerateFrame</span>(<span class='ident'>property_bindings</span>);
         <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
     }
 
@@ -558,6 +579,19 @@
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>shut_down</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
         <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>ApiMsg</span>::<span class='ident'>ShutDown</span>).<span class='ident'>unwrap</span>();
+    }
+
+    <span class='doccomment'>/// Create a new unique key that can be used for</span>
+    <span class='doccomment'>/// animated property bindings.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>generate_property_binding_key</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Copy</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>PropertyBindingKey</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
+        <span class='kw'>let</span> <span class='ident'>new_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>next_unique_id</span>();
+        <span class='ident'>PropertyBindingKey</span> {
+            <span class='ident'>id</span>: <span class='ident'>PropertyBindingId</span> {
+                <span class='ident'>namespace</span>: <span class='ident'>new_id</span>.<span class='number'>0</span>,
+                <span class='ident'>uid</span>: <span class='ident'>new_id</span>.<span class='number'>1</span>,
+            },
+            <span class='ident'>_phantom</span>: <span class='ident'>PhantomData</span>,
+        }
     }
 
     <span class='attribute'>#[<span class='ident'>inline</span>]</span>

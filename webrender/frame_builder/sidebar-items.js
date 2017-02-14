@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["FrameBuilder",""],["FrameBuilderConfig",""]]});
+initSidebarItems({"struct":[["FrameBuilder",""],["FrameBuilderConfig",""],["LayerRectCalculationAndCullingPass",""]]});

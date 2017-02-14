@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/512b4a1/webrender/src/render_backend.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/3c05fd2/webrender/src/render_backend.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>render_backend.rs.html -- source</title>
@@ -491,6 +491,34 @@
 <span id="446">446</span>
 <span id="447">447</span>
 <span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -510,6 +538,8 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::{<span class='ident'>Arc</span>, <span class='ident'>Mutex</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::<span class='ident'>Sender</span>;
 <span class='kw'>use</span> <span class='ident'>texture_cache</span>::<span class='ident'>TextureCache</span>;
+<span class='kw'>use</span> <span class='ident'>thread_profiler</span>::<span class='ident'>register_thread_with_profiler</span>;
+<span class='kw'>use</span> <span class='ident'>threadpool</span>::<span class='ident'>ThreadPool</span>;
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ApiMsg</span>, <span class='ident'>AuxiliaryLists</span>, <span class='ident'>BuiltDisplayList</span>, <span class='ident'>IdNamespace</span>, <span class='ident'>ImageData</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>PipelineId</span>, <span class='ident'>RenderNotifier</span>, <span class='ident'>RenderDispatcher</span>, <span class='ident'>WebGLCommand</span>, <span class='ident'>WebGLContextId</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::<span class='ident'>channel</span>::{<span class='ident'>PayloadHelperMethods</span>, <span class='ident'>PayloadReceiver</span>, <span class='ident'>PayloadSender</span>, <span class='ident'>MsgReceiver</span>};
@@ -554,6 +584,7 @@
                <span class='ident'>device_pixel_ratio</span>: <span class='ident'>f32</span>,
                <span class='ident'>texture_cache</span>: <span class='ident'>TextureCache</span>,
                <span class='ident'>enable_aa</span>: <span class='ident'>bool</span>,
+               <span class='ident'>workers</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>ThreadPool</span><span class='op'>&gt;&gt;</span>,
                <span class='ident'>notifier</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>RenderNotifier</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;&gt;</span>,
                <span class='ident'>webrender_context_handle</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>GLContextHandleWrapper</span><span class='op'>&gt;</span>,
                <span class='ident'>config</span>: <span class='ident'>FrameBuilderConfig</span>,
@@ -561,8 +592,9 @@
                <span class='ident'>main_thread_dispatcher</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>RenderDispatcher</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;&gt;</span>,
                <span class='ident'>vr_compositor_handler</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>VRCompositorHandler</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>RenderBackend</span> {
 
-        <span class='kw'>let</span> <span class='ident'>resource_cache</span> <span class='op'>=</span> <span class='ident'>ResourceCache</span>::<span class='ident'>new</span>(<span class='ident'>texture_cache</span>,
-                                                <span class='ident'>enable_aa</span>);
+        <span class='kw'>let</span> <span class='ident'>resource_cache</span> <span class='op'>=</span> <span class='ident'>ResourceCache</span>::<span class='ident'>new</span>(<span class='ident'>texture_cache</span>, <span class='ident'>workers</span>, <span class='ident'>enable_aa</span>);
+
+        <span class='ident'>register_thread_with_profiler</span>(<span class='string'>&quot;Backend&quot;</span>.<span class='ident'>to_string</span>());
 
         <span class='ident'>RenderBackend</span> {
             <span class='ident'>api_rx</span>: <span class='ident'>api_rx</span>,
@@ -591,6 +623,7 @@
 
         <span class='kw'>loop</span> {
             <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>api_rx</span>.<span class='ident'>recv</span>();
+            <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;handle_msg&quot;</span>);
             <span class='kw'>match</span> <span class='ident'>msg</span> {
                 <span class='prelude-val'>Ok</span>(<span class='ident'>msg</span>) <span class='op'>=&gt;</span> {
                     <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>r</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>recorder</span> {
@@ -641,6 +674,7 @@
                                                    <span class='ident'>display_list_descriptor</span>,
                                                    <span class='ident'>auxiliary_lists_descriptor</span>,
                                                    <span class='ident'>preserve_frame_state</span>) <span class='op'>=&gt;</span> {
+                            <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;SetRootDisplayList&quot;</span>);
                             <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>leftover_auxiliary_data</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
                             <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>auxiliary_data</span>;
                             <span class='kw'>loop</span> {
@@ -689,6 +723,7 @@
                             <span class='self'>self</span>.<span class='ident'>build_scene</span>();
                         }
                         <span class='ident'>ApiMsg</span>::<span class='ident'>SetRootPipeline</span>(<span class='ident'>pipeline_id</span>) <span class='op'>=&gt;</span> {
+                            <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;SetRootPipeline&quot;</span>);
                             <span class='self'>self</span>.<span class='ident'>scene</span>.<span class='ident'>set_root_pipeline_id</span>(<span class='ident'>pipeline_id</span>);
 
                             <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>scene</span>.<span class='ident'>display_lists</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>).<span class='ident'>is_none</span>() {
@@ -698,6 +733,7 @@
                             <span class='self'>self</span>.<span class='ident'>build_scene</span>();
                         }
                         <span class='ident'>ApiMsg</span>::<span class='ident'>Scroll</span>(<span class='ident'>delta</span>, <span class='ident'>cursor</span>, <span class='ident'>move_phase</span>) <span class='op'>=&gt;</span> {
+                            <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;Scroll&quot;</span>);
                             <span class='kw'>let</span> <span class='ident'>frame</span> <span class='op'>=</span> <span class='ident'>profile_counters</span>.<span class='ident'>total_time</span>.<span class='ident'>profile</span>(<span class='op'>||</span> {
                                 <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>frame</span>.<span class='ident'>scroll</span>(<span class='ident'>delta</span>, <span class='ident'>cursor</span>, <span class='ident'>move_phase</span>) {
                                     <span class='prelude-val'>Some</span>(<span class='self'>self</span>.<span class='ident'>render</span>())
@@ -715,6 +751,7 @@
                             }
                         }
                         <span class='ident'>ApiMsg</span>::<span class='ident'>ScrollLayersWithScrollId</span>(<span class='ident'>origin</span>, <span class='ident'>pipeline_id</span>, <span class='ident'>scroll_root_id</span>) <span class='op'>=&gt;</span> {
+                            <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;ScrollLayersWithScrollId&quot;</span>);
                             <span class='kw'>let</span> <span class='ident'>frame</span> <span class='op'>=</span> <span class='ident'>profile_counters</span>.<span class='ident'>total_time</span>.<span class='ident'>profile</span>(<span class='op'>||</span> {
                                 <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>frame</span>.<span class='ident'>scroll_layers</span>(<span class='ident'>origin</span>, <span class='ident'>pipeline_id</span>, <span class='ident'>scroll_root_id</span>) {
                                     <span class='prelude-val'>Some</span>(<span class='self'>self</span>.<span class='ident'>render</span>())
@@ -733,6 +770,7 @@
 
                         }
                         <span class='ident'>ApiMsg</span>::<span class='ident'>TickScrollingBounce</span> <span class='op'>=&gt;</span> {
+                            <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;TickScrollingBounce&quot;</span>);
                             <span class='kw'>let</span> <span class='ident'>frame</span> <span class='op'>=</span> <span class='ident'>profile_counters</span>.<span class='ident'>total_time</span>.<span class='ident'>profile</span>(<span class='op'>||</span> {
                                 <span class='self'>self</span>.<span class='ident'>frame</span>.<span class='ident'>tick_scrolling_bounce_animations</span>();
                                 <span class='self'>self</span>.<span class='ident'>render</span>()
@@ -744,6 +782,7 @@
                             <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;unused api - remove from webrender_traits&quot;</span>);
                         }
                         <span class='ident'>ApiMsg</span>::<span class='ident'>GetScrollLayerState</span>(<span class='ident'>tx</span>) <span class='op'>=&gt;</span> {
+                            <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;GetScrollLayerState&quot;</span>);
                             <span class='ident'>tx</span>.<span class='ident'>send</span>(<span class='self'>self</span>.<span class='ident'>frame</span>.<span class='ident'>get_scroll_layer_state</span>())
                               .<span class='ident'>unwrap</span>()
                         }
@@ -810,7 +849,24 @@
                         <span class='ident'>ApiMsg</span>::<span class='ident'>VRCompositorCommand</span>(<span class='ident'>context_id</span>, <span class='ident'>command</span>) <span class='op'>=&gt;</span> {
                             <span class='self'>self</span>.<span class='ident'>handle_vr_compositor_command</span>(<span class='ident'>context_id</span>, <span class='ident'>command</span>);
                         }
-                        <span class='ident'>ApiMsg</span>::<span class='ident'>GenerateFrame</span> <span class='op'>=&gt;</span> {
+                        <span class='ident'>ApiMsg</span>::<span class='ident'>GenerateFrame</span>(<span class='ident'>property_bindings</span>) <span class='op'>=&gt;</span> {
+                            <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;GenerateFrame&quot;</span>);
+
+                            <span class='comment'>// Ideally, when there are property bindings present,</span>
+                            <span class='comment'>// we won&#39;t need to rebuild the entire frame here.</span>
+                            <span class='comment'>// However, to avoid conflicts with the ongoing work to</span>
+                            <span class='comment'>// refactor how scroll roots + transforms work, this</span>
+                            <span class='comment'>// just rebuilds the frame if there are animated property</span>
+                            <span class='comment'>// bindings present for now.</span>
+                            <span class='comment'>// TODO(gw): Once the scrolling / reference frame changes</span>
+                            <span class='comment'>//           are completed, optimize the internals of</span>
+                            <span class='comment'>//           animated properties to not require a full</span>
+                            <span class='comment'>//           rebuild of the frame!</span>
+                            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>property_bindings</span>) <span class='op'>=</span> <span class='ident'>property_bindings</span> {
+                                <span class='self'>self</span>.<span class='ident'>scene</span>.<span class='ident'>properties</span>.<span class='ident'>set_properties</span>(<span class='ident'>property_bindings</span>);
+                                <span class='self'>self</span>.<span class='ident'>build_scene</span>();
+                            }
+
                             <span class='kw'>let</span> <span class='ident'>frame</span> <span class='op'>=</span> <span class='ident'>profile_counters</span>.<span class='ident'>total_time</span>.<span class='ident'>profile</span>(<span class='op'>||</span> {
                                 <span class='self'>self</span>.<span class='ident'>render</span>()
                             });
