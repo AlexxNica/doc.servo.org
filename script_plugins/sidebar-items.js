@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["plugin_registrar",""]],"mod":[["ban",""],["jstraceable","Handles the auto-deriving for `#[derive(JSTraceable)]`"],["unrooted_must_root",""],["utils","Utilities for writing plugins"]]});

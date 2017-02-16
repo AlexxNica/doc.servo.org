@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["plugin_registrar",""],["register_clippy",""]],"mod":[["jstraceable","Handles the auto-deriving for `#[derive(JSTraceable)]`"],["lints",""],["utils","Utilities for writing plugins"]]});
+initSidebarItems({});

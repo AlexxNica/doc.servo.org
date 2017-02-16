@@ -12,6 +12,7 @@ implementors["heartbeats_simple"] = [];
 implementors["html5ever"] = [];
 implementors["hyper"] = [];
 implementors["image"] = [];
+implementors["ipc_channel"] = [];
 implementors["layout_thread"] = [];
 implementors["lazy_static"] = [];
 implementors["libc"] = [];

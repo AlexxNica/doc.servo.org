@@ -2,6 +2,7 @@
 implementors["gfx"] = [];
 implementors["html5ever"] = [];
 implementors["hyper"] = [];
+implementors["ipc_channel"] = [];
 implementors["layout_thread"] = [];
 implementors["mime_guess"] = [];
 implementors["net"] = [];

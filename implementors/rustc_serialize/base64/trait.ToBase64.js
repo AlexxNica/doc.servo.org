@@ -1,6 +1,7 @@
 (function() {var implementors = {};
 implementors["gfx"] = [];
 implementors["hyper"] = [];
+implementors["ipc_channel"] = [];
 implementors["layout_thread"] = [];
 implementors["mio"] = [];
 implementors["net"] = [];

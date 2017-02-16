@@ -2,6 +2,7 @@
 implementors["gfx"] = ["impl <a class='trait' href='rand/trait.Rand.html' title='trait rand::Rand'>Rand</a> for <a class='struct' href='uuid/struct.Uuid.html' title='struct uuid::Uuid'>Uuid</a>",];
 implementors["glutin"] = [];
 implementors["image"] = [];
+implementors["ipc_channel"] = [];
 implementors["layout_thread"] = ["impl <a class='trait' href='rand/trait.Rand.html' title='trait rand::Rand'>Rand</a> for <a class='struct' href='uuid/struct.Uuid.html' title='struct uuid::Uuid'>Uuid</a>",];
 implementors["net"] = ["impl <a class='trait' href='rand/trait.Rand.html' title='trait rand::Rand'>Rand</a> for <a class='struct' href='uuid/struct.Uuid.html' title='struct uuid::Uuid'>Uuid</a>",];
 implementors["net_traits"] = ["impl <a class='trait' href='rand/trait.Rand.html' title='trait rand::Rand'>Rand</a> for <a class='struct' href='uuid/struct.Uuid.html' title='struct uuid::Uuid'>Uuid</a>",];

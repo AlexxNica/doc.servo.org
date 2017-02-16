@@ -11,6 +11,7 @@ implementors["heartbeats_simple"] = [];
 implementors["html5ever"] = [];
 implementors["hyper"] = ["impl <a class='trait' href='collections/string/trait.ToString.html' title='trait collections::string::ToString'>ToString</a> for <a class='enum' href='openssl/x509/extension/enum.Extension.html' title='enum openssl::x509::extension::Extension'>Extension</a>",];
 implementors["image"] = [];
+implementors["ipc_channel"] = [];
 implementors["layout_thread"] = ["impl <a class='trait' href='collections/string/trait.ToString.html' title='trait collections::string::ToString'>ToString</a> for <a class='enum' href='openssl/x509/extension/enum.Extension.html' title='enum openssl::x509::extension::Extension'>Extension</a>",];
 implementors["lazy_static"] = [];
 implementors["libc"] = [];

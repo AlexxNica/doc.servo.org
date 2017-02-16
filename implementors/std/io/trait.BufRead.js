@@ -11,6 +11,7 @@ implementors["heartbeats_simple"] = [];
 implementors["html5ever"] = [];
 implementors["hyper"] = ["impl&lt;R:&nbsp;<a class='trait' href='std/io/trait.Read.html' title='trait std::io::Read'>Read</a>&gt; <a class='trait' href='std/io/trait.BufRead.html' title='trait std::io::BufRead'>BufRead</a> for <a class='struct' href='hyper/buffer/struct.BufReader.html' title='struct hyper::buffer::BufReader'>BufReader</a>&lt;R&gt;",];
 implementors["image"] = [];
+implementors["ipc_channel"] = [];
 implementors["layout_thread"] = [];
 implementors["lazy_static"] = [];
 implementors["libc"] = [];

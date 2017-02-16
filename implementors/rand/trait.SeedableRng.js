@@ -10,6 +10,7 @@ implementors["heartbeats_simple"] = [];
 implementors["html5ever"] = [];
 implementors["hyper"] = [];
 implementors["image"] = [];
+implementors["ipc_channel"] = [];
 implementors["layout_thread"] = ["impl&lt;'a&gt; <a class='trait' href='rand/trait.SeedableRng.html' title='trait rand::SeedableRng'>SeedableRng</a>&lt;<a class='primitive' href='std/primitive.slice.html'>&amp;'a [</a><a class='primitive' href='std/primitive.usize.html'>usize</a><a class='primitive' href='std/primitive.slice.html'>]</a>&gt; for <a class='struct' href='servo_rand/struct.ServoRng.html' title='struct servo_rand::ServoRng'>ServoRng</a>",];
 implementors["lazy_static"] = [];
 implementors["libc"] = [];

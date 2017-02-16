@@ -3,6 +3,7 @@ implementors["enum_primitive"] = [];
 implementors["gfx"] = [];
 implementors["glutin"] = [];
 implementors["image"] = [];
+implementors["ipc_channel"] = [];
 implementors["layout_thread"] = [];
 implementors["net"] = [];
 implementors["net_traits"] = [];
