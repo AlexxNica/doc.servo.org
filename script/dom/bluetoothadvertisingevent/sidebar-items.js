@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["BluetoothAdvertisingEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_BluetoothAdvertisingEvent",""]],"struct":[["BluetoothAdvertisingEvent",""]]});

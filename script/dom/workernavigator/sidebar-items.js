@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["WorkerNavigator",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_WorkerNavigator",""]],"struct":[["WorkerNavigator",""]]});

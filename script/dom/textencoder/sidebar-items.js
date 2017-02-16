@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["TextEncoder",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_TextEncoder",""]],"struct":[["TextEncoder",""]]});

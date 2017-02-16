@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["DOMRect",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_DOMRect",""]],"struct":[["DOMRect",""]]});

@@ -1,5 +1,5 @@
 (function() {var implementors = {};
-implementors["debugger"] = ["impl <a class='trait' href='ws/handler/trait.Handler.html' title='ws::handler::Handler'>Handler</a> for <a class='struct' href='debugger/struct.Connection.html' title='debugger::Connection'>Connection</a>",];
+implementors["debugger"] = ["impl <a class='trait' href='ws/handler/trait.Handler.html' title='trait ws::handler::Handler'>Handler</a> for <a class='struct' href='debugger/struct.Connection.html' title='struct debugger::Connection'>Connection</a>",];
 implementors["servo"] = [];
 implementors["ws"] = [];
 

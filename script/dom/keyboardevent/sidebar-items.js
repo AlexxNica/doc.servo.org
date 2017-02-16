@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["code_value",""],["key_from_string",""],["key_keycode",""],["key_location",""],["key_value",""]],"struct":[["KeyEventProperties",""],["KeyboardEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_KeyboardEvent",""]],"fn":[["code_value",""],["key_from_string",""],["key_keycode",""],["key_location",""],["key_value",""]],"struct":[["KeyEventProperties",""],["KeyboardEvent",""]]});

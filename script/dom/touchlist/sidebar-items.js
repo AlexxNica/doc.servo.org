@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["TouchList",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_TouchList",""]],"struct":[["TouchList",""]]});

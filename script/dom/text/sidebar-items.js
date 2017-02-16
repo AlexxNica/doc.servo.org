@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Text","An HTML text node."]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_Text",""]],"struct":[["Text","An HTML text node."]]});

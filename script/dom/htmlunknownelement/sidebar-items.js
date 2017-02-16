@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLUnknownElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLUnknownElement",""]],"struct":[["HTMLUnknownElement",""]]});

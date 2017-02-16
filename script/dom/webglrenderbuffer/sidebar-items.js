@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["WebGLRenderbuffer",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_WebGLRenderbuffer",""]],"struct":[["WebGLRenderbuffer",""]]});

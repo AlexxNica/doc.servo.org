@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Performance",""]],"type":[["DOMHighResTimeStamp",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_Performance",""]],"struct":[["Performance",""]],"type":[["DOMHighResTimeStamp",""]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLProgressElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLProgressElement",""]],"struct":[["HTMLProgressElement",""]]});

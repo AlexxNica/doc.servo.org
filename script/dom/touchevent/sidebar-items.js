@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["TouchEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_TouchEvent",""]],"struct":[["TouchEvent",""]]});

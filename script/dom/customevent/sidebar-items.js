@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CustomEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CustomEvent",""]],"struct":[["CustomEvent",""]]});

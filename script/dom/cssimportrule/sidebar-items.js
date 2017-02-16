@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CSSImportRule",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CSSImportRule",""]],"struct":[["CSSImportRule",""]]});

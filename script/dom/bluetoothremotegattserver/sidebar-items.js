@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["BluetoothRemoteGATTServer",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_BluetoothRemoteGATTServer",""]],"struct":[["BluetoothRemoteGATTServer",""]]});

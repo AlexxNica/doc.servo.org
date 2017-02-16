@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["DOMQuad",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_DOMQuad",""]],"struct":[["DOMQuad",""]]});

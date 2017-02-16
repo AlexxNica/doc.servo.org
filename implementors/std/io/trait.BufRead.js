@@ -2,14 +2,14 @@
 implementors["arrayvec"] = [];
 implementors["brotli"] = [];
 implementors["enum_primitive"] = [];
-implementors["flate2"] = ["impl&lt;R:&nbsp;<a class='trait' href='std/io/trait.Read.html' title='std::io::Read'>Read</a>&gt; <a class='trait' href='std/io/trait.BufRead.html' title='std::io::BufRead'>BufRead</a> for <a class='struct' href='flate2/bufreader/struct.BufReader.html' title='flate2::bufreader::BufReader'>BufReader</a>&lt;R&gt;","impl&lt;R:&nbsp;<a class='trait' href='std/io/trait.BufRead.html' title='std::io::BufRead'>BufRead</a>&gt; <a class='trait' href='std/io/trait.BufRead.html' title='std::io::BufRead'>BufRead</a> for <a class='struct' href='flate2/crc/struct.CrcReader.html' title='flate2::crc::CrcReader'>CrcReader</a>&lt;R&gt;",];
+implementors["flate2"] = ["impl&lt;R:&nbsp;<a class='trait' href='std/io/trait.Read.html' title='trait std::io::Read'>Read</a>&gt; <a class='trait' href='std/io/trait.BufRead.html' title='trait std::io::BufRead'>BufRead</a> for <a class='struct' href='flate2/bufreader/struct.BufReader.html' title='struct flate2::bufreader::BufReader'>BufReader</a>&lt;R&gt;","impl&lt;R:&nbsp;<a class='trait' href='std/io/trait.BufRead.html' title='trait std::io::BufRead'>BufRead</a>&gt; <a class='trait' href='std/io/trait.BufRead.html' title='trait std::io::BufRead'>BufRead</a> for <a class='struct' href='flate2/crc/struct.CrcReader.html' title='struct flate2::crc::CrcReader'>CrcReader</a>&lt;R&gt;",];
 implementors["gfx"] = [];
 implementors["gleam"] = [];
 implementors["glutin"] = [];
 implementors["glx"] = [];
 implementors["heartbeats_simple"] = [];
 implementors["html5ever"] = [];
-implementors["hyper"] = ["impl&lt;R:&nbsp;<a class='trait' href='std/io/trait.Read.html' title='std::io::Read'>Read</a>&gt; <a class='trait' href='std/io/trait.BufRead.html' title='std::io::BufRead'>BufRead</a> for <a class='struct' href='hyper/buffer/struct.BufReader.html' title='hyper::buffer::BufReader'>BufReader</a>&lt;R&gt;",];
+implementors["hyper"] = ["impl&lt;R:&nbsp;<a class='trait' href='std/io/trait.Read.html' title='trait std::io::Read'>Read</a>&gt; <a class='trait' href='std/io/trait.BufRead.html' title='trait std::io::BufRead'>BufRead</a> for <a class='struct' href='hyper/buffer/struct.BufReader.html' title='struct hyper::buffer::BufReader'>BufReader</a>&lt;R&gt;",];
 implementors["image"] = [];
 implementors["layout_thread"] = [];
 implementors["lazy_static"] = [];

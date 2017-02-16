@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["BluetoothPermissionResult",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_BluetoothPermissionResult",""]],"struct":[["BluetoothPermissionResult",""]]});

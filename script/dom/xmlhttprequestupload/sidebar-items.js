@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["XMLHttpRequestUpload",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_XMLHttpRequestUpload",""]],"struct":[["XMLHttpRequestUpload",""]]});

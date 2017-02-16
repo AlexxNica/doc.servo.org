@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["URLSearchParams",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_URLSearchParams",""]],"struct":[["URLSearchParams",""]]});

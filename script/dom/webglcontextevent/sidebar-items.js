@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["WebGLContextEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_WebGLContextEvent",""]],"struct":[["WebGLContextEvent",""]]});

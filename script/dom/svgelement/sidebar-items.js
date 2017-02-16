@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["SVGElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_SVGElement",""]],"struct":[["SVGElement",""]]});

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/registry/src/github.com-1ecc6299db9ec823/cssparser-0.8.0/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/registry/src/github.com-1ecc6299db9ec823/cssparser-0.9.0/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
@@ -209,6 +209,10 @@
 <span id="164">164</span>
 <span id="165">165</span>
 <span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -227,8 +231,10 @@ Implementation of [CSS Syntax Module Level 3](https://drafts.csswg.org/css-synta
 # Input
 
 Everything is based on `Parser` objects, which borrow a `&amp;str` input.
-If you have bytes (from a file, the network, or something),
-see the `decode_stylesheet_bytes` function.
+If you have bytes (from a file, the network, or something)
+and want to support character encodings other than UTF-8,
+see the `stylesheet_encoding` function,
+which can be used together with rust-encoding or encoding-rs.
 
 # Conventions for parsing functions
 
@@ -278,8 +284,8 @@ fn parse_border_spacing(_context: &amp;ParserContext, input: &amp;mut Parser)
 
 <span class='attribute'>#<span class='op'>!</span>[<span class='ident'>recursion_limit</span><span class='op'>=</span><span class='string'>&quot;200&quot;</span>]</span>  <span class='comment'>// For color::parse_color_keyword</span>
 
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>encoding</span>;
 <span class='attribute'>#[<span class='ident'>macro_use</span>]</span> <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>matches</span>;
+<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>test</span>)]</span> <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>encoding_rs</span>;
 <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>test</span>)]</span> <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>tempdir</span>;
 <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>test</span>)]</span> <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>rustc_serialize</span>;
 <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;serde&quot;</span>)]</span> <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>serde</span>;
@@ -290,11 +296,12 @@ fn parse_border_spacing(_context: &amp;ParserContext, input: &amp;mut Parser)
 <span class='kw'>pub</span> <span class='kw'>use</span> <span class='ident'>rules_and_declarations</span>::{<span class='ident'>DeclarationParser</span>, <span class='ident'>DeclarationListParser</span>, <span class='ident'>parse_one_declaration</span>};
 <span class='kw'>pub</span> <span class='kw'>use</span> <span class='ident'>rules_and_declarations</span>::{<span class='ident'>RuleListParser</span>, <span class='ident'>parse_one_rule</span>};
 <span class='kw'>pub</span> <span class='kw'>use</span> <span class='ident'>rules_and_declarations</span>::{<span class='ident'>AtRuleType</span>, <span class='ident'>QualifiedRuleParser</span>, <span class='ident'>AtRuleParser</span>};
-<span class='kw'>pub</span> <span class='kw'>use</span> <span class='ident'>from_bytes</span>::<span class='ident'>decode_stylesheet_bytes</span>;
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='ident'>from_bytes</span>::{<span class='ident'>stylesheet_encoding</span>, <span class='ident'>EncodingSupport</span>};
 <span class='kw'>pub</span> <span class='kw'>use</span> <span class='ident'>color</span>::{<span class='ident'>RGBA</span>, <span class='ident'>Color</span>, <span class='ident'>parse_color_keyword</span>};
 <span class='kw'>pub</span> <span class='kw'>use</span> <span class='ident'>nth</span>::<span class='ident'>parse_nth</span>;
 <span class='kw'>pub</span> <span class='kw'>use</span> <span class='ident'>serializer</span>::{<span class='ident'>ToCss</span>, <span class='ident'>CssStringWriter</span>, <span class='ident'>serialize_identifier</span>, <span class='ident'>serialize_string</span>, <span class='ident'>TokenSerializationType</span>};
 <span class='kw'>pub</span> <span class='kw'>use</span> <span class='ident'>parser</span>::{<span class='ident'>Parser</span>, <span class='ident'>Delimiter</span>, <span class='ident'>Delimiters</span>, <span class='ident'>SourcePosition</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='ident'>unicode_range</span>::<span class='ident'>UnicodeRange</span>;
 
 
 <span class='doccomment'>/**
@@ -373,6 +380,7 @@ so that a `String` or `CowString` could be passed directly instead of a `&amp;st
 <span class='kw'>mod</span> <span class='ident'>color</span>;
 <span class='kw'>mod</span> <span class='ident'>nth</span>;
 <span class='kw'>mod</span> <span class='ident'>serializer</span>;
+<span class='kw'>mod</span> <span class='ident'>unicode_range</span>;
 
 <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>test</span>)]</span>
 <span class='kw'>mod</span> <span class='ident'>tests</span>;

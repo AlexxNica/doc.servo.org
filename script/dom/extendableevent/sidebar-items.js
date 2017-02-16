@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["ExtendableEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_ExtendableEvent",""]],"struct":[["ExtendableEvent",""]]});

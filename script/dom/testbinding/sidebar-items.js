@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["TestBinding",""],["TestBindingCallback",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_TestBinding",""]],"struct":[["TestBinding",""],["TestBindingCallback",""]]});

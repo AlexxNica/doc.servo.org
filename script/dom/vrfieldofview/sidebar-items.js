@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["VRFieldOfView",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_VRFieldOfView",""]],"struct":[["VRFieldOfView",""]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["PromiseNativeHandler",""]],"trait":[["Callback",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_PromiseNativeHandler",""]],"struct":[["PromiseNativeHandler",""]],"trait":[["Callback",""]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLLegendElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLLegendElement",""]],"struct":[["HTMLLegendElement",""]]});

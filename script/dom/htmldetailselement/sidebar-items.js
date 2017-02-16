@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["DetailsNotificationRunnable",""],["HTMLDetailsElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLDetailsElement",""]],"struct":[["DetailsNotificationRunnable",""],["HTMLDetailsElement",""]]});

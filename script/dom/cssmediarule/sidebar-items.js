@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CSSMediaRule",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CSSMediaRule",""]],"struct":[["CSSMediaRule",""]]});

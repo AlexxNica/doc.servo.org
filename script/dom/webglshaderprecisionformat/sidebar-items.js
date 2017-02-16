@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["WebGLShaderPrecisionFormat",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_WebGLShaderPrecisionFormat",""]],"struct":[["WebGLShaderPrecisionFormat",""]]});

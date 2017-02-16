@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["Filter",""]],"struct":[["TreeWalker",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_TreeWalker",""]],"enum":[["Filter",""]],"struct":[["TreeWalker",""]]});

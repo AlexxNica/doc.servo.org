@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["DOMPointReadOnly",""]],"trait":[["DOMPointWriteMethods",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_DOMPointReadOnly",""]],"struct":[["DOMPointReadOnly",""]],"trait":[["DOMPointWriteMethods",""]]});

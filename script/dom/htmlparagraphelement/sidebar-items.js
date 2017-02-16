@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLParagraphElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLParagraphElement",""]],"struct":[["HTMLParagraphElement",""]]});

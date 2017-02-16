@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLFormControlsCollection",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLFormControlsCollection",""]],"struct":[["HTMLFormControlsCollection",""]]});

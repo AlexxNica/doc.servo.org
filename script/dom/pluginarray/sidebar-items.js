@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["PluginArray",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_PluginArray",""]],"struct":[["PluginArray",""]]});

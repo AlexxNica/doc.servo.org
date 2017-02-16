@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLMeterElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLMeterElement",""]],"struct":[["HTMLMeterElement",""]]});

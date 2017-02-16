@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Location",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_Location",""]],"struct":[["Location",""]]});

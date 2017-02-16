@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CSSViewportRule",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CSSViewportRule",""]],"struct":[["CSSViewportRule",""]]});

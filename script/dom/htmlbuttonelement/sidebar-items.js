@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["ButtonType",""]],"struct":[["HTMLButtonElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLButtonElement",""]],"enum":[["ButtonType",""]],"struct":[["HTMLButtonElement",""]]});

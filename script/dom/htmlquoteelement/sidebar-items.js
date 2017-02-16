@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLQuoteElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLQuoteElement",""]],"struct":[["HTMLQuoteElement",""]]});

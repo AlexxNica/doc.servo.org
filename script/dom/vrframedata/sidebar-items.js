@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["VRFrameData",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_VRFrameData",""]],"struct":[["VRFrameData",""]]});

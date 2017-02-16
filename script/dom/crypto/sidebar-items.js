@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["is_integer_buffer",""]],"struct":[["Crypto",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_Crypto",""]],"fn":[["is_integer_buffer",""]],"struct":[["Crypto",""]]});

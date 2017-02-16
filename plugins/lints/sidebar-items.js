@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["ban",""],["inheritance_integrity",""],["unrooted_must_root",""]]});
+initSidebarItems({"mod":[["ban",""],["unrooted_must_root",""]]});

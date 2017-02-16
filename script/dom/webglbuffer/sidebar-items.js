@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["WebGLBuffer",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_WebGLBuffer",""]],"struct":[["WebGLBuffer",""]]});

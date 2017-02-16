@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CSSKeyframesRule",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CSSKeyframesRule",""]],"struct":[["CSSKeyframesRule",""]]});

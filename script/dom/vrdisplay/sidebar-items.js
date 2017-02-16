@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["VRFrameDataStatus",""]],"fn":[["parse_bounds",""],["validate_layer",""]],"struct":[["NotifyDisplayRAF",""],["VRDisplay",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_VRDisplay",""]],"enum":[["VRFrameDataStatus",""]],"fn":[["parse_bounds",""],["validate_layer",""]],"struct":[["NotifyDisplayRAF",""],["VRDisplay",""]]});

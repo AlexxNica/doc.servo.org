@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HashChangeEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HashChangeEvent",""]],"struct":[["HashChangeEvent",""]]});

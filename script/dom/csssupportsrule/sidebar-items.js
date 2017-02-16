@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CSSSupportsRule",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CSSSupportsRule",""]],"struct":[["CSSSupportsRule",""]]});

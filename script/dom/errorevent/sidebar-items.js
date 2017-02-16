@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["ErrorEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_ErrorEvent",""]],"struct":[["ErrorEvent",""]]});

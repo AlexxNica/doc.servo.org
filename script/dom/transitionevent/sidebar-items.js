@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["TransitionEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_TransitionEvent",""]],"struct":[["TransitionEvent",""]]});

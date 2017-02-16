@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["VRDisplayEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_VRDisplayEvent",""]],"struct":[["VRDisplayEvent",""]]});

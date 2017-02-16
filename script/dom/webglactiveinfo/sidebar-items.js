@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["WebGLActiveInfo",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_WebGLActiveInfo",""]],"struct":[["WebGLActiveInfo",""]]});

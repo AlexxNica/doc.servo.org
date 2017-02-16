@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["DOMRectReadOnly",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_DOMRectReadOnly",""]],"struct":[["DOMRectReadOnly",""]]});

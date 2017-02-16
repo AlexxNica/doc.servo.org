@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["RadioNodeList",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_RadioNodeList",""]],"struct":[["RadioNodeList",""]]});

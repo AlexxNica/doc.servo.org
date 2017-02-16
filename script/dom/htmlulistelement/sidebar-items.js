@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLUListElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLUListElement",""]],"struct":[["HTMLUListElement",""]]});

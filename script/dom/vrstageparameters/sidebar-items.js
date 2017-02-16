@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["VRStageParameters",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_VRStageParameters",""]],"struct":[["VRStageParameters",""]]});

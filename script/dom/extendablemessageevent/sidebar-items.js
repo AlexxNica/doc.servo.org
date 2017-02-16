@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["ExtendableMessageEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_ExtendableMessageEvent",""]],"struct":[["ExtendableMessageEvent",""]]});

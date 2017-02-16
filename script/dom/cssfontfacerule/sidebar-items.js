@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CSSFontFaceRule",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CSSFontFaceRule",""]],"struct":[["CSSFontFaceRule",""]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CellsFilter",""],["HTMLTableRowElement",""]],"trait":[["HTMLTableRowElementLayoutHelpers",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLTableRowElement",""]],"struct":[["CellsFilter",""],["HTMLTableRowElement",""]],"trait":[["HTMLTableRowElementLayoutHelpers",""]]});

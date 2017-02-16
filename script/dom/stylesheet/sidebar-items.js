@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["StyleSheet",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_StyleSheet",""]],"struct":[["StyleSheet",""]]});

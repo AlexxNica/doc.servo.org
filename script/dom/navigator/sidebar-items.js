@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Navigator",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_Navigator",""]],"struct":[["Navigator",""]]});

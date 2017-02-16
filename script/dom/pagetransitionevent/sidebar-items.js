@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["PageTransitionEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_PageTransitionEvent",""]],"struct":[["PageTransitionEvent",""]]});

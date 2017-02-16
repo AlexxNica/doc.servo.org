@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["TestBindingProxy",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_TestBindingProxy",""]],"struct":[["TestBindingProxy",""]]});

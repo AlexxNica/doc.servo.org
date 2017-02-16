@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CSSConditionRule",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CSSConditionRule",""]],"struct":[["CSSConditionRule",""]]});

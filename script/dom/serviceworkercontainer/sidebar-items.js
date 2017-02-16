@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["ServiceWorkerContainer",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_ServiceWorkerContainer",""]],"struct":[["ServiceWorkerContainer",""]]});

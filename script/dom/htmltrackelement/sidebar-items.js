@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLTrackElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLTrackElement",""]],"struct":[["HTMLTrackElement",""]]});

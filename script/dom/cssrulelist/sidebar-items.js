@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["RulesSource",""]],"struct":[["CSSRuleList",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CSSRuleList",""]],"enum":[["RulesSource",""]],"struct":[["CSSRuleList",""]]});

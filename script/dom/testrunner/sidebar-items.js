@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["TestRunner",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_TestRunner",""]],"struct":[["TestRunner",""]]});

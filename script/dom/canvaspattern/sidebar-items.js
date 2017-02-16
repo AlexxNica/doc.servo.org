@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CanvasPattern",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CanvasPattern",""]],"struct":[["CanvasPattern",""]]});

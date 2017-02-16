@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["DOMMatrix",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_DOMMatrix",""]],"struct":[["DOMMatrix",""]]});

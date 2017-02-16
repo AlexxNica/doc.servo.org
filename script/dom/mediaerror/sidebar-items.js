@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["MediaError",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_MediaError",""]],"struct":[["MediaError",""]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["CanvasFillOrStrokeStyle",""]],"fn":[["is_rect_valid",""],["parse_color",""],["serialize",""]],"struct":[["CanvasContextState",""],["CanvasRenderingContext2D",""]],"trait":[["LayoutCanvasRenderingContext2DHelpers",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CanvasRenderingContext2D",""]],"enum":[["CanvasFillOrStrokeStyle",""]],"fn":[["is_rect_valid",""],["parse_color",""],["serialize",""]],"struct":[["CanvasContextState",""],["CanvasRenderingContext2D",""]],"trait":[["LayoutCanvasRenderingContext2DHelpers",""]]});

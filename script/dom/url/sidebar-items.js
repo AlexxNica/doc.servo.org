@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["URL",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_URL",""]],"struct":[["URL",""]]});

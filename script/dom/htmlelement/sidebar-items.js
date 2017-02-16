@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["to_camel_case",""],["to_snake_case",""]],"struct":[["HTMLElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLElement",""]],"fn":[["to_camel_case",""],["to_snake_case",""]],"struct":[["HTMLElement",""]]});

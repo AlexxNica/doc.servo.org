@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["ForceTouchEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_ForceTouchEvent",""]],"struct":[["ForceTouchEvent",""]]});

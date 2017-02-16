@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLAudioElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLAudioElement",""]],"struct":[["HTMLAudioElement",""]]});

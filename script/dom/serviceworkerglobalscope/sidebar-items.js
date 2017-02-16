@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["MixedMessage",""],["ServiceWorkerScriptMsg","Messages used to control service worker event loop"]],"fn":[["interrupt_callback",""]],"struct":[["ServiceWorkerChan",""],["ServiceWorkerGlobalScope",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_ServiceWorkerGlobalScope",""]],"enum":[["MixedMessage",""],["ServiceWorkerScriptMsg","Messages used to control service worker event loop"]],"fn":[["interrupt_callback",""]],"struct":[["ServiceWorkerChan",""],["ServiceWorkerGlobalScope",""]]});

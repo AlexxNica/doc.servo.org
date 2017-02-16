@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CSSGroupingRule",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CSSGroupingRule",""]],"struct":[["CSSGroupingRule",""]]});

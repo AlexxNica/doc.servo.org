@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLAppletElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLAppletElement",""]],"struct":[["HTMLAppletElement",""]]});

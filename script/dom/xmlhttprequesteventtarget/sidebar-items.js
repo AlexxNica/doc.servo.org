@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["XMLHttpRequestEventTarget",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_XMLHttpRequestEventTarget",""]],"struct":[["XMLHttpRequestEventTarget",""]]});

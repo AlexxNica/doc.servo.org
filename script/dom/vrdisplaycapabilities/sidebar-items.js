@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["VRDisplayCapabilities",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_VRDisplayCapabilities",""]],"struct":[["VRDisplayCapabilities",""]]});

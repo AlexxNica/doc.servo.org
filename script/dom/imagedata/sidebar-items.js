@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["ImageData",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_ImageData",""]],"struct":[["ImageData",""]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLTableHeaderCellElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLTableHeaderCellElement",""]],"struct":[["HTMLTableHeaderCellElement",""]]});

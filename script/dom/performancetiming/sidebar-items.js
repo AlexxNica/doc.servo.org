@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["PerformanceTiming",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_PerformanceTiming",""]],"struct":[["PerformanceTiming",""]]});

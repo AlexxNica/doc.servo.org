@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLSpanElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLSpanElement",""]],"struct":[["HTMLSpanElement",""]]});

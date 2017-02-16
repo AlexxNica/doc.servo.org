@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLTimeElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLTimeElement",""]],"struct":[["HTMLTimeElement",""]]});

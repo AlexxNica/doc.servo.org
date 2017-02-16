@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["MediaList",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_MediaList",""]],"struct":[["MediaList",""]]});

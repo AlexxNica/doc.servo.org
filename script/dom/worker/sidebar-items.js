@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Worker",""],["WorkerErrorHandler",""],["WorkerMessageHandler",""]],"type":[["TrustedWorkerAddress",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_Worker",""]],"struct":[["Worker",""],["WorkerErrorHandler",""],["WorkerMessageHandler",""]],"type":[["TrustedWorkerAddress",""]]});

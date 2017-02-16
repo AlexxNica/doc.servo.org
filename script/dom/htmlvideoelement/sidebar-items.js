@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLVideoElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLVideoElement",""]],"struct":[["HTMLVideoElement",""]]});

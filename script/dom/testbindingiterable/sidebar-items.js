@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["TestBindingIterable",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_TestBindingIterable",""]],"struct":[["TestBindingIterable",""]]});

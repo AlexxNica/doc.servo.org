@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["File",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_File",""]],"struct":[["File",""]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["DOMTokenList",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_DOMTokenList",""]],"struct":[["DOMTokenList",""]]});

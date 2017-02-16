@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLDialogElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLDialogElement",""]],"struct":[["HTMLDialogElement",""]]});

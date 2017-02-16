@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["State",""]],"fn":[["image_dimension_setter",""]],"struct":[["HTMLImageElement",""],["ImageRequest",""],["ImageResponseHandlerRunnable",""]],"trait":[["LayoutHTMLImageElementHelpers",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLImageElement",""]],"enum":[["State",""]],"fn":[["image_dimension_setter",""]],"struct":[["HTMLImageElement",""],["ImageRequest",""],["ImageResponseHandlerRunnable",""]],"trait":[["LayoutHTMLImageElementHelpers",""]]});

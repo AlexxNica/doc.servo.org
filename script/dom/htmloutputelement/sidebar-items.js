@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLOutputElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLOutputElement",""]],"struct":[["HTMLOutputElement",""]]});

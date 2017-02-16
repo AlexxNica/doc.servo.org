@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CSSNamespaceRule",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CSSNamespaceRule",""]],"struct":[["CSSNamespaceRule",""]]});

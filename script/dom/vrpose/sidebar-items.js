@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["heap_to_option",""],["update_or_create_typed_array",""]],"struct":[["VRPose",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_VRPose",""]],"fn":[["heap_to_option",""],["update_or_create_typed_array",""]],"struct":[["VRPose",""]]});

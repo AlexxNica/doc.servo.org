@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLEmbedElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLEmbedElement",""]],"struct":[["HTMLEmbedElement",""]]});

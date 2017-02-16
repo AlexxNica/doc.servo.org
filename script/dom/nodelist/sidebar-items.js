@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["NodeListType",""]],"struct":[["ChildrenList",""],["NodeList",""],["NodeListIterator",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_NodeList",""]],"enum":[["NodeListType",""]],"struct":[["ChildrenList",""],["NodeList",""],["NodeListIterator",""]]});

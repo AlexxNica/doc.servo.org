@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CSSStyleRule",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CSSStyleRule",""]],"struct":[["CSSStyleRule",""]]});

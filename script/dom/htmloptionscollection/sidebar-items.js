@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLOptionsCollection",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLOptionsCollection",""]],"struct":[["HTMLOptionsCollection",""]]});

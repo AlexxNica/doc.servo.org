@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["BeforeUnloadEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_BeforeUnloadEvent",""]],"struct":[["BeforeUnloadEvent",""]]});

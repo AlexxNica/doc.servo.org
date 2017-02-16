@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["MediaQueryListMatchState",""]],"struct":[["MediaQueryList",""],["WeakMediaQueryListVec",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_MediaQueryList",""]],"enum":[["MediaQueryListMatchState",""]],"struct":[["MediaQueryList",""],["WeakMediaQueryListVec",""]]});

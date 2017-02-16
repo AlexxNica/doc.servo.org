@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["StorageEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_StorageEvent",""]],"struct":[["StorageEvent",""]]});

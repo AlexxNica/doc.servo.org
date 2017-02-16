@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["PopStateEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_PopStateEvent",""]],"struct":[["PopStateEvent",""]]});

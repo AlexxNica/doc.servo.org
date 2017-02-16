@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CSSRule",""]],"trait":[["SpecificCSSRule",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CSSRule",""]],"struct":[["CSSRule",""]],"trait":[["SpecificCSSRule",""]]});

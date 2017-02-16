@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["MimeType",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_MimeType",""]],"struct":[["MimeType",""]]});

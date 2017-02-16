@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Client",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_Client",""]],"struct":[["Client",""]]});

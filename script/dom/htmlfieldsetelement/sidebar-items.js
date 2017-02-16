@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLFieldSetElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLFieldSetElement",""]],"struct":[["HTMLFieldSetElement",""]]});

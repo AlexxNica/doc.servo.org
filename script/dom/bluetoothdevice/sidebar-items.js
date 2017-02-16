@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["BluetoothDevice",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_BluetoothDevice",""]],"struct":[["BluetoothDevice",""]]});

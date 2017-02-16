@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["HeadingLevel",""]],"struct":[["HTMLHeadingElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLHeadingElement",""]],"enum":[["HeadingLevel",""]],"struct":[["HTMLHeadingElement",""]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLCollection",""],["HTMLCollectionElementsIter",""],["OptionU32",""]],"trait":[["CollectionFilter",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLCollection",""]],"struct":[["HTMLCollection",""],["HTMLCollectionElementsIter",""],["OptionU32",""]],"trait":[["CollectionFilter",""]]});

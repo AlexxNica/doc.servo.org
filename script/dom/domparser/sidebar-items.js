@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["DOMParser",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_DOMParser",""]],"struct":[["DOMParser",""]]});

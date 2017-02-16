@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLTableCaptionElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLTableCaptionElement",""]],"struct":[["HTMLTableCaptionElement",""]]});

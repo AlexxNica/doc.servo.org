@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["FocusEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_FocusEvent",""]],"struct":[["FocusEvent",""]]});

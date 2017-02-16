@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["ProgressEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_ProgressEvent",""]],"struct":[["ProgressEvent",""]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["WebGLProgram",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_WebGLProgram",""]],"struct":[["WebGLProgram",""]]});

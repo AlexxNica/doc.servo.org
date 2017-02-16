@@ -25,7 +25,7 @@ implementors["offscreen_gl_context"] = [];
 implementors["openssl"] = [];
 implementors["phf"] = [];
 implementors["regex_syntax"] = [];
-implementors["script"] = ["impl&lt;'a&gt; <a class='trait' href='core/convert/trait.TryFrom.html' title='core::convert::TryFrom'>TryFrom</a>&lt;&amp;'a <a class='primitive' href='std/primitive.str.html'>str</a>&gt; for <a class='enum' href='script/dom/element/enum.AdjacentPosition.html' title='script::dom::element::AdjacentPosition'>AdjacentPosition</a>",];
+implementors["script"] = ["impl&lt;'a&gt; <a class='trait' href='core/convert/trait.TryFrom.html' title='trait core::convert::TryFrom'>TryFrom</a>&lt;&amp;'a <a class='primitive' href='std/primitive.str.html'>str</a>&gt; for <a class='enum' href='script/dom/element/enum.AdjacentPosition.html' title='enum script::dom::element::AdjacentPosition'>AdjacentPosition</a>",];
 implementors["serde"] = [];
 implementors["servo"] = [];
 implementors["servo_config"] = [];

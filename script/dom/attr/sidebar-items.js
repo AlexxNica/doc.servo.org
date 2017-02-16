@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Attr",""]],"trait":[["AttrHelpersForLayout",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_Attr",""]],"struct":[["Attr",""]],"trait":[["AttrHelpersForLayout",""]]});

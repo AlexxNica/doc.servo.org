@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["SVGGraphicsElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_SVGGraphicsElement",""]],"struct":[["SVGGraphicsElement",""]]});

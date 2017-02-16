@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["WebGLUniformLocation",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_WebGLUniformLocation",""]],"struct":[["WebGLUniformLocation",""]]});

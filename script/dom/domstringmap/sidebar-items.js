@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["DOMStringMap",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_DOMStringMap",""]],"struct":[["DOMStringMap",""]]});

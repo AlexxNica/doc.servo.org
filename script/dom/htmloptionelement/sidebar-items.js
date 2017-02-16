@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["collect_text",""]],"struct":[["HTMLOptionElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLOptionElement",""]],"fn":[["collect_text",""]],"struct":[["HTMLOptionElement",""]]});

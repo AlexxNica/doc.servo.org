@@ -9,7 +9,7 @@ implementors["glx"] = [];
 implementors["heartbeats_simple"] = [];
 implementors["html5ever"] = [];
 implementors["hyper"] = [];
-implementors["image"] = ["impl&lt;R:&nbsp;<a class='trait' href='std/io/trait.Read.html' title='std::io::Read'>Read</a> + <a class='trait' href='std/io/trait.Seek.html' title='std::io::Seek'>Seek</a>&gt; <a class='trait' href='std/io/trait.Seek.html' title='std::io::Seek'>Seek</a> for <a class='struct' href='image/tiff/decoder/stream/struct.SmartReader.html' title='image::tiff::decoder::stream::SmartReader'>SmartReader</a>&lt;R&gt;",];
+implementors["image"] = ["impl&lt;R:&nbsp;<a class='trait' href='std/io/trait.Read.html' title='trait std::io::Read'>Read</a> + <a class='trait' href='std/io/trait.Seek.html' title='trait std::io::Seek'>Seek</a>&gt; <a class='trait' href='std/io/trait.Seek.html' title='trait std::io::Seek'>Seek</a> for <a class='struct' href='image/tiff/decoder/stream/struct.SmartReader.html' title='struct image::tiff::decoder::stream::SmartReader'>SmartReader</a>&lt;R&gt;",];
 implementors["layout_thread"] = [];
 implementors["lazy_static"] = [];
 implementors["libc"] = [];

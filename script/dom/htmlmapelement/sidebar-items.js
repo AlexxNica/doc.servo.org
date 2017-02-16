@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["HTMLMapElement",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_HTMLMapElement",""]],"struct":[["HTMLMapElement",""]]});

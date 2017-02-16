@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["CloseEvent",""]]});
+initSidebarItems({"constant":[["_IMPL_DOMOBJECT_FOR_CloseEvent",""]],"struct":[["CloseEvent",""]]});
