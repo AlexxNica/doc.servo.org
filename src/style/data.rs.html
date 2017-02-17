@@ -552,6 +552,27 @@
 <span id="507">507</span>
 <span id="508">508</span>
 <span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -800,7 +821,7 @@
 <span class='doccomment'>/// We really want to store an Option&lt;Snapshot&gt; here, but we can&#39;t drop Gecko</span>
 <span class='doccomment'>/// Snapshots off-main-thread. So we make a convenient little wrapper to provide</span>
 <span class='doccomment'>/// the semantics of Option&lt;Snapshot&gt;, while deferring the actual drop.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Default</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>SnapshotOption</span> {
     <span class='ident'>snapshot</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Snapshot</span><span class='op'>&gt;</span>,
     <span class='ident'>destroyed</span>: <span class='ident'>bool</span>,
@@ -847,7 +868,7 @@
 <span class='doccomment'>/// Transient data used by the restyle algorithm. This structure is instantiated</span>
 <span class='doccomment'>/// either before or during restyle traversal, and is cleared at the end of node</span>
 <span class='doccomment'>/// processing.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Default</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>RestyleData</span> {
     <span class='doccomment'>/// The restyle hint, which indicates whether selectors need to be rematched</span>
     <span class='doccomment'>/// for this element, its children, and its descendants.</span>
@@ -861,20 +882,19 @@
     <span class='doccomment'>/// afte restyling.</span>
     <span class='kw'>pub</span> <span class='ident'>damage</span>: <span class='ident'>RestyleDamage</span>,
 
+    <span class='doccomment'>/// The restyle damage that has already been handled by our ancestors, and does</span>
+    <span class='doccomment'>/// not need to be applied again at this element. Only non-empty during the</span>
+    <span class='doccomment'>/// traversal, once ancestor damage has been calculated.</span>
+    <span class='doccomment'>///</span>
+    <span class='doccomment'>/// Note that this optimization mostly makes sense in terms of Gecko&#39;s top-down</span>
+    <span class='doccomment'>/// frame constructor and change list processing model. We don&#39;t bother with it</span>
+    <span class='doccomment'>/// for Servo for now.</span>
+    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;gecko&quot;</span>)]</span>
+    <span class='kw'>pub</span> <span class='ident'>damage_handled</span>: <span class='ident'>RestyleDamage</span>,
+
     <span class='doccomment'>/// An optional snapshot of the original state and attributes of the element,</span>
     <span class='doccomment'>/// from which we may compute additional restyle hints at traversal time.</span>
     <span class='kw'>pub</span> <span class='ident'>snapshot</span>: <span class='ident'>SnapshotOption</span>,
-}
-
-<span class='kw'>impl</span> <span class='ident'>Default</span> <span class='kw'>for</span> <span class='ident'>RestyleData</span> {
-    <span class='kw'>fn</span> <span class='ident'>default</span>() <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='ident'>RestyleData</span> {
-            <span class='ident'>hint</span>: <span class='ident'>StoredRestyleHint</span>::<span class='ident'>default</span>(),
-            <span class='ident'>recascade</span>: <span class='bool-val'>false</span>,
-            <span class='ident'>damage</span>: <span class='ident'>RestyleDamage</span>::<span class='ident'>empty</span>(),
-            <span class='ident'>snapshot</span>: <span class='ident'>SnapshotOption</span>::<span class='ident'>empty</span>(),
-        }
-    }
 }
 
 <span class='kw'>impl</span> <span class='ident'>RestyleData</span> {
@@ -909,6 +929,28 @@
             <span class='self'>self</span>.<span class='ident'>recascade</span> <span class='op'>||</span>
             <span class='self'>self</span>.<span class='ident'>snapshot</span>.<span class='ident'>is_some</span>()
     }
+
+    <span class='doccomment'>/// Returns damage handled.</span>
+    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;gecko&quot;</span>)]</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>damage_handled</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>RestyleDamage</span> {
+        <span class='self'>self</span>.<span class='ident'>damage_handled</span>
+    }
+
+    <span class='doccomment'>/// Returns damage handled (always empty for servo).</span>
+    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>)]</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>damage_handled</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>RestyleDamage</span> {
+        <span class='ident'>RestyleDamage</span>::<span class='ident'>empty</span>()
+    }
+
+    <span class='doccomment'>/// Sets damage handled.</span>
+    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;gecko&quot;</span>)]</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_damage_handled</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>d</span>: <span class='ident'>RestyleDamage</span>) {
+        <span class='self'>self</span>.<span class='ident'>damage_handled</span> <span class='op'>=</span> <span class='ident'>d</span>;
+    }
+
+    <span class='doccomment'>/// Sets damage handled. No-op for Servo.</span>
+    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>)]</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_damage_handled</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, _: <span class='ident'>RestyleDamage</span>) {}
 }
 
 <span class='doccomment'>/// Style system data associated with an Element.</span>
