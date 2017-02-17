@@ -21,7 +21,6 @@ implementors["mime_guess"] = [];
 implementors["mio"] = [];
 implementors["net"] = [];
 implementors["net_traits"] = [];
-implementors["nix"] = [];
 implementors["offscreen_gl_context"] = [];
 implementors["openssl"] = [];
 implementors["phf"] = [];

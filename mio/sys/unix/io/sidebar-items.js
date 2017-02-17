@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Io",""]]});
+initSidebarItems({"fn":[["set_cloexec",""],["set_nonblock",""]],"struct":[["Io",""]]});

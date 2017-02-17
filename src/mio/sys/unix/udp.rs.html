@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/registry/src/github.com-1ecc6299db9ec823/mio-0.5.1/src/sys/unix/udp.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/registry/src/github.com-1ecc6299db9ec823/mio-0.6.4/src/sys/unix/udp.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>udp.rs.html -- source</title>
@@ -191,203 +191,147 @@
 <span id="146">146</span>
 <span id="147">147</span>
 <span id="148">148</span>
-<span id="149">149</span>
-<span id="150">150</span>
-<span id="151">151</span>
-<span id="152">152</span>
-<span id="153">153</span>
-<span id="154">154</span>
-<span id="155">155</span>
-<span id="156">156</span>
-<span id="157">157</span>
-<span id="158">158</span>
-<span id="159">159</span>
-<span id="160">160</span>
-<span id="161">161</span>
-<span id="162">162</span>
-<span id="163">163</span>
-<span id="164">164</span>
-<span id="165">165</span>
-<span id="166">166</span>
-<span id="167">167</span>
-<span id="168">168</span>
-<span id="169">169</span>
-<span id="170">170</span>
-<span id="171">171</span>
-<span id="172">172</span>
-<span id="173">173</span>
-<span id="174">174</span>
-<span id="175">175</span>
-<span id="176">176</span>
 </pre><pre class='rust '>
-<span class='kw'>use</span> {<span class='ident'>io</span>, <span class='ident'>Evented</span>, <span class='ident'>EventSet</span>, <span class='ident'>Io</span>, <span class='ident'>IpAddr</span>, <span class='ident'>PollOpt</span>, <span class='ident'>Selector</span>, <span class='ident'>Token</span>};
+<span class='kw'>use</span> {<span class='ident'>io</span>, <span class='ident'>Evented</span>, <span class='ident'>Ready</span>, <span class='ident'>Poll</span>, <span class='ident'>PollOpt</span>, <span class='ident'>Token</span>};
 <span class='kw'>use</span> <span class='ident'>io</span>::<span class='ident'>MapNonBlock</span>;
-<span class='kw'>use</span> <span class='ident'>sys</span>::<span class='ident'>unix</span>::{<span class='ident'>net</span>, <span class='ident'>nix</span>, <span class='ident'>Socket</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>Cell</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>net</span>::<span class='ident'>SocketAddr</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>os</span>::<span class='ident'>unix</span>::<span class='ident'>io</span>::{<span class='ident'>RawFd</span>, <span class='ident'>AsRawFd</span>, <span class='ident'>FromRawFd</span>};
+<span class='kw'>use</span> <span class='ident'>unix</span>::<span class='ident'>EventedFd</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>net</span>::{<span class='self'>self</span>, <span class='ident'>Ipv4Addr</span>, <span class='ident'>Ipv6Addr</span>, <span class='ident'>SocketAddr</span>};
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>os</span>::<span class='ident'>unix</span>::<span class='ident'>io</span>::{<span class='ident'>RawFd</span>, <span class='ident'>IntoRawFd</span>, <span class='ident'>AsRawFd</span>, <span class='ident'>FromRawFd</span>};
+
+<span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unused_imports</span>)]</span> <span class='comment'>// only here for Rust 1.8</span>
+<span class='kw'>use</span> <span class='ident'>net2</span>::<span class='ident'>UdpSocketExt</span>;
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>UdpSocket</span> {
-    <span class='ident'>io</span>: <span class='ident'>Io</span>,
-    <span class='ident'>selector_id</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;&gt;</span>,
+    <span class='ident'>io</span>: <span class='ident'>net</span>::<span class='ident'>UdpSocket</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>UdpSocket</span> {
-    <span class='doccomment'>/// Returns a new, unbound, non-blocking, IPv4 UDP socket</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>v4</span>() <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>UdpSocket</span><span class='op'>&gt;</span> {
-        <span class='ident'>net</span>::<span class='ident'>socket</span>(<span class='ident'>nix</span>::<span class='ident'>AddressFamily</span>::<span class='ident'>Inet</span>, <span class='ident'>nix</span>::<span class='ident'>SockType</span>::<span class='ident'>Datagram</span>, <span class='bool-val'>true</span>)
-            .<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>fd</span><span class='op'>|</span> {
-                <span class='ident'>UdpSocket</span> {
-                    <span class='ident'>io</span>: <span class='ident'>Io</span>::<span class='ident'>from_raw_fd</span>(<span class='ident'>fd</span>),
-                    <span class='ident'>selector_id</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
-                }
-            })
-    }
-
-    <span class='doccomment'>/// Returns a new, unbound, non-blocking, IPv6 UDP socket</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>v6</span>() <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>UdpSocket</span><span class='op'>&gt;</span> {
-        <span class='ident'>net</span>::<span class='ident'>socket</span>(<span class='ident'>nix</span>::<span class='ident'>AddressFamily</span>::<span class='ident'>Inet6</span>, <span class='ident'>nix</span>::<span class='ident'>SockType</span>::<span class='ident'>Datagram</span>, <span class='bool-val'>true</span>)
-            .<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>fd</span><span class='op'>|</span> {
-                <span class='ident'>UdpSocket</span> {
-                    <span class='ident'>io</span>: <span class='ident'>Io</span>::<span class='ident'>from_raw_fd</span>(<span class='ident'>fd</span>),
-                    <span class='ident'>selector_id</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
-                }
-            })
-    }
-
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>bind</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>addr</span>: <span class='kw-2'>&amp;</span><span class='ident'>SocketAddr</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='ident'>net</span>::<span class='ident'>bind</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>io</span>, <span class='kw-2'>&amp;</span><span class='ident'>net</span>::<span class='ident'>to_nix_addr</span>(<span class='ident'>addr</span>))
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>socket</span>: <span class='ident'>net</span>::<span class='ident'>UdpSocket</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>UdpSocket</span><span class='op'>&gt;</span> {
+        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>socket</span>.<span class='ident'>set_nonblocking</span>(<span class='bool-val'>true</span>));
+        <span class='prelude-val'>Ok</span>(<span class='ident'>UdpSocket</span> {
+            <span class='ident'>io</span>: <span class='ident'>socket</span>,
+        })
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>local_addr</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>SocketAddr</span><span class='op'>&gt;</span> {
-        <span class='ident'>net</span>::<span class='ident'>getsockname</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>io</span>)
-            .<span class='ident'>map</span>(<span class='ident'>net</span>::<span class='ident'>to_std_addr</span>)
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>local_addr</span>()
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>try_clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>UdpSocket</span><span class='op'>&gt;</span> {
-        <span class='ident'>net</span>::<span class='ident'>dup</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>io</span>).<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>io</span><span class='op'>|</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>try_clone</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>io</span><span class='op'>|</span> {
             <span class='ident'>UdpSocket</span> {
                 <span class='ident'>io</span>: <span class='ident'>io</span>,
-                <span class='ident'>selector_id</span>: <span class='self'>self</span>.<span class='ident'>selector_id</span>.<span class='ident'>clone</span>(),
             }
         })
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>send_to</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>], <span class='ident'>target</span>: <span class='kw-2'>&amp;</span><span class='ident'>SocketAddr</span>)
                    <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;&gt;</span> {
-        <span class='ident'>net</span>::<span class='ident'>sendto</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>io</span>, <span class='ident'>buf</span>, <span class='kw-2'>&amp;</span><span class='ident'>net</span>::<span class='ident'>to_nix_addr</span>(<span class='ident'>target</span>))
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>send_to</span>(<span class='ident'>buf</span>, <span class='ident'>target</span>)
             .<span class='ident'>map_non_block</span>()
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>recv_from</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>buf</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> [<span class='ident'>u8</span>])
                      <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span>(<span class='ident'>usize</span>, <span class='ident'>SocketAddr</span>)<span class='op'>&gt;&gt;</span> {
-        <span class='ident'>net</span>::<span class='ident'>recvfrom</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>io</span>, <span class='ident'>buf</span>)
-            .<span class='ident'>map</span>(<span class='op'>|</span>(<span class='ident'>cnt</span>, <span class='ident'>addr</span>)<span class='op'>|</span> (<span class='ident'>cnt</span>, <span class='ident'>net</span>::<span class='ident'>to_std_addr</span>(<span class='ident'>addr</span>)))
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>recv_from</span>(<span class='ident'>buf</span>)
             .<span class='ident'>map_non_block</span>()
     }
 
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>broadcast</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>bool</span><span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>broadcast</span>()
+    }
+
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_broadcast</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>on</span>: <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='ident'>nix</span>::<span class='ident'>setsockopt</span>(<span class='self'>self</span>.<span class='ident'>as_raw_fd</span>(), <span class='ident'>nix</span>::<span class='ident'>sockopt</span>::<span class='ident'>Broadcast</span>, <span class='kw-2'>&amp;</span><span class='ident'>on</span>)
-            .<span class='ident'>map_err</span>(<span class='kw'>super</span>::<span class='ident'>from_nix_error</span>)
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>set_broadcast</span>(<span class='ident'>on</span>)
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_multicast_loop</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>on</span>: <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='ident'>nix</span>::<span class='ident'>setsockopt</span>(<span class='self'>self</span>.<span class='ident'>as_raw_fd</span>(), <span class='ident'>nix</span>::<span class='ident'>sockopt</span>::<span class='ident'>IpMulticastLoop</span>, <span class='kw-2'>&amp;</span><span class='ident'>on</span>)
-            .<span class='ident'>map_err</span>(<span class='kw'>super</span>::<span class='ident'>from_nix_error</span>)
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>multicast_loop_v4</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>bool</span><span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>multicast_loop_v4</span>()
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>join_multicast</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>multi</span>: <span class='kw-2'>&amp;</span><span class='ident'>IpAddr</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>multi</span> {
-            <span class='ident'>IpAddr</span>::<span class='ident'>V4</span>(<span class='kw-2'>ref</span> <span class='ident'>addr</span>) <span class='op'>=&gt;</span> {
-                <span class='comment'>// Create the request</span>
-                <span class='kw'>let</span> <span class='ident'>req</span> <span class='op'>=</span> <span class='ident'>nix</span>::<span class='ident'>ip_mreq</span>::<span class='ident'>new</span>(<span class='ident'>nix</span>::<span class='ident'>Ipv4Addr</span>::<span class='ident'>from_std</span>(<span class='ident'>addr</span>), <span class='prelude-val'>None</span>);
-
-                <span class='comment'>// Set the socket option</span>
-                <span class='ident'>nix</span>::<span class='ident'>setsockopt</span>(<span class='self'>self</span>.<span class='ident'>as_raw_fd</span>(), <span class='ident'>nix</span>::<span class='ident'>sockopt</span>::<span class='ident'>IpAddMembership</span>, <span class='kw-2'>&amp;</span><span class='ident'>req</span>)
-                    .<span class='ident'>map_err</span>(<span class='kw'>super</span>::<span class='ident'>from_nix_error</span>)
-            }
-            <span class='ident'>IpAddr</span>::<span class='ident'>V6</span>(<span class='kw-2'>ref</span> <span class='ident'>addr</span>) <span class='op'>=&gt;</span> {
-                <span class='comment'>// Create the request</span>
-                <span class='kw'>let</span> <span class='ident'>req</span> <span class='op'>=</span> <span class='ident'>nix</span>::<span class='ident'>ipv6_mreq</span>::<span class='ident'>new</span>(<span class='ident'>nix</span>::<span class='ident'>Ipv6Addr</span>::<span class='ident'>from_std</span>(<span class='ident'>addr</span>));
-
-                <span class='comment'>// Set the socket option</span>
-                <span class='ident'>nix</span>::<span class='ident'>setsockopt</span>(<span class='self'>self</span>.<span class='ident'>as_raw_fd</span>(), <span class='ident'>nix</span>::<span class='ident'>sockopt</span>::<span class='ident'>Ipv6AddMembership</span>, <span class='kw-2'>&amp;</span><span class='ident'>req</span>)
-                    .<span class='ident'>map_err</span>(<span class='kw'>super</span>::<span class='ident'>from_nix_error</span>)
-            }
-        }
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_multicast_loop_v4</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>on</span>: <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>set_multicast_loop_v4</span>(<span class='ident'>on</span>)
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>leave_multicast</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>multi</span>: <span class='kw-2'>&amp;</span><span class='ident'>IpAddr</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>multi</span> {
-            <span class='ident'>IpAddr</span>::<span class='ident'>V4</span>(<span class='kw-2'>ref</span> <span class='ident'>addr</span>) <span class='op'>=&gt;</span> {
-                <span class='comment'>// Create the request</span>
-                <span class='kw'>let</span> <span class='ident'>req</span> <span class='op'>=</span> <span class='ident'>nix</span>::<span class='ident'>ip_mreq</span>::<span class='ident'>new</span>(<span class='ident'>nix</span>::<span class='ident'>Ipv4Addr</span>::<span class='ident'>from_std</span>(<span class='ident'>addr</span>), <span class='prelude-val'>None</span>);
-
-                <span class='comment'>// Set the socket option</span>
-                <span class='ident'>nix</span>::<span class='ident'>setsockopt</span>(<span class='self'>self</span>.<span class='ident'>as_raw_fd</span>(), <span class='ident'>nix</span>::<span class='ident'>sockopt</span>::<span class='ident'>IpDropMembership</span>, <span class='kw-2'>&amp;</span><span class='ident'>req</span>)
-                    .<span class='ident'>map_err</span>(<span class='kw'>super</span>::<span class='ident'>from_nix_error</span>)
-            }
-            <span class='ident'>IpAddr</span>::<span class='ident'>V6</span>(<span class='kw-2'>ref</span> <span class='ident'>addr</span>) <span class='op'>=&gt;</span> {
-                <span class='comment'>// Create the request</span>
-                <span class='kw'>let</span> <span class='ident'>req</span> <span class='op'>=</span> <span class='ident'>nix</span>::<span class='ident'>ipv6_mreq</span>::<span class='ident'>new</span>(<span class='ident'>nix</span>::<span class='ident'>Ipv6Addr</span>::<span class='ident'>from_std</span>(<span class='ident'>addr</span>));
-
-                <span class='comment'>// Set the socket option</span>
-                <span class='ident'>nix</span>::<span class='ident'>setsockopt</span>(<span class='self'>self</span>.<span class='ident'>as_raw_fd</span>(), <span class='ident'>nix</span>::<span class='ident'>sockopt</span>::<span class='ident'>Ipv6DropMembership</span>, <span class='kw-2'>&amp;</span><span class='ident'>req</span>)
-                    .<span class='ident'>map_err</span>(<span class='kw'>super</span>::<span class='ident'>from_nix_error</span>)
-            }
-        }
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>multicast_ttl_v4</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>multicast_ttl_v4</span>()
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_multicast_time_to_live</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>ttl</span>: <span class='ident'>i32</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>v</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>ttl</span> <span class='op'>&lt;</span> <span class='number'>0</span> {
-            <span class='number'>0</span>
-        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>ttl</span> <span class='op'>&gt;</span> <span class='number'>255</span> {
-            <span class='number'>255</span>
-        } <span class='kw'>else</span> {
-            <span class='ident'>ttl</span> <span class='kw'>as</span> <span class='ident'>u8</span>
-        };
-
-        <span class='ident'>nix</span>::<span class='ident'>setsockopt</span>(<span class='self'>self</span>.<span class='ident'>as_raw_fd</span>(), <span class='ident'>nix</span>::<span class='ident'>sockopt</span>::<span class='ident'>IpMulticastTtl</span>, <span class='kw-2'>&amp;</span><span class='ident'>v</span>)
-            .<span class='ident'>map_err</span>(<span class='kw'>super</span>::<span class='ident'>from_nix_error</span>)
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_multicast_ttl_v4</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>ttl</span>: <span class='ident'>u32</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>set_multicast_ttl_v4</span>(<span class='ident'>ttl</span>)
     }
 
-    <span class='kw'>fn</span> <span class='ident'>associate_selector</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>selector</span>: <span class='kw-2'>&amp;</span><span class='ident'>Selector</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>selector_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>selector_id</span>.<span class='ident'>get</span>();
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>multicast_loop_v6</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>bool</span><span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>multicast_loop_v6</span>()
+    }
 
-        <span class='kw'>if</span> <span class='ident'>selector_id</span>.<span class='ident'>is_some</span>() <span class='op'>&amp;&amp;</span> <span class='ident'>selector_id</span> <span class='op'>!=</span> <span class='prelude-val'>Some</span>(<span class='ident'>selector</span>.<span class='ident'>id</span>()) {
-            <span class='prelude-val'>Err</span>(<span class='ident'>io</span>::<span class='ident'>Error</span>::<span class='ident'>new</span>(<span class='ident'>io</span>::<span class='ident'>ErrorKind</span>::<span class='ident'>Other</span>, <span class='string'>&quot;socket already registered&quot;</span>))
-        } <span class='kw'>else</span> {
-            <span class='self'>self</span>.<span class='ident'>selector_id</span>.<span class='ident'>set</span>(<span class='prelude-val'>Some</span>(<span class='ident'>selector</span>.<span class='ident'>id</span>()));
-            <span class='prelude-val'>Ok</span>(())
-        }
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_multicast_loop_v6</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>on</span>: <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>set_multicast_loop_v6</span>(<span class='ident'>on</span>)
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ttl</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>ttl</span>()
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_ttl</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>ttl</span>: <span class='ident'>u32</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>set_ttl</span>(<span class='ident'>ttl</span>)
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>join_multicast_v4</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
+                             <span class='ident'>multiaddr</span>: <span class='kw-2'>&amp;</span><span class='ident'>Ipv4Addr</span>,
+                             <span class='ident'>interface</span>: <span class='kw-2'>&amp;</span><span class='ident'>Ipv4Addr</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>join_multicast_v4</span>(<span class='ident'>multiaddr</span>, <span class='ident'>interface</span>)
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>join_multicast_v6</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
+                             <span class='ident'>multiaddr</span>: <span class='kw-2'>&amp;</span><span class='ident'>Ipv6Addr</span>,
+                             <span class='ident'>interface</span>: <span class='ident'>u32</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>join_multicast_v6</span>(<span class='ident'>multiaddr</span>, <span class='ident'>interface</span>)
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>leave_multicast_v4</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
+                              <span class='ident'>multiaddr</span>: <span class='kw-2'>&amp;</span><span class='ident'>Ipv4Addr</span>,
+                              <span class='ident'>interface</span>: <span class='kw-2'>&amp;</span><span class='ident'>Ipv4Addr</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>leave_multicast_v4</span>(<span class='ident'>multiaddr</span>, <span class='ident'>interface</span>)
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>leave_multicast_v6</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
+                              <span class='ident'>multiaddr</span>: <span class='kw-2'>&amp;</span><span class='ident'>Ipv6Addr</span>,
+                              <span class='ident'>interface</span>: <span class='ident'>u32</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>leave_multicast_v6</span>(<span class='ident'>multiaddr</span>, <span class='ident'>interface</span>)
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>take_error</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>io</span>::<span class='ident'>Error</span><span class='op'>&gt;&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>take_error</span>()
     }
 }
 
 <span class='kw'>impl</span> <span class='ident'>Evented</span> <span class='kw'>for</span> <span class='ident'>UdpSocket</span> {
-    <span class='kw'>fn</span> <span class='ident'>register</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>selector</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Selector</span>, <span class='ident'>token</span>: <span class='ident'>Token</span>, <span class='ident'>interest</span>: <span class='ident'>EventSet</span>, <span class='ident'>opts</span>: <span class='ident'>PollOpt</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>associate_selector</span>(<span class='ident'>selector</span>));
-        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>register</span>(<span class='ident'>selector</span>, <span class='ident'>token</span>, <span class='ident'>interest</span>, <span class='ident'>opts</span>)
+    <span class='kw'>fn</span> <span class='ident'>register</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>poll</span>: <span class='kw-2'>&amp;</span><span class='ident'>Poll</span>, <span class='ident'>token</span>: <span class='ident'>Token</span>, <span class='ident'>interest</span>: <span class='ident'>Ready</span>, <span class='ident'>opts</span>: <span class='ident'>PollOpt</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
+        <span class='ident'>EventedFd</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>as_raw_fd</span>()).<span class='ident'>register</span>(<span class='ident'>poll</span>, <span class='ident'>token</span>, <span class='ident'>interest</span>, <span class='ident'>opts</span>)
     }
 
-    <span class='kw'>fn</span> <span class='ident'>reregister</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>selector</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Selector</span>, <span class='ident'>token</span>: <span class='ident'>Token</span>, <span class='ident'>interest</span>: <span class='ident'>EventSet</span>, <span class='ident'>opts</span>: <span class='ident'>PollOpt</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>reregister</span>(<span class='ident'>selector</span>, <span class='ident'>token</span>, <span class='ident'>interest</span>, <span class='ident'>opts</span>)
+    <span class='kw'>fn</span> <span class='ident'>reregister</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>poll</span>: <span class='kw-2'>&amp;</span><span class='ident'>Poll</span>, <span class='ident'>token</span>: <span class='ident'>Token</span>, <span class='ident'>interest</span>: <span class='ident'>Ready</span>, <span class='ident'>opts</span>: <span class='ident'>PollOpt</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
+        <span class='ident'>EventedFd</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>as_raw_fd</span>()).<span class='ident'>reregister</span>(<span class='ident'>poll</span>, <span class='ident'>token</span>, <span class='ident'>interest</span>, <span class='ident'>opts</span>)
     }
 
-    <span class='kw'>fn</span> <span class='ident'>deregister</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>selector</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Selector</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>deregister</span>(<span class='ident'>selector</span>)
+    <span class='kw'>fn</span> <span class='ident'>deregister</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>poll</span>: <span class='kw-2'>&amp;</span><span class='ident'>Poll</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
+        <span class='ident'>EventedFd</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>as_raw_fd</span>()).<span class='ident'>deregister</span>(<span class='ident'>poll</span>)
     }
-}
-
-<span class='kw'>impl</span> <span class='ident'>Socket</span> <span class='kw'>for</span> <span class='ident'>UdpSocket</span> {
 }
 
 <span class='kw'>impl</span> <span class='ident'>FromRawFd</span> <span class='kw'>for</span> <span class='ident'>UdpSocket</span> {
     <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_raw_fd</span>(<span class='ident'>fd</span>: <span class='ident'>RawFd</span>) <span class='op'>-&gt;</span> <span class='ident'>UdpSocket</span> {
         <span class='ident'>UdpSocket</span> {
-            <span class='ident'>io</span>: <span class='ident'>Io</span>::<span class='ident'>from_raw_fd</span>(<span class='ident'>fd</span>),
-            <span class='ident'>selector_id</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
+            <span class='ident'>io</span>: <span class='ident'>net</span>::<span class='ident'>UdpSocket</span>::<span class='ident'>from_raw_fd</span>(<span class='ident'>fd</span>),
         }
+    }
+}
+
+<span class='kw'>impl</span> <span class='ident'>IntoRawFd</span> <span class='kw'>for</span> <span class='ident'>UdpSocket</span> {
+    <span class='kw'>fn</span> <span class='ident'>into_raw_fd</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>RawFd</span> {
+        <span class='self'>self</span>.<span class='ident'>io</span>.<span class='ident'>into_raw_fd</span>()
     }
 }
 

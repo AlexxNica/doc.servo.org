@@ -21,7 +21,6 @@ implementors["mime_guess"] = [];
 implementors["mio"] = [];
 implementors["net"] = [];
 implementors["net_traits"] = [];
-implementors["nix"] = [];
 implementors["offscreen_gl_context"] = [];
 implementors["openssl"] = [];
 implementors["ordered_float"] = ["impl <a class='trait' href='core/ops/trait.RemAssign.html' title='trait core::ops::RemAssign'>RemAssign</a> for <a class='struct' href='ordered_float/struct.NotNaN.html' title='struct ordered_float::NotNaN'>NotNaN</a>&lt;<a class='primitive' href='std/primitive.f64.html'>f64</a>&gt;","impl <a class='trait' href='core/ops/trait.RemAssign.html' title='trait core::ops::RemAssign'>RemAssign</a> for <a class='struct' href='ordered_float/struct.NotNaN.html' title='struct ordered_float::NotNaN'>NotNaN</a>&lt;<a class='primitive' href='std/primitive.f32.html'>f32</a>&gt;","impl <a class='trait' href='core/ops/trait.RemAssign.html' title='trait core::ops::RemAssign'>RemAssign</a>&lt;<a class='primitive' href='std/primitive.f64.html'>f64</a>&gt; for <a class='struct' href='ordered_float/struct.NotNaN.html' title='struct ordered_float::NotNaN'>NotNaN</a>&lt;<a class='primitive' href='std/primitive.f64.html'>f64</a>&gt;","impl <a class='trait' href='core/ops/trait.RemAssign.html' title='trait core::ops::RemAssign'>RemAssign</a>&lt;<a class='primitive' href='std/primitive.f32.html'>f32</a>&gt; for <a class='struct' href='ordered_float/struct.NotNaN.html' title='struct ordered_float::NotNaN'>NotNaN</a>&lt;<a class='primitive' href='std/primitive.f32.html'>f32</a>&gt;",];

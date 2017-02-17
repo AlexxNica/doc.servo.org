@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["EventSet",""],["IoEvent",""],["PollOpt",""]]});
+initSidebarItems({"fn":[["as_usize",""],["drop",""],["from_usize",""],["is_drop",""],["is_empty","Returns true if the `Ready` does not have any public OR private flags set."],["kind_mut",""]],"struct":[["Event","An readiness event returned by `Poll`."],["PollOpt","Configures readiness polling behavior for a given `Evented` value."],["Ready","A set of readiness events returned by `Poll`."]]});

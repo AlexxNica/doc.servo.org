@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["ALL",""],["CONN_START",""],["SYSTEM",""]],"enum":[["State",""]],"fn":[["url_to_addrs",""]],"struct":[["Handler",""],["Timeout",""]],"type":[["Chan",""],["Conn",""],["Loop",""]]});
+initSidebarItems({"constant":[["ALL",""],["MAX_EVENTS",""],["MESSAGES_PER_TICK",""],["QUEUE",""],["SYSTEM",""],["TIMER",""],["TIMER_CAPACITY",""],["TIMER_TICK_MILLIS",""],["TIMER_WHEEL_SIZE",""]],"enum":[["State",""]],"fn":[["url_to_addrs",""]],"struct":[["Handler",""],["Timeout",""]],"type":[["Conn",""]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Token",""]]});
+initSidebarItems({"struct":[["Token","Used to identify which `Evented` value is associated with an `Event` notification returned by `Poll`."]]});

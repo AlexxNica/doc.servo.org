@@ -20,7 +20,6 @@ implementors["mime_guess"] = [];
 implementors["mio"] = [];
 implementors["net"] = ["impl <a class='trait' href='collections/string/trait.ToString.html' title='trait collections::string::ToString'>ToString</a> for <a class='enum' href='openssl/x509/extension/enum.Extension.html' title='enum openssl::x509::extension::Extension'>Extension</a>",];
 implementors["net_traits"] = ["impl <a class='trait' href='collections/string/trait.ToString.html' title='trait collections::string::ToString'>ToString</a> for <a class='enum' href='openssl/x509/extension/enum.Extension.html' title='enum openssl::x509::extension::Extension'>Extension</a>",];
-implementors["nix"] = [];
 implementors["offscreen_gl_context"] = [];
 implementors["openssl"] = ["impl <a class='trait' href='collections/string/trait.ToString.html' title='trait collections::string::ToString'>ToString</a> for <a class='enum' href='openssl/x509/extension/enum.Extension.html' title='enum openssl::x509::extension::Extension'>Extension</a>",];
 implementors["phf"] = [];

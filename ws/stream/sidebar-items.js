@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["Stream",""]]});
+initSidebarItems({"enum":[["Stream",""]],"fn":[["map_non_block",""]],"trait":[["TryReadBuf",""],["TryWriteBuf",""]]});

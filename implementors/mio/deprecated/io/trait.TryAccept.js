@@ -9,6 +9,7 @@ implementors["script"] = [];
 implementors["servo"] = [];
 implementors["webrender"] = [];
 implementors["webvr_traits"] = [];
+implementors["ws"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);

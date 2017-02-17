@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["LOCK_EX",""],["LOCK_NB",""],["LOCK_SH",""],["LOCK_UN",""]],"fn":[["fcntl",""],["open",""]],"mod":[["os",""]],"struct":[["libc_flock",""]]});

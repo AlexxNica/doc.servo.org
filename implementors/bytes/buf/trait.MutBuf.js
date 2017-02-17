@@ -1,6 +1,5 @@
 (function() {var implementors = {};
 implementors["bytes"] = [];
-implementors["mio"] = [];
 implementors["servo"] = [];
 implementors["ws"] = [];
 

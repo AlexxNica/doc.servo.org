@@ -21,7 +21,6 @@ implementors["mime_guess"] = [];
 implementors["mio"] = [];
 implementors["net"] = ["impl&lt;'a&gt; <a class='trait' href='core/ops/trait.Shr.html' title='trait core::ops::Shr'>Shr</a>&lt;<a class='primitive' href='std/primitive.i32.html'>i32</a>&gt; for &amp;'a <a class='struct' href='openssl/bn/struct.BigNum.html' title='struct openssl::bn::BigNum'>BigNum</a>",];
 implementors["net_traits"] = ["impl&lt;'a&gt; <a class='trait' href='core/ops/trait.Shr.html' title='trait core::ops::Shr'>Shr</a>&lt;<a class='primitive' href='std/primitive.i32.html'>i32</a>&gt; for &amp;'a <a class='struct' href='openssl/bn/struct.BigNum.html' title='struct openssl::bn::BigNum'>BigNum</a>",];
-implementors["nix"] = [];
 implementors["offscreen_gl_context"] = [];
 implementors["openssl"] = ["impl&lt;'a&gt; <a class='trait' href='core/ops/trait.Shr.html' title='trait core::ops::Shr'>Shr</a>&lt;<a class='primitive' href='std/primitive.i32.html'>i32</a>&gt; for &amp;'a <a class='struct' href='openssl/bn/struct.BigNum.html' title='struct openssl::bn::BigNum'>BigNum</a>",];
 implementors["phf"] = [];

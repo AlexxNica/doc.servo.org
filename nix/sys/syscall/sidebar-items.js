@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["syscall",""]],"mod":[["arch",""]],"static":[["MEMFD_CREATE",""],["SYSPIVOTROOT",""]],"type":[["Syscall",""]]});

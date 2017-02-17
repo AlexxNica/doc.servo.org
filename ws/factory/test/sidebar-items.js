@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["M",""],["S",""]]});
+initSidebarItems({"struct":[["M",""]]});

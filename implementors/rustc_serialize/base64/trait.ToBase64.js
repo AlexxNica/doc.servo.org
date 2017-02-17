@@ -3,7 +3,6 @@ implementors["gfx"] = [];
 implementors["hyper"] = [];
 implementors["ipc_channel"] = [];
 implementors["layout_thread"] = [];
-implementors["mio"] = [];
 implementors["net"] = [];
 implementors["net_traits"] = [];
 implementors["offscreen_gl_context"] = [];
