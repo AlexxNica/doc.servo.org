@@ -35,7 +35,6 @@ implementors["std"] = [];
 implementors["std_unicode"] = [];
 implementors["string_cache"] = [];
 implementors["style"] = [];
-implementors["syntex_syntax"] = [];
 implementors["tendril"] = [];
 implementors["url"] = [];
 implementors["void"] = [];

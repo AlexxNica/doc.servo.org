@@ -1,7 +1,6 @@
 (function() {var implementors = {};
 implementors["gfx"] = [];
 implementors["hyper"] = [];
-implementors["ipc_channel"] = [];
 implementors["layout_thread"] = [];
 implementors["net"] = [];
 implementors["net_traits"] = [];
@@ -11,7 +10,6 @@ implementors["script"] = [];
 implementors["servo"] = [];
 implementors["servo_config"] = [];
 implementors["style"] = [];
-implementors["syntex_syntax"] = [];
 implementors["url"] = [];
 implementors["webrender"] = [];
 implementors["websocket"] = [];

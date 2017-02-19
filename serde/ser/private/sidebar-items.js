@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Unsupported",""]],"fn":[["serialize_tagged_newtype","Not public API."]],"struct":[["Error",""],["TaggedSerializer",""]]});

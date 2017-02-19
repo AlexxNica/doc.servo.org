@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["CowCString",""]],"struct":[["NullError",""]],"trait":[["CStringAsRef",""]]});
+initSidebarItems({"fn":[["cstr_cow_from_bytes","Checks for last byte and avoids alocatting if its zero."]],"struct":[["NullError",""]]});

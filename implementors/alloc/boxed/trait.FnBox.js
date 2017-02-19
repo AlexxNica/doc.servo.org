@@ -33,7 +33,6 @@ implementors["servo_remutex"] = [];
 implementors["shared_library"] = [];
 implementors["string_cache"] = [];
 implementors["style"] = [];
-implementors["syntex_syntax"] = [];
 implementors["tendril"] = [];
 implementors["url"] = [];
 implementors["webrender"] = [];

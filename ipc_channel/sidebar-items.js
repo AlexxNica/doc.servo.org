@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["DeserializeError","An error that can be produced during decoding."],["SerializeError","An error that can be produced during encoding."]],"mod":[["ipc",""],["platform",""],["router",""]]});
+initSidebarItems({"mod":[["ipc",""],["platform",""],["router",""]],"type":[["Error","An error that can be produced during (de)serializing."]]});

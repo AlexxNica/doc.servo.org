@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Error",""]],"fn":[["with_extra_stack","Runs a function in a thread with extra stack space (16 MB or `$RUST_MIN_STACK` if set)."]],"mod":[["error",""],["registry",""],["resolver",""],["stack",""]],"struct":[["Registry",""]],"type":[["Pass",""]]});

@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["ident_continue",""],["ident_start",""],["in_range",""],["is_block_doc_comment",""],["is_dec_digit",""],["is_doc_comment",""],["is_pattern_whitespace",""]],"mod":[["comments",""],["unicode_chars",""]],"struct":[["StringReader",""],["TokenAndSpan",""]],"trait":[["Reader",""]]});

@@ -8,8 +8,6 @@ implementors["script"] = [];
 implementors["servo"] = [];
 implementors["servo_config"] = [];
 implementors["style"] = [];
-implementors["syntex_syntax"] = [];
-implementors["term"] = [];
 implementors["webrender"] = [];
 implementors["webvr_traits"] = [];
 

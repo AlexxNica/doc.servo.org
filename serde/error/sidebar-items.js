@@ -1,0 +1,1 @@
+initSidebarItems({"trait":[["Error","A stand-in for `std::error::Error`, which requires no allocation."]]});
