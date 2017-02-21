@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/bcd9ed5/webrender/src/renderer.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/4221987/webrender/src/renderer.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>renderer.rs.html -- source</title>
@@ -1839,6 +1839,15 @@
 <span id="1794">1794</span>
 <span id="1795">1795</span>
 <span id="1796">1796</span>
+<span id="1797">1797</span>
+<span id="1798">1798</span>
+<span id="1799">1799</span>
+<span id="1800">1800</span>
+<span id="1801">1801</span>
+<span id="1802">1802</span>
+<span id="1803">1803</span>
+<span id="1804">1804</span>
+<span id="1805">1805</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1890,7 +1899,7 @@
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ColorF</span>, <span class='ident'>Epoch</span>, <span class='ident'>PipelineId</span>, <span class='ident'>RenderNotifier</span>, <span class='ident'>RenderDispatcher</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ExternalImageId</span>, <span class='ident'>ImageData</span>, <span class='ident'>ImageFormat</span>, <span class='ident'>RenderApiSender</span>, <span class='ident'>RendererKind</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>DeviceIntRect</span>, <span class='ident'>DevicePoint</span>, <span class='ident'>DeviceIntPoint</span>, <span class='ident'>DeviceIntSize</span>, <span class='ident'>DeviceUintSize</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::<span class='ident'>ImageDescriptor</span>;
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ImageDescriptor</span>, <span class='ident'>BlobImageRenderer</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::<span class='ident'>channel</span>;
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::<span class='ident'>VRCompositorHandler</span>;
 
@@ -2517,7 +2526,10 @@
                                      <span class='ident'>options</span>.<span class='ident'>precache_shaders</span>)
         };
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>texture_cache</span> <span class='op'>=</span> <span class='ident'>TextureCache</span>::<span class='ident'>new</span>();
+        <span class='kw'>let</span> <span class='ident'>device_max_size</span> <span class='op'>=</span> <span class='ident'>device</span>.<span class='ident'>max_texture_size</span>();
+        <span class='kw'>let</span> <span class='ident'>max_texture_size</span> <span class='op'>=</span> <span class='ident'>cmp</span>::<span class='ident'>min</span>(<span class='ident'>device_max_size</span>, <span class='ident'>options</span>.<span class='ident'>max_texture_size</span>.<span class='ident'>unwrap_or</span>(<span class='ident'>device_max_size</span>));
+
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>texture_cache</span> <span class='op'>=</span> <span class='ident'>TextureCache</span>::<span class='ident'>new</span>(<span class='ident'>max_texture_size</span>);
 
         <span class='kw'>let</span> <span class='ident'>white_pixels</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[
             <span class='number'>0xff</span>, <span class='number'>0xff</span>, <span class='number'>0xff</span>, <span class='number'>0xff</span>,
@@ -2622,6 +2634,8 @@
             <span class='comment'>// TODO(gw): Use a heuristic to select best # of worker threads.</span>
             <span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>Mutex</span>::<span class='ident'>new</span>(<span class='ident'>ThreadPool</span>::<span class='ident'>new_with_name</span>(<span class='string'>&quot;WebRender:Worker&quot;</span>.<span class='ident'>to_string</span>(), <span class='number'>4</span>)))
         });
+
+        <span class='kw'>let</span> <span class='ident'>blob_image_renderer</span> <span class='op'>=</span> <span class='ident'>options</span>.<span class='ident'>blob_image_renderer</span>.<span class='ident'>take</span>();
         <span class='macro'>try</span><span class='macro'>!</span>{ <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;RenderBackend&quot;</span>.<span class='ident'>to_string</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
             <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>backend</span> <span class='op'>=</span> <span class='ident'>RenderBackend</span>::<span class='ident'>new</span>(<span class='ident'>api_rx</span>,
                                                  <span class='ident'>payload_rx</span>,
@@ -2636,6 +2650,7 @@
                                                  <span class='ident'>config</span>,
                                                  <span class='ident'>recorder</span>,
                                                  <span class='ident'>backend_main_thread_dispatcher</span>,
+                                                 <span class='ident'>blob_image_renderer</span>,
                                                  <span class='ident'>backend_vr_compositor</span>);
             <span class='ident'>backend</span>.<span class='ident'>run</span>();
         })};
@@ -3598,7 +3613,6 @@
     <span class='kw'>fn</span> <span class='ident'>release</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>key</span>: <span class='ident'>ExternalImageId</span>);
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>RendererOptions</span> {
     <span class='kw'>pub</span> <span class='ident'>device_pixel_ratio</span>: <span class='ident'>f32</span>,
     <span class='kw'>pub</span> <span class='ident'>resource_override_path</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>PathBuf</span><span class='op'>&gt;</span>,
@@ -3612,7 +3626,9 @@
     <span class='kw'>pub</span> <span class='ident'>clear_framebuffer</span>: <span class='ident'>bool</span>,
     <span class='kw'>pub</span> <span class='ident'>clear_color</span>: <span class='ident'>ColorF</span>,
     <span class='kw'>pub</span> <span class='ident'>render_target_debug</span>: <span class='ident'>bool</span>,
+    <span class='kw'>pub</span> <span class='ident'>max_texture_size</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>workers</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>ThreadPool</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>,
+    <span class='kw'>pub</span> <span class='ident'>blob_image_renderer</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>BlobImageRenderer</span><span class='op'>&gt;&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>recorder</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ApiRecordingReceiver</span><span class='op'>&gt;&gt;</span>,
 }
 
@@ -3631,7 +3647,9 @@
             <span class='ident'>clear_framebuffer</span>: <span class='bool-val'>true</span>,
             <span class='ident'>clear_color</span>: <span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>1.0</span>, <span class='number'>1.0</span>, <span class='number'>1.0</span>, <span class='number'>1.0</span>),
             <span class='ident'>render_target_debug</span>: <span class='bool-val'>false</span>,
+            <span class='ident'>max_texture_size</span>: <span class='prelude-val'>None</span>,
             <span class='ident'>workers</span>: <span class='prelude-val'>None</span>,
+            <span class='ident'>blob_image_renderer</span>: <span class='prelude-val'>None</span>,
             <span class='ident'>recorder</span>: <span class='prelude-val'>None</span>,
         }
     }

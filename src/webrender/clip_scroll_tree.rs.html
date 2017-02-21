@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/bcd9ed5/webrender/src/scroll_tree.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/4221987/webrender/src/clip_scroll_tree.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
-    <title>scroll_tree.rs.html -- source</title>
+    <title>clip_scroll_tree.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
     <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
@@ -443,7 +443,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
 <span class='kw'>use</span> <span class='ident'>fnv</span>::<span class='ident'>FnvHasher</span>;
-<span class='kw'>use</span> <span class='ident'>layer</span>::{<span class='ident'>Layer</span>, <span class='ident'>ScrollingState</span>};
+<span class='kw'>use</span> <span class='ident'>clip_scroll_node</span>::{<span class='ident'>ClipScrollNode</span>, <span class='ident'>ScrollingState</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::{<span class='ident'>HashMap</span>, <span class='ident'>HashSet</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>hash</span>::<span class='ident'>BuildHasherDefault</span>;
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>LayerPoint</span>, <span class='ident'>LayerRect</span>, <span class='ident'>LayerSize</span>, <span class='ident'>LayerToScrollTransform</span>, <span class='ident'>PipelineId</span>};
@@ -453,25 +453,25 @@
 
 <span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>ScrollStates</span> <span class='op'>=</span> <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerId</span>, <span class='ident'>ScrollingState</span>, <span class='ident'>BuildHasherDefault</span><span class='op'>&lt;</span><span class='ident'>FnvHasher</span><span class='op'>&gt;&gt;</span>;
 
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ScrollTree</span> {
-    <span class='kw'>pub</span> <span class='ident'>layers</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerId</span>, <span class='ident'>Layer</span>, <span class='ident'>BuildHasherDefault</span><span class='op'>&lt;</span><span class='ident'>FnvHasher</span><span class='op'>&gt;&gt;</span>,
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ClipScrollTree</span> {
+    <span class='kw'>pub</span> <span class='ident'>nodes</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerId</span>, <span class='ident'>ClipScrollNode</span>, <span class='ident'>BuildHasherDefault</span><span class='op'>&lt;</span><span class='ident'>FnvHasher</span><span class='op'>&gt;&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>pending_scroll_offsets</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span>(<span class='ident'>PipelineId</span>, <span class='ident'>ServoScrollRootId</span>), <span class='ident'>LayerPoint</span><span class='op'>&gt;</span>,
 
-    <span class='doccomment'>/// The ScrollLayerId of the currently scrolling layer. Used to allow the same</span>
-    <span class='doccomment'>/// layer to scroll even if a touch operation leaves the boundaries of that layer.</span>
+    <span class='doccomment'>/// The ScrollLayerId of the currently scrolling node. Used to allow the same</span>
+    <span class='doccomment'>/// node to scroll even if a touch operation leaves the boundaries of that node.</span>
     <span class='kw'>pub</span> <span class='ident'>current_scroll_layer_id</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerId</span><span class='op'>&gt;</span>,
 
     <span class='doccomment'>/// The current reference frame id, used for giving a unique id to all new</span>
-    <span class='doccomment'>/// reference frames. The ScrollTree increments this by one every time a</span>
+    <span class='doccomment'>/// reference frames. The ClipScrollTree increments this by one every time a</span>
     <span class='doccomment'>/// reference frame is created.</span>
     <span class='ident'>current_reference_frame_id</span>: <span class='ident'>usize</span>,
 
-    <span class='doccomment'>/// The root reference frame, which is the true root of the ScrollTree. Initially</span>
-    <span class='doccomment'>/// this ID is not valid, which is indicated by ```layers``` being empty.</span>
+    <span class='doccomment'>/// The root reference frame, which is the true root of the ClipScrollTree. Initially</span>
+    <span class='doccomment'>/// this ID is not valid, which is indicated by ```node``` being empty.</span>
     <span class='kw'>pub</span> <span class='ident'>root_reference_frame_id</span>: <span class='ident'>ScrollLayerId</span>,
 
-    <span class='doccomment'>/// The root scroll layer, which is the first child of the root reference frame.</span>
-    <span class='doccomment'>/// Initially this ID is not valid, which is indicated by ```layers``` being empty.</span>
+    <span class='doccomment'>/// The root scroll node which is the first child of the root reference frame.</span>
+    <span class='doccomment'>/// Initially this ID is not valid, which is indicated by ```nodes``` being empty.</span>
     <span class='kw'>pub</span> <span class='ident'>topmost_scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
 
     <span class='doccomment'>/// A set of pipelines which should be discarded the next time this</span>
@@ -479,11 +479,11 @@
     <span class='kw'>pub</span> <span class='ident'>pipelines_to_discard</span>: <span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='ident'>PipelineId</span><span class='op'>&gt;</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>ScrollTree</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>ScrollTree</span> {
+<span class='kw'>impl</span> <span class='ident'>ClipScrollTree</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>ClipScrollTree</span> {
         <span class='kw'>let</span> <span class='ident'>dummy_pipeline</span> <span class='op'>=</span> <span class='ident'>PipelineId</span>(<span class='number'>0</span>, <span class='number'>0</span>);
-        <span class='ident'>ScrollTree</span> {
-            <span class='ident'>layers</span>: <span class='ident'>HashMap</span>::<span class='ident'>with_hasher</span>(<span class='ident'>Default</span>::<span class='ident'>default</span>()),
+        <span class='ident'>ClipScrollTree</span> {
+            <span class='ident'>nodes</span>: <span class='ident'>HashMap</span>::<span class='ident'>with_hasher</span>(<span class='ident'>Default</span>::<span class='ident'>default</span>()),
             <span class='ident'>pending_scroll_offsets</span>: <span class='ident'>HashMap</span>::<span class='ident'>new</span>(),
             <span class='ident'>current_scroll_layer_id</span>: <span class='prelude-val'>None</span>,
             <span class='ident'>root_reference_frame_id</span>: <span class='ident'>ScrollLayerId</span>::<span class='ident'>root_reference_frame</span>(<span class='ident'>dummy_pipeline</span>),
@@ -495,15 +495,15 @@
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>root_reference_frame_id</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>ScrollLayerId</span> {
         <span class='comment'>// TODO(mrobinson): We should eventually make this impossible to misuse.</span>
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>is_empty</span>());
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>contains_key</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>root_reference_frame_id</span>));
+        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>is_empty</span>());
+        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>contains_key</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>root_reference_frame_id</span>));
         <span class='self'>self</span>.<span class='ident'>root_reference_frame_id</span>
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>topmost_scroll_layer_id</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>ScrollLayerId</span> {
         <span class='comment'>// TODO(mrobinson): We should eventually make this impossible to misuse.</span>
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>is_empty</span>());
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>contains_key</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>topmost_scroll_layer_id</span>));
+        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>is_empty</span>());
+        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>contains_key</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>topmost_scroll_layer_id</span>));
         <span class='self'>self</span>.<span class='ident'>topmost_scroll_layer_id</span>
     }
 
@@ -511,41 +511,41 @@
                           <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
                           <span class='ident'>viewport_size</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerSize</span>,
                           <span class='ident'>content_size</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerSize</span>) {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>is_empty</span>());
+        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>is_empty</span>());
 
         <span class='kw'>let</span> <span class='ident'>identity</span> <span class='op'>=</span> <span class='ident'>LayerToScrollTransform</span>::<span class='ident'>identity</span>();
         <span class='kw'>let</span> <span class='ident'>viewport</span> <span class='op'>=</span> <span class='ident'>LayerRect</span>::<span class='ident'>new</span>(<span class='ident'>LayerPoint</span>::<span class='ident'>zero</span>(), <span class='kw-2'>*</span><span class='ident'>viewport_size</span>);
 
         <span class='kw'>let</span> <span class='ident'>root_reference_frame_id</span> <span class='op'>=</span> <span class='ident'>ScrollLayerId</span>::<span class='ident'>root_reference_frame</span>(<span class='ident'>pipeline_id</span>);
         <span class='self'>self</span>.<span class='ident'>root_reference_frame_id</span> <span class='op'>=</span> <span class='ident'>root_reference_frame_id</span>;
-        <span class='kw'>let</span> <span class='ident'>reference_frame</span> <span class='op'>=</span> <span class='ident'>Layer</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>viewport</span>, <span class='ident'>viewport</span>.<span class='ident'>size</span>, <span class='kw-2'>&amp;</span><span class='ident'>identity</span>, <span class='ident'>pipeline_id</span>);
-        <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>insert</span>(<span class='self'>self</span>.<span class='ident'>root_reference_frame_id</span>, <span class='ident'>reference_frame</span>);
+        <span class='kw'>let</span> <span class='ident'>reference_frame</span> <span class='op'>=</span> <span class='ident'>ClipScrollNode</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>viewport</span>, <span class='ident'>viewport</span>.<span class='ident'>size</span>, <span class='kw-2'>&amp;</span><span class='ident'>identity</span>, <span class='ident'>pipeline_id</span>);
+        <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>insert</span>(<span class='self'>self</span>.<span class='ident'>root_reference_frame_id</span>, <span class='ident'>reference_frame</span>);
 
-        <span class='kw'>let</span> <span class='ident'>scroll_layer</span> <span class='op'>=</span> <span class='ident'>Layer</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>viewport</span>, <span class='kw-2'>*</span><span class='ident'>content_size</span>, <span class='kw-2'>&amp;</span><span class='ident'>identity</span>, <span class='ident'>pipeline_id</span>);
+        <span class='kw'>let</span> <span class='ident'>scroll_node</span> <span class='op'>=</span> <span class='ident'>ClipScrollNode</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>viewport</span>, <span class='kw-2'>*</span><span class='ident'>content_size</span>, <span class='kw-2'>&amp;</span><span class='ident'>identity</span>, <span class='ident'>pipeline_id</span>);
         <span class='kw'>let</span> <span class='ident'>topmost_scroll_layer_id</span> <span class='op'>=</span> <span class='ident'>ScrollLayerId</span>::<span class='ident'>root_scroll_layer</span>(<span class='ident'>pipeline_id</span>);
         <span class='self'>self</span>.<span class='ident'>topmost_scroll_layer_id</span> <span class='op'>=</span> <span class='ident'>topmost_scroll_layer_id</span>;
-        <span class='self'>self</span>.<span class='ident'>add_layer</span>(<span class='ident'>scroll_layer</span>, <span class='ident'>topmost_scroll_layer_id</span>, <span class='ident'>root_reference_frame_id</span>);
+        <span class='self'>self</span>.<span class='ident'>add_node</span>(<span class='ident'>scroll_node</span>, <span class='ident'>topmost_scroll_layer_id</span>, <span class='ident'>root_reference_frame_id</span>);
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>collect_layers_bouncing_back</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>)
-                                        <span class='op'>-&gt;</span> <span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerId</span>, <span class='ident'>BuildHasherDefault</span><span class='op'>&lt;</span><span class='ident'>FnvHasher</span><span class='op'>&gt;&gt;</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>layers_bouncing_back</span> <span class='op'>=</span> <span class='ident'>HashSet</span>::<span class='ident'>with_hasher</span>(<span class='ident'>Default</span>::<span class='ident'>default</span>());
-        <span class='kw'>for</span> (<span class='ident'>scroll_layer_id</span>, <span class='ident'>layer</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>iter</span>() {
-            <span class='kw'>if</span> <span class='ident'>layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>bouncing_back</span> {
-                <span class='ident'>layers_bouncing_back</span>.<span class='ident'>insert</span>(<span class='kw-2'>*</span><span class='ident'>scroll_layer_id</span>);
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>collect_nodes_bouncing_back</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>)
+                                       <span class='op'>-&gt;</span> <span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerId</span>, <span class='ident'>BuildHasherDefault</span><span class='op'>&lt;</span><span class='ident'>FnvHasher</span><span class='op'>&gt;&gt;</span> {
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>nodes_bouncing_back</span> <span class='op'>=</span> <span class='ident'>HashSet</span>::<span class='ident'>with_hasher</span>(<span class='ident'>Default</span>::<span class='ident'>default</span>());
+        <span class='kw'>for</span> (<span class='ident'>scroll_layer_id</span>, <span class='ident'>node</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>iter</span>() {
+            <span class='kw'>if</span> <span class='ident'>node</span>.<span class='ident'>scrolling</span>.<span class='ident'>bouncing_back</span> {
+                <span class='ident'>nodes_bouncing_back</span>.<span class='ident'>insert</span>(<span class='kw-2'>*</span><span class='ident'>scroll_layer_id</span>);
             }
         }
-        <span class='ident'>layers_bouncing_back</span>
+        <span class='ident'>nodes_bouncing_back</span>
     }
 
-    <span class='kw'>fn</span> <span class='ident'>find_scrolling_layer_at_point_in_layer</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
-                                              <span class='ident'>cursor</span>: <span class='kw-2'>&amp;</span><span class='ident'>WorldPoint</span>,
-                                              <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>)
-                                              <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerId</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>scroll_layer_id</span>).<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>layer</span><span class='op'>|</span> {
-            <span class='kw'>for</span> <span class='ident'>child_layer_id</span> <span class='kw'>in</span> <span class='ident'>layer</span>.<span class='ident'>children</span>.<span class='ident'>iter</span>().<span class='ident'>rev</span>() {
+    <span class='kw'>fn</span> <span class='ident'>find_scrolling_node_at_point_in_node</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
+                                            <span class='ident'>cursor</span>: <span class='kw-2'>&amp;</span><span class='ident'>WorldPoint</span>,
+                                            <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>)
+                                            <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerId</span><span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>scroll_layer_id</span>).<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>node</span><span class='op'>|</span> {
+            <span class='kw'>for</span> <span class='ident'>child_layer_id</span> <span class='kw'>in</span> <span class='ident'>node</span>.<span class='ident'>children</span>.<span class='ident'>iter</span>().<span class='ident'>rev</span>() {
             <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>layer_id</span>) <span class='op'>=</span>
-                <span class='self'>self</span>.<span class='ident'>find_scrolling_layer_at_point_in_layer</span>(<span class='ident'>cursor</span>, <span class='kw-2'>*</span><span class='ident'>child_layer_id</span>) {
+                <span class='self'>self</span>.<span class='ident'>find_scrolling_node_at_point_in_node</span>(<span class='ident'>cursor</span>, <span class='kw-2'>*</span><span class='ident'>child_layer_id</span>) {
                     <span class='kw'>return</span> <span class='prelude-val'>Some</span>(<span class='ident'>layer_id</span>);
                 }
             }
@@ -554,7 +554,7 @@
                 <span class='kw'>return</span> <span class='prelude-val'>None</span>;
             }
 
-            <span class='kw'>if</span> <span class='ident'>layer</span>.<span class='ident'>ray_intersects_layer</span>(<span class='ident'>cursor</span>) {
+            <span class='kw'>if</span> <span class='ident'>node</span>.<span class='ident'>ray_intersects_node</span>(<span class='ident'>cursor</span>) {
                 <span class='prelude-val'>Some</span>(<span class='ident'>scroll_layer_id</span>)
             } <span class='kw'>else</span> {
                 <span class='prelude-val'>None</span>
@@ -562,20 +562,20 @@
         })
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>find_scrolling_layer_at_point</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cursor</span>: <span class='kw-2'>&amp;</span><span class='ident'>WorldPoint</span>) <span class='op'>-&gt;</span> <span class='ident'>ScrollLayerId</span> {
-        <span class='self'>self</span>.<span class='ident'>find_scrolling_layer_at_point_in_layer</span>(<span class='ident'>cursor</span>, <span class='self'>self</span>.<span class='ident'>root_reference_frame_id</span>())
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>find_scrolling_node_at_point</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cursor</span>: <span class='kw-2'>&amp;</span><span class='ident'>WorldPoint</span>) <span class='op'>-&gt;</span> <span class='ident'>ScrollLayerId</span> {
+        <span class='self'>self</span>.<span class='ident'>find_scrolling_node_at_point_in_node</span>(<span class='ident'>cursor</span>, <span class='self'>self</span>.<span class='ident'>root_reference_frame_id</span>())
             .<span class='ident'>unwrap_or</span>(<span class='self'>self</span>.<span class='ident'>topmost_scroll_layer_id</span>())
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_scroll_layer_state</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerState</span><span class='op'>&gt;</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_scroll_node_state</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerState</span><span class='op'>&gt;</span> {
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
-        <span class='kw'>for</span> (<span class='ident'>scroll_layer_id</span>, <span class='ident'>scroll_layer</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>iter</span>() {
+        <span class='kw'>for</span> (<span class='ident'>scroll_layer_id</span>, <span class='ident'>scroll_node</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>iter</span>() {
             <span class='kw'>match</span> <span class='ident'>scroll_layer_id</span>.<span class='ident'>info</span> {
                 <span class='ident'>ScrollLayerInfo</span>::<span class='ident'>Scrollable</span>(_, <span class='ident'>servo_scroll_root_id</span>) <span class='op'>=&gt;</span> {
                     <span class='ident'>result</span>.<span class='ident'>push</span>(<span class='ident'>ScrollLayerState</span> {
-                        <span class='ident'>pipeline_id</span>: <span class='ident'>scroll_layer</span>.<span class='ident'>pipeline_id</span>,
+                        <span class='ident'>pipeline_id</span>: <span class='ident'>scroll_node</span>.<span class='ident'>pipeline_id</span>,
                         <span class='ident'>scroll_root_id</span>: <span class='ident'>servo_scroll_root_id</span>,
-                        <span class='ident'>scroll_offset</span>: <span class='ident'>scroll_layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>,
+                        <span class='ident'>scroll_offset</span>: <span class='ident'>scroll_node</span>.<span class='ident'>scrolling</span>.<span class='ident'>offset</span>,
                     })
                 }
                 <span class='ident'>ScrollLayerInfo</span>::<span class='ident'>ReferenceFrame</span>(..) <span class='op'>=&gt;</span> {}
@@ -588,9 +588,9 @@
         <span class='self'>self</span>.<span class='ident'>current_reference_frame_id</span> <span class='op'>=</span> <span class='number'>1</span>;
 
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>scroll_states</span> <span class='op'>=</span> <span class='ident'>HashMap</span>::<span class='ident'>with_hasher</span>(<span class='ident'>Default</span>::<span class='ident'>default</span>());
-        <span class='kw'>for</span> (<span class='ident'>layer_id</span>, <span class='ident'>old_layer</span>) <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>drain</span>() {
+        <span class='kw'>for</span> (<span class='ident'>layer_id</span>, <span class='ident'>old_node</span>) <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>drain</span>() {
             <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>pipelines_to_discard</span>.<span class='ident'>contains</span>(<span class='kw-2'>&amp;</span><span class='ident'>layer_id</span>.<span class='ident'>pipeline_id</span>) {
-                <span class='ident'>scroll_states</span>.<span class='ident'>insert</span>(<span class='ident'>layer_id</span>, <span class='ident'>old_layer</span>.<span class='ident'>scrolling</span>);
+                <span class='ident'>scroll_states</span>.<span class='ident'>insert</span>(<span class='ident'>layer_id</span>, <span class='ident'>old_node</span>.<span class='ident'>scrolling</span>);
             }
         }
 
@@ -598,21 +598,21 @@
         <span class='ident'>scroll_states</span>
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>scroll_layers</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                         <span class='ident'>origin</span>: <span class='ident'>LayerPoint</span>,
-                         <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
-                         <span class='ident'>scroll_root_id</span>: <span class='ident'>ServoScrollRootId</span>)
-                         <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>is_empty</span>() {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>scroll_nodes</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                        <span class='ident'>origin</span>: <span class='ident'>LayerPoint</span>,
+                        <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
+                        <span class='ident'>scroll_root_id</span>: <span class='ident'>ServoScrollRootId</span>)
+                        <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>is_empty</span>() {
             <span class='self'>self</span>.<span class='ident'>pending_scroll_offsets</span>.<span class='ident'>insert</span>((<span class='ident'>pipeline_id</span>, <span class='ident'>scroll_root_id</span>), <span class='ident'>origin</span>);
             <span class='kw'>return</span> <span class='bool-val'>false</span>;
         }
 
         <span class='kw'>let</span> <span class='ident'>origin</span> <span class='op'>=</span> <span class='ident'>LayerPoint</span>::<span class='ident'>new</span>(<span class='ident'>origin</span>.<span class='ident'>x</span>.<span class='ident'>max</span>(<span class='number'>0.0</span>), <span class='ident'>origin</span>.<span class='ident'>y</span>.<span class='ident'>max</span>(<span class='number'>0.0</span>));
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>scrolled_a_layer</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>found_layer</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-        <span class='kw'>for</span> (<span class='ident'>layer_id</span>, <span class='ident'>layer</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>iter_mut</span>() {
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>scrolled_a_node</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>found_node</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
+        <span class='kw'>for</span> (<span class='ident'>layer_id</span>, <span class='ident'>node</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>iter_mut</span>() {
             <span class='kw'>if</span> <span class='ident'>layer_id</span>.<span class='ident'>pipeline_id</span> <span class='op'>!=</span> <span class='ident'>pipeline_id</span> {
                 <span class='kw'>continue</span>;
             }
@@ -623,15 +623,15 @@
                 <span class='ident'>ScrollLayerInfo</span>::<span class='ident'>Scrollable</span>(..) <span class='op'>=&gt;</span> {}
             }
 
-            <span class='ident'>found_layer</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
-            <span class='ident'>scrolled_a_layer</span> <span class='op'>|=</span> <span class='ident'>layer</span>.<span class='ident'>set_scroll_origin</span>(<span class='kw-2'>&amp;</span><span class='ident'>origin</span>);
+            <span class='ident'>found_node</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
+            <span class='ident'>scrolled_a_node</span> <span class='op'>|=</span> <span class='ident'>node</span>.<span class='ident'>set_scroll_origin</span>(<span class='kw-2'>&amp;</span><span class='ident'>origin</span>);
         }
 
-        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>found_layer</span> {
+        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>found_node</span> {
             <span class='self'>self</span>.<span class='ident'>pending_scroll_offsets</span>.<span class='ident'>insert</span>((<span class='ident'>pipeline_id</span>, <span class='ident'>scroll_root_id</span>), <span class='ident'>origin</span>);
         }
 
-        <span class='ident'>scrolled_a_layer</span>
+        <span class='ident'>scrolled_a_node</span>
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>scroll</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
@@ -639,24 +639,24 @@
                   <span class='ident'>cursor</span>: <span class='ident'>WorldPoint</span>,
                   <span class='ident'>phase</span>: <span class='ident'>ScrollEventPhase</span>)
                   <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>is_empty</span>() {
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>is_empty</span>() {
             <span class='kw'>return</span> <span class='bool-val'>false</span>;
         }
 
         <span class='kw'>let</span> <span class='ident'>scroll_layer_id</span> <span class='op'>=</span> <span class='kw'>match</span> (
             <span class='ident'>phase</span>,
-            <span class='self'>self</span>.<span class='ident'>find_scrolling_layer_at_point</span>(<span class='kw-2'>&amp;</span><span class='ident'>cursor</span>),
+            <span class='self'>self</span>.<span class='ident'>find_scrolling_node_at_point</span>(<span class='kw-2'>&amp;</span><span class='ident'>cursor</span>),
             <span class='self'>self</span>.<span class='ident'>current_scroll_layer_id</span>) {
-            (<span class='ident'>ScrollEventPhase</span>::<span class='ident'>Start</span>, <span class='ident'>scroll_layer_at_point_id</span>, _) <span class='op'>=&gt;</span> {
-                <span class='self'>self</span>.<span class='ident'>current_scroll_layer_id</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>scroll_layer_at_point_id</span>);
-                <span class='ident'>scroll_layer_at_point_id</span>
+            (<span class='ident'>ScrollEventPhase</span>::<span class='ident'>Start</span>, <span class='ident'>scroll_node_at_point_id</span>, _) <span class='op'>=&gt;</span> {
+                <span class='self'>self</span>.<span class='ident'>current_scroll_layer_id</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>scroll_node_at_point_id</span>);
+                <span class='ident'>scroll_node_at_point_id</span>
             },
-            (_, <span class='ident'>scroll_layer_at_point_id</span>, <span class='prelude-val'>Some</span>(<span class='ident'>cached_scroll_layer_id</span>)) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>scroll_layer_id</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>cached_scroll_layer_id</span>) {
+            (_, <span class='ident'>scroll_node_at_point_id</span>, <span class='prelude-val'>Some</span>(<span class='ident'>cached_scroll_layer_id</span>)) <span class='op'>=&gt;</span> {
+                <span class='kw'>let</span> <span class='ident'>scroll_layer_id</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>cached_scroll_layer_id</span>) {
                     <span class='prelude-val'>Some</span>(_) <span class='op'>=&gt;</span> <span class='ident'>cached_scroll_layer_id</span>,
                     <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
-                        <span class='self'>self</span>.<span class='ident'>current_scroll_layer_id</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>scroll_layer_at_point_id</span>);
-                        <span class='ident'>scroll_layer_at_point_id</span>
+                        <span class='self'>self</span>.<span class='ident'>current_scroll_layer_id</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>scroll_node_at_point_id</span>);
+                        <span class='ident'>scroll_node_at_point_id</span>
                     },
                 };
                 <span class='ident'>scroll_layer_id</span>
@@ -666,52 +666,52 @@
 
         <span class='kw'>let</span> <span class='ident'>topmost_scroll_layer_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>topmost_scroll_layer_id</span>();
         <span class='kw'>let</span> <span class='ident'>non_root_overscroll</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>scroll_layer_id</span> <span class='op'>!=</span> <span class='ident'>topmost_scroll_layer_id</span> {
-            <span class='comment'>// true if the current layer is overscrolling,</span>
-            <span class='comment'>// and it is not the root scroll layer.</span>
-            <span class='kw'>let</span> <span class='ident'>child_layer</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>scroll_layer_id</span>).<span class='ident'>unwrap</span>();
-            <span class='kw'>let</span> <span class='ident'>overscroll_amount</span> <span class='op'>=</span> <span class='ident'>child_layer</span>.<span class='ident'>overscroll_amount</span>();
+            <span class='comment'>// true if the current node is overscrolling,</span>
+            <span class='comment'>// and it is not the root scroll node.</span>
+            <span class='kw'>let</span> <span class='ident'>child_node</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>scroll_layer_id</span>).<span class='ident'>unwrap</span>();
+            <span class='kw'>let</span> <span class='ident'>overscroll_amount</span> <span class='op'>=</span> <span class='ident'>child_node</span>.<span class='ident'>overscroll_amount</span>();
             <span class='ident'>overscroll_amount</span>.<span class='ident'>width</span> <span class='op'>!=</span> <span class='number'>0.0</span> <span class='op'>||</span> <span class='ident'>overscroll_amount</span>.<span class='ident'>height</span> <span class='op'>!=</span> <span class='number'>0.0</span>
         } <span class='kw'>else</span> {
             <span class='bool-val'>false</span>
         };
 
-        <span class='kw'>let</span> <span class='ident'>switch_layer</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>phase</span> {
+        <span class='kw'>let</span> <span class='ident'>switch_node</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>phase</span> {
             <span class='ident'>ScrollEventPhase</span>::<span class='ident'>Start</span> <span class='op'>=&gt;</span> {
-                <span class='comment'>// if this is a new gesture, we do not switch layer,</span>
+                <span class='comment'>// if this is a new gesture, we do not switch node,</span>
                 <span class='comment'>// however we do save the state of non_root_overscroll,</span>
                 <span class='comment'>// for use in the subsequent Move phase.</span>
-                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>current_layer</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>scroll_layer_id</span>).<span class='ident'>unwrap</span>();
-                <span class='ident'>current_layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>should_handoff_scroll</span> <span class='op'>=</span> <span class='ident'>non_root_overscroll</span>;
+                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>current_node</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>scroll_layer_id</span>).<span class='ident'>unwrap</span>();
+                <span class='ident'>current_node</span>.<span class='ident'>scrolling</span>.<span class='ident'>should_handoff_scroll</span> <span class='op'>=</span> <span class='ident'>non_root_overscroll</span>;
                 <span class='bool-val'>false</span>
             },
             <span class='ident'>ScrollEventPhase</span>::<span class='ident'>Move</span>(_) <span class='op'>=&gt;</span> {
-                <span class='comment'>// Switch layer if movement originated in a new gesture,</span>
-                <span class='comment'>// from a non root layer in overscroll.</span>
-                <span class='kw'>let</span> <span class='ident'>current_layer</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>scroll_layer_id</span>).<span class='ident'>unwrap</span>();
-                <span class='ident'>current_layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>should_handoff_scroll</span> <span class='op'>&amp;&amp;</span> <span class='ident'>non_root_overscroll</span>
+                <span class='comment'>// Switch node if movement originated in a new gesture,</span>
+                <span class='comment'>// from a non root node in overscroll.</span>
+                <span class='kw'>let</span> <span class='ident'>current_node</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>scroll_layer_id</span>).<span class='ident'>unwrap</span>();
+                <span class='ident'>current_node</span>.<span class='ident'>scrolling</span>.<span class='ident'>should_handoff_scroll</span> <span class='op'>&amp;&amp;</span> <span class='ident'>non_root_overscroll</span>
             },
             <span class='ident'>ScrollEventPhase</span>::<span class='ident'>End</span> <span class='op'>=&gt;</span> {
                 <span class='comment'>// clean-up when gesture ends.</span>
-                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>current_layer</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>scroll_layer_id</span>).<span class='ident'>unwrap</span>();
-                <span class='ident'>current_layer</span>.<span class='ident'>scrolling</span>.<span class='ident'>should_handoff_scroll</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
+                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>current_node</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>scroll_layer_id</span>).<span class='ident'>unwrap</span>();
+                <span class='ident'>current_node</span>.<span class='ident'>scrolling</span>.<span class='ident'>should_handoff_scroll</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
                 <span class='bool-val'>false</span>
             },
         };
 
-        <span class='kw'>let</span> <span class='ident'>scroll_layer_info</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>switch_layer</span> {
+        <span class='kw'>let</span> <span class='ident'>scroll_node_info</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>switch_node</span> {
             <span class='ident'>topmost_scroll_layer_id</span>.<span class='ident'>info</span>
         } <span class='kw'>else</span> {
             <span class='ident'>scroll_layer_id</span>.<span class='ident'>info</span>
         };
 
-        <span class='kw'>let</span> <span class='ident'>scroll_root_id</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>scroll_layer_info</span> {
+        <span class='kw'>let</span> <span class='ident'>scroll_root_id</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>scroll_node_info</span> {
              <span class='ident'>ScrollLayerInfo</span>::<span class='ident'>Scrollable</span>(_, <span class='ident'>scroll_root_id</span>) <span class='op'>=&gt;</span> <span class='ident'>scroll_root_id</span>,
              _ <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(<span class='string'>&quot;Tried to scroll a reference frame.&quot;</span>),
 
         };
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>scrolled_a_layer</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-        <span class='kw'>for</span> (<span class='ident'>layer_id</span>, <span class='ident'>layer</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>iter_mut</span>() {
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>scrolled_a_node</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
+        <span class='kw'>for</span> (<span class='ident'>layer_id</span>, <span class='ident'>node</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>iter_mut</span>() {
             <span class='kw'>if</span> <span class='ident'>layer_id</span>.<span class='ident'>pipeline_id</span> <span class='op'>!=</span> <span class='ident'>scroll_layer_id</span>.<span class='ident'>pipeline_id</span> {
                 <span class='kw'>continue</span>;
             }
@@ -722,66 +722,66 @@
                 _ <span class='op'>=&gt;</span> {}
             }
 
-            <span class='kw'>let</span> <span class='ident'>scrolled_this_layer</span> <span class='op'>=</span> <span class='ident'>layer</span>.<span class='ident'>scroll</span>(<span class='ident'>scroll_location</span>, <span class='ident'>phase</span>);
-            <span class='ident'>scrolled_a_layer</span> <span class='op'>=</span> <span class='ident'>scrolled_a_layer</span> <span class='op'>||</span> <span class='ident'>scrolled_this_layer</span>;
+            <span class='kw'>let</span> <span class='ident'>scrolled_this_node</span> <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>scroll</span>(<span class='ident'>scroll_location</span>, <span class='ident'>phase</span>);
+            <span class='ident'>scrolled_a_node</span> <span class='op'>=</span> <span class='ident'>scrolled_a_node</span> <span class='op'>||</span> <span class='ident'>scrolled_this_node</span>;
         }
-        <span class='ident'>scrolled_a_layer</span>
+        <span class='ident'>scrolled_a_node</span>
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>update_all_layer_transforms</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>is_empty</span>() {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>update_all_node_transforms</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>is_empty</span>() {
             <span class='kw'>return</span>;
         }
 
         <span class='kw'>let</span> <span class='ident'>root_reference_frame_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>root_reference_frame_id</span>();
-        <span class='kw'>let</span> <span class='ident'>root_viewport</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>layers</span>[<span class='kw-2'>&amp;</span><span class='ident'>root_reference_frame_id</span>].<span class='ident'>local_viewport_rect</span>;
-        <span class='self'>self</span>.<span class='ident'>update_layer_transform</span>(<span class='ident'>root_reference_frame_id</span>,
+        <span class='kw'>let</span> <span class='ident'>root_viewport</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>nodes</span>[<span class='kw-2'>&amp;</span><span class='ident'>root_reference_frame_id</span>].<span class='ident'>local_viewport_rect</span>;
+        <span class='self'>self</span>.<span class='ident'>update_node_transform</span>(<span class='ident'>root_reference_frame_id</span>,
                                     <span class='kw-2'>&amp;</span><span class='ident'>ScrollToWorldTransform</span>::<span class='ident'>identity</span>(),
                                     <span class='kw-2'>&amp;</span><span class='ident'>as_scroll_parent_rect</span>(<span class='kw-2'>&amp;</span><span class='ident'>root_viewport</span>));
     }
 
-    <span class='kw'>fn</span> <span class='ident'>update_layer_transform</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                              <span class='ident'>layer_id</span>: <span class='ident'>ScrollLayerId</span>,
-                              <span class='ident'>parent_world_transform</span>: <span class='kw-2'>&amp;</span><span class='ident'>ScrollToWorldTransform</span>,
-                              <span class='ident'>parent_viewport_rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>ScrollLayerRect</span>) {
+    <span class='kw'>fn</span> <span class='ident'>update_node_transform</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                             <span class='ident'>layer_id</span>: <span class='ident'>ScrollLayerId</span>,
+                             <span class='ident'>parent_world_transform</span>: <span class='kw-2'>&amp;</span><span class='ident'>ScrollToWorldTransform</span>,
+                             <span class='ident'>parent_viewport_rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>ScrollLayerRect</span>) {
         <span class='comment'>// TODO(gw): This is an ugly borrow check workaround to clone these.</span>
         <span class='comment'>//           Restructure this to avoid the clones!</span>
-        <span class='kw'>let</span> (<span class='ident'>layer_transform_for_children</span>, <span class='ident'>viewport_rect</span>, <span class='ident'>layer_children</span>) <span class='op'>=</span> {
-            <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>layer_id</span>) {
-                <span class='prelude-val'>Some</span>(<span class='ident'>layer</span>) <span class='op'>=&gt;</span> {
-                    <span class='ident'>layer</span>.<span class='ident'>update_transform</span>(<span class='ident'>parent_world_transform</span>, <span class='ident'>parent_viewport_rect</span>);
+        <span class='kw'>let</span> (<span class='ident'>node_transform_for_children</span>, <span class='ident'>viewport_rect</span>, <span class='ident'>node_children</span>) <span class='op'>=</span> {
+            <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>layer_id</span>) {
+                <span class='prelude-val'>Some</span>(<span class='ident'>node</span>) <span class='op'>=&gt;</span> {
+                    <span class='ident'>node</span>.<span class='ident'>update_transform</span>(<span class='ident'>parent_world_transform</span>, <span class='ident'>parent_viewport_rect</span>);
 
-                    (<span class='ident'>layer</span>.<span class='ident'>world_content_transform</span>.<span class='ident'>with_source</span>::<span class='op'>&lt;</span><span class='ident'>ScrollLayerPixel</span><span class='op'>&gt;</span>(),
-                     <span class='ident'>as_scroll_parent_rect</span>(<span class='kw-2'>&amp;</span><span class='ident'>layer</span>.<span class='ident'>combined_local_viewport_rect</span>),
-                     <span class='ident'>layer</span>.<span class='ident'>children</span>.<span class='ident'>clone</span>())
+                    (<span class='ident'>node</span>.<span class='ident'>world_content_transform</span>.<span class='ident'>with_source</span>::<span class='op'>&lt;</span><span class='ident'>ScrollLayerPixel</span><span class='op'>&gt;</span>(),
+                     <span class='ident'>as_scroll_parent_rect</span>(<span class='kw-2'>&amp;</span><span class='ident'>node</span>.<span class='ident'>combined_local_viewport_rect</span>),
+                     <span class='ident'>node</span>.<span class='ident'>children</span>.<span class='ident'>clone</span>())
                 }
                 <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span>,
             }
         };
 
-        <span class='kw'>for</span> <span class='ident'>child_layer_id</span> <span class='kw'>in</span> <span class='ident'>layer_children</span> {
-            <span class='self'>self</span>.<span class='ident'>update_layer_transform</span>(<span class='ident'>child_layer_id</span>,
-                                        <span class='kw-2'>&amp;</span><span class='ident'>layer_transform_for_children</span>,
-                                        <span class='kw-2'>&amp;</span><span class='ident'>viewport_rect</span>);
+        <span class='kw'>for</span> <span class='ident'>child_layer_id</span> <span class='kw'>in</span> <span class='ident'>node_children</span> {
+            <span class='self'>self</span>.<span class='ident'>update_node_transform</span>(<span class='ident'>child_layer_id</span>,
+                                       <span class='kw-2'>&amp;</span><span class='ident'>node_transform_for_children</span>,
+                                       <span class='kw-2'>&amp;</span><span class='ident'>viewport_rect</span>);
         }
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>tick_scrolling_bounce_animations</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='kw'>for</span> (_, <span class='ident'>layer</span>) <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>layers</span> {
-            <span class='ident'>layer</span>.<span class='ident'>tick_scrolling_bounce_animation</span>()
+        <span class='kw'>for</span> (_, <span class='ident'>node</span>) <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>nodes</span> {
+            <span class='ident'>node</span>.<span class='ident'>tick_scrolling_bounce_animation</span>()
         }
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>finalize_and_apply_pending_scroll_offsets</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>old_states</span>: <span class='ident'>ScrollStates</span>) {
         <span class='comment'>// TODO(gw): These are all independent - can be run through thread pool if it shows up</span>
         <span class='comment'>// in the profile!</span>
-        <span class='kw'>for</span> (<span class='ident'>scroll_layer_id</span>, <span class='ident'>layer</span>) <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>layers</span> {
+        <span class='kw'>for</span> (<span class='ident'>scroll_layer_id</span>, <span class='ident'>node</span>) <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>nodes</span> {
             <span class='kw'>let</span> <span class='ident'>scrolling_state</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>old_states</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>scroll_layer_id</span>) {
                 <span class='prelude-val'>Some</span>(<span class='ident'>old_scrolling_state</span>) <span class='op'>=&gt;</span> <span class='kw-2'>*</span><span class='ident'>old_scrolling_state</span>,
                 <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='ident'>ScrollingState</span>::<span class='ident'>new</span>(),
             };
 
-            <span class='ident'>layer</span>.<span class='ident'>finalize</span>(<span class='kw-2'>&amp;</span><span class='ident'>scrolling_state</span>);
+            <span class='ident'>node</span>.<span class='ident'>finalize</span>(<span class='kw-2'>&amp;</span><span class='ident'>scrolling_state</span>);
 
             <span class='kw'>let</span> <span class='ident'>scroll_root_id</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>scroll_layer_id</span>.<span class='ident'>info</span> {
                 <span class='ident'>ScrollLayerInfo</span>::<span class='ident'>Scrollable</span>(_, <span class='ident'>scroll_root_id</span>) <span class='op'>=&gt;</span> <span class='ident'>scroll_root_id</span>,
@@ -792,7 +792,7 @@
             <span class='kw'>let</span> <span class='ident'>pipeline_id</span> <span class='op'>=</span> <span class='ident'>scroll_layer_id</span>.<span class='ident'>pipeline_id</span>;
             <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>pending_offset</span>) <span class='op'>=</span>
                 <span class='self'>self</span>.<span class='ident'>pending_scroll_offsets</span>.<span class='ident'>remove</span>(<span class='kw-2'>&amp;</span>(<span class='ident'>pipeline_id</span>, <span class='ident'>scroll_root_id</span>)) {
-                <span class='ident'>layer</span>.<span class='ident'>set_scroll_origin</span>(<span class='kw-2'>&amp;</span><span class='ident'>pending_offset</span>);
+                <span class='ident'>node</span>.<span class='ident'>set_scroll_origin</span>(<span class='kw-2'>&amp;</span><span class='ident'>pending_offset</span>);
             }
         }
 
@@ -809,17 +809,17 @@
         };
         <span class='self'>self</span>.<span class='ident'>current_reference_frame_id</span> <span class='op'>+=</span> <span class='number'>1</span>;
 
-        <span class='kw'>let</span> <span class='ident'>layer</span> <span class='op'>=</span> <span class='ident'>Layer</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>rect</span>, <span class='ident'>rect</span>.<span class='ident'>size</span>, <span class='kw-2'>&amp;</span><span class='ident'>transform</span>, <span class='ident'>pipeline_id</span>);
-        <span class='self'>self</span>.<span class='ident'>add_layer</span>(<span class='ident'>layer</span>, <span class='ident'>reference_frame_id</span>, <span class='ident'>parent_id</span>);
+        <span class='kw'>let</span> <span class='ident'>node</span> <span class='op'>=</span> <span class='ident'>ClipScrollNode</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>rect</span>, <span class='ident'>rect</span>.<span class='ident'>size</span>, <span class='kw-2'>&amp;</span><span class='ident'>transform</span>, <span class='ident'>pipeline_id</span>);
+        <span class='self'>self</span>.<span class='ident'>add_node</span>(<span class='ident'>node</span>, <span class='ident'>reference_frame_id</span>, <span class='ident'>parent_id</span>);
         <span class='ident'>reference_frame_id</span>
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_layer</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>layer</span>: <span class='ident'>Layer</span>, <span class='ident'>id</span>: <span class='ident'>ScrollLayerId</span>, <span class='ident'>parent_id</span>: <span class='ident'>ScrollLayerId</span>) {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>contains_key</span>(<span class='kw-2'>&amp;</span><span class='ident'>id</span>));
-        <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>insert</span>(<span class='ident'>id</span>, <span class='ident'>layer</span>);
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_node</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>node</span>: <span class='ident'>ClipScrollNode</span>, <span class='ident'>id</span>: <span class='ident'>ScrollLayerId</span>, <span class='ident'>parent_id</span>: <span class='ident'>ScrollLayerId</span>) {
+        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>contains_key</span>(<span class='kw-2'>&amp;</span><span class='ident'>id</span>));
+        <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>insert</span>(<span class='ident'>id</span>, <span class='ident'>node</span>);
 
         <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>parent_id</span> <span class='op'>!=</span> <span class='ident'>id</span>);
-        <span class='self'>self</span>.<span class='ident'>layers</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>parent_id</span>).<span class='ident'>unwrap</span>().<span class='ident'>add_child</span>(<span class='ident'>id</span>);
+        <span class='self'>self</span>.<span class='ident'>nodes</span>.<span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>parent_id</span>).<span class='ident'>unwrap</span>().<span class='ident'>add_child</span>(<span class='ident'>id</span>);
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>discard_frame_state_for_pipeline</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>) {

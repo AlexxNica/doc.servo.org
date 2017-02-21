@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/bcd9ed5/webrender/src/render_backend.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/4221987/webrender/src/render_backend.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>render_backend.rs.html -- source</title>
@@ -519,6 +519,7 @@
 <span id="474">474</span>
 <span id="475">475</span>
 <span id="476">476</span>
+<span id="477">477</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -543,7 +544,7 @@
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ApiMsg</span>, <span class='ident'>AuxiliaryLists</span>, <span class='ident'>BuiltDisplayList</span>, <span class='ident'>IdNamespace</span>, <span class='ident'>ImageData</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>PipelineId</span>, <span class='ident'>RenderNotifier</span>, <span class='ident'>RenderDispatcher</span>, <span class='ident'>WebGLCommand</span>, <span class='ident'>WebGLContextId</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::<span class='ident'>channel</span>::{<span class='ident'>PayloadHelperMethods</span>, <span class='ident'>PayloadReceiver</span>, <span class='ident'>PayloadSender</span>, <span class='ident'>MsgReceiver</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>VRCompositorCommand</span>, <span class='ident'>VRCompositorHandler</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>BlobImageRenderer</span>, <span class='ident'>VRCompositorCommand</span>, <span class='ident'>VRCompositorHandler</span>};
 <span class='kw'>use</span> <span class='ident'>offscreen_gl_context</span>::<span class='ident'>GLContextDispatcher</span>;
 
 <span class='doccomment'>/// The render backend is responsible for transforming high level display lists into</span>
@@ -590,9 +591,10 @@
                <span class='ident'>config</span>: <span class='ident'>FrameBuilderConfig</span>,
                <span class='ident'>recorder</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ApiRecordingReceiver</span><span class='op'>&gt;&gt;</span>,
                <span class='ident'>main_thread_dispatcher</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>RenderDispatcher</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;&gt;</span>,
+               <span class='ident'>blob_image_renderer</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>BlobImageRenderer</span><span class='op'>&gt;&gt;</span>,
                <span class='ident'>vr_compositor_handler</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>VRCompositorHandler</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>RenderBackend</span> {
 
-        <span class='kw'>let</span> <span class='ident'>resource_cache</span> <span class='op'>=</span> <span class='ident'>ResourceCache</span>::<span class='ident'>new</span>(<span class='ident'>texture_cache</span>, <span class='ident'>workers</span>, <span class='ident'>enable_aa</span>);
+        <span class='kw'>let</span> <span class='ident'>resource_cache</span> <span class='op'>=</span> <span class='ident'>ResourceCache</span>::<span class='ident'>new</span>(<span class='ident'>texture_cache</span>, <span class='ident'>workers</span>, <span class='ident'>blob_image_renderer</span>, <span class='ident'>enable_aa</span>);
 
         <span class='ident'>register_thread_with_profiler</span>(<span class='string'>&quot;Backend&quot;</span>.<span class='ident'>to_string</span>());
 
@@ -753,7 +755,7 @@
                         <span class='ident'>ApiMsg</span>::<span class='ident'>ScrollLayersWithScrollId</span>(<span class='ident'>origin</span>, <span class='ident'>pipeline_id</span>, <span class='ident'>scroll_root_id</span>) <span class='op'>=&gt;</span> {
                             <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;ScrollLayersWithScrollId&quot;</span>);
                             <span class='kw'>let</span> <span class='ident'>frame</span> <span class='op'>=</span> <span class='ident'>profile_counters</span>.<span class='ident'>total_time</span>.<span class='ident'>profile</span>(<span class='op'>||</span> {
-                                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>frame</span>.<span class='ident'>scroll_layers</span>(<span class='ident'>origin</span>, <span class='ident'>pipeline_id</span>, <span class='ident'>scroll_root_id</span>) {
+                                <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>frame</span>.<span class='ident'>scroll_nodes</span>(<span class='ident'>origin</span>, <span class='ident'>pipeline_id</span>, <span class='ident'>scroll_root_id</span>) {
                                     <span class='prelude-val'>Some</span>(<span class='self'>self</span>.<span class='ident'>render</span>())
                                 } <span class='kw'>else</span> {
                                     <span class='prelude-val'>None</span>
@@ -783,7 +785,7 @@
                         }
                         <span class='ident'>ApiMsg</span>::<span class='ident'>GetScrollLayerState</span>(<span class='ident'>tx</span>) <span class='op'>=&gt;</span> {
                             <span class='macro'>profile_scope</span><span class='macro'>!</span>(<span class='string'>&quot;GetScrollLayerState&quot;</span>);
-                            <span class='ident'>tx</span>.<span class='ident'>send</span>(<span class='self'>self</span>.<span class='ident'>frame</span>.<span class='ident'>get_scroll_layer_state</span>())
+                            <span class='ident'>tx</span>.<span class='ident'>send</span>(<span class='self'>self</span>.<span class='ident'>frame</span>.<span class='ident'>get_scroll_node_state</span>())
                               .<span class='ident'>unwrap</span>()
                         }
                         <span class='ident'>ApiMsg</span>::<span class='ident'>RequestWebGLContext</span>(<span class='ident'>size</span>, <span class='ident'>attributes</span>, <span class='ident'>tx</span>) <span class='op'>=&gt;</span> {
