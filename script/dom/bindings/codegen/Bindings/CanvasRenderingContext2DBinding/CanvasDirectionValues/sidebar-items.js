@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["strings",""]]});
+initSidebarItems({"constant":[["pairs",""]]});
