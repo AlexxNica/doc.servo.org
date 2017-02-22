@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["inner_attr",""],["meta_item",""],["nested_meta_item",""],["outer_attr",""]]});
+initSidebarItems({"fn":[["meta_item",""],["nested_meta_item",""],["outer_attr",""]]});
