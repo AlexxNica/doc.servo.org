@@ -9,7 +9,8 @@ implementors["net_traits"] = ["impl <a class='trait' href='rand/trait.Rand.html'
 implementors["rand"] = [];
 implementors["script"] = ["impl <a class='trait' href='rand/trait.Rand.html' title='trait rand::Rand'>Rand</a> for <a class='struct' href='uuid/struct.Uuid.html' title='struct uuid::Uuid'>Uuid</a>",];
 implementors["servo"] = ["impl <a class='trait' href='rand/trait.Rand.html' title='trait rand::Rand'>Rand</a> for <a class='struct' href='uuid/struct.Uuid.html' title='struct uuid::Uuid'>Uuid</a>",];
-implementors["style"] = [];
+implementors["servo_config"] = ["impl <a class='trait' href='rand/trait.Rand.html' title='trait rand::Rand'>Rand</a> for <a class='struct' href='uuid/struct.Uuid.html' title='struct uuid::Uuid'>Uuid</a>",];
+implementors["style"] = ["impl <a class='trait' href='rand/trait.Rand.html' title='trait rand::Rand'>Rand</a> for <a class='struct' href='uuid/struct.Uuid.html' title='struct uuid::Uuid'>Uuid</a>",];
 implementors["uuid"] = ["impl <a class='trait' href='rand/trait.Rand.html' title='trait rand::Rand'>Rand</a> for <a class='struct' href='uuid/struct.Uuid.html' title='struct uuid::Uuid'>Uuid</a>",];
 implementors["webrender"] = [];
 implementors["websocket"] = [];

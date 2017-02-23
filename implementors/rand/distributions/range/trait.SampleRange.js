@@ -9,6 +9,7 @@ implementors["net_traits"] = [];
 implementors["rand"] = [];
 implementors["script"] = [];
 implementors["servo"] = [];
+implementors["servo_config"] = [];
 implementors["servo_rand"] = [];
 implementors["style"] = [];
 implementors["webrender"] = [];
