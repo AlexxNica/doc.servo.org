@@ -1650,45 +1650,6 @@
 <span id="1605">1605</span>
 <span id="1606">1606</span>
 <span id="1607">1607</span>
-<span id="1608">1608</span>
-<span id="1609">1609</span>
-<span id="1610">1610</span>
-<span id="1611">1611</span>
-<span id="1612">1612</span>
-<span id="1613">1613</span>
-<span id="1614">1614</span>
-<span id="1615">1615</span>
-<span id="1616">1616</span>
-<span id="1617">1617</span>
-<span id="1618">1618</span>
-<span id="1619">1619</span>
-<span id="1620">1620</span>
-<span id="1621">1621</span>
-<span id="1622">1622</span>
-<span id="1623">1623</span>
-<span id="1624">1624</span>
-<span id="1625">1625</span>
-<span id="1626">1626</span>
-<span id="1627">1627</span>
-<span id="1628">1628</span>
-<span id="1629">1629</span>
-<span id="1630">1630</span>
-<span id="1631">1631</span>
-<span id="1632">1632</span>
-<span id="1633">1633</span>
-<span id="1634">1634</span>
-<span id="1635">1635</span>
-<span id="1636">1636</span>
-<span id="1637">1637</span>
-<span id="1638">1638</span>
-<span id="1639">1639</span>
-<span id="1640">1640</span>
-<span id="1641">1641</span>
-<span id="1642">1642</span>
-<span id="1643">1643</span>
-<span id="1644">1644</span>
-<span id="1645">1645</span>
-<span id="1646">1646</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1767,7 +1728,7 @@
 <span class='kw'>use</span> <span class='ident'>layout</span>::<span class='ident'>wrapper</span>::<span class='ident'>drop_style_and_layout_data</span>;
 <span class='kw'>use</span> <span class='ident'>layout_traits</span>::<span class='ident'>LayoutThreadFactory</span>;
 <span class='kw'>use</span> <span class='ident'>msg</span>::<span class='ident'>constellation_msg</span>::{<span class='ident'>FrameId</span>, <span class='ident'>PipelineId</span>};
-<span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>image_cache_thread</span>::{<span class='ident'>ImageCacheChan</span>, <span class='ident'>ImageCacheResult</span>, <span class='ident'>ImageCacheThread</span>};
+<span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>image_cache_thread</span>::<span class='ident'>ImageCacheThread</span>;
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>image_cache_thread</span>::<span class='ident'>UsePlaceholder</span>;
 <span class='kw'>use</span> <span class='ident'>parking_lot</span>::<span class='ident'>RwLock</span>;
 <span class='kw'>use</span> <span class='ident'>profile_traits</span>::<span class='ident'>mem</span>::{<span class='self'>self</span>, <span class='ident'>Report</span>, <span class='ident'>ReportKind</span>, <span class='ident'>ReportsChan</span>};
@@ -1790,6 +1751,7 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>ToOwned</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>HashMap</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>hash</span>::<span class='ident'>BuildHasherDefault</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span> <span class='kw'>as</span> <span class='ident'>std_mem</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ops</span>::{<span class='ident'>Deref</span>, <span class='ident'>DerefMut</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>process</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::{<span class='ident'>Arc</span>, <span class='ident'>Mutex</span>, <span class='ident'>MutexGuard</span>};
@@ -1828,12 +1790,6 @@
 
     <span class='doccomment'>/// The port on which we receive messages from the constellation.</span>
     <span class='ident'>pipeline_port</span>: <span class='ident'>Receiver</span><span class='op'>&lt;</span><span class='ident'>LayoutControlMsg</span><span class='op'>&gt;</span>,
-
-    <span class='doccomment'>/// The port on which we receive messages from the image cache</span>
-    <span class='ident'>image_cache_receiver</span>: <span class='ident'>Receiver</span><span class='op'>&lt;</span><span class='ident'>ImageCacheResult</span><span class='op'>&gt;</span>,
-
-    <span class='doccomment'>/// The channel on which the image cache can send messages to ourself.</span>
-    <span class='ident'>image_cache_sender</span>: <span class='ident'>ImageCacheChan</span>,
 
     <span class='doccomment'>/// The port on which we receive messages from the font cache thread.</span>
     <span class='ident'>font_cache_receiver</span>: <span class='ident'>Receiver</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span>,
@@ -2096,11 +2052,6 @@
         <span class='comment'>// Proxy IPC messages from the pipeline to the layout thread.</span>
         <span class='kw'>let</span> <span class='ident'>pipeline_receiver</span> <span class='op'>=</span> <span class='ident'>ROUTER</span>.<span class='ident'>route_ipc_receiver_to_new_mpsc_receiver</span>(<span class='ident'>pipeline_port</span>);
 
-        <span class='comment'>// Ask the router to proxy IPC messages from the image cache thread to the layout thread.</span>
-        <span class='kw'>let</span> (<span class='ident'>ipc_image_cache_sender</span>, <span class='ident'>ipc_image_cache_receiver</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>image_cache_receiver</span> <span class='op'>=</span>
-            <span class='ident'>ROUTER</span>.<span class='ident'>route_ipc_receiver_to_new_mpsc_receiver</span>(<span class='ident'>ipc_image_cache_receiver</span>);
-
         <span class='comment'>// Ask the router to proxy IPC messages from the font cache thread to the layout thread.</span>
         <span class='kw'>let</span> (<span class='ident'>ipc_font_cache_sender</span>, <span class='ident'>ipc_font_cache_receiver</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
         <span class='kw'>let</span> <span class='ident'>font_cache_receiver</span> <span class='op'>=</span>
@@ -2129,8 +2080,6 @@
             <span class='ident'>image_cache_thread</span>: <span class='ident'>image_cache_thread</span>,
             <span class='ident'>font_cache_thread</span>: <span class='ident'>font_cache_thread</span>,
             <span class='ident'>first_reflow</span>: <span class='bool-val'>true</span>,
-            <span class='ident'>image_cache_receiver</span>: <span class='ident'>image_cache_receiver</span>,
-            <span class='ident'>image_cache_sender</span>: <span class='ident'>ImageCacheChan</span>(<span class='ident'>ipc_image_cache_sender</span>),
             <span class='ident'>font_cache_receiver</span>: <span class='ident'>font_cache_receiver</span>,
             <span class='ident'>font_cache_sender</span>: <span class='ident'>ipc_font_cache_sender</span>,
             <span class='ident'>parallel_traversal</span>: <span class='ident'>parallel_traversal</span>,
@@ -2162,6 +2111,7 @@
                     <span class='ident'>margin_style_response</span>: <span class='ident'>MarginStyleResponse</span>::<span class='ident'>empty</span>(),
                     <span class='ident'>stacking_context_scroll_offsets</span>: <span class='ident'>HashMap</span>::<span class='ident'>new</span>(),
                     <span class='ident'>text_index_response</span>: <span class='ident'>TextIndexResponse</span>(<span class='prelude-val'>None</span>),
+                    <span class='ident'>pending_images</span>: <span class='macro'>vec</span><span class='macro'>!</span>[],
                 })),
             <span class='ident'>error_reporter</span>: <span class='ident'>CSSErrorReporter</span> {
                 <span class='ident'>pipelineid</span>: <span class='ident'>id</span>,
@@ -2198,7 +2148,8 @@
     <span class='kw'>fn</span> <span class='ident'>build_layout_context</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
                             <span class='ident'>rw_data</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayoutThreadData</span>,
                             <span class='ident'>screen_size_changed</span>: <span class='ident'>bool</span>,
-                            <span class='ident'>goal</span>: <span class='ident'>ReflowGoal</span>)
+                            <span class='ident'>goal</span>: <span class='ident'>ReflowGoal</span>,
+                            <span class='ident'>request_images</span>: <span class='ident'>bool</span>)
                             <span class='op'>-&gt;</span> <span class='ident'>LayoutContext</span> {
         <span class='kw'>let</span> <span class='ident'>thread_local_style_context_creation_data</span> <span class='op'>=</span>
             <span class='ident'>ThreadLocalStyleContextCreationInfo</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>new_animations_sender</span>.<span class='ident'>clone</span>());
@@ -2222,9 +2173,9 @@
                 <span class='ident'>default_computed_values</span>: <span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>ComputedValues</span>::<span class='ident'>initial_values</span>().<span class='ident'>clone</span>()),
             },
             <span class='ident'>image_cache_thread</span>: <span class='ident'>Mutex</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>image_cache_thread</span>.<span class='ident'>clone</span>()),
-            <span class='ident'>image_cache_sender</span>: <span class='ident'>Mutex</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>image_cache_sender</span>.<span class='ident'>clone</span>()),
             <span class='ident'>font_cache_thread</span>: <span class='ident'>Mutex</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>font_cache_thread</span>.<span class='ident'>clone</span>()),
             <span class='ident'>webrender_image_cache</span>: <span class='self'>self</span>.<span class='ident'>webrender_image_cache</span>.<span class='ident'>clone</span>(),
+            <span class='ident'>pending_images</span>: <span class='kw'>if</span> <span class='ident'>request_images</span> { <span class='prelude-val'>Some</span>(<span class='ident'>Mutex</span>::<span class='ident'>new</span>(<span class='macro'>vec</span><span class='macro'>!</span>[])) } <span class='kw'>else</span> { <span class='prelude-val'>None</span> },
         }
     }
 
@@ -2233,14 +2184,12 @@
         <span class='kw'>enum</span> <span class='ident'>Request</span> {
             <span class='ident'>FromPipeline</span>(<span class='ident'>LayoutControlMsg</span>),
             <span class='ident'>FromScript</span>(<span class='ident'>Msg</span>),
-            <span class='ident'>FromImageCache</span>,
             <span class='ident'>FromFontCache</span>,
         }
 
         <span class='kw'>let</span> <span class='ident'>request</span> <span class='op'>=</span> {
             <span class='kw'>let</span> <span class='ident'>port_from_script</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>port</span>;
             <span class='kw'>let</span> <span class='ident'>port_from_pipeline</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>pipeline_port</span>;
-            <span class='kw'>let</span> <span class='ident'>port_from_image_cache</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>image_cache_receiver</span>;
             <span class='kw'>let</span> <span class='ident'>port_from_font_cache</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>font_cache_receiver</span>;
             <span class='macro'>select</span><span class='macro'>!</span> {
                 <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>port_from_pipeline</span>.<span class='ident'>recv</span>() <span class='op'>=&gt;</span> {
@@ -2248,10 +2197,6 @@
                 },
                 <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>port_from_script</span>.<span class='ident'>recv</span>() <span class='op'>=&gt;</span> {
                     <span class='ident'>Request</span>::<span class='ident'>FromScript</span>(<span class='ident'>msg</span>.<span class='ident'>unwrap</span>())
-                },
-                <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>port_from_image_cache</span>.<span class='ident'>recv</span>() <span class='op'>=&gt;</span> {
-                    <span class='ident'>msg</span>.<span class='ident'>unwrap</span>();
-                    <span class='ident'>Request</span>::<span class='ident'>FromImageCache</span>
                 },
                 <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>port_from_font_cache</span>.<span class='ident'>recv</span>() <span class='op'>=&gt;</span> {
                     <span class='ident'>msg</span>.<span class='ident'>unwrap</span>();
@@ -2282,9 +2227,6 @@
             <span class='ident'>Request</span>::<span class='ident'>FromScript</span>(<span class='ident'>msg</span>) <span class='op'>=&gt;</span> {
                 <span class='self'>self</span>.<span class='ident'>handle_request_helper</span>(<span class='ident'>msg</span>, <span class='ident'>possibly_locked_rw_data</span>)
             },
-            <span class='ident'>Request</span>::<span class='ident'>FromImageCache</span> <span class='op'>=&gt;</span> {
-                <span class='self'>self</span>.<span class='ident'>repaint</span>(<span class='ident'>possibly_locked_rw_data</span>)
-            },
             <span class='ident'>Request</span>::<span class='ident'>FromFontCache</span> <span class='op'>=&gt;</span> {
                 <span class='kw'>let</span> <span class='ident'>_rw_data</span> <span class='op'>=</span> <span class='ident'>possibly_locked_rw_data</span>.<span class='ident'>lock</span>();
                 <span class='self'>self</span>.<span class='ident'>outstanding_web_fonts</span>.<span class='ident'>fetch_sub</span>(<span class='number'>1</span>, <span class='ident'>Ordering</span>::<span class='ident'>SeqCst</span>);
@@ -2293,37 +2235,6 @@
                 <span class='bool-val'>true</span>
             },
         }
-    }
-
-    <span class='doccomment'>/// Repaint the scene, without performing style matching. This is typically</span>
-    <span class='doccomment'>/// used when an image arrives asynchronously and triggers a relayout and</span>
-    <span class='doccomment'>/// repaint.</span>
-    <span class='doccomment'>/// TODO: In the future we could detect if the image size hasn&#39;t changed</span>
-    <span class='doccomment'>/// since last time and avoid performing a complete layout pass.</span>
-    <span class='kw'>fn</span> <span class='ident'>repaint</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='lifetime'>&#39;b</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>possibly_locked_rw_data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>RwData</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='lifetime'>&#39;b</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>rw_data</span> <span class='op'>=</span> <span class='ident'>possibly_locked_rw_data</span>.<span class='ident'>lock</span>();
-
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>mut</span> <span class='ident'>root_flow</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>root_flow</span>.<span class='ident'>clone</span>() {
-            <span class='kw'>let</span> <span class='ident'>flow</span> <span class='op'>=</span> <span class='ident'>flow</span>::<span class='ident'>mut_base</span>(<span class='ident'>FlowRef</span>::<span class='ident'>deref_mut</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>root_flow</span>));
-            <span class='ident'>flow</span>.<span class='ident'>restyle_damage</span>.<span class='ident'>insert</span>(<span class='ident'>REPAINT</span>);
-        }
-
-        <span class='kw'>let</span> <span class='ident'>reflow_info</span> <span class='op'>=</span> <span class='ident'>Reflow</span> {
-            <span class='ident'>goal</span>: <span class='ident'>ReflowGoal</span>::<span class='ident'>ForDisplay</span>,
-            <span class='ident'>page_clip_rect</span>: <span class='ident'>max_rect</span>(),
-        };
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>layout_context</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>build_layout_context</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>rw_data</span>,
-                                                           <span class='bool-val'>false</span>,
-                                                           <span class='ident'>reflow_info</span>.<span class='ident'>goal</span>);
-
-        <span class='self'>self</span>.<span class='ident'>perform_post_style_recalc_layout_passes</span>(<span class='kw-2'>&amp;</span><span class='ident'>reflow_info</span>,
-                                                     <span class='prelude-val'>None</span>,
-                                                     <span class='prelude-val'>None</span>,
-                                                     <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='ident'>rw_data</span>,
-                                                     <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>layout_context</span>);
-
-
-        <span class='bool-val'>true</span>
     }
 
     <span class='doccomment'>/// Receives and dispatches messages from other threads.</span>
@@ -2858,7 +2769,8 @@
         <span class='comment'>// Create a layout context for use throughout the following passes.</span>
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>layout_context</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>build_layout_context</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>rw_data</span>,
                                                            <span class='ident'>viewport_size_changed</span>,
-                                                           <span class='ident'>data</span>.<span class='ident'>reflow_info</span>.<span class='ident'>goal</span>);
+                                                           <span class='ident'>data</span>.<span class='ident'>reflow_info</span>.<span class='ident'>goal</span>,
+                                                           <span class='bool-val'>true</span>);
 
         <span class='comment'>// NB: Type inference falls apart here for some reason, so we need to be very verbose. :-(</span>
         <span class='kw'>let</span> <span class='ident'>traversal_driver</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>parallel_flag</span> <span class='op'>&amp;&amp;</span> <span class='self'>self</span>.<span class='ident'>parallel_traversal</span>.<span class='ident'>is_some</span>() {
@@ -2939,6 +2851,12 @@
                                      <span class='ident'>query_type</span>: <span class='kw-2'>&amp;</span><span class='ident'>ReflowQueryType</span>,
                                      <span class='ident'>rw_data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>LayoutThreadData</span>,
                                      <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>LayoutContext</span>) {
+        <span class='kw'>let</span> <span class='ident'>pending_images</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>context</span>.<span class='ident'>pending_images</span> {
+            <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>pending</span>) <span class='op'>=&gt;</span> <span class='ident'>std_mem</span>::<span class='ident'>replace</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='ident'>pending</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>(), <span class='macro'>vec</span><span class='macro'>!</span>[]),
+            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='macro'>vec</span><span class='macro'>!</span>[],
+        };
+        <span class='ident'>rw_data</span>.<span class='ident'>pending_images</span> <span class='op'>=</span> <span class='ident'>pending_images</span>;
+
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>root_flow</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>root_flow</span>.<span class='ident'>clone</span>() {
             <span class='prelude-val'>Some</span>(<span class='ident'>root_flow</span>) <span class='op'>=&gt;</span> <span class='ident'>root_flow</span>,
             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span>,
@@ -3059,7 +2977,8 @@
 
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>layout_context</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>build_layout_context</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>rw_data</span>,
                                                            <span class='bool-val'>false</span>,
-                                                           <span class='ident'>reflow_info</span>.<span class='ident'>goal</span>);
+                                                           <span class='ident'>reflow_info</span>.<span class='ident'>goal</span>,
+                                                           <span class='bool-val'>false</span>);
 
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>mut</span> <span class='ident'>root_flow</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>root_flow</span>.<span class='ident'>clone</span>() {
             <span class='comment'>// Perform an abbreviated style recalc that operates without access to the DOM.</span>
@@ -3079,6 +2998,8 @@
                                                      <span class='prelude-val'>None</span>,
                                                      <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='ident'>rw_data</span>,
                                                      <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>layout_context</span>);
+
+        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>layout_context</span>.<span class='ident'>pending_images</span>.<span class='ident'>is_none</span>());
     }
 
     <span class='kw'>fn</span> <span class='ident'>reflow_with_newly_loaded_web_font</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='lifetime'>&#39;b</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>possibly_locked_rw_data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>RwData</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='lifetime'>&#39;b</span><span class='op'>&gt;</span>) {
@@ -3092,7 +3013,8 @@
 
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>layout_context</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>build_layout_context</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>rw_data</span>,
                                                            <span class='bool-val'>false</span>,
-                                                           <span class='ident'>reflow_info</span>.<span class='ident'>goal</span>);
+                                                           <span class='ident'>reflow_info</span>.<span class='ident'>goal</span>,
+                                                           <span class='bool-val'>false</span>);
 
         <span class='comment'>// No need to do a style recalc here.</span>
         <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>root_flow</span>.<span class='ident'>is_none</span>() {

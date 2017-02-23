@@ -2155,6 +2155,8 @@
 <span id="2110">2110</span>
 <span id="2111">2111</span>
 <span id="2112">2112</span>
+<span id="2113">2113</span>
+<span id="2114">2114</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -2231,7 +2233,7 @@
 <span class='kw'>use</span> <span class='ident'>msg</span>::<span class='ident'>constellation_msg</span>::{<span class='ident'>FrameId</span>, <span class='ident'>FrameType</span>, <span class='ident'>PipelineId</span>, <span class='ident'>PipelineNamespace</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::{<span class='ident'>CoreResourceMsg</span>, <span class='ident'>FetchMetadata</span>, <span class='ident'>FetchResponseListener</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::{<span class='ident'>IpcSend</span>, <span class='ident'>Metadata</span>, <span class='ident'>ReferrerPolicy</span>, <span class='ident'>ResourceThreads</span>};
-<span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>image_cache_thread</span>::{<span class='ident'>ImageCacheChan</span>, <span class='ident'>ImageCacheResult</span>, <span class='ident'>ImageCacheThread</span>};
+<span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>image_cache_thread</span>::{<span class='ident'>PendingImageResponse</span>, <span class='ident'>ImageCacheThread</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>request</span>::{<span class='ident'>CredentialsMode</span>, <span class='ident'>Destination</span>, <span class='ident'>RequestInit</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>storage_thread</span>::<span class='ident'>StorageType</span>;
 <span class='kw'>use</span> <span class='ident'>network_listener</span>::<span class='ident'>NetworkListener</span>;
@@ -2277,6 +2279,8 @@
 <span class='kw'>use</span> <span class='ident'>url</span>::<span class='ident'>Position</span>;
 <span class='kw'>use</span> <span class='ident'>webdriver_handlers</span>;
 <span class='kw'>use</span> <span class='ident'>webvr_traits</span>::<span class='ident'>WebVRMsg</span>;
+
+<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>ImageCacheMsg</span> <span class='op'>=</span> (<span class='ident'>PipelineId</span>, <span class='ident'>PendingImageResponse</span>);
 
 <span class='macro'>thread_local</span><span class='macro'>!</span>(<span class='kw'>pub</span> <span class='kw'>static</span> <span class='ident'>STACK_ROOTS</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>RootCollectionPtr</span><span class='op'>&gt;&gt;</span> <span class='op'>=</span> <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>));
 <span class='macro'>thread_local</span><span class='macro'>!</span>(<span class='kw'>static</span> <span class='ident'>SCRIPT_THREAD_ROOT</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>ScriptThread</span><span class='op'>&gt;&gt;</span> <span class='op'>=</span> <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>));
@@ -2388,7 +2392,7 @@
     <span class='ident'>FromConstellation</span>(<span class='ident'>ConstellationControlMsg</span>),
     <span class='ident'>FromScript</span>(<span class='ident'>MainThreadScriptMsg</span>),
     <span class='ident'>FromDevtools</span>(<span class='ident'>DevtoolScriptControlMsg</span>),
-    <span class='ident'>FromImageCache</span>(<span class='ident'>ImageCacheResult</span>),
+    <span class='ident'>FromImageCache</span>((<span class='ident'>PipelineId</span>, <span class='ident'>PendingImageResponse</span>)),
     <span class='ident'>FromScheduler</span>(<span class='ident'>TimerEvent</span>)
 }
 
@@ -2602,10 +2606,10 @@
     <span class='ident'>layout_to_constellation_chan</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>LayoutMsg</span><span class='op'>&gt;</span>,
 
     <span class='doccomment'>/// The port on which we receive messages from the image cache</span>
-    <span class='ident'>image_cache_port</span>: <span class='ident'>Receiver</span><span class='op'>&lt;</span><span class='ident'>ImageCacheResult</span><span class='op'>&gt;</span>,
+    <span class='ident'>image_cache_port</span>: <span class='ident'>Receiver</span><span class='op'>&lt;</span><span class='ident'>ImageCacheMsg</span><span class='op'>&gt;</span>,
 
     <span class='doccomment'>/// The channel on which the image cache can send messages to ourself.</span>
-    <span class='ident'>image_cache_channel</span>: <span class='ident'>ImageCacheChan</span>,
+    <span class='ident'>image_cache_channel</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>ImageCacheMsg</span><span class='op'>&gt;</span>,
 
     <span class='doccomment'>/// For providing contact with the time profiler.</span>
     <span class='ident'>time_profiler_chan</span>: <span class='ident'>time</span>::<span class='ident'>ProfilerChan</span>,
@@ -2804,17 +2808,14 @@
         <span class='kw'>let</span> (<span class='ident'>ipc_devtools_sender</span>, <span class='ident'>ipc_devtools_receiver</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
         <span class='kw'>let</span> <span class='ident'>devtools_port</span> <span class='op'>=</span> <span class='ident'>ROUTER</span>.<span class='ident'>route_ipc_receiver_to_new_mpsc_receiver</span>(<span class='ident'>ipc_devtools_receiver</span>);
 
-        <span class='comment'>// Ask the router to proxy IPC messages from the image cache thread to us.</span>
-        <span class='kw'>let</span> (<span class='ident'>ipc_image_cache_channel</span>, <span class='ident'>ipc_image_cache_port</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>image_cache_port</span> <span class='op'>=</span>
-            <span class='ident'>ROUTER</span>.<span class='ident'>route_ipc_receiver_to_new_mpsc_receiver</span>(<span class='ident'>ipc_image_cache_port</span>);
-
         <span class='kw'>let</span> (<span class='ident'>timer_event_chan</span>, <span class='ident'>timer_event_port</span>) <span class='op'>=</span> <span class='ident'>channel</span>();
 
         <span class='comment'>// Ask the router to proxy IPC messages from the control port to us.</span>
         <span class='kw'>let</span> <span class='ident'>control_port</span> <span class='op'>=</span> <span class='ident'>ROUTER</span>.<span class='ident'>route_ipc_receiver_to_new_mpsc_receiver</span>(<span class='ident'>state</span>.<span class='ident'>control_port</span>);
 
         <span class='kw'>let</span> <span class='ident'>boxed_script_sender</span> <span class='op'>=</span> <span class='ident'>MainThreadScriptChan</span>(<span class='ident'>chan</span>.<span class='ident'>clone</span>()).<span class='ident'>clone</span>();
+
+        <span class='kw'>let</span> (<span class='ident'>image_cache_channel</span>, <span class='ident'>image_cache_port</span>) <span class='op'>=</span> <span class='ident'>channel</span>();
 
         <span class='ident'>ScriptThread</span> {
             <span class='ident'>documents</span>: <span class='ident'>DOMRefCell</span>::<span class='ident'>new</span>(<span class='ident'>Documents</span>::<span class='ident'>new</span>()),
@@ -2824,7 +2825,7 @@
             <span class='ident'>job_queue_map</span>: <span class='ident'>Rc</span>::<span class='ident'>new</span>(<span class='ident'>JobQueue</span>::<span class='ident'>new</span>()),
 
             <span class='ident'>image_cache_thread</span>: <span class='ident'>state</span>.<span class='ident'>image_cache_thread</span>,
-            <span class='ident'>image_cache_channel</span>: <span class='ident'>ImageCacheChan</span>(<span class='ident'>ipc_image_cache_channel</span>),
+            <span class='ident'>image_cache_channel</span>: <span class='ident'>image_cache_channel</span>,
             <span class='ident'>image_cache_port</span>: <span class='ident'>image_cache_port</span>,
 
             <span class='ident'>resource_threads</span>: <span class='ident'>state</span>.<span class='ident'>resource_threads</span>,
@@ -3269,8 +3270,11 @@
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_msg_from_image_cache</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>msg</span>: <span class='ident'>ImageCacheResult</span>) {
-        <span class='ident'>msg</span>.<span class='ident'>responder</span>.<span class='ident'>unwrap</span>().<span class='ident'>respond</span>(<span class='ident'>msg</span>.<span class='ident'>image_response</span>);
+    <span class='kw'>fn</span> <span class='ident'>handle_msg_from_image_cache</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, (<span class='ident'>id</span>, <span class='ident'>response</span>): (<span class='ident'>PipelineId</span>, <span class='ident'>PendingImageResponse</span>)) {
+        <span class='kw'>let</span> <span class='ident'>window</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>documents</span>.<span class='ident'>borrow</span>().<span class='ident'>find_window</span>(<span class='ident'>id</span>);
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>window</span>) <span class='op'>=</span> <span class='ident'>window</span> {
+            <span class='ident'>window</span>.<span class='ident'>pending_image_notification</span>(<span class='ident'>response</span>);
+        }
     }
 
     <span class='kw'>fn</span> <span class='ident'>handle_webdriver_msg</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>, <span class='ident'>msg</span>: <span class='ident'>WebDriverScriptCommand</span>) {
