@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["ident",""],["word",""]]});
+initSidebarItems({"fn":[["ident",""],["word",""],["wordlike",""]]});

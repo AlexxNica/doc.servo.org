@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["ConstExpr",""]],"mod":[["parsing",""]],"struct":[["Other",""]]});
+initSidebarItems({"enum":[["ConstExpr",""]],"mod":[["parsing",""]],"type":[["Other",""]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["FloatTy",""],["IntTy",""],["Lit","Literal kind."],["StrStyle",""]],"mod":[["parsing",""]],"struct":[["ByteStrLit",""],["FloatLit",""],["IntLit",""],["StrLit",""]]});
+initSidebarItems({"enum":[["FloatTy",""],["IntTy",""],["Lit","Literal kind."],["StrStyle",""]],"mod":[["parsing",""]]});

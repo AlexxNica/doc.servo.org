@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["binop",""],["unop",""]]});
+initSidebarItems({"fn":[["assign_op",""],["binop",""],["unop",""]]});
