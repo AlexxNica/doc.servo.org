@@ -10,12 +10,9 @@ implementors["script"] = [];
 implementors["servo"] = [];
 implementors["servo_config"] = [];
 implementors["style"] = [];
-implementors["url"] = [];
 implementors["webrender"] = [];
 implementors["websocket"] = [];
 implementors["webvr_traits"] = [];
-implementors["ws"] = [];
-implementors["xml5ever"] = [];
 
             if (window.register_implementors) {
                 window.register_implementors(implementors);
