@@ -660,12 +660,6 @@
 <span id="615">615</span>
 <span id="616">616</span>
 <span id="617">617</span>
-<span id="618">618</span>
-<span id="619">619</span>
-<span id="620">620</span>
-<span id="621">621</span>
-<span id="622">622</span>
-<span id="623">623</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -797,10 +791,9 @@
                 <span class='comment'>// Step 1.2.3</span>
                 <span class='comment'>// We don&#39;t print !important when serializing individual properties,</span>
                 <span class='comment'>// so we treat this as a normal-importance property</span>
-                <span class='kw'>let</span> <span class='ident'>importance</span> <span class='op'>=</span> <span class='ident'>Importance</span>::<span class='ident'>Normal</span>;
                 <span class='kw'>match</span> <span class='ident'>shorthand</span>.<span class='ident'>get_shorthand_appendable_value</span>(<span class='ident'>list</span>) {
                     <span class='prelude-val'>Some</span>(<span class='ident'>appendable_value</span>) <span class='op'>=&gt;</span>
-                        <span class='ident'>append_declaration_value</span>(<span class='ident'>dest</span>, <span class='ident'>appendable_value</span>, <span class='ident'>importance</span>, <span class='bool-val'>false</span>),
+                        <span class='ident'>append_declaration_value</span>(<span class='ident'>dest</span>, <span class='ident'>appendable_value</span>),
                     <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(()),
                 }
             }
@@ -1012,22 +1005,25 @@
                         <span class='ident'>Importance</span>::<span class='ident'>Normal</span>
                     };
 
-                    <span class='comment'>// Substep 5</span>
-                    <span class='kw'>let</span> <span class='ident'>was_serialized</span> <span class='op'>=</span>
-                        <span class='macro'>try</span><span class='macro'>!</span>(
-                            <span class='ident'>shorthand</span>.<span class='ident'>serialize_shorthand_to_buffer</span>(
-                                <span class='ident'>dest</span>,
-                                <span class='ident'>current_longhands</span>.<span class='ident'>iter</span>().<span class='ident'>cloned</span>(),
-                                <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>is_first_serialization</span>,
-                                <span class='ident'>importance</span>
-                            )
-                        );
-                    <span class='comment'>// If serialization occured, Substep 7 &amp; 8 will have been completed</span>
+                    <span class='comment'>// Substep 5 - Let value be the result of invoking serialize a CSS</span>
+                    <span class='comment'>// value of current longhands.</span>
+                    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>value</span> <span class='op'>=</span> <span class='ident'>String</span>::<span class='ident'>new</span>();
+                    <span class='kw'>match</span> <span class='ident'>shorthand</span>.<span class='ident'>get_shorthand_appendable_value</span>(<span class='ident'>current_longhands</span>.<span class='ident'>iter</span>().<span class='ident'>cloned</span>()) {
+                        <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>continue</span>,
+                        <span class='prelude-val'>Some</span>(<span class='ident'>appendable_value</span>) <span class='op'>=&gt;</span> {
+                            <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>append_declaration_value</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>value</span>, <span class='ident'>appendable_value</span>));
+                        }
+                    }
 
                     <span class='comment'>// Substep 6</span>
-                    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>was_serialized</span> {
-                        <span class='kw'>continue</span>;
+                    <span class='kw'>if</span> <span class='ident'>value</span>.<span class='ident'>is_empty</span>() {
+                        <span class='kw'>continue</span>
                     }
+
+                    <span class='comment'>// Substeps 7 and 8</span>
+                    <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>append_serialization</span>::<span class='op'>&lt;</span><span class='ident'>W</span>, <span class='ident'>Cloned</span><span class='op'>&lt;</span><span class='ident'>slice</span>::<span class='ident'>Iter</span><span class='op'>&lt;</span> _<span class='op'>&gt;&gt;</span>, _<span class='op'>&gt;</span>(
+                             <span class='ident'>dest</span>, <span class='kw-2'>&amp;</span><span class='ident'>shorthand</span>, <span class='ident'>AppendableValue</span>::<span class='ident'>Css</span>(<span class='kw-2'>&amp;</span><span class='ident'>value</span>), <span class='ident'>importance</span>,
+                             <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>is_first_serialization</span>));
 
                     <span class='kw'>for</span> <span class='ident'>current_longhand</span> <span class='kw'>in</span> <span class='ident'>current_longhands</span> {
                         <span class='comment'>// Substep 9</span>
@@ -1082,7 +1078,8 @@
     <span class='doccomment'>/// FIXME: This needs more docs, where are the shorthands expanded? We print</span>
     <span class='doccomment'>/// the property name before-hand, don&#39;t we?</span>
     <span class='ident'>DeclarationsForShorthand</span>(<span class='ident'>ShorthandId</span>, <span class='ident'>I</span>),
-    <span class='doccomment'>/// A raw CSS string, coming for example from a property with CSS variables.</span>
+    <span class='doccomment'>/// A raw CSS string, coming for example from a property with CSS variables,</span>
+    <span class='doccomment'>/// or when storing a serialized shorthand value before appending directly.</span>
     <span class='ident'>Css</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>)
 }
 
@@ -1103,9 +1100,7 @@
 
 <span class='doccomment'>/// Append a given kind of appendable value to a serialization.</span>
 <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>append_declaration_value</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>W</span>, <span class='ident'>I</span><span class='op'>&gt;</span>(<span class='ident'>dest</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>W</span>,
-                                          <span class='ident'>appendable_value</span>: <span class='ident'>AppendableValue</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>I</span><span class='op'>&gt;</span>,
-                                          <span class='ident'>importance</span>: <span class='ident'>Importance</span>,
-                                          <span class='ident'>is_overflow_with_name</span>: <span class='ident'>bool</span>)
+                                          <span class='ident'>appendable_value</span>: <span class='ident'>AppendableValue</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>I</span><span class='op'>&gt;</span>)
                                           <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span>
     <span class='kw'>where</span> <span class='ident'>W</span>: <span class='ident'>fmt</span>::<span class='ident'>Write</span>,
           <span class='ident'>I</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span><span class='op'>=</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>PropertyDeclaration</span><span class='op'>&gt;</span>,
@@ -1116,18 +1111,10 @@
         },
         <span class='ident'>AppendableValue</span>::<span class='ident'>Declaration</span>(<span class='ident'>decl</span>) <span class='op'>=&gt;</span> {
             <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>decl</span>.<span class='ident'>to_css</span>(<span class='ident'>dest</span>));
-         },
-         <span class='ident'>AppendableValue</span>::<span class='ident'>DeclarationsForShorthand</span>(<span class='ident'>shorthand</span>, <span class='ident'>decls</span>) <span class='op'>=&gt;</span> {
-            <span class='kw'>if</span> <span class='ident'>is_overflow_with_name</span> {
-              <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>shorthand</span>.<span class='ident'>overflow_longhands_to_css</span>(<span class='ident'>decls</span>, <span class='ident'>dest</span>));
-            } <span class='kw'>else</span> {
-              <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>shorthand</span>.<span class='ident'>longhands_to_css</span>(<span class='ident'>decls</span>, <span class='ident'>dest</span>));
-            }
-         }
-    }
-
-    <span class='kw'>if</span> <span class='ident'>importance</span>.<span class='ident'>important</span>() {
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>dest</span>, <span class='string'>&quot; !important&quot;</span>));
+        },
+        <span class='ident'>AppendableValue</span>::<span class='ident'>DeclarationsForShorthand</span>(<span class='ident'>shorthand</span>, <span class='ident'>decls</span>) <span class='op'>=&gt;</span> {
+            <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>shorthand</span>.<span class='ident'>longhands_to_css</span>(<span class='ident'>decls</span>, <span class='ident'>dest</span>));
+        }
     }
 
     <span class='prelude-val'>Ok</span>(())
@@ -1146,12 +1133,6 @@
 {
     <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>handle_first_serialization</span>(<span class='ident'>dest</span>, <span class='ident'>is_first_serialization</span>));
 
-    <span class='comment'>// Overflow does not behave like a normal shorthand. When overflow-x and overflow-y are not of equal</span>
-    <span class='comment'>// values, they no longer use the shared property name &quot;overflow&quot; and must be handled differently</span>
-    <span class='kw'>if</span> <span class='ident'>shorthands</span>::<span class='ident'>is_overflow_shorthand</span>(<span class='kw-2'>&amp;</span><span class='ident'>appendable_value</span>) {
-        <span class='kw'>return</span> <span class='ident'>append_declaration_value</span>(<span class='ident'>dest</span>, <span class='ident'>appendable_value</span>, <span class='ident'>importance</span>, <span class='bool-val'>true</span>);
-    }
-
     <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>property_name</span>.<span class='ident'>to_css</span>(<span class='ident'>dest</span>));
     <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>dest</span>.<span class='ident'>write_char</span>(<span class='string'>&#39;:&#39;</span>));
 
@@ -1165,11 +1146,18 @@
                 <span class='comment'>// for normal parsed values, add a space between key: and value</span>
                 <span class='macro'>try</span><span class='macro'>!</span>(<span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>dest</span>, <span class='string'>&quot; &quot;</span>));
             }
-         },
-         <span class='kw-2'>&amp;</span><span class='ident'>AppendableValue</span>::<span class='ident'>DeclarationsForShorthand</span>(..) <span class='op'>=&gt;</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>dest</span>, <span class='string'>&quot; &quot;</span>))
+        },
+        <span class='comment'>// Currently append_serialization is only called with a Css or</span>
+        <span class='comment'>// a Declaration AppendableValue.</span>
+        <span class='kw-2'>&amp;</span><span class='ident'>AppendableValue</span>::<span class='ident'>DeclarationsForShorthand</span>(..) <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>()
     }
 
-    <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>append_declaration_value</span>(<span class='ident'>dest</span>, <span class='ident'>appendable_value</span>, <span class='ident'>importance</span>, <span class='bool-val'>false</span>));
+    <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>append_declaration_value</span>(<span class='ident'>dest</span>, <span class='ident'>appendable_value</span>));
+
+    <span class='kw'>if</span> <span class='ident'>importance</span>.<span class='ident'>important</span>() {
+        <span class='macro'>try</span><span class='macro'>!</span>(<span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>dest</span>, <span class='string'>&quot; !important&quot;</span>));
+    }
+
     <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>dest</span>, <span class='string'>&quot;;&quot;</span>)
 }
 
