@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["plugin_registrar",""]],"mod":[["ban",""],["unrooted_must_root",""],["utils","Utilities for writing plugins"]]});
+initSidebarItems({"fn":[["plugin_registrar",""]],"mod":[["unrooted_must_root",""],["utils","Utilities for writing plugins"]]});
