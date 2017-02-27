@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/e41f141/webrender_traits/src/api.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/fc720d0/webrender_traits/src/api.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>api.rs.html -- source</title>
@@ -320,8 +320,6 @@
 <span id="275">275</span>
 <span id="276">276</span>
 <span id="277">277</span>
-<span id="278">278</span>
-<span id="279">279</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -334,8 +332,9 @@
 <span class='kw'>use</span> {<span class='ident'>ApiMsg</span>, <span class='ident'>ColorF</span>, <span class='ident'>DisplayListBuilder</span>, <span class='ident'>Epoch</span>, <span class='ident'>ImageDescriptor</span>};
 <span class='kw'>use</span> {<span class='ident'>FontKey</span>, <span class='ident'>IdNamespace</span>, <span class='ident'>ImageKey</span>, <span class='ident'>NativeFontHandle</span>, <span class='ident'>PipelineId</span>};
 <span class='kw'>use</span> {<span class='ident'>RenderApiSender</span>, <span class='ident'>ResourceId</span>, <span class='ident'>ScrollEventPhase</span>, <span class='ident'>ScrollLayerState</span>, <span class='ident'>ScrollLocation</span>, <span class='ident'>ServoScrollRootId</span>};
-<span class='kw'>use</span> {<span class='ident'>GlyphKey</span>, <span class='ident'>GlyphDimensions</span>, <span class='ident'>ImageData</span>, <span class='ident'>WebGLContextId</span>, <span class='ident'>WebGLCommand</span>};
+<span class='kw'>use</span> {<span class='ident'>GlyphKey</span>, <span class='ident'>GlyphDimensions</span>, <span class='ident'>ImageData</span>, <span class='ident'>WebGLContextId</span>, <span class='ident'>WebGLCommand</span>, <span class='ident'>TileSize</span>};
 <span class='kw'>use</span> {<span class='ident'>DeviceIntSize</span>, <span class='ident'>DynamicProperties</span>, <span class='ident'>LayoutPoint</span>, <span class='ident'>LayoutSize</span>, <span class='ident'>WorldPoint</span>, <span class='ident'>PropertyBindingKey</span>, <span class='ident'>PropertyBindingId</span>};
+<span class='kw'>use</span> {<span class='ident'>BuiltDisplayList</span>, <span class='ident'>AuxiliaryLists</span>};
 <span class='kw'>use</span> <span class='ident'>VRCompositorCommand</span>;
 <span class='kw'>use</span> <span class='ident'>ExternalEvent</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>marker</span>::<span class='ident'>PhantomData</span>;
@@ -379,20 +378,19 @@
         <span class='ident'>RenderApiSender</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>clone</span>(), <span class='self'>self</span>.<span class='ident'>payload_sender</span>.<span class='ident'>clone</span>())
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_raw_font</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>bytes</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>FontKey</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>generate_font_key</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>FontKey</span> {
         <span class='kw'>let</span> <span class='ident'>new_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>next_unique_id</span>();
-        <span class='kw'>let</span> <span class='ident'>key</span> <span class='op'>=</span> <span class='ident'>FontKey</span>::<span class='ident'>new</span>(<span class='ident'>new_id</span>.<span class='number'>0</span>, <span class='ident'>new_id</span>.<span class='number'>1</span>);
-        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>AddRawFont</span>(<span class='ident'>key</span>, <span class='ident'>bytes</span>);
-        <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
-        <span class='ident'>key</span>
+        <span class='ident'>FontKey</span>::<span class='ident'>new</span>(<span class='ident'>new_id</span>.<span class='number'>0</span>, <span class='ident'>new_id</span>.<span class='number'>1</span>)
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_native_font</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>native_font_handle</span>: <span class='ident'>NativeFontHandle</span>) <span class='op'>-&gt;</span> <span class='ident'>FontKey</span> {
-        <span class='kw'>let</span> <span class='ident'>new_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>next_unique_id</span>();
-        <span class='kw'>let</span> <span class='ident'>key</span> <span class='op'>=</span> <span class='ident'>FontKey</span>::<span class='ident'>new</span>(<span class='ident'>new_id</span>.<span class='number'>0</span>, <span class='ident'>new_id</span>.<span class='number'>1</span>);
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_raw_font</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>key</span>: <span class='ident'>FontKey</span>, <span class='ident'>bytes</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>) {
+        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>AddRawFont</span>(<span class='ident'>key</span>, <span class='ident'>bytes</span>);
+        <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_native_font</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>key</span>: <span class='ident'>FontKey</span>, <span class='ident'>native_font_handle</span>: <span class='ident'>NativeFontHandle</span>) {
         <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>AddNativeFont</span>(<span class='ident'>key</span>, <span class='ident'>native_font_handle</span>);
         <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
-        <span class='ident'>key</span>
     }
 
     <span class='doccomment'>/// Gets the dimensions for the supplied glyph keys</span>
@@ -409,19 +407,19 @@
     }
 
     <span class='doccomment'>/// Creates an `ImageKey`.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>alloc_image</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>ImageKey</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>generate_image_key</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>ImageKey</span> {
         <span class='kw'>let</span> <span class='ident'>new_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>next_unique_id</span>();
         <span class='ident'>ImageKey</span>::<span class='ident'>new</span>(<span class='ident'>new_id</span>.<span class='number'>0</span>, <span class='ident'>new_id</span>.<span class='number'>1</span>)
     }
 
-    <span class='doccomment'>/// Adds an image and returns the corresponding `ImageKey`.</span>
+    <span class='doccomment'>/// Adds an image identified by the `ImageKey`.</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_image</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
+                     <span class='ident'>key</span>: <span class='ident'>ImageKey</span>,
                      <span class='ident'>descriptor</span>: <span class='ident'>ImageDescriptor</span>,
-                     <span class='ident'>data</span>: <span class='ident'>ImageData</span>) <span class='op'>-&gt;</span> <span class='ident'>ImageKey</span> {
-        <span class='kw'>let</span> <span class='ident'>key</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>alloc_image</span>();
-        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>AddImage</span>(<span class='ident'>key</span>, <span class='ident'>descriptor</span>, <span class='ident'>data</span>);
+                     <span class='ident'>data</span>: <span class='ident'>ImageData</span>,
+                     <span class='ident'>tiling</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>TileSize</span><span class='op'>&gt;</span>) {
+        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>AddImage</span>(<span class='ident'>key</span>, <span class='ident'>descriptor</span>, <span class='ident'>data</span>, <span class='ident'>tiling</span>);
         <span class='self'>self</span>.<span class='ident'>api_sender</span>.<span class='ident'>send</span>(<span class='ident'>msg</span>).<span class='ident'>unwrap</span>();
-        <span class='ident'>key</span>
     }
 
     <span class='doccomment'>/// Updates a specific image.</span>
@@ -483,10 +481,8 @@
                                  <span class='ident'>background_color</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ColorF</span><span class='op'>&gt;</span>,
                                  <span class='ident'>epoch</span>: <span class='ident'>Epoch</span>,
                                  <span class='ident'>viewport_size</span>: <span class='ident'>LayoutSize</span>,
-                                 <span class='ident'>builder</span>: <span class='ident'>DisplayListBuilder</span>,
+                                 (<span class='ident'>pipeline_id</span>, <span class='ident'>display_list</span>, <span class='ident'>auxiliary_lists</span>): (<span class='ident'>PipelineId</span>, <span class='ident'>BuiltDisplayList</span>, <span class='ident'>AuxiliaryLists</span>),
                                  <span class='ident'>preserve_frame_state</span>: <span class='ident'>bool</span>) {
-        <span class='kw'>let</span> <span class='ident'>pipeline_id</span> <span class='op'>=</span> <span class='ident'>builder</span>.<span class='ident'>pipeline_id</span>;
-        <span class='kw'>let</span> (<span class='ident'>display_list</span>, <span class='ident'>auxiliary_lists</span>) <span class='op'>=</span> <span class='ident'>builder</span>.<span class='ident'>finalize</span>();
         <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ApiMsg</span>::<span class='ident'>SetRootDisplayList</span>(<span class='ident'>background_color</span>,
                                              <span class='ident'>epoch</span>,
                                              <span class='ident'>pipeline_id</span>,

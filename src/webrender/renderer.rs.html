@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/e41f141/webrender/src/renderer.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/fc720d0/webrender/src/renderer.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>renderer.rs.html -- source</title>
@@ -1848,6 +1848,14 @@
 <span id="1803">1803</span>
 <span id="1804">1804</span>
 <span id="1805">1805</span>
+<span id="1806">1806</span>
+<span id="1807">1807</span>
+<span id="1808">1808</span>
+<span id="1809">1809</span>
+<span id="1810">1810</span>
+<span id="1811">1811</span>
+<span id="1812">1812</span>
+<span id="1813">1813</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -2314,6 +2322,11 @@
     <span class='doccomment'>/// use a hashmap, and allows a flat vector for performance.</span>
     <span class='ident'>cache_texture_id_map</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>TextureId</span><span class='op'>&gt;</span>,
 
+    <span class='doccomment'>/// A special 1x1 dummy cache texture used for shaders that expect to work</span>
+    <span class='doccomment'>/// with the cache but are actually running in the first pass</span>
+    <span class='doccomment'>/// when no target is yet provided as a cache texture input.</span>
+    <span class='ident'>dummy_cache_texture_id</span>: <span class='ident'>TextureId</span>,
+
     <span class='doccomment'>/// Optional trait object that allows the client</span>
     <span class='doccomment'>/// application to provide external buffers for image data.</span>
     <span class='ident'>external_image_handler</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ExternalImageHandler</span><span class='op'>&gt;&gt;</span>,
@@ -2544,27 +2557,24 @@
         <span class='comment'>// TODO: Ensure that the white texture can never get evicted when the cache supports LRU eviction!</span>
         <span class='kw'>let</span> <span class='ident'>white_image_id</span> <span class='op'>=</span> <span class='ident'>texture_cache</span>.<span class='ident'>new_item_id</span>();
         <span class='ident'>texture_cache</span>.<span class='ident'>insert</span>(<span class='ident'>white_image_id</span>,
-                             <span class='ident'>ImageDescriptor</span> {
-                                <span class='ident'>width</span>: <span class='number'>2</span>,
-                                <span class='ident'>height</span>: <span class='number'>2</span>,
-                                <span class='ident'>stride</span>: <span class='prelude-val'>None</span>,
-                                <span class='ident'>format</span>: <span class='ident'>ImageFormat</span>::<span class='ident'>RGBA8</span>,
-                                <span class='ident'>is_opaque</span>: <span class='bool-val'>false</span>,
-                             },
+                             <span class='ident'>ImageDescriptor</span>::<span class='ident'>new</span>(<span class='number'>2</span>, <span class='number'>2</span>, <span class='ident'>ImageFormat</span>::<span class='ident'>RGBA8</span>, <span class='bool-val'>false</span>),
                              <span class='ident'>TextureFilter</span>::<span class='ident'>Linear</span>,
                              <span class='ident'>ImageData</span>::<span class='ident'>Raw</span>(<span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>white_pixels</span>)));
 
         <span class='kw'>let</span> <span class='ident'>dummy_mask_image_id</span> <span class='op'>=</span> <span class='ident'>texture_cache</span>.<span class='ident'>new_item_id</span>();
         <span class='ident'>texture_cache</span>.<span class='ident'>insert</span>(<span class='ident'>dummy_mask_image_id</span>,
-                             <span class='ident'>ImageDescriptor</span> {
-                                <span class='ident'>width</span>: <span class='number'>2</span>,
-                                <span class='ident'>height</span>: <span class='number'>2</span>,
-                                <span class='ident'>stride</span>: <span class='prelude-val'>None</span>,
-                                <span class='ident'>format</span>: <span class='ident'>ImageFormat</span>::<span class='ident'>A8</span>,
-                                <span class='ident'>is_opaque</span>: <span class='bool-val'>false</span>,
-                             },
+                             <span class='ident'>ImageDescriptor</span>::<span class='ident'>new</span>(<span class='number'>2</span>, <span class='number'>2</span>, <span class='ident'>ImageFormat</span>::<span class='ident'>A8</span>, <span class='bool-val'>false</span>),
                              <span class='ident'>TextureFilter</span>::<span class='ident'>Linear</span>,
                              <span class='ident'>ImageData</span>::<span class='ident'>Raw</span>(<span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>mask_pixels</span>)));
+
+        <span class='kw'>let</span> <span class='ident'>dummy_cache_texture_id</span> <span class='op'>=</span> <span class='ident'>device</span>.<span class='ident'>create_texture_ids</span>(<span class='number'>1</span>, <span class='ident'>TextureTarget</span>::<span class='ident'>Array</span>)[<span class='number'>0</span>];
+        <span class='ident'>device</span>.<span class='ident'>init_texture</span>(<span class='ident'>dummy_cache_texture_id</span>,
+                            <span class='number'>1</span>,
+                            <span class='number'>1</span>,
+                            <span class='ident'>ImageFormat</span>::<span class='ident'>RGBA8</span>,
+                            <span class='ident'>TextureFilter</span>::<span class='ident'>Linear</span>,
+                            <span class='ident'>RenderTargetMode</span>::<span class='ident'>LayerRenderTarget</span>(<span class='number'>1</span>),
+                            <span class='prelude-val'>None</span>);
 
         <span class='kw'>let</span> <span class='ident'>debug_renderer</span> <span class='op'>=</span> <span class='ident'>DebugRenderer</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>device</span>);
 
@@ -2701,6 +2711,7 @@
             <span class='ident'>pipeline_epoch_map</span>: <span class='ident'>HashMap</span>::<span class='ident'>with_hasher</span>(<span class='ident'>Default</span>::<span class='ident'>default</span>()),
             <span class='ident'>main_thread_dispatcher</span>: <span class='ident'>main_thread_dispatcher</span>,
             <span class='ident'>cache_texture_id_map</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
+            <span class='ident'>dummy_cache_texture_id</span>: <span class='ident'>dummy_cache_texture_id</span>,
             <span class='ident'>external_image_handler</span>: <span class='prelude-val'>None</span>,
             <span class='ident'>external_images</span>: <span class='ident'>HashMap</span>::<span class='ident'>with_hasher</span>(<span class='ident'>Default</span>::<span class='ident'>default</span>()),
             <span class='ident'>vr_compositor_handler</span>: <span class='ident'>vr_compositor</span>
@@ -2959,13 +2970,13 @@
                                                    <span class='ident'>filter</span>,
                                                    <span class='ident'>mode</span>);
                     }
-                    <span class='ident'>TextureUpdateOp</span>::<span class='ident'>Update</span> { <span class='ident'>page_pos_x</span>, <span class='ident'>page_pos_y</span>, <span class='ident'>width</span>, <span class='ident'>height</span>, <span class='ident'>data</span>, <span class='ident'>stride</span> } <span class='op'>=&gt;</span> {
+                    <span class='ident'>TextureUpdateOp</span>::<span class='ident'>Update</span> { <span class='ident'>page_pos_x</span>, <span class='ident'>page_pos_y</span>, <span class='ident'>width</span>, <span class='ident'>height</span>, <span class='ident'>data</span>, <span class='ident'>stride</span>, <span class='ident'>offset</span> } <span class='op'>=&gt;</span> {
                         <span class='kw'>let</span> <span class='ident'>texture_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>cache_texture_id_map</span>[<span class='ident'>update</span>.<span class='ident'>id</span>.<span class='number'>0</span>];
                         <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>update_texture</span>(<span class='ident'>texture_id</span>,
                                                    <span class='ident'>page_pos_x</span>,
                                                    <span class='ident'>page_pos_y</span>,
                                                    <span class='ident'>width</span>, <span class='ident'>height</span>, <span class='ident'>stride</span>,
-                                                   <span class='ident'>data</span>.<span class='ident'>as_slice</span>());
+                                                   <span class='kw-2'>&amp;</span><span class='ident'>data</span>[<span class='ident'>offset</span> <span class='kw'>as</span> <span class='ident'>usize</span>..]);
                     }
                     <span class='ident'>TextureUpdateOp</span>::<span class='ident'>UpdateForExternalBuffer</span> { <span class='ident'>rect</span>, <span class='ident'>id</span>, <span class='ident'>stride</span> } <span class='op'>=&gt;</span> {
                         <span class='kw'>let</span> <span class='ident'>handler</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>external_image_handler</span>
@@ -3020,7 +3031,7 @@
                     <span class='ident'>batch</span>: <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveBatch</span>,
                     <span class='ident'>projection</span>: <span class='kw-2'>&amp;</span><span class='ident'>Matrix4D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
                     <span class='ident'>render_task_data</span>: <span class='kw-2'>&amp;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>RenderTaskData</span><span class='op'>&gt;</span>,
-                    <span class='ident'>cache_texture</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>TextureId</span><span class='op'>&gt;</span>,
+                    <span class='ident'>cache_texture</span>: <span class='ident'>TextureId</span>,
                     <span class='ident'>render_target</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span>(<span class='ident'>TextureId</span>, <span class='ident'>i32</span>)<span class='op'>&gt;</span>,
                     <span class='ident'>target_dimensions</span>: <span class='ident'>DeviceUintSize</span>) {
         <span class='kw'>let</span> <span class='ident'>transform_kind</span> <span class='op'>=</span> <span class='ident'>batch</span>.<span class='ident'>key</span>.<span class='ident'>flags</span>.<span class='ident'>transform_kind</span>();
@@ -3113,8 +3124,7 @@
                 <span class='comment'>// Before submitting the composite batch, do the</span>
                 <span class='comment'>// framebuffer readbacks that are needed for each</span>
                 <span class='comment'>// composite operation in this batch.</span>
-                <span class='kw'>let</span> <span class='ident'>cache_texture_id</span> <span class='op'>=</span> <span class='ident'>cache_texture</span>.<span class='ident'>unwrap</span>();
-                <span class='kw'>let</span> <span class='ident'>cache_texture_dimensions</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>get_texture_dimensions</span>(<span class='ident'>cache_texture_id</span>);
+                <span class='kw'>let</span> <span class='ident'>cache_texture_dimensions</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>get_texture_dimensions</span>(<span class='ident'>cache_texture</span>);
 
                 <span class='kw'>let</span> <span class='ident'>backdrop</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>render_task_data</span>[<span class='ident'>instance</span>.<span class='ident'>task_index</span> <span class='kw'>as</span> <span class='ident'>usize</span>];
                 <span class='kw'>let</span> <span class='ident'>readback</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>render_task_data</span>[<span class='ident'>instance</span>.<span class='ident'>user_data</span>[<span class='number'>0</span>] <span class='kw'>as</span> <span class='ident'>usize</span>];
@@ -3124,7 +3134,7 @@
                 <span class='comment'>// Called per-instance in case the layer (and therefore FBO)</span>
                 <span class='comment'>// changes. The device will skip the GL call if the requested</span>
                 <span class='comment'>// target is already bound.</span>
-                <span class='kw'>let</span> <span class='ident'>cache_draw_target</span> <span class='op'>=</span> (<span class='ident'>cache_texture_id</span>, <span class='ident'>readback</span>.<span class='ident'>data</span>[<span class='number'>4</span>] <span class='kw'>as</span> <span class='ident'>i32</span>);
+                <span class='kw'>let</span> <span class='ident'>cache_draw_target</span> <span class='op'>=</span> (<span class='ident'>cache_texture</span>, <span class='ident'>readback</span>.<span class='ident'>data</span>[<span class='number'>4</span>] <span class='kw'>as</span> <span class='ident'>i32</span>);
                 <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>bind_draw_target</span>(<span class='prelude-val'>Some</span>(<span class='ident'>cache_draw_target</span>), <span class='prelude-val'>Some</span>(<span class='ident'>cache_texture_dimensions</span>));
 
                 <span class='kw'>let</span> <span class='ident'>src_x</span> <span class='op'>=</span> <span class='ident'>backdrop</span>.<span class='ident'>data</span>[<span class='number'>0</span>] <span class='op'>-</span> <span class='ident'>backdrop</span>.<span class='ident'>data</span>[<span class='number'>4</span>] <span class='op'>+</span> <span class='ident'>source</span>.<span class='ident'>data</span>[<span class='number'>4</span>];
@@ -3171,7 +3181,7 @@
                    <span class='ident'>render_target</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span>(<span class='ident'>TextureId</span>, <span class='ident'>i32</span>)<span class='op'>&gt;</span>,
                    <span class='ident'>target</span>: <span class='kw-2'>&amp;</span><span class='ident'>RenderTarget</span>,
                    <span class='ident'>target_size</span>: <span class='ident'>DeviceUintSize</span>,
-                   <span class='ident'>cache_texture</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>TextureId</span><span class='op'>&gt;</span>,
+                   <span class='ident'>cache_texture</span>: <span class='ident'>TextureId</span>,
                    <span class='ident'>should_clear</span>: <span class='ident'>bool</span>,
                    <span class='ident'>background_color</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ColorF</span><span class='op'>&gt;</span>,
                    <span class='ident'>render_task_data</span>: <span class='kw-2'>&amp;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>RenderTaskData</span><span class='op'>&gt;</span>) {
@@ -3184,9 +3194,7 @@
 
             <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>set_blend</span>(<span class='bool-val'>false</span>);
             <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>set_blend_mode_alpha</span>();
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>cache_texture</span>) <span class='op'>=</span> <span class='ident'>cache_texture</span> {
-                <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>bind_texture</span>(<span class='ident'>TextureSampler</span>::<span class='ident'>Cache</span>, <span class='ident'>cache_texture</span>);
-            }
+            <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>bind_texture</span>(<span class='ident'>TextureSampler</span>::<span class='ident'>Cache</span>, <span class='ident'>cache_texture</span>);
 
             <span class='kw'>let</span> (<span class='ident'>color</span>, <span class='ident'>projection</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>render_target</span> {
                 <span class='prelude-val'>Some</span>(..) <span class='op'>=&gt;</span> (
@@ -3489,7 +3497,7 @@
             <span class='self'>self</span>.<span class='ident'>gpu_data_textures</span>[<span class='self'>self</span>.<span class='ident'>gdt_index</span>].<span class='ident'>init_frame</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>device</span>, <span class='ident'>frame</span>);
             <span class='self'>self</span>.<span class='ident'>gdt_index</span> <span class='op'>=</span> (<span class='self'>self</span>.<span class='ident'>gdt_index</span> <span class='op'>+</span> <span class='number'>1</span>) <span class='op'>%</span> <span class='ident'>GPU_DATA_TEXTURE_POOL</span>;
 
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>src_id</span> <span class='op'>=</span> <span class='prelude-val'>None</span>;
+            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>src_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>dummy_cache_texture_id</span>;
 
             <span class='kw'>for</span> (<span class='ident'>pass_index</span>, <span class='ident'>pass</span>) <span class='kw'>in</span> <span class='ident'>frame</span>.<span class='ident'>passes</span>.<span class='ident'>iter</span>().<span class='ident'>enumerate</span>() {
                 <span class='kw'>let</span> (<span class='ident'>do_clear</span>, <span class='ident'>size</span>, <span class='ident'>target_id</span>) <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>pass</span>.<span class='ident'>is_framebuffer</span> {
@@ -3514,7 +3522,7 @@
 
                 }
 
-                <span class='ident'>src_id</span> <span class='op'>=</span> <span class='ident'>target_id</span>;
+                <span class='ident'>src_id</span> <span class='op'>=</span> <span class='ident'>target_id</span>.<span class='ident'>unwrap_or</span>(<span class='self'>self</span>.<span class='ident'>dummy_cache_texture_id</span>);
             }
 
             <span class='self'>self</span>.<span class='ident'>draw_render_target_debug</span>(<span class='ident'>framebuffer_size</span>);
@@ -3572,6 +3580,14 @@
                 }
             }
         }
+    }
+
+    <span class='comment'>// De-initialize the Renderer safely, assuming the GL is still alive and active.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>deinit</span>(<span class='kw-2'>mut</span> <span class='self'>self</span>) {
+        <span class='comment'>//Note: this is a fake frame, only needed because texture deletion is require to happen inside a frame</span>
+        <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>begin_frame</span>(<span class='number'>1.0</span>);
+        <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>deinit_texture</span>(<span class='self'>self</span>.<span class='ident'>dummy_cache_texture_id</span>);
+        <span class='self'>self</span>.<span class='ident'>device</span>.<span class='ident'>end_frame</span>();
     }
 }
 

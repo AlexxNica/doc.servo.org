@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["boolean",""],["byte",""],["byte_string",""],["character",""],["float",""],["ident",""],["int",""],["lifetime",""],["lit",""],["path",""],["string",""],["tt",""],["ty",""]]});
+initSidebarItems({"fn":[["boolean",""],["byte",""],["byte_string",""],["character",""],["expr",""],["float",""],["ident",""],["int",""],["item",""],["lifetime",""],["lit",""],["path",""],["string",""],["tt",""],["ty",""]]});
