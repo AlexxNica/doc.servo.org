@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/fc720d0/webrender/src/freelist.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/9565e58/webrender/src/freelist.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>freelist.rs.html -- source</title>
@@ -164,6 +164,8 @@
 <span id="119">119</span>
 <span id="120">120</span>
 <span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -182,14 +184,29 @@
 
     <span class='attribute'>#[<span class='ident'>inline</span>]</span>
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>value</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>u32</span> {
-        <span class='kw'>let</span> <span class='ident'>FreeListItemId</span>(<span class='ident'>value</span>) <span class='op'>=</span> <span class='kw-2'>*</span><span class='self'>self</span>;
-        <span class='ident'>value</span>
+        <span class='self'>self</span>.<span class='number'>0</span>
     }
 }
 
 <span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>FreeListItem</span> {
+    <span class='kw'>fn</span> <span class='ident'>take</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span>;
     <span class='kw'>fn</span> <span class='ident'>next_free_id</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>FreeListItemId</span><span class='op'>&gt;</span>;
     <span class='kw'>fn</span> <span class='ident'>set_next_free_id</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>id</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>FreeListItemId</span><span class='op'>&gt;</span>);
+}
+
+<span class='kw'>struct</span> <span class='ident'>FreeListIter</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span>: <span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
+    <span class='ident'>items</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> [<span class='ident'>T</span>],
+    <span class='ident'>cur_index</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>FreeListItemId</span><span class='op'>&gt;</span>,
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span>: <span class='ident'>FreeListItem</span><span class='op'>&gt;</span> <span class='ident'>Iterator</span> <span class='kw'>for</span> <span class='ident'>FreeListIter</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> {
+    <span class='kw'>type</span> <span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>FreeListItemId</span>;
+    <span class='kw'>fn</span> <span class='ident'>next</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='self'>Self</span>::<span class='ident'>Item</span><span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>cur_index</span>.<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>free_id</span><span class='op'>|</span> {
+            <span class='self'>self</span>.<span class='ident'>cur_index</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>items</span>[<span class='ident'>free_id</span>.<span class='number'>0</span> <span class='kw'>as</span> <span class='ident'>usize</span>].<span class='ident'>next_free_id</span>();
+            <span class='ident'>free_id</span>
+        })
+    }
 }
 
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>FreeList</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
@@ -204,6 +221,13 @@
             <span class='ident'>items</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
             <span class='ident'>first_free_index</span>: <span class='prelude-val'>None</span>,
             <span class='ident'>alloc_count</span>: <span class='number'>0</span>,
+        }
+    }
+
+    <span class='kw'>fn</span> <span class='ident'>free_iter</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>FreeListIter</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
+        <span class='ident'>FreeListIter</span> {
+            <span class='ident'>items</span>: <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>items</span>,
+            <span class='ident'>cur_index</span>: <span class='self'>self</span>.<span class='ident'>first_free_index</span>,
         }
     }
 
@@ -225,31 +249,14 @@
         }
     }
 
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>assert_not_in_free_list</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>id</span>: <span class='ident'>FreeListItemId</span>) {
-        <span class='kw'>let</span> <span class='ident'>FreeListItemId</span>(<span class='ident'>id</span>) <span class='op'>=</span> <span class='ident'>id</span>;
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>next_free_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>first_free_index</span>;
-
-        <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>free_id</span>) <span class='op'>=</span> <span class='ident'>next_free_id</span> {
-            <span class='kw'>let</span> <span class='ident'>FreeListItemId</span>(<span class='ident'>index</span>) <span class='op'>=</span> <span class='ident'>free_id</span>;
-            <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>index</span> <span class='op'>!=</span> <span class='ident'>id</span>);
-            <span class='kw'>let</span> <span class='ident'>free_item</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>items</span>[<span class='ident'>index</span> <span class='kw'>as</span> <span class='ident'>usize</span>];
-            <span class='ident'>next_free_id</span> <span class='op'>=</span> <span class='ident'>free_item</span>.<span class='ident'>next_free_id</span>();
-        }
-    }
-
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>id</span>: <span class='ident'>FreeListItemId</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>T</span> {
-        <span class='comment'>//self.assert_not_in_free_list(id);</span>
-
-        <span class='kw'>let</span> <span class='ident'>FreeListItemId</span>(<span class='ident'>index</span>) <span class='op'>=</span> <span class='ident'>id</span>;
-        <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>items</span>[<span class='ident'>index</span> <span class='kw'>as</span> <span class='ident'>usize</span>]
+        <span class='macro'>debug_assert_eq</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>free_iter</span>().<span class='ident'>find</span>(<span class='op'>|</span><span class='kw-2'>&amp;</span><span class='ident'>fid</span><span class='op'>|</span> <span class='ident'>fid</span><span class='op'>==</span><span class='ident'>id</span>), <span class='prelude-val'>None</span>);
+        <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>items</span>[<span class='ident'>id</span>.<span class='number'>0</span> <span class='kw'>as</span> <span class='ident'>usize</span>]
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_mut</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>id</span>: <span class='ident'>FreeListItemId</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>T</span> {
-        <span class='comment'>//self.assert_not_in_free_list(id);</span>
-
-        <span class='kw'>let</span> <span class='ident'>FreeListItemId</span>(<span class='ident'>index</span>) <span class='op'>=</span> <span class='ident'>id</span>;
-        <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>items</span>[<span class='ident'>index</span> <span class='kw'>as</span> <span class='ident'>usize</span>]
+        <span class='macro'>debug_assert_eq</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>free_iter</span>().<span class='ident'>find</span>(<span class='op'>|</span><span class='kw-2'>&amp;</span><span class='ident'>fid</span><span class='op'>|</span> <span class='ident'>fid</span><span class='op'>==</span><span class='ident'>id</span>), <span class='prelude-val'>None</span>);
+        <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>items</span>[<span class='ident'>id</span>.<span class='number'>0</span> <span class='kw'>as</span> <span class='ident'>usize</span>]
     }
 
     <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>)]</span>
@@ -257,30 +264,27 @@
         <span class='self'>self</span>.<span class='ident'>alloc_count</span>
     }
 
-    <span class='comment'>// TODO(gw): Actually free items from the texture cache!!</span>
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>free</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>id</span>: <span class='ident'>FreeListItemId</span>) {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>free</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>id</span>: <span class='ident'>FreeListItemId</span>) <span class='op'>-&gt;</span> <span class='ident'>T</span> {
         <span class='self'>self</span>.<span class='ident'>alloc_count</span> <span class='op'>-=</span> <span class='number'>1</span>;
         <span class='kw'>let</span> <span class='ident'>FreeListItemId</span>(<span class='ident'>index</span>) <span class='op'>=</span> <span class='ident'>id</span>;
         <span class='kw'>let</span> <span class='ident'>item</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>items</span>[<span class='ident'>index</span> <span class='kw'>as</span> <span class='ident'>usize</span>];
+        <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='ident'>item</span>.<span class='ident'>take</span>();
         <span class='ident'>item</span>.<span class='ident'>set_next_free_id</span>(<span class='self'>self</span>.<span class='ident'>first_free_index</span>);
         <span class='self'>self</span>.<span class='ident'>first_free_index</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>id</span>);
+        <span class='ident'>data</span>
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>for_each_item</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>f</span>: <span class='ident'>F</span>) <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Fn</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>T</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>free_ids</span> <span class='op'>=</span> <span class='ident'>HashSet</span>::<span class='ident'>new</span>();
-
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>next_free_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>first_free_index</span>;
-        <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>free_id</span>) <span class='op'>=</span> <span class='ident'>next_free_id</span> {
-            <span class='ident'>free_ids</span>.<span class='ident'>insert</span>(<span class='ident'>free_id</span>);
-            <span class='kw'>let</span> <span class='ident'>FreeListItemId</span>(<span class='ident'>index</span>) <span class='op'>=</span> <span class='ident'>free_id</span>;
-            <span class='kw'>let</span> <span class='ident'>free_item</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>items</span>[<span class='ident'>index</span> <span class='kw'>as</span> <span class='ident'>usize</span>];
-            <span class='ident'>next_free_id</span> <span class='op'>=</span> <span class='ident'>free_item</span>.<span class='ident'>next_free_id</span>();
-        }
+        <span class='comment'>//TODO: this could be done much faster. Instead of gathering the free</span>
+        <span class='comment'>// indices into a set, we could re-order the free list to be ascending.</span>
+        <span class='comment'>// That is an one-time operation with at most O(nf^2), where</span>
+        <span class='comment'>//    nf = number of elements in the free list</span>
+        <span class='comment'>// Then this code would just walk both `items` and the ascending free</span>
+        <span class='comment'>// list, essentially skipping the free indices for free.</span>
+        <span class='kw'>let</span> <span class='ident'>free_ids</span>: <span class='ident'>HashSet</span><span class='op'>&lt;</span>_<span class='op'>&gt;</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>free_iter</span>().<span class='ident'>collect</span>();
 
         <span class='kw'>for</span> (<span class='ident'>index</span>, <span class='kw-2'>mut</span> <span class='ident'>item</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>items</span>.<span class='ident'>iter_mut</span>().<span class='ident'>enumerate</span>() {
-            <span class='kw'>let</span> <span class='ident'>id</span> <span class='op'>=</span> <span class='ident'>FreeListItemId</span>(<span class='ident'>index</span> <span class='kw'>as</span> <span class='ident'>u32</span>);
-            <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>free_ids</span>.<span class='ident'>contains</span>(<span class='kw-2'>&amp;</span><span class='ident'>id</span>) {
+            <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>free_ids</span>.<span class='ident'>contains</span>(<span class='kw-2'>&amp;</span><span class='ident'>FreeListItemId</span>(<span class='ident'>index</span> <span class='kw'>as</span> <span class='ident'>u32</span>)) {
                 <span class='ident'>f</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>item</span>);
             }
         }

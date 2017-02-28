@@ -2,6 +2,7 @@
 implementors["arrayvec"] = [];
 implementors["brotli"] = [];
 implementors["core"] = [];
+implementors["cssparser"] = [];
 implementors["enum_primitive"] = [];
 implementors["gfx"] = [];
 implementors["gleam"] = [];
@@ -33,6 +34,7 @@ implementors["shared_library"] = [];
 implementors["std_unicode"] = [];
 implementors["string_cache"] = [];
 implementors["style"] = [];
+implementors["syn"] = [];
 implementors["tendril"] = [];
 implementors["url"] = [];
 implementors["webrender"] = [];

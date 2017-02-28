@@ -1,6 +1,7 @@
 (function() {var implementors = {};
 implementors["arrayvec"] = [];
 implementors["brotli"] = [];
+implementors["cssparser"] = [];
 implementors["enum_primitive"] = [];
 implementors["flate2"] = ["impl&lt;R:&nbsp;<a class='trait' href='std/io/trait.Read.html' title='trait std::io::Read'>Read</a>&gt; <a class='trait' href='std/io/trait.BufRead.html' title='trait std::io::BufRead'>BufRead</a> for <a class='struct' href='flate2/bufreader/struct.BufReader.html' title='struct flate2::bufreader::BufReader'>BufReader</a>&lt;R&gt;","impl&lt;R:&nbsp;<a class='trait' href='std/io/trait.BufRead.html' title='trait std::io::BufRead'>BufRead</a>&gt; <a class='trait' href='std/io/trait.BufRead.html' title='trait std::io::BufRead'>BufRead</a> for <a class='struct' href='flate2/crc/struct.CrcReader.html' title='struct flate2::crc::CrcReader'>CrcReader</a>&lt;R&gt;",];
 implementors["gfx"] = [];
@@ -34,6 +35,7 @@ implementors["shared_library"] = [];
 implementors["std"] = [];
 implementors["string_cache"] = [];
 implementors["style"] = [];
+implementors["syn"] = [];
 implementors["tendril"] = [];
 implementors["url"] = [];
 implementors["webrender"] = [];

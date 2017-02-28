@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["cascade_property",""],["parse",""],["parse_declared",""],["parse_specified",""]],"mod":[["computed_value",""]],"struct":[["SpecifiedValue",""]]});
+initSidebarItems({"fn":[["cascade_property",""],["get_initial_specified_value",""],["parse",""],["parse_declared",""],["parse_specified",""]],"mod":[["computed_value",""]],"struct":[["SpecifiedValue",""]]});

@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["_internal__to_lowercase","Implementation detail of match_ignore_ascii_case! and ascii_case_insensitive_phf_map! macros."]]});

@@ -1,5 +1,6 @@
 (function() {var implementors = {};
 implementors["bincode"] = ["impl&lt;'a, W&gt; <a class='trait' href='serde/ser/trait.SerializeStructVariant.html' title='trait serde::ser::SerializeStructVariant'>SerializeStructVariant</a> for <a class='struct' href='bincode/serde/writer/struct.Compound.html' title='struct bincode::serde::writer::Compound'>Compound</a>&lt;'a, W&gt; <span class='where fmt-newline'>where W: <a class='trait' href='std/io/trait.Write.html' title='trait std::io::Write'>Write</a></span>","impl&lt;'a&gt; <a class='trait' href='serde/ser/trait.SerializeStructVariant.html' title='trait serde::ser::SerializeStructVariant'>SerializeStructVariant</a> for <a class='struct' href='bincode/serde/writer/struct.SizeCompound.html' title='struct bincode::serde::writer::SizeCompound'>SizeCompound</a>&lt;'a&gt;",];
+implementors["cssparser"] = [];
 implementors["gfx"] = [];
 implementors["html5ever"] = [];
 implementors["ipc_channel"] = [];

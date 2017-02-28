@@ -1,4 +1,5 @@
 (function() {var implementors = {};
+implementors["cssparser"] = [];
 implementors["gfx"] = [];
 implementors["html5ever"] = [];
 implementors["layout_thread"] = [];

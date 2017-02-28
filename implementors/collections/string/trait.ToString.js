@@ -2,6 +2,7 @@
 implementors["arrayvec"] = [];
 implementors["brotli"] = [];
 implementors["collections"] = [];
+implementors["cssparser"] = [];
 implementors["enum_primitive"] = [];
 implementors["gfx"] = ["impl <a class='trait' href='collections/string/trait.ToString.html' title='trait collections::string::ToString'>ToString</a> for <a class='enum' href='openssl/x509/extension/enum.Extension.html' title='enum openssl::x509::extension::Extension'>Extension</a>",];
 implementors["gleam"] = [];
@@ -33,6 +34,7 @@ implementors["servo_remutex"] = [];
 implementors["shared_library"] = [];
 implementors["string_cache"] = [];
 implementors["style"] = [];
+implementors["syn"] = [];
 implementors["tendril"] = [];
 implementors["url"] = [];
 implementors["webrender"] = [];

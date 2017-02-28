@@ -1,6 +1,7 @@
 (function() {var implementors = {};
 implementors["arrayvec"] = [];
 implementors["brotli"] = [];
+implementors["cssparser"] = [];
 implementors["enum_primitive"] = [];
 implementors["gfx"] = ["impl&lt;'a&gt; <a class='trait' href='rand/trait.SeedableRng.html' title='trait rand::SeedableRng'>SeedableRng</a>&lt;<a class='primitive' href='std/primitive.slice.html'>&amp;'a [</a><a class='primitive' href='std/primitive.usize.html'>usize</a><a class='primitive' href='std/primitive.slice.html'>]</a>&gt; for <a class='struct' href='servo_rand/struct.ServoRng.html' title='struct servo_rand::ServoRng'>ServoRng</a>",];
 implementors["gleam"] = [];
@@ -34,6 +35,7 @@ implementors["shared_library"] = [];
 implementors["std"] = [];
 implementors["string_cache"] = [];
 implementors["style"] = [];
+implementors["syn"] = [];
 implementors["tendril"] = [];
 implementors["url"] = [];
 implementors["webrender"] = [];

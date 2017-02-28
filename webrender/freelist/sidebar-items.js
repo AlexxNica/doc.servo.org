@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["FreeList",""],["FreeListItemId",""]],"trait":[["FreeListItem",""]]});
+initSidebarItems({"struct":[["FreeList",""],["FreeListItemId",""],["FreeListIter",""]],"trait":[["FreeListItem",""]]});
