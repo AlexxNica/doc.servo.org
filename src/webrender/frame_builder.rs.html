@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/9565e58/webrender/src/frame_builder.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/68f5b72/webrender/src/frame_builder.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>frame_builder.rs.html -- source</title>
@@ -1533,6 +1533,91 @@
 <span id="1488">1488</span>
 <span id="1489">1489</span>
 <span id="1490">1490</span>
+<span id="1491">1491</span>
+<span id="1492">1492</span>
+<span id="1493">1493</span>
+<span id="1494">1494</span>
+<span id="1495">1495</span>
+<span id="1496">1496</span>
+<span id="1497">1497</span>
+<span id="1498">1498</span>
+<span id="1499">1499</span>
+<span id="1500">1500</span>
+<span id="1501">1501</span>
+<span id="1502">1502</span>
+<span id="1503">1503</span>
+<span id="1504">1504</span>
+<span id="1505">1505</span>
+<span id="1506">1506</span>
+<span id="1507">1507</span>
+<span id="1508">1508</span>
+<span id="1509">1509</span>
+<span id="1510">1510</span>
+<span id="1511">1511</span>
+<span id="1512">1512</span>
+<span id="1513">1513</span>
+<span id="1514">1514</span>
+<span id="1515">1515</span>
+<span id="1516">1516</span>
+<span id="1517">1517</span>
+<span id="1518">1518</span>
+<span id="1519">1519</span>
+<span id="1520">1520</span>
+<span id="1521">1521</span>
+<span id="1522">1522</span>
+<span id="1523">1523</span>
+<span id="1524">1524</span>
+<span id="1525">1525</span>
+<span id="1526">1526</span>
+<span id="1527">1527</span>
+<span id="1528">1528</span>
+<span id="1529">1529</span>
+<span id="1530">1530</span>
+<span id="1531">1531</span>
+<span id="1532">1532</span>
+<span id="1533">1533</span>
+<span id="1534">1534</span>
+<span id="1535">1535</span>
+<span id="1536">1536</span>
+<span id="1537">1537</span>
+<span id="1538">1538</span>
+<span id="1539">1539</span>
+<span id="1540">1540</span>
+<span id="1541">1541</span>
+<span id="1542">1542</span>
+<span id="1543">1543</span>
+<span id="1544">1544</span>
+<span id="1545">1545</span>
+<span id="1546">1546</span>
+<span id="1547">1547</span>
+<span id="1548">1548</span>
+<span id="1549">1549</span>
+<span id="1550">1550</span>
+<span id="1551">1551</span>
+<span id="1552">1552</span>
+<span id="1553">1553</span>
+<span id="1554">1554</span>
+<span id="1555">1555</span>
+<span id="1556">1556</span>
+<span id="1557">1557</span>
+<span id="1558">1558</span>
+<span id="1559">1559</span>
+<span id="1560">1560</span>
+<span id="1561">1561</span>
+<span id="1562">1562</span>
+<span id="1563">1563</span>
+<span id="1564">1564</span>
+<span id="1565">1565</span>
+<span id="1566">1566</span>
+<span id="1567">1567</span>
+<span id="1568">1568</span>
+<span id="1569">1569</span>
+<span id="1570">1570</span>
+<span id="1571">1571</span>
+<span id="1572">1572</span>
+<span id="1573">1573</span>
+<span id="1574">1574</span>
+<span id="1575">1575</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1654,6 +1739,10 @@
     <span class='doccomment'>/// A stack of scroll nodes used during display list processing to properly</span>
     <span class='doccomment'>/// parent new scroll nodes.</span>
     <span class='ident'>clip_scroll_node_stack</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerIndex</span><span class='op'>&gt;</span>,
+
+    <span class='doccomment'>/// A stack of stacking contexts used for creating ClipScrollGroups as</span>
+    <span class='doccomment'>/// primitives are added to the frame.</span>
+    <span class='ident'>stacking_context_stack</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>StackingContextIndex</span><span class='op'>&gt;</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>FrameBuilder</span> {
@@ -1672,13 +1761,24 @@
             <span class='ident'>scrollbar_prims</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
             <span class='ident'>config</span>: <span class='ident'>config</span>,
             <span class='ident'>clip_scroll_node_stack</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
+            <span class='ident'>stacking_context_stack</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
         }
     }
 
     <span class='kw'>fn</span> <span class='ident'>add_primitive</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                     <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
                      <span class='ident'>rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerRect</span>,
                      <span class='ident'>clip_region</span>: <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>,
-                     <span class='ident'>container</span>: <span class='ident'>PrimitiveContainer</span>) <span class='op'>-&gt;</span> <span class='ident'>PrimitiveIndex</span> {
+                     <span class='ident'>container</span>: <span class='ident'>PrimitiveContainer</span>)
+                     <span class='op'>-&gt;</span> <span class='ident'>PrimitiveIndex</span> {
+        <span class='kw'>let</span> <span class='ident'>stacking_context_index</span> <span class='op'>=</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>stacking_context_stack</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>();
+        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>stacking_context_store</span>[<span class='ident'>stacking_context_index</span>.<span class='number'>0</span>]
+                 .<span class='ident'>has_clip_scroll_group</span>(<span class='ident'>scroll_layer_id</span>) {
+            <span class='kw'>let</span> <span class='ident'>group_index</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>create_clip_scroll_group</span>(<span class='ident'>stacking_context_index</span>,
+                                                            <span class='ident'>scroll_layer_id</span>);
+            <span class='kw'>let</span> <span class='ident'>stacking_context</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>stacking_context_store</span>[<span class='ident'>stacking_context_index</span>.<span class='number'>0</span>];
+            <span class='ident'>stacking_context</span>.<span class='ident'>clip_scroll_groups</span>.<span class='ident'>push</span>(<span class='ident'>group_index</span>);
+        }
 
         <span class='kw'>let</span> <span class='ident'>geometry</span> <span class='op'>=</span> <span class='ident'>PrimitiveGeometry</span> {
             <span class='ident'>local_rect</span>: <span class='kw-2'>*</span><span class='ident'>rect</span>,
@@ -1699,7 +1799,7 @@
                                                        <span class='ident'>container</span>);
 
         <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>cmds</span>.<span class='ident'>last_mut</span>().<span class='ident'>unwrap</span>() {
-            <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>PrimitiveRunCmd</span>::<span class='ident'>PrimitiveRun</span>(<span class='ident'>_run_prim_index</span>, <span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>count</span>) <span class='op'>=&gt;</span> {
+            <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>PrimitiveRunCmd</span>::<span class='ident'>PrimitiveRun</span>(<span class='ident'>_run_prim_index</span>, <span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>count</span>, _) <span class='op'>=&gt;</span> {
                 <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>_run_prim_index</span>.<span class='number'>0</span> <span class='op'>+</span> <span class='kw-2'>*</span><span class='ident'>count</span> <span class='op'>==</span> <span class='ident'>prim_index</span>.<span class='number'>0</span>);
                 <span class='kw-2'>*</span><span class='ident'>count</span> <span class='op'>+=</span> <span class='number'>1</span>;
                 <span class='kw'>return</span> <span class='ident'>prim_index</span>;
@@ -1710,15 +1810,14 @@
             <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>PrimitiveRunCmd</span>::<span class='ident'>PopScrollLayer</span> <span class='op'>=&gt;</span> {}
         }
 
-        <span class='self'>self</span>.<span class='ident'>cmds</span>.<span class='ident'>push</span>(<span class='ident'>PrimitiveRunCmd</span>::<span class='ident'>PrimitiveRun</span>(<span class='ident'>prim_index</span>, <span class='number'>1</span>));
+        <span class='self'>self</span>.<span class='ident'>cmds</span>.<span class='ident'>push</span>(<span class='ident'>PrimitiveRunCmd</span>::<span class='ident'>PrimitiveRun</span>(<span class='ident'>prim_index</span>, <span class='number'>1</span>, <span class='ident'>scroll_layer_id</span>));
 
         <span class='ident'>prim_index</span>
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>create_clip_scroll_group</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
                                     <span class='ident'>stacking_context_index</span>: <span class='ident'>StackingContextIndex</span>,
-                                    <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
-                                    <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>)
+                                    <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>)
                                     <span class='op'>-&gt;</span> <span class='ident'>ClipScrollGroupIndex</span> {
         <span class='kw'>let</span> <span class='ident'>packed_layer_index</span> <span class='op'>=</span> <span class='ident'>PackedLayerIndex</span>(<span class='self'>self</span>.<span class='ident'>packed_layers</span>.<span class='ident'>len</span>());
         <span class='self'>self</span>.<span class='ident'>packed_layers</span>.<span class='ident'>push</span>(<span class='ident'>PackedLayer</span>::<span class='ident'>empty</span>());
@@ -1727,33 +1826,47 @@
             <span class='ident'>stacking_context_index</span>: <span class='ident'>stacking_context_index</span>,
             <span class='ident'>scroll_layer_id</span>: <span class='ident'>scroll_layer_id</span>,
             <span class='ident'>packed_layer_index</span>: <span class='ident'>packed_layer_index</span>,
-            <span class='ident'>pipeline_id</span>: <span class='ident'>pipeline_id</span>,
             <span class='ident'>xf_rect</span>: <span class='prelude-val'>None</span>,
          });
 
-        <span class='ident'>ClipScrollGroupIndex</span>(<span class='self'>self</span>.<span class='ident'>clip_scroll_group_store</span>.<span class='ident'>len</span>() <span class='op'>-</span> <span class='number'>1</span>)
+        <span class='ident'>ClipScrollGroupIndex</span>(<span class='self'>self</span>.<span class='ident'>clip_scroll_group_store</span>.<span class='ident'>len</span>() <span class='op'>-</span> <span class='number'>1</span>, <span class='ident'>scroll_layer_id</span>)
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>push_stacking_context</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
                                  <span class='ident'>reference_frame_offset</span>: <span class='ident'>LayerPoint</span>,
                                  <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>,
                                  <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
-                                 <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
+                                 <span class='ident'>is_page_root</span>: <span class='ident'>bool</span>,
                                  <span class='ident'>composite_ops</span>: <span class='ident'>CompositeOps</span>) {
         <span class='kw'>let</span> <span class='ident'>stacking_context_index</span> <span class='op'>=</span> <span class='ident'>StackingContextIndex</span>(<span class='self'>self</span>.<span class='ident'>stacking_context_store</span>.<span class='ident'>len</span>());
-        <span class='kw'>let</span> <span class='ident'>group_index</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>create_clip_scroll_group</span>(<span class='ident'>stacking_context_index</span>,
-                                                        <span class='ident'>scroll_layer_id</span>,
-                                                        <span class='ident'>pipeline_id</span>);
+        <span class='kw'>let</span> <span class='ident'>parent_index</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>stacking_context_stack</span>.<span class='ident'>last</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>x</span><span class='op'>|</span> <span class='ident'>x</span>.<span class='number'>0</span>);
+        <span class='self'>self</span>.<span class='ident'>stacking_context_stack</span>.<span class='ident'>push</span>(<span class='ident'>stacking_context_index</span>);
+
+        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>parent_index</span>) <span class='op'>=</span> <span class='ident'>parent_index</span> {
+            <span class='kw'>let</span> <span class='ident'>parent_is_root</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>stacking_context_store</span>[<span class='ident'>parent_index</span>].<span class='ident'>is_page_root</span>;
+
+            <span class='kw'>if</span> <span class='ident'>composite_ops</span>.<span class='ident'>mix_blend_mode</span>.<span class='ident'>is_some</span>() <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='ident'>parent_is_root</span> {
+                <span class='comment'>// the parent stacking context of a stacking context with mix-blend-mode</span>
+                <span class='comment'>// must be drawn with a transparent background, unless the parent stacking context</span>
+                <span class='comment'>// is the root of the page</span>
+                <span class='self'>self</span>.<span class='ident'>stacking_context_store</span>[<span class='ident'>parent_index</span>].<span class='ident'>should_isolate</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
+            }
+        }
+
+        <span class='kw'>let</span> <span class='ident'>stacking_context_index</span> <span class='op'>=</span> <span class='ident'>StackingContextIndex</span>(<span class='self'>self</span>.<span class='ident'>stacking_context_store</span>.<span class='ident'>len</span>());
         <span class='self'>self</span>.<span class='ident'>stacking_context_store</span>.<span class='ident'>push</span>(<span class='ident'>StackingContext</span>::<span class='ident'>new</span>(<span class='ident'>pipeline_id</span>,
                                                               <span class='ident'>reference_frame_offset</span>,
                                                               <span class='ident'>rect</span>,
-                                                              <span class='ident'>composite_ops</span>,
-                                                              <span class='ident'>group_index</span>));
+                                                              <span class='ident'>is_page_root</span>,
+                                                              <span class='ident'>composite_ops</span>));
         <span class='self'>self</span>.<span class='ident'>cmds</span>.<span class='ident'>push</span>(<span class='ident'>PrimitiveRunCmd</span>::<span class='ident'>PushStackingContext</span>(<span class='ident'>stacking_context_index</span>));
+        <span class='self'>self</span>.<span class='ident'>stacking_context_stack</span>.<span class='ident'>push</span>(<span class='ident'>stacking_context_index</span>);
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>pop_stacking_context</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
+        <span class='self'>self</span>.<span class='ident'>stacking_context_stack</span>.<span class='ident'>pop</span>();
         <span class='self'>self</span>.<span class='ident'>cmds</span>.<span class='ident'>push</span>(<span class='ident'>PrimitiveRunCmd</span>::<span class='ident'>PopStackingContext</span>);
+        <span class='self'>self</span>.<span class='ident'>stacking_context_stack</span>.<span class='ident'>pop</span>();
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>push_clip_scroll_node</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
@@ -1788,6 +1901,7 @@
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_solid_rectangle</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                               <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
                                <span class='ident'>rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerRect</span>,
                                <span class='ident'>clip_region</span>: <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>,
                                <span class='ident'>color</span>: <span class='kw-2'>&amp;</span><span class='ident'>ColorF</span>,
@@ -1800,7 +1914,8 @@
             <span class='ident'>color</span>: <span class='kw-2'>*</span><span class='ident'>color</span>,
         };
 
-        <span class='kw'>let</span> <span class='ident'>prim_index</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='ident'>rect</span>,
+        <span class='kw'>let</span> <span class='ident'>prim_index</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='ident'>scroll_layer_id</span>,
+                                            <span class='ident'>rect</span>,
                                             <span class='ident'>clip_region</span>,
                                             <span class='ident'>PrimitiveContainer</span>::<span class='ident'>Rectangle</span>(<span class='ident'>prim</span>));
 
@@ -1837,6 +1952,7 @@
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_border</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                      <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
                       <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>,
                       <span class='ident'>clip_region</span>: <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>,
                       <span class='ident'>border_item</span>: <span class='kw-2'>&amp;</span><span class='ident'>BorderDisplayItem</span>) {
@@ -1930,7 +2046,8 @@
                 }
 
                 <span class='kw'>for</span> <span class='ident'>segment</span> <span class='kw'>in</span> <span class='ident'>segments</span> {
-                    <span class='self'>self</span>.<span class='ident'>add_image</span>(<span class='ident'>segment</span>.<span class='ident'>geom_rect</span>,
+                    <span class='self'>self</span>.<span class='ident'>add_image</span>(<span class='ident'>scroll_layer_id</span>,
+                                   <span class='ident'>segment</span>.<span class='ident'>geom_rect</span>,
                                    <span class='ident'>clip_region</span>,
                                    <span class='kw-2'>&amp;</span><span class='ident'>segment</span>.<span class='ident'>stretch_size</span>,
                                    <span class='kw-2'>&amp;</span><span class='ident'>segment</span>.<span class='ident'>tile_spacing</span>,
@@ -2011,7 +2128,8 @@
                         ];
 
                         <span class='kw'>for</span> <span class='ident'>rect</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>rects</span> {
-                            <span class='self'>self</span>.<span class='ident'>add_solid_rectangle</span>(<span class='ident'>rect</span>,
+                            <span class='self'>self</span>.<span class='ident'>add_solid_rectangle</span>(<span class='ident'>scroll_layer_id</span>,
+                                                     <span class='ident'>rect</span>,
                                                      <span class='ident'>clip_region</span>,
                                                      <span class='kw-2'>&amp;</span><span class='ident'>top_color</span>,
                                                      <span class='ident'>PrimitiveFlags</span>::<span class='prelude-val'>None</span>);
@@ -2052,7 +2170,8 @@
                     ],
                 };
 
-                <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='kw-2'>&amp;</span><span class='ident'>rect</span>,
+                <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='ident'>scroll_layer_id</span>,
+                                   <span class='kw-2'>&amp;</span><span class='ident'>rect</span>,
                                    <span class='ident'>clip_region</span>,
                                    <span class='ident'>PrimitiveContainer</span>::<span class='ident'>Border</span>(<span class='ident'>prim_cpu</span>, <span class='ident'>prim_gpu</span>));
             }
@@ -2060,6 +2179,7 @@
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_gradient</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                        <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
                         <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>,
                         <span class='ident'>clip_region</span>: <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>,
                         <span class='ident'>start_point</span>: <span class='ident'>LayerPoint</span>,
@@ -2110,10 +2230,11 @@
             <span class='ident'>PrimitiveContainer</span>::<span class='ident'>AngleGradient</span>(<span class='ident'>gradient_cpu</span>, <span class='ident'>gradient_gpu</span>)
         };
 
-        <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='kw-2'>&amp;</span><span class='ident'>rect</span>, <span class='ident'>clip_region</span>, <span class='ident'>prim</span>);
+        <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='ident'>scroll_layer_id</span>, <span class='kw-2'>&amp;</span><span class='ident'>rect</span>, <span class='ident'>clip_region</span>, <span class='ident'>prim</span>);
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_radial_gradient</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                               <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
                                <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>,
                                <span class='ident'>clip_region</span>: <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>,
                                <span class='ident'>start_center</span>: <span class='ident'>LayerPoint</span>,
@@ -2137,12 +2258,14 @@
             <span class='ident'>padding</span>: [<span class='number'>0.0</span>],
         };
 
-        <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='kw-2'>&amp;</span><span class='ident'>rect</span>,
+        <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='ident'>scroll_layer_id</span>,
+                           <span class='kw-2'>&amp;</span><span class='ident'>rect</span>,
                            <span class='ident'>clip_region</span>,
                            <span class='ident'>PrimitiveContainer</span>::<span class='ident'>RadialGradient</span>(<span class='ident'>radial_gradient_cpu</span>, <span class='ident'>radial_gradient_gpu</span>));
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_text</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                    <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
                     <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>,
                     <span class='ident'>clip_region</span>: <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>,
                     <span class='ident'>font_key</span>: <span class='ident'>FontKey</span>,
@@ -2204,13 +2327,15 @@
                 <span class='ident'>color</span>: <span class='kw-2'>*</span><span class='ident'>color</span>,
             };
 
-            <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='kw-2'>&amp;</span><span class='ident'>rect</span>,
+            <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='ident'>scroll_layer_id</span>,
+                               <span class='kw-2'>&amp;</span><span class='ident'>rect</span>,
                                <span class='ident'>clip_region</span>,
                                <span class='ident'>PrimitiveContainer</span>::<span class='ident'>TextRun</span>(<span class='ident'>prim_cpu</span>, <span class='ident'>prim_gpu</span>));
         }
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_box_shadow</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                          <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
                           <span class='ident'>box_bounds</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerRect</span>,
                           <span class='ident'>clip_region</span>: <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>,
                           <span class='ident'>box_offset</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerPoint</span>,
@@ -2225,7 +2350,8 @@
 
         <span class='comment'>// Fast path.</span>
         <span class='kw'>if</span> <span class='ident'>blur_radius</span> <span class='op'>==</span> <span class='number'>0.0</span> <span class='op'>&amp;&amp;</span> <span class='ident'>spread_radius</span> <span class='op'>==</span> <span class='number'>0.0</span> <span class='op'>&amp;&amp;</span> <span class='ident'>clip_mode</span> <span class='op'>==</span> <span class='ident'>BoxShadowClipMode</span>::<span class='prelude-val'>None</span> {
-            <span class='self'>self</span>.<span class='ident'>add_solid_rectangle</span>(<span class='kw-2'>&amp;</span><span class='ident'>box_bounds</span>,
+            <span class='self'>self</span>.<span class='ident'>add_solid_rectangle</span>(<span class='ident'>scroll_layer_id</span>,
+                                     <span class='kw-2'>&amp;</span><span class='ident'>box_bounds</span>,
                                      <span class='ident'>clip_region</span>,
                                      <span class='ident'>color</span>,
                                      <span class='ident'>PrimitiveFlags</span>::<span class='prelude-val'>None</span>);
@@ -2301,7 +2427,8 @@
         <span class='kw'>match</span> <span class='ident'>shadow_kind</span> {
             <span class='ident'>BoxShadowKind</span>::<span class='ident'>Simple</span>(<span class='ident'>rects</span>) <span class='op'>=&gt;</span> {
                 <span class='kw'>for</span> <span class='ident'>rect</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>rects</span> {
-                    <span class='self'>self</span>.<span class='ident'>add_solid_rectangle</span>(<span class='ident'>rect</span>,
+                    <span class='self'>self</span>.<span class='ident'>add_solid_rectangle</span>(<span class='ident'>scroll_layer_id</span>,
+                                             <span class='ident'>rect</span>,
                                              <span class='ident'>clip_region</span>,
                                              <span class='ident'>color</span>,
                                              <span class='ident'>PrimitiveFlags</span>::<span class='prelude-val'>None</span>)
@@ -2313,6 +2440,7 @@
                     <span class='ident'>BoxShadowClipMode</span>::<span class='ident'>Inset</span> <span class='op'>=&gt;</span> <span class='number'>1.0</span>,
                 };
 
+
                 <span class='kw'>let</span> <span class='ident'>prim_gpu</span> <span class='op'>=</span> <span class='ident'>BoxShadowPrimitiveGpu</span> {
                     <span class='ident'>src_rect</span>: <span class='kw-2'>*</span><span class='ident'>box_bounds</span>,
                     <span class='ident'>bs_rect</span>: <span class='ident'>bs_rect</span>,
@@ -2323,7 +2451,8 @@
                     <span class='ident'>inverted</span>: <span class='ident'>inverted</span>,
                 };
 
-                <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='kw-2'>&amp;</span><span class='ident'>outer_rect</span>,
+                <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='ident'>scroll_layer_id</span>,
+                                   <span class='kw-2'>&amp;</span><span class='ident'>outer_rect</span>,
                                    <span class='ident'>clip_region</span>,
                                    <span class='ident'>PrimitiveContainer</span>::<span class='ident'>BoxShadow</span>(<span class='ident'>prim_gpu</span>, <span class='ident'>rects</span>));
             }
@@ -2331,6 +2460,7 @@
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_webgl_rectangle</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                               <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
                                <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>,
                                <span class='ident'>clip_region</span>: <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>,
                                <span class='ident'>context_id</span>: <span class='ident'>WebGLContextId</span>) {
@@ -2346,12 +2476,14 @@
             <span class='ident'>tile_spacing</span>: <span class='ident'>LayerSize</span>::<span class='ident'>zero</span>(),
         };
 
-        <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='kw-2'>&amp;</span><span class='ident'>rect</span>,
+        <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='ident'>scroll_layer_id</span>,
+                           <span class='kw-2'>&amp;</span><span class='ident'>rect</span>,
                            <span class='ident'>clip_region</span>,
                            <span class='ident'>PrimitiveContainer</span>::<span class='ident'>Image</span>(<span class='ident'>prim_cpu</span>, <span class='ident'>prim_gpu</span>));
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_image</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                     <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
                      <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>,
                      <span class='ident'>clip_region</span>: <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>,
                      <span class='ident'>stretch_size</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerSize</span>,
@@ -2375,12 +2507,14 @@
             <span class='ident'>tile_spacing</span>: <span class='kw-2'>*</span><span class='ident'>tile_spacing</span>,
         };
 
-        <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='kw-2'>&amp;</span><span class='ident'>rect</span>,
+        <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='ident'>scroll_layer_id</span>,
+                           <span class='kw-2'>&amp;</span><span class='ident'>rect</span>,
                            <span class='ident'>clip_region</span>,
                            <span class='ident'>PrimitiveContainer</span>::<span class='ident'>Image</span>(<span class='ident'>prim_cpu</span>, <span class='ident'>prim_gpu</span>));
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add_yuv_image</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                         <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
                          <span class='ident'>rect</span>: <span class='ident'>LayerRect</span>,
                          <span class='ident'>clip_region</span>: <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>,
                          <span class='ident'>y_image_key</span>: <span class='ident'>ImageKey</span>,
@@ -2399,7 +2533,8 @@
 
         <span class='kw'>let</span> <span class='ident'>prim_gpu</span> <span class='op'>=</span> <span class='ident'>YuvImagePrimitiveGpu</span>::<span class='ident'>new</span>(<span class='ident'>rect</span>.<span class='ident'>size</span>, <span class='ident'>color_space</span>);
 
-        <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='kw-2'>&amp;</span><span class='ident'>rect</span>,
+        <span class='self'>self</span>.<span class='ident'>add_primitive</span>(<span class='ident'>scroll_layer_id</span>,
+                           <span class='kw-2'>&amp;</span><span class='ident'>rect</span>,
                            <span class='ident'>clip_region</span>,
                            <span class='ident'>PrimitiveContainer</span>::<span class='ident'>YuvImage</span>(<span class='ident'>prim_cpu</span>, <span class='ident'>prim_gpu</span>));
     }
@@ -2477,6 +2612,7 @@
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>sc_stack</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>current_task</span> <span class='op'>=</span> <span class='ident'>RenderTask</span>::<span class='ident'>new_alpha_batch</span>(<span class='ident'>next_task_index</span>,
                                                            <span class='ident'>DeviceIntPoint</span>::<span class='ident'>zero</span>(),
+                                                           <span class='bool-val'>false</span>,
                                                            <span class='ident'>RenderTaskLocation</span>::<span class='ident'>Fixed</span>);
         <span class='ident'>next_task_index</span>.<span class='number'>0</span> <span class='op'>+=</span> <span class='number'>1</span>;
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>alpha_task_stack</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
@@ -2493,10 +2629,23 @@
 
                     <span class='kw'>let</span> <span class='ident'>stacking_context_rect</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>stacking_context</span>.<span class='ident'>bounding_rect</span>;
                     <span class='kw'>let</span> <span class='ident'>composite_count</span> <span class='op'>=</span> <span class='ident'>stacking_context</span>.<span class='ident'>composite_ops</span>.<span class='ident'>count</span>();
+
+                    <span class='kw'>if</span> <span class='ident'>composite_count</span> <span class='op'>==</span> <span class='number'>0</span> <span class='op'>&amp;&amp;</span> <span class='ident'>stacking_context</span>.<span class='ident'>should_isolate</span> {
+                        <span class='kw'>let</span> <span class='ident'>location</span> <span class='op'>=</span> <span class='ident'>RenderTaskLocation</span>::<span class='ident'>Dynamic</span>(<span class='prelude-val'>None</span>, <span class='ident'>stacking_context_rect</span>.<span class='ident'>size</span>);
+                        <span class='kw'>let</span> <span class='ident'>new_task</span> <span class='op'>=</span> <span class='ident'>RenderTask</span>::<span class='ident'>new_alpha_batch</span>(<span class='ident'>next_task_index</span>,
+                                                                   <span class='ident'>stacking_context_rect</span>.<span class='ident'>origin</span>,
+                                                                   <span class='ident'>stacking_context</span>.<span class='ident'>should_isolate</span>,
+                                                                   <span class='ident'>location</span>);
+                        <span class='ident'>next_task_index</span>.<span class='number'>0</span> <span class='op'>+=</span> <span class='number'>1</span>;
+                        <span class='kw'>let</span> <span class='ident'>prev_task</span> <span class='op'>=</span> <span class='ident'>mem</span>::<span class='ident'>replace</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>current_task</span>, <span class='ident'>new_task</span>);
+                        <span class='ident'>alpha_task_stack</span>.<span class='ident'>push</span>(<span class='ident'>prev_task</span>);
+                    }
+
                     <span class='kw'>for</span> _ <span class='kw'>in</span> <span class='number'>0</span>..<span class='ident'>composite_count</span> {
                         <span class='kw'>let</span> <span class='ident'>location</span> <span class='op'>=</span> <span class='ident'>RenderTaskLocation</span>::<span class='ident'>Dynamic</span>(<span class='prelude-val'>None</span>, <span class='ident'>stacking_context_rect</span>.<span class='ident'>size</span>);
                         <span class='kw'>let</span> <span class='ident'>new_task</span> <span class='op'>=</span> <span class='ident'>RenderTask</span>::<span class='ident'>new_alpha_batch</span>(<span class='ident'>next_task_index</span>,
                                                                    <span class='ident'>stacking_context_rect</span>.<span class='ident'>origin</span>,
+                                                                   <span class='ident'>stacking_context</span>.<span class='ident'>should_isolate</span>,
                                                                    <span class='ident'>location</span>);
                         <span class='ident'>next_task_index</span>.<span class='number'>0</span> <span class='op'>+=</span> <span class='number'>1</span>;
                         <span class='kw'>let</span> <span class='ident'>prev_task</span> <span class='op'>=</span> <span class='ident'>mem</span>::<span class='ident'>replace</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>current_task</span>, <span class='ident'>new_task</span>);
@@ -2511,6 +2660,20 @@
                         <span class='kw'>continue</span>;
                     }
 
+                    <span class='kw'>let</span> <span class='ident'>composite_count</span> <span class='op'>=</span> <span class='ident'>stacking_context</span>.<span class='ident'>composite_ops</span>.<span class='ident'>count</span>();
+
+                    <span class='kw'>if</span> <span class='ident'>composite_count</span> <span class='op'>==</span> <span class='number'>0</span> <span class='op'>&amp;&amp;</span> <span class='ident'>stacking_context</span>.<span class='ident'>should_isolate</span> {
+                        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>prev_task</span> <span class='op'>=</span> <span class='ident'>alpha_task_stack</span>.<span class='ident'>pop</span>().<span class='ident'>unwrap</span>();
+                        <span class='kw'>let</span> <span class='ident'>item</span> <span class='op'>=</span> <span class='ident'>AlphaRenderItem</span>::<span class='ident'>HardwareComposite</span>(<span class='ident'>stacking_context_index</span>,
+                                                                      <span class='ident'>current_task</span>.<span class='ident'>id</span>,
+                                                                      <span class='ident'>HardwareCompositeOp</span>::<span class='ident'>Alpha</span>,
+                                                                      <span class='ident'>next_z</span>);
+                        <span class='ident'>next_z</span> <span class='op'>+=</span> <span class='number'>1</span>;
+                        <span class='ident'>prev_task</span>.<span class='ident'>as_alpha_batch</span>().<span class='ident'>alpha_items</span>.<span class='ident'>push</span>(<span class='ident'>item</span>);
+                        <span class='ident'>prev_task</span>.<span class='ident'>children</span>.<span class='ident'>push</span>(<span class='ident'>current_task</span>);
+                        <span class='ident'>current_task</span> <span class='op'>=</span> <span class='ident'>prev_task</span>;
+                    }
+
                     <span class='kw'>for</span> <span class='ident'>filter</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>stacking_context</span>.<span class='ident'>composite_ops</span>.<span class='ident'>filters</span> {
                         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>prev_task</span> <span class='op'>=</span> <span class='ident'>alpha_task_stack</span>.<span class='ident'>pop</span>().<span class='ident'>unwrap</span>();
                         <span class='kw'>let</span> <span class='ident'>item</span> <span class='op'>=</span> <span class='ident'>AlphaRenderItem</span>::<span class='ident'>Blend</span>(<span class='ident'>stacking_context_index</span>,
@@ -2523,39 +2686,24 @@
                         <span class='ident'>current_task</span> <span class='op'>=</span> <span class='ident'>prev_task</span>;
                     }
                     <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>mix_blend_mode</span>) <span class='op'>=</span> <span class='ident'>stacking_context</span>.<span class='ident'>composite_ops</span>.<span class='ident'>mix_blend_mode</span> {
-                        <span class='kw'>match</span> <span class='ident'>HardwareCompositeOp</span>::<span class='ident'>from_mix_blend_mode</span>(<span class='ident'>mix_blend_mode</span>) {
-                            <span class='prelude-val'>Some</span>(<span class='ident'>op</span>) <span class='op'>=&gt;</span> {
-                                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>prev_task</span> <span class='op'>=</span> <span class='ident'>alpha_task_stack</span>.<span class='ident'>pop</span>().<span class='ident'>unwrap</span>();
-                                <span class='kw'>let</span> <span class='ident'>item</span> <span class='op'>=</span> <span class='ident'>AlphaRenderItem</span>::<span class='ident'>HardwareComposite</span>(<span class='ident'>stacking_context_index</span>,
-                                                                              <span class='ident'>current_task</span>.<span class='ident'>id</span>,
-                                                                              <span class='ident'>op</span>,
-                                                                              <span class='ident'>next_z</span>);
-                                <span class='ident'>next_z</span> <span class='op'>+=</span> <span class='number'>1</span>;
-                                <span class='ident'>prev_task</span>.<span class='ident'>as_alpha_batch</span>().<span class='ident'>alpha_items</span>.<span class='ident'>push</span>(<span class='ident'>item</span>);
-                                <span class='ident'>prev_task</span>.<span class='ident'>children</span>.<span class='ident'>push</span>(<span class='ident'>current_task</span>);
-                                <span class='ident'>current_task</span> <span class='op'>=</span> <span class='ident'>prev_task</span>;
-                            }
-                            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
-                                <span class='kw'>let</span> <span class='ident'>readback_task</span> <span class='op'>=</span>
-                                    <span class='ident'>RenderTask</span>::<span class='ident'>new_readback</span>(<span class='ident'>stacking_context_index</span>,
-                                                             <span class='ident'>stacking_context</span>.<span class='ident'>bounding_rect</span>);
+                        <span class='kw'>let</span> <span class='ident'>readback_task</span> <span class='op'>=</span>
+                            <span class='ident'>RenderTask</span>::<span class='ident'>new_readback</span>(<span class='ident'>stacking_context_index</span>,
+                                                     <span class='ident'>stacking_context</span>.<span class='ident'>bounding_rect</span>);
 
-                                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>prev_task</span> <span class='op'>=</span> <span class='ident'>alpha_task_stack</span>.<span class='ident'>pop</span>().<span class='ident'>unwrap</span>();
-                                <span class='kw'>let</span> <span class='ident'>item</span> <span class='op'>=</span> <span class='ident'>AlphaRenderItem</span>::<span class='ident'>Composite</span>(<span class='ident'>stacking_context_index</span>,
-                                                                      <span class='ident'>readback_task</span>.<span class='ident'>id</span>,
-                                                                      <span class='ident'>current_task</span>.<span class='ident'>id</span>,
-                                                                      <span class='ident'>mix_blend_mode</span>,
-                                                                      <span class='ident'>next_z</span>);
-                                <span class='ident'>next_z</span> <span class='op'>+=</span> <span class='number'>1</span>;
-                                <span class='ident'>prev_task</span>.<span class='ident'>as_alpha_batch</span>().<span class='ident'>alpha_items</span>.<span class='ident'>push</span>(<span class='ident'>item</span>);
-                                <span class='ident'>prev_task</span>.<span class='ident'>children</span>.<span class='ident'>push</span>(<span class='ident'>current_task</span>);
-                                <span class='ident'>prev_task</span>.<span class='ident'>children</span>.<span class='ident'>push</span>(<span class='ident'>readback_task</span>);
-                                <span class='ident'>current_task</span> <span class='op'>=</span> <span class='ident'>prev_task</span>;
-                            }
-                        }
+                        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>prev_task</span> <span class='op'>=</span> <span class='ident'>alpha_task_stack</span>.<span class='ident'>pop</span>().<span class='ident'>unwrap</span>();
+                        <span class='kw'>let</span> <span class='ident'>item</span> <span class='op'>=</span> <span class='ident'>AlphaRenderItem</span>::<span class='ident'>Composite</span>(<span class='ident'>stacking_context_index</span>,
+                                                              <span class='ident'>readback_task</span>.<span class='ident'>id</span>,
+                                                              <span class='ident'>current_task</span>.<span class='ident'>id</span>,
+                                                              <span class='ident'>mix_blend_mode</span>,
+                                                              <span class='ident'>next_z</span>);
+                        <span class='ident'>next_z</span> <span class='op'>+=</span> <span class='number'>1</span>;
+                        <span class='ident'>prev_task</span>.<span class='ident'>as_alpha_batch</span>().<span class='ident'>alpha_items</span>.<span class='ident'>push</span>(<span class='ident'>item</span>);
+                        <span class='ident'>prev_task</span>.<span class='ident'>children</span>.<span class='ident'>push</span>(<span class='ident'>current_task</span>);
+                        <span class='ident'>prev_task</span>.<span class='ident'>children</span>.<span class='ident'>push</span>(<span class='ident'>readback_task</span>);
+                        <span class='ident'>current_task</span> <span class='op'>=</span> <span class='ident'>prev_task</span>;
                     }
                 }
-                <span class='ident'>PrimitiveRunCmd</span>::<span class='ident'>PrimitiveRun</span>(<span class='ident'>first_prim_index</span>, <span class='ident'>prim_count</span>) <span class='op'>=&gt;</span> {
+                <span class='ident'>PrimitiveRunCmd</span>::<span class='ident'>PrimitiveRun</span>(<span class='ident'>first_prim_index</span>, <span class='ident'>prim_count</span>, <span class='ident'>scroll_layer_id</span>) <span class='op'>=&gt;</span> {
                     <span class='kw'>let</span> <span class='ident'>stacking_context_index</span> <span class='op'>=</span> <span class='kw-2'>*</span><span class='ident'>sc_stack</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>();
                     <span class='kw'>let</span> <span class='ident'>stacking_context</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>stacking_context_store</span>[<span class='ident'>stacking_context_index</span>.<span class='number'>0</span>];
 
@@ -2564,8 +2712,8 @@
                     }
 
                     <span class='kw'>let</span> <span class='ident'>stacking_context_index</span> <span class='op'>=</span> <span class='kw-2'>*</span><span class='ident'>sc_stack</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>();
-                    <span class='kw'>let</span> <span class='ident'>group_index</span> <span class='op'>=</span>
-                        <span class='self'>self</span>.<span class='ident'>stacking_context_store</span>[<span class='ident'>stacking_context_index</span>.<span class='number'>0</span>].<span class='ident'>clip_scroll_group</span>();
+                    <span class='kw'>let</span> <span class='ident'>group_index</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>stacking_context_store</span>[<span class='ident'>stacking_context_index</span>.<span class='number'>0</span>]
+                                          .<span class='ident'>clip_scroll_group</span>(<span class='ident'>scroll_layer_id</span>);
                     <span class='kw'>let</span> <span class='ident'>clip_scroll_group</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>clip_scroll_group_store</span>[<span class='ident'>group_index</span>.<span class='number'>0</span>];
 
                     <span class='kw'>for</span> <span class='ident'>i</span> <span class='kw'>in</span> <span class='number'>0</span>..<span class='ident'>prim_count</span> {
@@ -2767,8 +2915,8 @@
                     <span class='self'>self</span>.<span class='ident'>handle_push_stacking_context</span>(<span class='ident'>stacking_context_index</span>),
                 <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveRunCmd</span>::<span class='ident'>PushScrollLayer</span>(<span class='ident'>scroll_layer_index</span>) <span class='op'>=&gt;</span>
                     <span class='self'>self</span>.<span class='ident'>handle_push_scroll_layer</span>(<span class='ident'>scroll_layer_index</span>),
-                <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveRunCmd</span>::<span class='ident'>PrimitiveRun</span>(<span class='ident'>prim_index</span>, <span class='ident'>prim_count</span>) <span class='op'>=&gt;</span>
-                    <span class='self'>self</span>.<span class='ident'>handle_primitive_run</span>(<span class='ident'>prim_index</span>, <span class='ident'>prim_count</span>),
+                <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveRunCmd</span>::<span class='ident'>PrimitiveRun</span>(<span class='ident'>prim_index</span>, <span class='ident'>prim_count</span>, <span class='ident'>scroll_layer_id</span>) <span class='op'>=&gt;</span>
+                    <span class='self'>self</span>.<span class='ident'>handle_primitive_run</span>(<span class='ident'>prim_index</span>, <span class='ident'>prim_count</span>, <span class='ident'>scroll_layer_id</span>),
                 <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveRunCmd</span>::<span class='ident'>PopStackingContext</span> <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>handle_pop_stacking_context</span>(),
                 <span class='kw-2'>&amp;</span><span class='ident'>PrimitiveRunCmd</span>::<span class='ident'>PopScrollLayer</span> <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>handle_pop_scroll_layer</span>(),
             }
@@ -2816,6 +2964,8 @@
     <span class='kw'>fn</span> <span class='ident'>compute_stacking_context_visibility</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
         <span class='kw'>for</span> <span class='ident'>context_index</span> <span class='kw'>in</span> <span class='number'>0</span>..<span class='self'>self</span>.<span class='ident'>frame_builder</span>.<span class='ident'>stacking_context_store</span>.<span class='ident'>len</span>() {
             <span class='kw'>let</span> <span class='ident'>is_visible</span> <span class='op'>=</span> {
+                <span class='comment'>// We don&#39;t take into account visibility of children here, so we must</span>
+                <span class='comment'>// do that later.</span>
                 <span class='kw'>let</span> <span class='ident'>stacking_context</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>frame_builder</span>.<span class='ident'>stacking_context_store</span>[<span class='ident'>context_index</span>];
                 <span class='ident'>stacking_context</span>.<span class='ident'>clip_scroll_groups</span>.<span class='ident'>iter</span>().<span class='ident'>any</span>(<span class='op'>|</span><span class='ident'>group_index</span><span class='op'>|</span> {
                     <span class='self'>self</span>.<span class='ident'>frame_builder</span>.<span class='ident'>clip_scroll_group_store</span>[<span class='ident'>group_index</span>.<span class='number'>0</span>].<span class='ident'>is_visible</span>()
@@ -2828,18 +2978,22 @@
     <span class='kw'>fn</span> <span class='ident'>handle_pop_stacking_context</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
         <span class='kw'>let</span> <span class='ident'>stacking_context_index</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>stacking_context_stack</span>.<span class='ident'>pop</span>().<span class='ident'>unwrap</span>();
 
-        <span class='kw'>let</span> <span class='ident'>bounding_rect</span> <span class='op'>=</span> {
+        <span class='kw'>let</span> (<span class='ident'>bounding_rect</span>, <span class='ident'>is_visible</span>) <span class='op'>=</span> {
             <span class='kw'>let</span> <span class='ident'>stacking_context</span> <span class='op'>=</span>
                 <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>frame_builder</span>.<span class='ident'>stacking_context_store</span>[<span class='ident'>stacking_context_index</span>.<span class='number'>0</span>];
             <span class='ident'>stacking_context</span>.<span class='ident'>bounding_rect</span> <span class='op'>=</span> <span class='ident'>stacking_context</span>.<span class='ident'>bounding_rect</span>
                                                              .<span class='ident'>intersection</span>(<span class='self'>self</span>.<span class='ident'>screen_rect</span>)
                                                              .<span class='ident'>unwrap_or</span>(<span class='ident'>DeviceIntRect</span>::<span class='ident'>zero</span>());
-            <span class='ident'>stacking_context</span>.<span class='ident'>bounding_rect</span>.<span class='ident'>clone</span>()
+            (<span class='ident'>stacking_context</span>.<span class='ident'>bounding_rect</span>.<span class='ident'>clone</span>(), <span class='ident'>stacking_context</span>.<span class='ident'>is_visible</span>)
         };
 
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>parent_index</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>stacking_context_stack</span>.<span class='ident'>last_mut</span>() {
             <span class='kw'>let</span> <span class='ident'>parent</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>frame_builder</span>.<span class='ident'>stacking_context_store</span>[<span class='ident'>parent_index</span>.<span class='number'>0</span>];
             <span class='ident'>parent</span>.<span class='ident'>bounding_rect</span> <span class='op'>=</span> <span class='ident'>parent</span>.<span class='ident'>bounding_rect</span>.<span class='ident'>union</span>(<span class='kw-2'>&amp;</span><span class='ident'>bounding_rect</span>);
+
+            <span class='comment'>// The previous compute_stacking_context_visibility pass did not take into</span>
+            <span class='comment'>// account visibility of children, so we do that now.</span>
+            <span class='ident'>parent</span>.<span class='ident'>is_visible</span> <span class='op'>=</span> <span class='ident'>parent</span>.<span class='ident'>is_visible</span> <span class='op'>||</span> <span class='ident'>is_visible</span>;
         }
     }
 
@@ -2852,8 +3006,21 @@
         <span class='kw'>let</span> <span class='ident'>packed_layer_index</span> <span class='op'>=</span> <span class='ident'>scroll_layer</span>.<span class='ident'>packed_layer_index</span>;
         <span class='kw'>let</span> <span class='ident'>packed_layer</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>frame_builder</span>.<span class='ident'>packed_layers</span>[<span class='ident'>packed_layer_index</span>.<span class='number'>0</span>];
 
-        <span class='ident'>packed_layer</span>.<span class='ident'>set_transform</span>(<span class='ident'>node</span>.<span class='ident'>world_viewport_transform</span>);
-        <span class='ident'>scroll_layer</span>.<span class='ident'>xf_rect</span> <span class='op'>=</span> <span class='ident'>packed_layer</span>.<span class='ident'>set_rect</span>(<span class='prelude-val'>Some</span>(<span class='ident'>node</span>.<span class='ident'>combined_local_viewport_rect</span>),
+        <span class='comment'>// The coordinates of the mask are relative to the origin of the node itself,</span>
+        <span class='comment'>// so we need to account for that origin in the transformation we assign to</span>
+        <span class='comment'>// the packed layer.</span>
+        <span class='kw'>let</span> <span class='ident'>transform</span> <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>world_content_transform</span>
+                            .<span class='ident'>pre_translated</span>(<span class='ident'>node</span>.<span class='ident'>local_viewport_rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>,
+                                            <span class='ident'>node</span>.<span class='ident'>local_viewport_rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>,
+                                            <span class='number'>0.0</span>);
+        <span class='ident'>packed_layer</span>.<span class='ident'>set_transform</span>(<span class='ident'>transform</span>);
+
+        <span class='comment'>// Meanwhile, the combined viewport rect is relative to the reference frame, so</span>
+        <span class='comment'>// we move it into the local coordinate system of the node.</span>
+        <span class='kw'>let</span> <span class='ident'>local_viewport_rect</span> <span class='op'>=</span>
+            <span class='ident'>node</span>.<span class='ident'>combined_local_viewport_rect</span>.<span class='ident'>translate</span>(<span class='kw-2'>&amp;</span><span class='op'>-</span><span class='ident'>node</span>.<span class='ident'>local_viewport_rect</span>.<span class='ident'>origin</span>);
+
+        <span class='ident'>scroll_layer</span>.<span class='ident'>xf_rect</span> <span class='op'>=</span> <span class='ident'>packed_layer</span>.<span class='ident'>set_rect</span>(<span class='prelude-val'>Some</span>(<span class='ident'>local_viewport_rect</span>),
                                                      <span class='self'>self</span>.<span class='ident'>screen_rect</span>,
                                                      <span class='self'>self</span>.<span class='ident'>device_pixel_ratio</span>);
 
@@ -2919,7 +3086,10 @@
         <span class='self'>self</span>.<span class='ident'>current_clip_stack</span>.<span class='ident'>reverse</span>();
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_primitive_run</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>prim_index</span>: <span class='ident'>PrimitiveIndex</span>, <span class='ident'>prim_count</span>: <span class='ident'>usize</span>) {
+    <span class='kw'>fn</span> <span class='ident'>handle_primitive_run</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
+                            <span class='ident'>prim_index</span>: <span class='ident'>PrimitiveIndex</span>,
+                            <span class='ident'>prim_count</span>: <span class='ident'>usize</span>,
+                            <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>) {
         <span class='kw'>let</span> <span class='ident'>stacking_context_index</span> <span class='op'>=</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>stacking_context_stack</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>();
         <span class='kw'>let</span> (<span class='ident'>packed_layer_index</span>, <span class='ident'>pipeline_id</span>) <span class='op'>=</span> {
             <span class='kw'>let</span> <span class='ident'>stacking_context</span> <span class='op'>=</span>
@@ -2929,7 +3099,7 @@
                 <span class='kw'>return</span>;
             }
 
-            <span class='kw'>let</span> <span class='ident'>group_index</span> <span class='op'>=</span> <span class='ident'>stacking_context</span>.<span class='ident'>clip_scroll_group</span>();
+            <span class='kw'>let</span> <span class='ident'>group_index</span> <span class='op'>=</span> <span class='ident'>stacking_context</span>.<span class='ident'>clip_scroll_group</span>(<span class='ident'>scroll_layer_id</span>);
             <span class='kw'>let</span> <span class='ident'>clip_scroll_group</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>frame_builder</span>.<span class='ident'>clip_scroll_group_store</span>[<span class='ident'>group_index</span>.<span class='number'>0</span>];
             (<span class='ident'>clip_scroll_group</span>.<span class='ident'>packed_layer_index</span>, <span class='ident'>stacking_context</span>.<span class='ident'>pipeline_id</span>)
         };

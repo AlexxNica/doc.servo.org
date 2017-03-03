@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/9565e58/webrender/src/tiling.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/68f5b72/webrender/src/tiling.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>tiling.rs.html -- source</title>
@@ -1537,6 +1537,38 @@
 <span id="1492">1492</span>
 <span id="1493">1493</span>
 <span id="1494">1494</span>
+<span id="1495">1495</span>
+<span id="1496">1496</span>
+<span id="1497">1497</span>
+<span id="1498">1498</span>
+<span id="1499">1499</span>
+<span id="1500">1500</span>
+<span id="1501">1501</span>
+<span id="1502">1502</span>
+<span id="1503">1503</span>
+<span id="1504">1504</span>
+<span id="1505">1505</span>
+<span id="1506">1506</span>
+<span id="1507">1507</span>
+<span id="1508">1508</span>
+<span id="1509">1509</span>
+<span id="1510">1510</span>
+<span id="1511">1511</span>
+<span id="1512">1512</span>
+<span id="1513">1513</span>
+<span id="1514">1514</span>
+<span id="1515">1515</span>
+<span id="1516">1516</span>
+<span id="1517">1517</span>
+<span id="1518">1518</span>
+<span id="1519">1519</span>
+<span id="1520">1520</span>
+<span id="1521">1521</span>
+<span id="1522">1522</span>
+<span id="1523">1523</span>
+<span id="1524">1524</span>
+<span id="1525">1525</span>
+<span id="1526">1526</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1938,7 +1970,7 @@
     <span class='ident'>PushScrollLayer</span>(<span class='ident'>ScrollLayerIndex</span>),
     <span class='ident'>PopScrollLayer</span>,
 
-    <span class='ident'>PrimitiveRun</span>(<span class='ident'>PrimitiveIndex</span>, <span class='ident'>usize</span>),
+    <span class='ident'>PrimitiveRun</span>(<span class='ident'>PrimitiveIndex</span>, <span class='ident'>usize</span>, <span class='ident'>ScrollLayerId</span>),
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Copy</span>, <span class='ident'>Clone</span>)]</span>
@@ -2410,6 +2442,7 @@
     <span class='kw'>pub</span> <span class='ident'>vertical_blurs</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>BlurCommand</span><span class='op'>&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>horizontal_blurs</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>BlurCommand</span><span class='op'>&gt;</span>,
     <span class='kw'>pub</span> <span class='ident'>readbacks</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>DeviceIntRect</span><span class='op'>&gt;</span>,
+    <span class='kw'>pub</span> <span class='ident'>isolate_clears</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>DeviceIntRect</span><span class='op'>&gt;</span>,
     <span class='ident'>page_allocator</span>: <span class='ident'>TexturePage</span>,
 }
 
@@ -2424,6 +2457,7 @@
             <span class='ident'>vertical_blurs</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
             <span class='ident'>horizontal_blurs</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
             <span class='ident'>readbacks</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
+            <span class='ident'>isolate_clears</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
             <span class='ident'>page_allocator</span>: <span class='ident'>TexturePage</span>::<span class='ident'>new</span>(<span class='ident'>CacheTextureId</span>(<span class='number'>0</span>), <span class='ident'>size</span>),
         }
     }
@@ -2449,6 +2483,16 @@
                     <span class='ident'>opaque_items</span>: <span class='ident'>info</span>.<span class='ident'>opaque_items</span>,
                     <span class='ident'>alpha_items</span>: <span class='ident'>info</span>.<span class='ident'>alpha_items</span>,
                 });
+
+                <span class='kw'>if</span> <span class='ident'>info</span>.<span class='ident'>isolate_clear</span> {
+                    <span class='kw'>let</span> <span class='ident'>location</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>task</span>.<span class='ident'>location</span> {
+                        <span class='ident'>RenderTaskLocation</span>::<span class='ident'>Dynamic</span>(<span class='ident'>origin</span>, <span class='ident'>size</span>) <span class='op'>=&gt;</span> {
+                            <span class='ident'>DeviceIntRect</span>::<span class='ident'>new</span>(<span class='ident'>origin</span>.<span class='ident'>unwrap</span>().<span class='number'>0</span>, <span class='ident'>size</span>)
+                        }
+                        <span class='ident'>RenderTaskLocation</span>::<span class='ident'>Fixed</span> <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>()
+                    };
+                    <span class='self'>self</span>.<span class='ident'>isolate_clears</span>.<span class='ident'>push</span>(<span class='ident'>location</span>);
+                }
             }
             <span class='ident'>RenderTaskKind</span>::<span class='ident'>VerticalBlur</span>(_, <span class='ident'>prim_index</span>) <span class='op'>=&gt;</span> {
                 <span class='comment'>// Find the child render task that we are applying</span>
@@ -2852,6 +2896,16 @@
     <span class='kw'>pub</span> <span class='ident'>bounding_rect</span>: <span class='ident'>DeviceIntRect</span>,
     <span class='kw'>pub</span> <span class='ident'>composite_ops</span>: <span class='ident'>CompositeOps</span>,
     <span class='kw'>pub</span> <span class='ident'>clip_scroll_groups</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>ClipScrollGroupIndex</span><span class='op'>&gt;</span>,
+
+    <span class='comment'>// Signifies that this stacking context should be drawn in a separate render pass</span>
+    <span class='comment'>// with a transparent background and then composited back to its parent. Used to</span>
+    <span class='comment'>// support mix-blend-mode in certain cases.</span>
+    <span class='kw'>pub</span> <span class='ident'>should_isolate</span>: <span class='ident'>bool</span>,
+
+    <span class='comment'>// Set for the root stacking context of a display list or an iframe. Used for determining</span>
+    <span class='comment'>// when to isolate a mix-blend-mode composite.</span>
+    <span class='kw'>pub</span> <span class='ident'>is_page_root</span>: <span class='ident'>bool</span>,
+
     <span class='kw'>pub</span> <span class='ident'>is_visible</span>: <span class='ident'>bool</span>,
 }
 
@@ -2859,8 +2913,8 @@
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
                <span class='ident'>reference_frame_offset</span>: <span class='ident'>LayerPoint</span>,
                <span class='ident'>local_rect</span>: <span class='ident'>LayerRect</span>,
-               <span class='ident'>composite_ops</span>: <span class='ident'>CompositeOps</span>,
-               <span class='ident'>clip_scroll_group_index</span>: <span class='ident'>ClipScrollGroupIndex</span>)
+               <span class='ident'>is_page_root</span>: <span class='ident'>bool</span>,
+               <span class='ident'>composite_ops</span>: <span class='ident'>CompositeOps</span>)
                <span class='op'>-&gt;</span> <span class='ident'>StackingContext</span> {
         <span class='ident'>StackingContext</span> {
             <span class='ident'>pipeline_id</span>: <span class='ident'>pipeline_id</span>,
@@ -2868,32 +2922,42 @@
             <span class='ident'>local_rect</span>: <span class='ident'>local_rect</span>,
             <span class='ident'>bounding_rect</span>: <span class='ident'>DeviceIntRect</span>::<span class='ident'>zero</span>(),
             <span class='ident'>composite_ops</span>: <span class='ident'>composite_ops</span>,
-            <span class='ident'>clip_scroll_groups</span>: <span class='macro'>vec</span><span class='macro'>!</span>[<span class='ident'>clip_scroll_group_index</span>],
+            <span class='ident'>clip_scroll_groups</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
+            <span class='ident'>should_isolate</span>: <span class='bool-val'>false</span>,
+            <span class='ident'>is_page_root</span>: <span class='ident'>is_page_root</span>,
             <span class='ident'>is_visible</span>: <span class='bool-val'>false</span>,
         }
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>clip_scroll_group</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>ClipScrollGroupIndex</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>clip_scroll_group</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>) <span class='op'>-&gt;</span> <span class='ident'>ClipScrollGroupIndex</span> {
         <span class='comment'>// Currently there is only one scrolled stacking context per context,</span>
         <span class='comment'>// but eventually this will be selected from the vector based on the</span>
         <span class='comment'>// scroll layer of this primitive.</span>
-        <span class='self'>self</span>.<span class='ident'>clip_scroll_groups</span>[<span class='number'>0</span>]
+        <span class='kw'>for</span> <span class='ident'>group</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>clip_scroll_groups</span> {
+            <span class='kw'>if</span> <span class='ident'>group</span>.<span class='number'>1</span> <span class='op'>==</span> <span class='ident'>scroll_layer_id</span> {
+                <span class='kw'>return</span> <span class='kw-2'>*</span><span class='ident'>group</span>;
+            }
+        }
+        <span class='macro'>unreachable</span><span class='macro'>!</span>(<span class='string'>&quot;Looking for non-existent ClipScrollGroup&quot;</span>);
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>can_contribute_to_scene</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
         <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>composite_ops</span>.<span class='ident'>will_make_invisible</span>()
     }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>has_clip_scroll_group</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>id</span>: <span class='ident'>ScrollLayerId</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+        <span class='self'>self</span>.<span class='ident'>clip_scroll_groups</span>.<span class='ident'>iter</span>().<span class='ident'>rev</span>().<span class='ident'>any</span>(<span class='op'>|</span><span class='ident'>index</span><span class='op'>|</span> <span class='ident'>index</span>.<span class='number'>1</span> <span class='op'>==</span> <span class='ident'>id</span>)
+    }
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Eq</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Hash</span>, <span class='ident'>Ord</span>, <span class='ident'>PartialOrd</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ClipScrollGroupIndex</span>(<span class='kw'>pub</span> <span class='ident'>usize</span>);
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Eq</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Hash</span>)]</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ClipScrollGroupIndex</span>(<span class='kw'>pub</span> <span class='ident'>usize</span>, <span class='kw'>pub</span> <span class='ident'>ScrollLayerId</span>);
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ClipScrollGroup</span> {
     <span class='kw'>pub</span> <span class='ident'>stacking_context_index</span>: <span class='ident'>StackingContextIndex</span>,
     <span class='kw'>pub</span> <span class='ident'>scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
     <span class='kw'>pub</span> <span class='ident'>packed_layer_index</span>: <span class='ident'>PackedLayerIndex</span>,
-    <span class='kw'>pub</span> <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
     <span class='kw'>pub</span> <span class='ident'>xf_rect</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>TransformedRect</span><span class='op'>&gt;</span>,
 }
 
