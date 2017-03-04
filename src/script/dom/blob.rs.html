@@ -439,30 +439,6 @@
 <span id="394">394</span>
 <span id="395">395</span>
 <span id="396">396</span>
-<span id="397">397</span>
-<span id="398">398</span>
-<span id="399">399</span>
-<span id="400">400</span>
-<span id="401">401</span>
-<span id="402">402</span>
-<span id="403">403</span>
-<span id="404">404</span>
-<span id="405">405</span>
-<span id="406">406</span>
-<span id="407">407</span>
-<span id="408">408</span>
-<span id="409">409</span>
-<span id="410">410</span>
-<span id="411">411</span>
-<span id="412">412</span>
-<span id="413">413</span>
-<span id="414">414</span>
-<span id="415">415</span>
-<span id="416">416</span>
-<span id="417">417</span>
-<span id="418">418</span>
-<span id="419">419</span>
-<span id="420">420</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -484,7 +460,6 @@
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::{<span class='ident'>CoreResourceMsg</span>, <span class='ident'>IpcSend</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>blob_url_store</span>::{<span class='ident'>BlobBuf</span>, <span class='ident'>get_blob_origin</span>};
 <span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>filemanager_thread</span>::{<span class='ident'>FileManagerThreadMsg</span>, <span class='ident'>ReadFileProgress</span>, <span class='ident'>RelativePos</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>Cell</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ops</span>::<span class='ident'>Index</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>path</span>::<span class='ident'>PathBuf</span>;
@@ -541,7 +516,6 @@
     <span class='ident'>blob_impl</span>: <span class='ident'>DOMRefCell</span><span class='op'>&lt;</span><span class='ident'>BlobImpl</span><span class='op'>&gt;</span>,
     <span class='doccomment'>/// content-type string</span>
     <span class='ident'>type_string</span>: <span class='ident'>String</span>,
-    <span class='ident'>is_closed</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>bool</span><span class='op'>&gt;</span>,
 }
 
 <span class='kw'>impl</span> <span class='ident'>Blob</span> {
@@ -561,7 +535,6 @@
             <span class='comment'>// NOTE: Guarding the format correctness here,</span>
             <span class='comment'>// https://w3c.github.io/FileAPI/#dfn-type</span>
             <span class='ident'>type_string</span>: <span class='ident'>normalize_type_string</span>(<span class='kw-2'>&amp;</span><span class='ident'>type_string</span>),
-            <span class='ident'>is_closed</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='bool-val'>false</span>),
         }
     }
 
@@ -763,9 +736,7 @@
 
 <span class='kw'>impl</span> <span class='ident'>Drop</span> <span class='kw'>for</span> <span class='ident'>Blob</span> {
     <span class='kw'>fn</span> <span class='ident'>drop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>IsClosed</span>() {
-            <span class='self'>self</span>.<span class='ident'>clean_up_file_resource</span>();
-        }
+        <span class='self'>self</span>.<span class='ident'>clean_up_file_resource</span>();
     }
 }
 
@@ -840,25 +811,6 @@
              <span class='op'>-&gt;</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>Blob</span><span class='op'>&gt;</span> {
         <span class='kw'>let</span> <span class='ident'>rel_pos</span> <span class='op'>=</span> <span class='ident'>RelativePos</span>::<span class='ident'>from_opts</span>(<span class='ident'>start</span>, <span class='ident'>end</span>);
         <span class='ident'>Blob</span>::<span class='ident'>new_sliced</span>(<span class='self'>self</span>, <span class='ident'>rel_pos</span>, <span class='ident'>content_type</span>.<span class='ident'>unwrap_or</span>(<span class='ident'>DOMString</span>::<span class='ident'>from</span>(<span class='string'>&quot;&quot;</span>)))
-    }
-
-    <span class='comment'>// https://w3c.github.io/FileAPI/#dfn-isClosed</span>
-    <span class='kw'>fn</span> <span class='ident'>IsClosed</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>is_closed</span>.<span class='ident'>get</span>()
-    }
-
-    <span class='comment'>// https://w3c.github.io/FileAPI/#dfn-close</span>
-    <span class='kw'>fn</span> <span class='ident'>Close</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
-        <span class='comment'>// Step 1</span>
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>is_closed</span>.<span class='ident'>get</span>() {
-            <span class='kw'>return</span>;
-        }
-
-        <span class='comment'>// Step 2</span>
-        <span class='self'>self</span>.<span class='ident'>is_closed</span>.<span class='ident'>set</span>(<span class='bool-val'>true</span>);
-
-        <span class='comment'>// Step 3</span>
-        <span class='self'>self</span>.<span class='ident'>clean_up_file_resource</span>();
     }
 }
 
