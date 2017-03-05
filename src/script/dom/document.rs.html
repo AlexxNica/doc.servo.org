@@ -3800,6 +3800,74 @@
 <span id="3755">3755</span>
 <span id="3756">3756</span>
 <span id="3757">3757</span>
+<span id="3758">3758</span>
+<span id="3759">3759</span>
+<span id="3760">3760</span>
+<span id="3761">3761</span>
+<span id="3762">3762</span>
+<span id="3763">3763</span>
+<span id="3764">3764</span>
+<span id="3765">3765</span>
+<span id="3766">3766</span>
+<span id="3767">3767</span>
+<span id="3768">3768</span>
+<span id="3769">3769</span>
+<span id="3770">3770</span>
+<span id="3771">3771</span>
+<span id="3772">3772</span>
+<span id="3773">3773</span>
+<span id="3774">3774</span>
+<span id="3775">3775</span>
+<span id="3776">3776</span>
+<span id="3777">3777</span>
+<span id="3778">3778</span>
+<span id="3779">3779</span>
+<span id="3780">3780</span>
+<span id="3781">3781</span>
+<span id="3782">3782</span>
+<span id="3783">3783</span>
+<span id="3784">3784</span>
+<span id="3785">3785</span>
+<span id="3786">3786</span>
+<span id="3787">3787</span>
+<span id="3788">3788</span>
+<span id="3789">3789</span>
+<span id="3790">3790</span>
+<span id="3791">3791</span>
+<span id="3792">3792</span>
+<span id="3793">3793</span>
+<span id="3794">3794</span>
+<span id="3795">3795</span>
+<span id="3796">3796</span>
+<span id="3797">3797</span>
+<span id="3798">3798</span>
+<span id="3799">3799</span>
+<span id="3800">3800</span>
+<span id="3801">3801</span>
+<span id="3802">3802</span>
+<span id="3803">3803</span>
+<span id="3804">3804</span>
+<span id="3805">3805</span>
+<span id="3806">3806</span>
+<span id="3807">3807</span>
+<span id="3808">3808</span>
+<span id="3809">3809</span>
+<span id="3810">3810</span>
+<span id="3811">3811</span>
+<span id="3812">3812</span>
+<span id="3813">3813</span>
+<span id="3814">3814</span>
+<span id="3815">3815</span>
+<span id="3816">3816</span>
+<span id="3817">3817</span>
+<span id="3818">3818</span>
+<span id="3819">3819</span>
+<span id="3820">3820</span>
+<span id="3821">3821</span>
+<span id="3822">3822</span>
+<span id="3823">3823</span>
+<span id="3824">3824</span>
+<span id="3825">3825</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -3914,7 +3982,7 @@
 <span class='kw'>use</span> <span class='ident'>script_thread</span>::{<span class='ident'>MainThreadScriptMsg</span>, <span class='ident'>Runnable</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>AnimationState</span>, <span class='ident'>CompositorEvent</span>, <span class='ident'>DocumentActivity</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>MouseButton</span>, <span class='ident'>MouseEventType</span>, <span class='ident'>MozBrowserEvent</span>};
-<span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>ScriptMsg</span> <span class='kw'>as</span> <span class='ident'>ConstellationMsg</span>, <span class='ident'>TouchpadPressurePhase</span>};
+<span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>MsDuration</span>, <span class='ident'>ScriptMsg</span> <span class='kw'>as</span> <span class='ident'>ConstellationMsg</span>, <span class='ident'>TouchpadPressurePhase</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>TouchEventType</span>, <span class='ident'>TouchId</span>};
 <span class='kw'>use</span> <span class='ident'>script_traits</span>::<span class='ident'>UntrustedNodeAddress</span>;
 <span class='kw'>use</span> <span class='ident'>servo_atoms</span>::<span class='ident'>Atom</span>;
@@ -3939,8 +4007,18 @@
 <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>stylesheets</span>::<span class='ident'>Stylesheet</span>;
 <span class='kw'>use</span> <span class='ident'>task_source</span>::<span class='ident'>TaskSource</span>;
 <span class='kw'>use</span> <span class='ident'>time</span>;
+<span class='kw'>use</span> <span class='ident'>timers</span>::<span class='ident'>OneshotTimerCallback</span>;
 <span class='kw'>use</span> <span class='ident'>url</span>::<span class='ident'>Host</span>;
 <span class='kw'>use</span> <span class='ident'>url</span>::<span class='ident'>percent_encoding</span>::<span class='ident'>percent_decode</span>;
+
+<span class='doccomment'>/// The number of times we are allowed to see spurious `requestAnimationFrame()` calls before</span>
+<span class='doccomment'>/// falling back to fake ones.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// A spurious `requestAnimationFrame()` call is defined as one that does not change the DOM.</span>
+<span class='kw'>const</span> <span class='ident'>SPURIOUS_ANIMATION_FRAME_THRESHOLD</span>: <span class='ident'>u8</span> <span class='op'>=</span> <span class='number'>5</span>;
+
+<span class='doccomment'>/// The amount of time between fake `requestAnimationFrame()`s.</span>
+<span class='kw'>const</span> <span class='ident'>FAKE_REQUEST_ANIMATION_FRAME_DELAY</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='number'>16</span>;
 
 <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>TouchEventResult</span> {
     <span class='ident'>Processed</span>(<span class='ident'>bool</span>),
@@ -4093,6 +4171,11 @@
     <span class='ident'>last_click_info</span>: <span class='ident'>DOMRefCell</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span>(<span class='ident'>Instant</span>, <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>)<span class='op'>&gt;&gt;</span>,
     <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#ignore-destructive-writes-counter</span>
     <span class='ident'>ignore_destructive_writes_counter</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>,
+    <span class='doccomment'>/// The number of spurious `requestAnimationFrame()` requests we&#39;ve received.</span>
+    <span class='doccomment'>///</span>
+    <span class='doccomment'>/// A rAF request is considered spurious if nothing was actually reflowed.</span>
+    <span class='ident'>spurious_animation_frames</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>,
+
     <span class='doccomment'>/// Track the total number of elements in this DOM&#39;s tree.</span>
     <span class='doccomment'>/// This is sent to the layout thread every time a reflow is done;</span>
     <span class='doccomment'>/// layout uses this to determine if the gains from parallel layout will be worth the overhead.</span>
@@ -5301,11 +5384,20 @@
         <span class='comment'>//</span>
         <span class='comment'>// TODO: Should tick animation only when document is visible</span>
         <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>running_animation_callbacks</span>.<span class='ident'>get</span>() {
-            <span class='kw'>let</span> <span class='ident'>global_scope</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>window</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>GlobalScope</span><span class='op'>&gt;</span>();
-            <span class='kw'>let</span> <span class='ident'>event</span> <span class='op'>=</span> <span class='ident'>ConstellationMsg</span>::<span class='ident'>ChangeRunningAnimationsState</span>(
-                <span class='ident'>global_scope</span>.<span class='ident'>pipeline_id</span>(),
-                <span class='ident'>AnimationState</span>::<span class='ident'>AnimationCallbacksPresent</span>);
-            <span class='ident'>global_scope</span>.<span class='ident'>constellation_chan</span>().<span class='ident'>send</span>(<span class='ident'>event</span>).<span class='ident'>unwrap</span>();
+            <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>is_faking_animation_frames</span>() {
+                <span class='kw'>let</span> <span class='ident'>global_scope</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>window</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>GlobalScope</span><span class='op'>&gt;</span>();
+                <span class='kw'>let</span> <span class='ident'>event</span> <span class='op'>=</span> <span class='ident'>ConstellationMsg</span>::<span class='ident'>ChangeRunningAnimationsState</span>(
+                    <span class='ident'>global_scope</span>.<span class='ident'>pipeline_id</span>(),
+                    <span class='ident'>AnimationState</span>::<span class='ident'>AnimationCallbacksPresent</span>);
+                <span class='ident'>global_scope</span>.<span class='ident'>constellation_chan</span>().<span class='ident'>send</span>(<span class='ident'>event</span>).<span class='ident'>unwrap</span>();
+            } <span class='kw'>else</span> {
+                <span class='kw'>let</span> <span class='ident'>callback</span> <span class='op'>=</span> <span class='ident'>FakeRequestAnimationFrameCallback</span> {
+                    <span class='ident'>document</span>: <span class='ident'>Trusted</span>::<span class='ident'>new</span>(<span class='self'>self</span>),
+                };
+                <span class='self'>self</span>.<span class='ident'>global</span>()
+                    .<span class='ident'>schedule_callback</span>(<span class='ident'>OneshotTimerCallback</span>::<span class='ident'>FakeRequestAnimationFrame</span>(<span class='ident'>callback</span>),
+                                       <span class='ident'>MsDuration</span>::<span class='ident'>new</span>(<span class='ident'>FAKE_REQUEST_ANIMATION_FRAME_DELAY</span>));
+            }
         }
 
         <span class='ident'>ident</span>
@@ -5327,6 +5419,7 @@
             <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>animation_frame_list</span>.<span class='ident'>borrow_mut</span>());
 
         <span class='self'>self</span>.<span class='ident'>running_animation_callbacks</span>.<span class='ident'>set</span>(<span class='bool-val'>true</span>);
+        <span class='kw'>let</span> <span class='ident'>was_faking_animation_frames</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>is_faking_animation_frames</span>();
         <span class='kw'>let</span> <span class='ident'>timing</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>window</span>.<span class='ident'>Performance</span>().<span class='ident'>Now</span>();
 
         <span class='kw'>for</span> (_, <span class='ident'>callback</span>) <span class='kw'>in</span> <span class='ident'>animation_frame_list</span>.<span class='ident'>drain</span>(..) {
@@ -5335,24 +5428,40 @@
             }
         }
 
+        <span class='self'>self</span>.<span class='ident'>running_animation_callbacks</span>.<span class='ident'>set</span>(<span class='bool-val'>false</span>);
+
+        <span class='kw'>let</span> <span class='ident'>spurious</span> <span class='op'>=</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>window</span>.<span class='ident'>reflow</span>(<span class='ident'>ReflowGoal</span>::<span class='ident'>ForDisplay</span>,
+                                           <span class='ident'>ReflowQueryType</span>::<span class='ident'>NoQuery</span>,
+                                           <span class='ident'>ReflowReason</span>::<span class='ident'>RequestAnimationFrame</span>);
+
         <span class='comment'>// Only send the animation change state message after running any callbacks.</span>
         <span class='comment'>// This means that if the animation callback adds a new callback for</span>
         <span class='comment'>// the next frame (which is the common case), we won&#39;t send a NoAnimationCallbacksPresent</span>
         <span class='comment'>// message quickly followed by an AnimationCallbacksPresent message.</span>
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>animation_frame_list</span>.<span class='ident'>borrow</span>().<span class='ident'>is_empty</span>() {
+        <span class='comment'>//</span>
+        <span class='comment'>// If this frame was spurious and we&#39;ve seen too many spurious frames in a row, tell the</span>
+        <span class='comment'>// constellation to stop giving us video refresh callbacks, to save energy. (A spurious</span>
+        <span class='comment'>// animation frame is one in which the callback did not mutate the DOM—that is, an</span>
+        <span class='comment'>// animation frame that wasn&#39;t actually used for animation.)</span>
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>animation_frame_list</span>.<span class='ident'>borrow</span>().<span class='ident'>is_empty</span>() <span class='op'>||</span>
+                (<span class='op'>!</span><span class='ident'>was_faking_animation_frames</span> <span class='op'>&amp;&amp;</span> <span class='self'>self</span>.<span class='ident'>is_faking_animation_frames</span>()) {
             <span class='ident'>mem</span>::<span class='ident'>swap</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>animation_frame_list</span>.<span class='ident'>borrow_mut</span>(),
                       <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='ident'>animation_frame_list</span>);
             <span class='kw'>let</span> <span class='ident'>global_scope</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>window</span>.<span class='ident'>upcast</span>::<span class='op'>&lt;</span><span class='ident'>GlobalScope</span><span class='op'>&gt;</span>();
-            <span class='kw'>let</span> <span class='ident'>event</span> <span class='op'>=</span> <span class='ident'>ConstellationMsg</span>::<span class='ident'>ChangeRunningAnimationsState</span>(<span class='ident'>global_scope</span>.<span class='ident'>pipeline_id</span>(),
-                                                                       <span class='ident'>AnimationState</span>::<span class='ident'>NoAnimationCallbacksPresent</span>);
+            <span class='kw'>let</span> <span class='ident'>event</span> <span class='op'>=</span> <span class='ident'>ConstellationMsg</span>::<span class='ident'>ChangeRunningAnimationsState</span>(
+                <span class='ident'>global_scope</span>.<span class='ident'>pipeline_id</span>(),
+                <span class='ident'>AnimationState</span>::<span class='ident'>NoAnimationCallbacksPresent</span>);
             <span class='ident'>global_scope</span>.<span class='ident'>constellation_chan</span>().<span class='ident'>send</span>(<span class='ident'>event</span>).<span class='ident'>unwrap</span>();
         }
 
-        <span class='self'>self</span>.<span class='ident'>running_animation_callbacks</span>.<span class='ident'>set</span>(<span class='bool-val'>false</span>);
-
-        <span class='self'>self</span>.<span class='ident'>window</span>.<span class='ident'>reflow</span>(<span class='ident'>ReflowGoal</span>::<span class='ident'>ForDisplay</span>,
-                           <span class='ident'>ReflowQueryType</span>::<span class='ident'>NoQuery</span>,
-                           <span class='ident'>ReflowReason</span>::<span class='ident'>RequestAnimationFrame</span>);
+        <span class='comment'>// Update the counter of spurious animation frames.</span>
+        <span class='kw'>if</span> <span class='ident'>spurious</span> {
+            <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>spurious_animation_frames</span>.<span class='ident'>get</span>() <span class='op'>&lt;</span> <span class='ident'>SPURIOUS_ANIMATION_FRAME_THRESHOLD</span> {
+                <span class='self'>self</span>.<span class='ident'>spurious_animation_frames</span>.<span class='ident'>set</span>(<span class='self'>self</span>.<span class='ident'>spurious_animation_frames</span>.<span class='ident'>get</span>() <span class='op'>+</span> <span class='number'>1</span>)
+            }
+        } <span class='kw'>else</span> {
+            <span class='self'>self</span>.<span class='ident'>spurious_animation_frames</span>.<span class='ident'>set</span>(<span class='number'>0</span>)
+        }
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>fetch_async</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>load</span>: <span class='ident'>LoadType</span>,
@@ -5851,6 +5960,7 @@
             <span class='ident'>target_element</span>: <span class='ident'>MutNullableJS</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
             <span class='ident'>last_click_info</span>: <span class='ident'>DOMRefCell</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
             <span class='ident'>ignore_destructive_writes_counter</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
+            <span class='ident'>spurious_animation_frames</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='number'>0</span>),
             <span class='ident'>dom_count</span>: <span class='ident'>Cell</span>::<span class='ident'>new</span>(<span class='number'>1</span>),
             <span class='ident'>fullscreen_element</span>: <span class='ident'>MutNullableJS</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
         }
@@ -6055,6 +6165,12 @@
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>decr_ignore_destructive_writes_counter</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
         <span class='self'>self</span>.<span class='ident'>ignore_destructive_writes_counter</span>.<span class='ident'>set</span>(
             <span class='self'>self</span>.<span class='ident'>ignore_destructive_writes_counter</span>.<span class='ident'>get</span>() <span class='op'>-</span> <span class='number'>1</span>);
+    }
+
+    <span class='doccomment'>/// Whether we&#39;ve seen so many spurious animation frames (i.e. animation frames that didn&#39;t</span>
+    <span class='doccomment'>/// mutate the DOM) that we&#39;ve decided to fall back to fake ones.</span>
+    <span class='kw'>fn</span> <span class='ident'>is_faking_animation_frames</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+        <span class='self'>self</span>.<span class='ident'>spurious_animation_frames</span>.<span class='ident'>get</span>() <span class='op'>&gt;=</span> <span class='ident'>SPURIOUS_ANIMATION_FRAME_THRESHOLD</span>
     }
 
     <span class='comment'>// https://fullscreen.spec.whatwg.org/#dom-element-requestfullscreen</span>
@@ -7469,6 +7585,26 @@
 <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>FocusEventType</span> {
     <span class='ident'>Focus</span>,      <span class='comment'>// Element gained focus. Doesn&#39;t bubble.</span>
     <span class='ident'>Blur</span>,       <span class='comment'>// Element lost focus. Doesn&#39;t bubble.</span>
+}
+
+<span class='doccomment'>/// A fake `requestAnimationFrame()` callback—&quot;fake&quot; because it is not triggered by the video</span>
+<span class='doccomment'>/// refresh but rather a simple timer.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// If the page is observed to be using `requestAnimationFrame()` for non-animation purposes (i.e.</span>
+<span class='doccomment'>/// without mutating the DOM), then we fall back to simple timeouts to save energy over video</span>
+<span class='doccomment'>/// refresh.</span>
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>JSTraceable</span>, <span class='ident'>HeapSizeOf</span>)]</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>FakeRequestAnimationFrameCallback</span> {
+    <span class='doccomment'>/// The document.</span>
+    <span class='attribute'>#[<span class='ident'>ignore_heap_size_of</span> <span class='op'>=</span> <span class='string'>&quot;non-owning&quot;</span>]</span>
+    <span class='ident'>document</span>: <span class='ident'>Trusted</span><span class='op'>&lt;</span><span class='ident'>Document</span><span class='op'>&gt;</span>,
+}
+
+<span class='kw'>impl</span> <span class='ident'>FakeRequestAnimationFrameCallback</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>invoke</span>(<span class='self'>self</span>) {
+        <span class='kw'>let</span> <span class='ident'>document</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>document</span>.<span class='ident'>root</span>();
+        <span class='ident'>document</span>.<span class='ident'>run_the_animation_frame_callbacks</span>();
+    }
 }
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>HeapSizeOf</span>, <span class='ident'>JSTraceable</span>)]</span>
