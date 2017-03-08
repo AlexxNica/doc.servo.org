@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["BoxType",""]]});
+initSidebarItems({"enum":[["BoxType",""]],"struct":[["FourCC",""]]});
