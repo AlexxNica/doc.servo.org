@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/f9860e0/webrender/src/frame.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/ec37792/webrender/src/frame.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>frame.rs.html -- source</title>
@@ -969,6 +969,7 @@
 <span id="924">924</span>
 <span id="925">925</span>
 <span id="926">926</span>
+<span id="927">927</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -980,7 +981,6 @@
 <span class='kw'>use</span> <span class='ident'>internal_types</span>::{<span class='ident'>LowLevelFilterOp</span>};
 <span class='kw'>use</span> <span class='ident'>internal_types</span>::{<span class='ident'>RendererFrame</span>};
 <span class='kw'>use</span> <span class='ident'>frame_builder</span>::{<span class='ident'>FrameBuilder</span>, <span class='ident'>FrameBuilderConfig</span>};
-<span class='kw'>use</span> <span class='ident'>clip_scroll_node</span>::<span class='ident'>ClipScrollNode</span>;
 <span class='kw'>use</span> <span class='ident'>clip_scroll_tree</span>::{<span class='ident'>ClipScrollTree</span>, <span class='ident'>ScrollStates</span>};
 <span class='kw'>use</span> <span class='ident'>profiler</span>::<span class='ident'>TextureCacheProfileCounters</span>;
 <span class='kw'>use</span> <span class='ident'>resource_cache</span>::<span class='ident'>ResourceCache</span>;
@@ -988,11 +988,12 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>HashMap</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>hash</span>::<span class='ident'>BuildHasherDefault</span>;
 <span class='kw'>use</span> <span class='ident'>tiling</span>::{<span class='ident'>AuxiliaryListsMap</span>, <span class='ident'>CompositeOps</span>, <span class='ident'>PrimitiveFlags</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>AuxiliaryLists</span>, <span class='ident'>ClipRegion</span>, <span class='ident'>ColorF</span>, <span class='ident'>DisplayItem</span>, <span class='ident'>Epoch</span>, <span class='ident'>FilterOp</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>LayerPoint</span>, <span class='ident'>LayerRect</span>, <span class='ident'>LayerSize</span>, <span class='ident'>LayerToScrollTransform</span>, <span class='ident'>LayoutTransform</span>, <span class='ident'>TileOffset</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>MixBlendMode</span>, <span class='ident'>PipelineId</span>, <span class='ident'>ScrollEventPhase</span>, <span class='ident'>ScrollLayerId</span>, <span class='ident'>ScrollLayerState</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>AuxiliaryLists</span>, <span class='ident'>ClipRegion</span>, <span class='ident'>ColorF</span>, <span class='ident'>DeviceUintRect</span>, <span class='ident'>DeviceUintSize</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>DisplayItem</span>, <span class='ident'>Epoch</span>, <span class='ident'>FilterOp</span>, <span class='ident'>ImageDisplayItem</span>, <span class='ident'>LayerPoint</span>, <span class='ident'>LayerRect</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>LayerSize</span>, <span class='ident'>LayerToScrollTransform</span>, <span class='ident'>LayoutTransform</span>, <span class='ident'>MixBlendMode</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>PipelineId</span>, <span class='ident'>ScrollEventPhase</span>, <span class='ident'>ScrollLayerId</span>, <span class='ident'>ScrollLayerState</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ScrollLocation</span>, <span class='ident'>ScrollPolicy</span>, <span class='ident'>ServoScrollRootId</span>, <span class='ident'>SpecificDisplayItem</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>StackingContext</span>, <span class='ident'>WorldPoint</span>, <span class='ident'>ImageDisplayItem</span>, <span class='ident'>DeviceUintRect</span>, <span class='ident'>DeviceUintSize</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>StackingContext</span>, <span class='ident'>TileOffset</span>, <span class='ident'>WorldPoint</span>};
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>PartialOrd</span>, <span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>FrameId</span>(<span class='kw'>pub</span> <span class='ident'>u32</span>);
@@ -1003,6 +1004,28 @@
     <span class='ident'>scene</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Scene</span>,
     <span class='ident'>builder</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>FrameBuilder</span>,
     <span class='ident'>resource_cache</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>ResourceCache</span>,
+    <span class='ident'>replacements</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span>(<span class='ident'>ScrollLayerId</span>, <span class='ident'>ScrollLayerId</span>)<span class='op'>&gt;</span>,
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>FlattenContext</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>scene</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Scene</span>,
+           <span class='ident'>builder</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>FrameBuilder</span>,
+           <span class='ident'>resource_cache</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>ResourceCache</span>)
+           <span class='op'>-&gt;</span> <span class='ident'>FlattenContext</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
+        <span class='ident'>FlattenContext</span> {
+            <span class='ident'>scene</span>: <span class='ident'>scene</span>,
+            <span class='ident'>builder</span>: <span class='ident'>builder</span>,
+            <span class='ident'>resource_cache</span>: <span class='ident'>resource_cache</span>,
+            <span class='ident'>replacements</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
+        }
+    }
+
+    <span class='kw'>fn</span> <span class='ident'>scroll_layer_id_with_replacement</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>id</span>: <span class='ident'>ScrollLayerId</span>) <span class='op'>-&gt;</span> <span class='ident'>ScrollLayerId</span> {
+        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>replacements</span>.<span class='ident'>last</span>() {
+            <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span>(<span class='ident'>to_replace</span>, <span class='ident'>replacement</span>)) <span class='kw'>if</span> <span class='ident'>to_replace</span> <span class='op'>==</span> <span class='ident'>id</span> <span class='op'>=&gt;</span> <span class='ident'>replacement</span>,
+            _ <span class='op'>=&gt;</span> <span class='ident'>id</span>,
+        }
+    }
 }
 
 <span class='comment'>// TODO: doc</span>
@@ -1113,10 +1136,15 @@
     }
 
     <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>skip_current_stacking_context</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>depth</span> <span class='op'>=</span> <span class='number'>0</span>;
         <span class='kw'>for</span> <span class='ident'>item</span> <span class='kw'>in</span> <span class='self'>self</span> {
-            <span class='kw'>if</span> <span class='ident'>item</span>.<span class='ident'>item</span> <span class='op'>==</span> <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>PopStackingContext</span> {
-                <span class='kw'>return</span>;
+            <span class='kw'>match</span> <span class='ident'>item</span>.<span class='ident'>item</span> {
+                <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>PushStackingContext</span>(..) <span class='op'>=&gt;</span> <span class='ident'>depth</span> <span class='op'>+=</span> <span class='number'>1</span>,
+                <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>PopStackingContext</span> <span class='kw'>if</span> <span class='ident'>depth</span> <span class='op'>==</span> <span class='number'>0</span> <span class='op'>=&gt;</span> <span class='kw'>return</span>,
+                <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>PopStackingContext</span> <span class='op'>=&gt;</span> <span class='ident'>depth</span> <span class='op'>-=</span> <span class='number'>1</span>,
+                _ <span class='op'>=&gt;</span> {}
             }
+            <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>depth</span> <span class='op'>&gt;=</span> <span class='number'>0</span>);
         }
     }
 
@@ -1240,21 +1268,6 @@
             }
         };
 
-        <span class='kw'>let</span> <span class='ident'>inner_origin</span> <span class='op'>=</span> <span class='ident'>inner_rect</span>.<span class='ident'>origin</span>.<span class='ident'>to_f32</span>();
-        <span class='kw'>let</span> <span class='ident'>viewport_offset</span> <span class='op'>=</span> <span class='ident'>LayerPoint</span>::<span class='ident'>new</span>((<span class='ident'>inner_origin</span>.<span class='ident'>x</span> <span class='op'>/</span> <span class='ident'>device_pixel_ratio</span>).<span class='ident'>round</span>(),
-                                              (<span class='ident'>inner_origin</span>.<span class='ident'>y</span> <span class='op'>/</span> <span class='ident'>device_pixel_ratio</span>).<span class='ident'>round</span>());
-        <span class='kw'>let</span> <span class='ident'>outer_size</span> <span class='op'>=</span> <span class='ident'>window_size</span>.<span class='ident'>to_f32</span>();
-        <span class='kw'>let</span> <span class='ident'>outer_size</span> <span class='op'>=</span> <span class='ident'>LayerSize</span>::<span class='ident'>new</span>((<span class='ident'>outer_size</span>.<span class='ident'>width</span> <span class='op'>/</span> <span class='ident'>device_pixel_ratio</span>).<span class='ident'>round</span>(),
-                                        (<span class='ident'>outer_size</span>.<span class='ident'>height</span> <span class='op'>/</span> <span class='ident'>device_pixel_ratio</span>).<span class='ident'>round</span>());
-        <span class='kw'>let</span> <span class='ident'>clip_size</span> <span class='op'>=</span> <span class='ident'>LayerSize</span>::<span class='ident'>new</span>(<span class='ident'>outer_size</span>.<span class='ident'>width</span> <span class='op'>+</span> <span class='number'>2.0</span> <span class='op'>*</span> <span class='ident'>viewport_offset</span>.<span class='ident'>x</span>,
-                                       <span class='ident'>outer_size</span>.<span class='ident'>height</span> <span class='op'>+</span> <span class='number'>2.0</span> <span class='op'>*</span> <span class='ident'>viewport_offset</span>.<span class='ident'>y</span>);
-
-        <span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>.<span class='ident'>establish_root</span>(<span class='ident'>root_pipeline_id</span>,
-                                             <span class='kw-2'>&amp;</span><span class='ident'>root_pipeline</span>.<span class='ident'>viewport_size</span>,
-                                             <span class='ident'>viewport_offset</span>,
-                                             <span class='ident'>clip_size</span>,
-                                             <span class='kw-2'>&amp;</span><span class='ident'>root_clip</span>.<span class='ident'>main</span>.<span class='ident'>size</span>);
-
         <span class='kw'>let</span> <span class='ident'>background_color</span> <span class='op'>=</span> <span class='ident'>root_pipeline</span>.<span class='ident'>background_color</span>.<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>color</span><span class='op'>|</span> {
             <span class='kw'>if</span> <span class='ident'>color</span>.<span class='ident'>a</span> <span class='op'>&gt;</span> <span class='number'>0.0</span> {
                 <span class='prelude-val'>Some</span>(<span class='ident'>color</span>)
@@ -1268,34 +1281,27 @@
                                                   <span class='self'>self</span>.<span class='ident'>frame_builder_config</span>);
 
         {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>context</span> <span class='op'>=</span> <span class='ident'>FlattenContext</span> {
-                <span class='ident'>scene</span>: <span class='ident'>scene</span>,
-                <span class='ident'>builder</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>frame_builder</span>,
-                <span class='ident'>resource_cache</span>: <span class='ident'>resource_cache</span>
-            };
+            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>context</span> <span class='op'>=</span> <span class='ident'>FlattenContext</span>::<span class='ident'>new</span>(<span class='ident'>scene</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>frame_builder</span>, <span class='ident'>resource_cache</span>);
+
+            <span class='kw'>let</span> <span class='ident'>scroll_layer_id</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>push_root</span>(<span class='ident'>root_pipeline_id</span>,
+                                                            <span class='kw-2'>&amp;</span><span class='ident'>root_pipeline</span>.<span class='ident'>viewport_size</span>,
+                                                            <span class='kw-2'>&amp;</span><span class='ident'>root_clip</span>.<span class='ident'>main</span>.<span class='ident'>size</span>,
+                                                            <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>);
+
+            <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>setup_viewport_offset</span>(<span class='ident'>window_size</span>,
+                                                  <span class='ident'>inner_rect</span>,
+                                                  <span class='ident'>device_pixel_ratio</span>,
+                                                  <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>);
 
             <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>traversal</span> <span class='op'>=</span> <span class='ident'>DisplayListTraversal</span>::<span class='ident'>new_skipping_first</span>(<span class='ident'>display_list</span>);
-            <span class='kw'>let</span> <span class='ident'>reference_frame_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>.<span class='ident'>root_reference_frame_id</span>();
-            <span class='kw'>let</span> <span class='ident'>topmost_scroll_layer_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>.<span class='ident'>topmost_scroll_layer_id</span>();
-            <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>reference_frame_id</span> <span class='op'>!=</span> <span class='ident'>topmost_scroll_layer_id</span>);
-
-            <span class='kw'>let</span> <span class='ident'>viewport_rect</span> <span class='op'>=</span> <span class='ident'>LayerRect</span>::<span class='ident'>new</span>(<span class='ident'>LayerPoint</span>::<span class='ident'>zero</span>(), <span class='ident'>root_pipeline</span>.<span class='ident'>viewport_size</span>);
-            <span class='kw'>let</span> <span class='ident'>clip</span> <span class='op'>=</span> <span class='ident'>ClipRegion</span>::<span class='ident'>simple</span>(<span class='kw-2'>&amp;</span><span class='ident'>viewport_rect</span>);
-            <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>push_clip_scroll_node</span>(<span class='ident'>reference_frame_id</span>, <span class='kw-2'>&amp;</span><span class='ident'>clip</span>);
-            <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>push_clip_scroll_node</span>(<span class='ident'>topmost_scroll_layer_id</span>, <span class='kw-2'>&amp;</span><span class='ident'>clip</span>);
-
             <span class='self'>self</span>.<span class='ident'>flatten_stacking_context</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>traversal</span>,
                                           <span class='ident'>root_pipeline_id</span>,
                                           <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>context</span>,
-                                          <span class='ident'>reference_frame_id</span>,
-                                          <span class='ident'>topmost_scroll_layer_id</span>,
+                                          <span class='ident'>scroll_layer_id</span>,
                                           <span class='ident'>LayerPoint</span>::<span class='ident'>zero</span>(),
                                           <span class='number'>0</span>,
                                           <span class='kw-2'>&amp;</span><span class='ident'>root_stacking_context</span>,
                                           <span class='ident'>root_clip</span>);
-
-            <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>pop_clip_scroll_node</span>();
-            <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>pop_clip_scroll_node</span>();
         }
 
         <span class='self'>self</span>.<span class='ident'>frame_builder</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>frame_builder</span>);
@@ -1306,29 +1312,26 @@
                                 <span class='ident'>traversal</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>DisplayListTraversal</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>,
                                 <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
                                 <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>FlattenContext</span>,
-                                <span class='ident'>current_reference_frame_id</span>: <span class='ident'>ScrollLayerId</span>,
-                                <span class='ident'>parent_scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
                                 <span class='ident'>reference_frame_relative_offset</span>: <span class='ident'>LayerPoint</span>,
                                 <span class='ident'>level</span>: <span class='ident'>i32</span>,
                                 <span class='ident'>clip</span>: <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>,
                                 <span class='ident'>content_size</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerSize</span>,
                                 <span class='ident'>new_scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>) {
-        <span class='comment'>// Avoid doing unnecessary work for empty stacking contexts.</span>
-        <span class='kw'>if</span> <span class='ident'>traversal</span>.<span class='ident'>current_stacking_context_empty</span>() {
-            <span class='ident'>traversal</span>.<span class='ident'>skip_current_stacking_context</span>();
-            <span class='kw'>return</span>;
-        }
+        <span class='kw'>let</span> <span class='ident'>parent_id</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>current_clip_scroll_node_id</span>();
+        <span class='kw'>let</span> <span class='ident'>parent_id</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>scroll_layer_id_with_replacement</span>(<span class='ident'>parent_id</span>);
 
         <span class='kw'>let</span> <span class='ident'>clip_rect</span> <span class='op'>=</span> <span class='ident'>clip</span>.<span class='ident'>main</span>.<span class='ident'>translate</span>(<span class='kw-2'>&amp;</span><span class='ident'>reference_frame_relative_offset</span>);
-        <span class='kw'>let</span> <span class='ident'>node</span> <span class='op'>=</span> <span class='ident'>ClipScrollNode</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>clip_rect</span>, <span class='kw-2'>&amp;</span><span class='ident'>clip_rect</span>, <span class='kw-2'>*</span><span class='ident'>content_size</span>, <span class='ident'>pipeline_id</span>);
-        <span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>.<span class='ident'>add_node</span>(<span class='ident'>node</span>, <span class='ident'>new_scroll_layer_id</span>, <span class='ident'>parent_scroll_layer_id</span>);
-        <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>push_clip_scroll_node</span>(<span class='ident'>new_scroll_layer_id</span>, <span class='ident'>clip</span>);
+        <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>push_clip_scroll_node</span>(<span class='ident'>new_scroll_layer_id</span>,
+                                              <span class='ident'>parent_id</span>,
+                                              <span class='ident'>pipeline_id</span>,
+                                              <span class='kw-2'>&amp;</span><span class='ident'>clip_rect</span>,
+                                              <span class='ident'>content_size</span>,
+                                              <span class='ident'>clip</span>,
+                                              <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>);
 
         <span class='self'>self</span>.<span class='ident'>flatten_items</span>(<span class='ident'>traversal</span>,
                            <span class='ident'>pipeline_id</span>,
                            <span class='ident'>context</span>,
-                           <span class='ident'>current_reference_frame_id</span>,
-                           <span class='ident'>new_scroll_layer_id</span>,
                            <span class='ident'>reference_frame_relative_offset</span>,
                            <span class='ident'>level</span>);
 
@@ -1339,8 +1342,7 @@
                                     <span class='ident'>traversal</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>DisplayListTraversal</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>,
                                     <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
                                     <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>FlattenContext</span>,
-                                    <span class='ident'>current_reference_frame_id</span>: <span class='ident'>ScrollLayerId</span>,
-                                    <span class='ident'>current_scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
+                                    <span class='ident'>context_scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
                                     <span class='kw-2'>mut</span> <span class='ident'>reference_frame_relative_offset</span>: <span class='ident'>LayerPoint</span>,
                                     <span class='ident'>level</span>: <span class='ident'>i32</span>,
                                     <span class='ident'>stacking_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>StackingContext</span>,
@@ -1365,15 +1367,19 @@
             <span class='kw'>return</span>;
         }
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>reference_frame_id</span> <span class='op'>=</span> <span class='ident'>current_reference_frame_id</span>;
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>scroll_layer_id</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>stacking_context</span>.<span class='ident'>scroll_policy</span> {
-            <span class='ident'>ScrollPolicy</span>::<span class='ident'>Fixed</span> <span class='op'>=&gt;</span> <span class='ident'>current_reference_frame_id</span>,
-            <span class='ident'>ScrollPolicy</span>::<span class='ident'>Scrollable</span> <span class='op'>=&gt;</span> <span class='ident'>current_scroll_layer_id</span>,
-        };
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>scroll_layer_id</span> <span class='op'>=</span>
+            <span class='ident'>context</span>.<span class='ident'>scroll_layer_id_with_replacement</span>(<span class='ident'>context_scroll_layer_id</span>);
+
+        <span class='kw'>if</span> <span class='ident'>stacking_context</span>.<span class='ident'>scroll_policy</span> <span class='op'>==</span> <span class='ident'>ScrollPolicy</span>::<span class='ident'>Fixed</span> {
+            <span class='ident'>context</span>.<span class='ident'>replacements</span>.<span class='ident'>push</span>((<span class='ident'>context_scroll_layer_id</span>,
+                                       <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>current_reference_frame_id</span>()));
+        }
 
         <span class='comment'>// If we have a transformation, we establish a new reference frame. This means</span>
         <span class='comment'>// that fixed position stacking contexts are positioned relative to us.</span>
-        <span class='kw'>if</span> <span class='ident'>stacking_context</span>.<span class='ident'>transform</span>.<span class='ident'>is_some</span>() <span class='op'>||</span> <span class='ident'>stacking_context</span>.<span class='ident'>perspective</span>.<span class='ident'>is_some</span>() {
+        <span class='kw'>let</span> <span class='ident'>is_reference_frame</span> <span class='op'>=</span> <span class='ident'>stacking_context</span>.<span class='ident'>transform</span>.<span class='ident'>is_some</span>() <span class='op'>||</span>
+                                 <span class='ident'>stacking_context</span>.<span class='ident'>perspective</span>.<span class='ident'>is_some</span>();
+        <span class='kw'>if</span> <span class='ident'>is_reference_frame</span> {
             <span class='kw'>let</span> <span class='ident'>transform</span> <span class='op'>=</span> <span class='ident'>stacking_context</span>.<span class='ident'>transform</span>.<span class='ident'>as_ref</span>();
             <span class='kw'>let</span> <span class='ident'>transform</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>scene</span>.<span class='ident'>properties</span>.<span class='ident'>resolve_layout_transform</span>(<span class='ident'>transform</span>);
             <span class='kw'>let</span> <span class='ident'>perspective</span> <span class='op'>=</span>
@@ -1387,11 +1393,13 @@
                                                         <span class='number'>0.0</span>)
                                         .<span class='ident'>pre_mul</span>(<span class='kw-2'>&amp;</span><span class='ident'>transform</span>)
                                         .<span class='ident'>pre_mul</span>(<span class='kw-2'>&amp;</span><span class='ident'>perspective</span>);
-            <span class='ident'>scroll_layer_id</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>.<span class='ident'>add_reference_frame</span>(<span class='ident'>clip_region</span>.<span class='ident'>main</span>,
-                                                                        <span class='ident'>transform</span>,
-                                                                        <span class='ident'>pipeline_id</span>,
-                                                                        <span class='ident'>scroll_layer_id</span>);
-            <span class='ident'>reference_frame_id</span> <span class='op'>=</span> <span class='ident'>scroll_layer_id</span>;
+
+            <span class='ident'>scroll_layer_id</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>push_reference_frame</span>(<span class='prelude-val'>Some</span>(<span class='ident'>scroll_layer_id</span>),
+                                                                   <span class='ident'>pipeline_id</span>,
+                                                                   <span class='kw-2'>&amp;</span><span class='ident'>clip_region</span>.<span class='ident'>main</span>,
+                                                                   <span class='kw-2'>&amp;</span><span class='ident'>transform</span>,
+                                                                   <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>);
+            <span class='ident'>context</span>.<span class='ident'>replacements</span>.<span class='ident'>push</span>((<span class='ident'>context_scroll_layer_id</span>, <span class='ident'>scroll_layer_id</span>));
             <span class='ident'>reference_frame_relative_offset</span> <span class='op'>=</span> <span class='ident'>LayerPoint</span>::<span class='ident'>zero</span>();
         } <span class='kw'>else</span> {
             <span class='ident'>reference_frame_relative_offset</span> <span class='op'>=</span> <span class='ident'>LayerPoint</span>::<span class='ident'>new</span>(
@@ -1399,16 +1407,16 @@
                 <span class='ident'>reference_frame_relative_offset</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>stacking_context</span>.<span class='ident'>bounds</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>);
         }
 
+        <span class='comment'>// TODO(gw): Int with overflow etc</span>
+        <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>push_stacking_context</span>(<span class='ident'>reference_frame_relative_offset</span>,
+                                              <span class='ident'>clip_region</span>.<span class='ident'>main</span>,
+                                              <span class='ident'>pipeline_id</span>,
+                                              <span class='ident'>level</span> <span class='op'>==</span> <span class='number'>0</span>,
+                                              <span class='ident'>composition_operations</span>);
+
         <span class='kw'>if</span> <span class='ident'>level</span> <span class='op'>==</span> <span class='number'>0</span> {
             <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>pipeline</span>) <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>scene</span>.<span class='ident'>pipeline_map</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>) {
                 <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>bg_color</span>) <span class='op'>=</span> <span class='ident'>pipeline</span>.<span class='ident'>background_color</span> {
-                    <span class='comment'>// Adding a dummy layer for this rectangle in order to disable clipping.</span>
-                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>push_stacking_context</span>(<span class='ident'>reference_frame_relative_offset</span>,
-                                                          <span class='ident'>clip_region</span>.<span class='ident'>main</span>,
-                                                          <span class='ident'>pipeline_id</span>,
-                                                          <span class='bool-val'>false</span>,
-                                                          <span class='ident'>CompositeOps</span>::<span class='ident'>empty</span>());
-
                     <span class='comment'>// Note: we don&#39;t use the original clip region here,</span>
                     <span class='comment'>// it&#39;s already processed by the node we just pushed.</span>
                     <span class='kw'>let</span> <span class='ident'>background_rect</span> <span class='op'>=</span> <span class='ident'>LayerRect</span>::<span class='ident'>new</span>(<span class='ident'>LayerPoint</span>::<span class='ident'>zero</span>(), <span class='ident'>clip_region</span>.<span class='ident'>main</span>.<span class='ident'>size</span>);
@@ -1417,24 +1425,13 @@
                                                         <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>::<span class='ident'>simple</span>(<span class='kw-2'>&amp;</span><span class='ident'>background_rect</span>),
                                                         <span class='kw-2'>&amp;</span><span class='ident'>bg_color</span>,
                                                         <span class='ident'>PrimitiveFlags</span>::<span class='prelude-val'>None</span>);
-
-                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>pop_stacking_context</span>();
                 }
             }
         }
 
-         <span class='comment'>// TODO(gw): Int with overflow etc</span>
-        <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>push_stacking_context</span>(<span class='ident'>reference_frame_relative_offset</span>,
-                                              <span class='ident'>clip_region</span>.<span class='ident'>main</span>,
-                                              <span class='ident'>pipeline_id</span>,
-                                              <span class='ident'>level</span> <span class='op'>==</span> <span class='number'>0</span>,
-                                              <span class='ident'>composition_operations</span>);
-
         <span class='self'>self</span>.<span class='ident'>flatten_items</span>(<span class='ident'>traversal</span>,
                            <span class='ident'>pipeline_id</span>,
                            <span class='ident'>context</span>,
-                           <span class='ident'>reference_frame_id</span>,
-                           <span class='ident'>scroll_layer_id</span>,
                            <span class='ident'>reference_frame_relative_offset</span>,
                            <span class='ident'>level</span>);
 
@@ -1448,6 +1445,15 @@
                 <span class='ident'>PrimitiveFlags</span>::<span class='ident'>Scrollbar</span>(<span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>.<span class='ident'>topmost_scroll_layer_id</span>(), <span class='number'>4.0</span>));
         }
 
+        <span class='kw'>if</span> <span class='ident'>stacking_context</span>.<span class='ident'>scroll_policy</span> <span class='op'>==</span> <span class='ident'>ScrollPolicy</span>::<span class='ident'>Fixed</span> {
+            <span class='ident'>context</span>.<span class='ident'>replacements</span>.<span class='ident'>pop</span>();
+        }
+
+        <span class='kw'>if</span> <span class='ident'>is_reference_frame</span> {
+            <span class='ident'>context</span>.<span class='ident'>replacements</span>.<span class='ident'>pop</span>();
+            <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>pop_clip_scroll_node</span>();
+        }
+
         <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>pop_stacking_context</span>();
     }
 
@@ -1455,7 +1461,6 @@
                           <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
                           <span class='ident'>bounds</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerRect</span>,
                           <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>FlattenContext</span>,
-                          <span class='ident'>current_scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
                           <span class='ident'>reference_frame_relative_offset</span>: <span class='ident'>LayerPoint</span>) {
 
         <span class='kw'>let</span> <span class='ident'>pipeline</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>context</span>.<span class='ident'>scene</span>.<span class='ident'>pipeline_map</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline_id</span>) {
@@ -1484,29 +1489,31 @@
             <span class='ident'>reference_frame_relative_offset</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>bounds</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>,
             <span class='ident'>reference_frame_relative_offset</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>bounds</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>,
             <span class='number'>0.0</span>);
-        <span class='kw'>let</span> <span class='ident'>iframe_reference_frame_id</span> <span class='op'>=</span>
-            <span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>.<span class='ident'>add_reference_frame</span>(<span class='ident'>iframe_rect</span>,
-                                                      <span class='ident'>transform</span>,
-                                                      <span class='ident'>pipeline_id</span>,
-                                                      <span class='ident'>current_scroll_layer_id</span>);
-        <span class='kw'>let</span> <span class='ident'>iframe_scroll_layer_id</span> <span class='op'>=</span> <span class='ident'>ScrollLayerId</span>::<span class='ident'>root_scroll_layer</span>(<span class='ident'>pipeline_id</span>);
-        <span class='kw'>let</span> <span class='ident'>node</span> <span class='op'>=</span> <span class='ident'>ClipScrollNode</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>LayerRect</span>::<span class='ident'>new</span>(<span class='ident'>LayerPoint</span>::<span class='ident'>zero</span>(), <span class='ident'>iframe_rect</span>.<span class='ident'>size</span>),
-                                       <span class='kw-2'>&amp;</span><span class='ident'>LayerRect</span>::<span class='ident'>new</span>(<span class='ident'>LayerPoint</span>::<span class='ident'>zero</span>(), <span class='ident'>iframe_rect</span>.<span class='ident'>size</span>),
-                                       <span class='ident'>iframe_clip</span>.<span class='ident'>main</span>.<span class='ident'>size</span>,
-                                       <span class='ident'>pipeline_id</span>);
-        <span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>.<span class='ident'>add_node</span>(<span class='ident'>node</span>.<span class='ident'>clone</span>(),
-                                       <span class='ident'>iframe_scroll_layer_id</span>,
-                                       <span class='ident'>iframe_reference_frame_id</span>);
 
-        <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>push_clip_scroll_node</span>(<span class='ident'>iframe_reference_frame_id</span>, <span class='ident'>iframe_clip</span>);
-        <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>push_clip_scroll_node</span>(<span class='ident'>iframe_scroll_layer_id</span>, <span class='ident'>iframe_clip</span>);
+        <span class='kw'>let</span> <span class='ident'>parent_id</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>current_clip_scroll_node_id</span>();
+        <span class='kw'>let</span> <span class='ident'>parent_id</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>scroll_layer_id_with_replacement</span>(<span class='ident'>parent_id</span>);
+
+        <span class='kw'>let</span> <span class='ident'>iframe_reference_frame_id</span> <span class='op'>=</span>
+            <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>push_reference_frame</span>(<span class='prelude-val'>Some</span>(<span class='ident'>parent_id</span>),
+                                                 <span class='ident'>pipeline_id</span>,
+                                                 <span class='kw-2'>&amp;</span><span class='ident'>iframe_rect</span>,
+                                                 <span class='kw-2'>&amp;</span><span class='ident'>transform</span>,
+                                                 <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>);
+
+        <span class='kw'>let</span> <span class='ident'>iframe_scroll_layer_id</span> <span class='op'>=</span> <span class='ident'>ScrollLayerId</span>::<span class='ident'>root_scroll_layer</span>(<span class='ident'>pipeline_id</span>);
+        <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>push_clip_scroll_node</span>(
+            <span class='ident'>iframe_scroll_layer_id</span>,
+            <span class='ident'>iframe_reference_frame_id</span>,
+            <span class='ident'>pipeline_id</span>,
+            <span class='kw-2'>&amp;</span><span class='ident'>LayerRect</span>::<span class='ident'>new</span>(<span class='ident'>LayerPoint</span>::<span class='ident'>zero</span>(), <span class='ident'>iframe_rect</span>.<span class='ident'>size</span>),
+            <span class='kw-2'>&amp;</span><span class='ident'>iframe_clip</span>.<span class='ident'>main</span>.<span class='ident'>size</span>,
+            <span class='ident'>iframe_clip</span>,
+            <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>);
 
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>traversal</span> <span class='op'>=</span> <span class='ident'>DisplayListTraversal</span>::<span class='ident'>new_skipping_first</span>(<span class='ident'>display_list</span>);
-
         <span class='self'>self</span>.<span class='ident'>flatten_stacking_context</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>traversal</span>,
                                       <span class='ident'>pipeline_id</span>,
                                       <span class='ident'>context</span>,
-                                      <span class='ident'>iframe_reference_frame_id</span>,
                                       <span class='ident'>iframe_scroll_layer_id</span>,
                                       <span class='ident'>LayerPoint</span>::<span class='ident'>zero</span>(),
                                       <span class='number'>0</span>,
@@ -1521,14 +1528,13 @@
                          <span class='ident'>traversal</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>DisplayListTraversal</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>,
                          <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
                          <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>FlattenContext</span>,
-                         <span class='ident'>current_reference_frame_id</span>: <span class='ident'>ScrollLayerId</span>,
-                         <span class='ident'>current_scroll_layer_id</span>: <span class='ident'>ScrollLayerId</span>,
                          <span class='ident'>reference_frame_relative_offset</span>: <span class='ident'>LayerPoint</span>,
                          <span class='ident'>level</span>: <span class='ident'>i32</span>) {
         <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>item</span>) <span class='op'>=</span> <span class='ident'>traversal</span>.<span class='ident'>next</span>() {
+            <span class='kw'>let</span> <span class='ident'>scroll_layer_id</span> <span class='op'>=</span> <span class='ident'>context</span>.<span class='ident'>scroll_layer_id_with_replacement</span>(<span class='ident'>item</span>.<span class='ident'>scroll_layer_id</span>);
             <span class='kw'>match</span> <span class='ident'>item</span>.<span class='ident'>item</span> {
                 <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>WebGL</span>(<span class='kw-2'>ref</span> <span class='ident'>info</span>) <span class='op'>=&gt;</span> {
-                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_webgl_rectangle</span>(<span class='ident'>current_scroll_layer_id</span>,
+                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_webgl_rectangle</span>(<span class='ident'>scroll_layer_id</span>,
                                                         <span class='ident'>item</span>.<span class='ident'>rect</span>,
                                                         <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                                         <span class='ident'>info</span>.<span class='ident'>context_id</span>);
@@ -1539,14 +1545,14 @@
                         <span class='comment'>// The image resource is tiled. We have to generate an image primitive</span>
                         <span class='comment'>// for each tile.</span>
                         <span class='kw'>let</span> <span class='ident'>image_size</span> <span class='op'>=</span> <span class='ident'>DeviceUintSize</span>::<span class='ident'>new</span>(<span class='ident'>image</span>.<span class='ident'>descriptor</span>.<span class='ident'>width</span>, <span class='ident'>image</span>.<span class='ident'>descriptor</span>.<span class='ident'>height</span>);
-                        <span class='self'>self</span>.<span class='ident'>decompose_tiled_image</span>(<span class='ident'>current_scroll_layer_id</span>,
+                        <span class='self'>self</span>.<span class='ident'>decompose_tiled_image</span>(<span class='ident'>scroll_layer_id</span>,
                                                    <span class='ident'>context</span>,
                                                    <span class='kw-2'>&amp;</span><span class='ident'>item</span>,
                                                    <span class='ident'>info</span>,
                                                    <span class='ident'>image_size</span>,
                                                    <span class='ident'>tile_size</span> <span class='kw'>as</span> <span class='ident'>u32</span>);
                     } <span class='kw'>else</span> {
-                        <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_image</span>(<span class='ident'>current_scroll_layer_id</span>,
+                        <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_image</span>(<span class='ident'>scroll_layer_id</span>,
                                                   <span class='ident'>item</span>.<span class='ident'>rect</span>,
                                                   <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                                   <span class='kw-2'>&amp;</span><span class='ident'>info</span>.<span class='ident'>stretch_size</span>,
@@ -1558,7 +1564,7 @@
                     }
                 }
                 <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>YuvImage</span>(<span class='kw-2'>ref</span> <span class='ident'>info</span>) <span class='op'>=&gt;</span> {
-                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_yuv_image</span>(<span class='ident'>current_scroll_layer_id</span>,
+                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_yuv_image</span>(<span class='ident'>scroll_layer_id</span>,
                                                   <span class='ident'>item</span>.<span class='ident'>rect</span>,
                                                   <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                                   <span class='ident'>info</span>.<span class='ident'>y_image_key</span>,
@@ -1567,7 +1573,7 @@
                                                   <span class='ident'>info</span>.<span class='ident'>color_space</span>);
                 }
                 <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>Text</span>(<span class='kw-2'>ref</span> <span class='ident'>text_info</span>) <span class='op'>=&gt;</span> {
-                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_text</span>(<span class='ident'>current_scroll_layer_id</span>,
+                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_text</span>(<span class='ident'>scroll_layer_id</span>,
                                              <span class='ident'>item</span>.<span class='ident'>rect</span>,
                                              <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                              <span class='ident'>text_info</span>.<span class='ident'>font_key</span>,
@@ -1578,14 +1584,14 @@
                                              <span class='ident'>text_info</span>.<span class='ident'>glyph_options</span>);
                 }
                 <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>Rectangle</span>(<span class='kw-2'>ref</span> <span class='ident'>info</span>) <span class='op'>=&gt;</span> {
-                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_solid_rectangle</span>(<span class='ident'>current_scroll_layer_id</span>,
+                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_solid_rectangle</span>(<span class='ident'>scroll_layer_id</span>,
                                                         <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>rect</span>,
                                                         <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                                         <span class='kw-2'>&amp;</span><span class='ident'>info</span>.<span class='ident'>color</span>,
                                                         <span class='ident'>PrimitiveFlags</span>::<span class='prelude-val'>None</span>);
                 }
                 <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>Gradient</span>(<span class='kw-2'>ref</span> <span class='ident'>info</span>) <span class='op'>=&gt;</span> {
-                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_gradient</span>(<span class='ident'>current_scroll_layer_id</span>,
+                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_gradient</span>(<span class='ident'>scroll_layer_id</span>,
                                                  <span class='ident'>item</span>.<span class='ident'>rect</span>,
                                                  <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                                  <span class='ident'>info</span>.<span class='ident'>start_point</span>,
@@ -1594,7 +1600,7 @@
                                                  <span class='ident'>info</span>.<span class='ident'>extend_mode</span>);
                 }
                 <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>RadialGradient</span>(<span class='kw-2'>ref</span> <span class='ident'>info</span>) <span class='op'>=&gt;</span> {
-                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_radial_gradient</span>(<span class='ident'>current_scroll_layer_id</span>,
+                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_radial_gradient</span>(<span class='ident'>scroll_layer_id</span>,
                                                         <span class='ident'>item</span>.<span class='ident'>rect</span>,
                                                         <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                                         <span class='ident'>info</span>.<span class='ident'>start_center</span>,
@@ -1605,7 +1611,7 @@
                                                         <span class='ident'>info</span>.<span class='ident'>extend_mode</span>);
                 }
                 <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>BoxShadow</span>(<span class='kw-2'>ref</span> <span class='ident'>box_shadow_info</span>) <span class='op'>=&gt;</span> {
-                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_box_shadow</span>(<span class='ident'>current_scroll_layer_id</span>,
+                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_box_shadow</span>(<span class='ident'>scroll_layer_id</span>,
                                                    <span class='kw-2'>&amp;</span><span class='ident'>box_shadow_info</span>.<span class='ident'>box_bounds</span>,
                                                    <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                                    <span class='kw-2'>&amp;</span><span class='ident'>box_shadow_info</span>.<span class='ident'>offset</span>,
@@ -1616,7 +1622,7 @@
                                                    <span class='ident'>box_shadow_info</span>.<span class='ident'>clip_mode</span>);
                 }
                 <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>Border</span>(<span class='kw-2'>ref</span> <span class='ident'>info</span>) <span class='op'>=&gt;</span> {
-                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_border</span>(<span class='ident'>current_scroll_layer_id</span>,
+                    <span class='ident'>context</span>.<span class='ident'>builder</span>.<span class='ident'>add_border</span>(<span class='ident'>scroll_layer_id</span>,
                                                <span class='ident'>item</span>.<span class='ident'>rect</span>,
                                                <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
                                                <span class='ident'>info</span>);
@@ -1625,8 +1631,7 @@
                     <span class='self'>self</span>.<span class='ident'>flatten_stacking_context</span>(<span class='ident'>traversal</span>,
                                                   <span class='ident'>pipeline_id</span>,
                                                   <span class='ident'>context</span>,
-                                                  <span class='ident'>current_reference_frame_id</span>,
-                                                  <span class='ident'>current_scroll_layer_id</span>,
+                                                  <span class='ident'>item</span>.<span class='ident'>scroll_layer_id</span>,
                                                   <span class='ident'>reference_frame_relative_offset</span>,
                                                   <span class='ident'>level</span> <span class='op'>+</span> <span class='number'>1</span>,
                                                   <span class='kw-2'>&amp;</span><span class='ident'>info</span>.<span class='ident'>stacking_context</span>,
@@ -1636,8 +1641,6 @@
                     <span class='self'>self</span>.<span class='ident'>flatten_scroll_layer</span>(<span class='ident'>traversal</span>,
                                               <span class='ident'>pipeline_id</span>,
                                               <span class='ident'>context</span>,
-                                              <span class='ident'>current_reference_frame_id</span>,
-                                              <span class='ident'>current_scroll_layer_id</span>,
                                               <span class='ident'>reference_frame_relative_offset</span>,
                                               <span class='ident'>level</span>,
                                               <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>clip</span>,
@@ -1648,7 +1651,6 @@
                     <span class='self'>self</span>.<span class='ident'>flatten_iframe</span>(<span class='ident'>info</span>.<span class='ident'>pipeline_id</span>,
                                         <span class='kw-2'>&amp;</span><span class='ident'>item</span>.<span class='ident'>rect</span>,
                                         <span class='ident'>context</span>,
-                                        <span class='ident'>current_scroll_layer_id</span>,
                                         <span class='ident'>reference_frame_relative_offset</span>);
                 }
                 <span class='ident'>SpecificDisplayItem</span>::<span class='ident'>PopStackingContext</span> <span class='op'>|</span>
@@ -1885,7 +1887,7 @@
         <span class='kw'>let</span> <span class='ident'>frame</span> <span class='op'>=</span> <span class='ident'>frame_builder</span>.<span class='ident'>as_mut</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>builder</span><span class='op'>|</span>
             <span class='ident'>builder</span>.<span class='ident'>build</span>(<span class='ident'>resource_cache</span>,
                           <span class='self'>self</span>.<span class='ident'>id</span>,
-                          <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>,
+                          <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>clip_scroll_tree</span>,
                           <span class='ident'>auxiliary_lists_map</span>,
                           <span class='ident'>device_pixel_ratio</span>,
                           <span class='ident'>texture_cache_profile</span>)

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/f9860e0/webrender/src/clip_scroll_node.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/ec37792/webrender/src/clip_scroll_node.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>clip_scroll_node.rs.html -- source</title>
@@ -396,6 +396,61 @@
 <span id="351">351</span>
 <span id="352">352</span>
 <span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -403,10 +458,16 @@
 
 <span class='kw'>use</span> <span class='ident'>euclid</span>::<span class='ident'>Point3D</span>;
 <span class='kw'>use</span> <span class='ident'>geometry</span>::<span class='ident'>ray_intersects_rect</span>;
+<span class='kw'>use</span> <span class='ident'>mask_cache</span>::{<span class='ident'>ClipSource</span>, <span class='ident'>MaskCacheInfo</span>};
+<span class='kw'>use</span> <span class='ident'>prim_store</span>::<span class='ident'>GpuBlock32</span>;
+<span class='kw'>use</span> <span class='ident'>renderer</span>::<span class='ident'>VertexDataStore</span>;
 <span class='kw'>use</span> <span class='ident'>spring</span>::{<span class='ident'>DAMPING</span>, <span class='ident'>STIFFNESS</span>, <span class='ident'>Spring</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>LayerPixel</span>, <span class='ident'>LayerPoint</span>, <span class='ident'>LayerRect</span>, <span class='ident'>LayerSize</span>, <span class='ident'>LayerToScrollTransform</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>LayerToWorldTransform</span>, <span class='ident'>PipelineId</span>, <span class='ident'>ScrollEventPhase</span>, <span class='ident'>ScrollLayerId</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ScrollLayerRect</span>, <span class='ident'>ScrollLocation</span>, <span class='ident'>WorldPoint</span>, <span class='ident'>WorldPoint4D</span>};
+<span class='kw'>use</span> <span class='ident'>tiling</span>::<span class='ident'>PackedLayerIndex</span>;
+<span class='kw'>use</span> <span class='ident'>util</span>::<span class='ident'>TransformedRect</span>;
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ClipRegion</span>, <span class='ident'>LayerPixel</span>, <span class='ident'>LayerPoint</span>, <span class='ident'>LayerRect</span>, <span class='ident'>LayerSize</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>LayerToScrollTransform</span>, <span class='ident'>LayerToWorldTransform</span>, <span class='ident'>PipelineId</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ScrollEventPhase</span>, <span class='ident'>ScrollLayerId</span>, <span class='ident'>ScrollLayerRect</span>, <span class='ident'>ScrollLocation</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>WorldPoint</span>, <span class='ident'>WorldPoint4D</span>};
 
 <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;macos&quot;</span>)]</span>
 <span class='kw'>const</span> <span class='ident'>CAN_OVERSCROLL</span>: <span class='ident'>bool</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
@@ -414,18 +475,61 @@
 <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;macos&quot;</span>))]</span>
 <span class='kw'>const</span> <span class='ident'>CAN_OVERSCROLL</span>: <span class='ident'>bool</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>)]</span>
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ClipInfo</span> {
+    <span class='doccomment'>/// The ClipSource for this node, which is used to generate mask_cache_info.</span>
+    <span class='kw'>pub</span> <span class='ident'>clip_source</span>: <span class='ident'>ClipSource</span>,
+
+    <span class='doccomment'>/// The MaskCacheInfo for this node, which is produced by processing the</span>
+    <span class='doccomment'>/// provided ClipSource.</span>
+    <span class='kw'>pub</span> <span class='ident'>mask_cache_info</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>MaskCacheInfo</span><span class='op'>&gt;</span>,
+
+    <span class='doccomment'>/// The packed layer index for this node, which is used to render a clip mask</span>
+    <span class='doccomment'>/// for it, if necessary.</span>
+    <span class='kw'>pub</span> <span class='ident'>packed_layer_index</span>: <span class='ident'>PackedLayerIndex</span>,
+
+    <span class='doccomment'>/// The final transformed rectangle of this clipping region for this node,</span>
+    <span class='doccomment'>/// which depends on the screen rectangle and the transformation of all of</span>
+    <span class='doccomment'>/// the parents.</span>
+    <span class='kw'>pub</span> <span class='ident'>xf_rect</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>TransformedRect</span><span class='op'>&gt;</span>,
+}
+
+<span class='kw'>impl</span> <span class='ident'>ClipInfo</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>clip_region</span>: <span class='kw-2'>&amp;</span><span class='ident'>ClipRegion</span>,
+               <span class='ident'>clip_store</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>VertexDataStore</span><span class='op'>&lt;</span><span class='ident'>GpuBlock32</span><span class='op'>&gt;</span>,
+               <span class='ident'>packed_layer_index</span>: <span class='ident'>PackedLayerIndex</span>)
+               <span class='op'>-&gt;</span> <span class='ident'>ClipInfo</span> {
+        <span class='comment'>// We pass true here for the MaskCacheInfo because this type of</span>
+        <span class='comment'>// mask needs an extra clip for the clip rectangle.</span>
+        <span class='kw'>let</span> <span class='ident'>clip_source</span> <span class='op'>=</span> <span class='ident'>ClipSource</span>::<span class='ident'>Region</span>(<span class='ident'>clip_region</span>.<span class='ident'>clone</span>());
+        <span class='ident'>ClipInfo</span> {
+            <span class='ident'>mask_cache_info</span>: <span class='ident'>MaskCacheInfo</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>clip_source</span>, <span class='bool-val'>true</span>, <span class='ident'>clip_store</span>),
+            <span class='ident'>clip_source</span>: <span class='ident'>clip_source</span>,
+            <span class='ident'>packed_layer_index</span>: <span class='ident'>packed_layer_index</span>,
+            <span class='ident'>xf_rect</span>: <span class='prelude-val'>None</span>,
+        }
+    }
+
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_masking</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>mask_cache_info</span> {
+            <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>info</span>) <span class='op'>=&gt;</span> <span class='ident'>info</span>.<span class='ident'>is_masking</span>(),
+            _ <span class='op'>=&gt;</span> <span class='bool-val'>false</span>,
+        }
+    }
+
+}
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>NodeType</span> {
     <span class='doccomment'>/// Transform for this layer, relative to parent reference frame. A reference</span>
     <span class='doccomment'>/// frame establishes a new coordinate space in the tree.</span>
     <span class='ident'>ReferenceFrame</span>(<span class='ident'>LayerToScrollTransform</span>),
 
     <span class='doccomment'>/// Other nodes just do clipping, but no transformation.</span>
-    <span class='ident'>ClipRect</span>,
+    <span class='ident'>Clip</span>(<span class='ident'>ClipInfo</span>),
 }
 
 <span class='doccomment'>/// Contains scrolling and transform information stacking contexts.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>)]</span>
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ClipScrollNode</span> {
     <span class='doccomment'>/// Manages scrolling offset, overscroll state etc.</span>
     <span class='kw'>pub</span> <span class='ident'>scrolling</span>: <span class='ident'>ScrollingState</span>,
@@ -455,6 +559,9 @@
     <span class='doccomment'>/// Pipeline that this layer belongs to</span>
     <span class='kw'>pub</span> <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
 
+    <span class='doccomment'>/// Parent layer. If this is None, we are the root node.</span>
+    <span class='kw'>pub</span> <span class='ident'>parent</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerId</span><span class='op'>&gt;</span>,
+
     <span class='doccomment'>/// Child layers</span>
     <span class='kw'>pub</span> <span class='ident'>children</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerId</span><span class='op'>&gt;</span>,
 
@@ -463,27 +570,29 @@
 }
 
 <span class='kw'>impl</span> <span class='ident'>ClipScrollNode</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>local_viewport_rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerRect</span>,
-               <span class='ident'>local_clip_rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerRect</span>,
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
+               <span class='ident'>parent_id</span>: <span class='ident'>ScrollLayerId</span>,
+               <span class='ident'>local_viewport_rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerRect</span>,
                <span class='ident'>content_size</span>: <span class='ident'>LayerSize</span>,
-               <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>)
+               <span class='ident'>clip_info</span>: <span class='ident'>ClipInfo</span>)
                <span class='op'>-&gt;</span> <span class='ident'>ClipScrollNode</span> {
         <span class='ident'>ClipScrollNode</span> {
             <span class='ident'>scrolling</span>: <span class='ident'>ScrollingState</span>::<span class='ident'>new</span>(),
             <span class='ident'>content_size</span>: <span class='ident'>content_size</span>,
             <span class='ident'>local_viewport_rect</span>: <span class='kw-2'>*</span><span class='ident'>local_viewport_rect</span>,
-            <span class='ident'>local_clip_rect</span>: <span class='kw-2'>*</span><span class='ident'>local_clip_rect</span>,
-            <span class='ident'>combined_local_viewport_rect</span>: <span class='kw-2'>*</span><span class='ident'>local_clip_rect</span>,
+            <span class='ident'>local_clip_rect</span>: <span class='kw-2'>*</span><span class='ident'>local_viewport_rect</span>,
+            <span class='ident'>combined_local_viewport_rect</span>: <span class='ident'>LayerRect</span>::<span class='ident'>zero</span>(),
             <span class='ident'>world_viewport_transform</span>: <span class='ident'>LayerToWorldTransform</span>::<span class='ident'>identity</span>(),
             <span class='ident'>world_content_transform</span>: <span class='ident'>LayerToWorldTransform</span>::<span class='ident'>identity</span>(),
+            <span class='ident'>parent</span>: <span class='prelude-val'>Some</span>(<span class='ident'>parent_id</span>),
             <span class='ident'>children</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
             <span class='ident'>pipeline_id</span>: <span class='ident'>pipeline_id</span>,
-            <span class='ident'>node_type</span>: <span class='ident'>NodeType</span>::<span class='ident'>ClipRect</span>,
+            <span class='ident'>node_type</span>: <span class='ident'>NodeType</span>::<span class='ident'>Clip</span>(<span class='ident'>clip_info</span>),
         }
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new_reference_frame</span>(<span class='ident'>local_viewport_rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerRect</span>,
-                               <span class='ident'>local_clip_rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerRect</span>,
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new_reference_frame</span>(<span class='ident'>parent_id</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ScrollLayerId</span><span class='op'>&gt;</span>,
+                               <span class='ident'>local_viewport_rect</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerRect</span>,
                                <span class='ident'>content_size</span>: <span class='ident'>LayerSize</span>,
                                <span class='ident'>local_transform</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayerToScrollTransform</span>,
                                <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>)
@@ -492,10 +601,11 @@
             <span class='ident'>scrolling</span>: <span class='ident'>ScrollingState</span>::<span class='ident'>new</span>(),
             <span class='ident'>content_size</span>: <span class='ident'>content_size</span>,
             <span class='ident'>local_viewport_rect</span>: <span class='kw-2'>*</span><span class='ident'>local_viewport_rect</span>,
-            <span class='ident'>local_clip_rect</span>: <span class='kw-2'>*</span><span class='ident'>local_clip_rect</span>,
-            <span class='ident'>combined_local_viewport_rect</span>: <span class='kw-2'>*</span><span class='ident'>local_clip_rect</span>,
+            <span class='ident'>local_clip_rect</span>: <span class='kw-2'>*</span><span class='ident'>local_viewport_rect</span>,
+            <span class='ident'>combined_local_viewport_rect</span>: <span class='ident'>LayerRect</span>::<span class='ident'>zero</span>(),
             <span class='ident'>world_viewport_transform</span>: <span class='ident'>LayerToWorldTransform</span>::<span class='ident'>identity</span>(),
             <span class='ident'>world_content_transform</span>: <span class='ident'>LayerToWorldTransform</span>::<span class='ident'>identity</span>(),
+            <span class='ident'>parent</span>: <span class='ident'>parent_id</span>,
             <span class='ident'>children</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
             <span class='ident'>pipeline_id</span>: <span class='ident'>pipeline_id</span>,
             <span class='ident'>node_type</span>: <span class='ident'>NodeType</span>::<span class='ident'>ReferenceFrame</span>(<span class='kw-2'>*</span><span class='ident'>local_transform</span>),
@@ -558,7 +668,7 @@
 
         <span class='kw'>let</span> <span class='ident'>local_transform</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>node_type</span> {
             <span class='ident'>NodeType</span>::<span class='ident'>ReferenceFrame</span>(<span class='ident'>transform</span>) <span class='op'>=&gt;</span> <span class='ident'>transform</span>,
-            <span class='ident'>NodeType</span>::<span class='ident'>ClipRect</span> <span class='op'>=&gt;</span> <span class='ident'>LayerToScrollTransform</span>::<span class='ident'>identity</span>(),
+            <span class='ident'>NodeType</span>::<span class='ident'>Clip</span>(_) <span class='op'>=&gt;</span> <span class='ident'>LayerToScrollTransform</span>::<span class='ident'>identity</span>(),
         };
 
         <span class='kw'>let</span> <span class='ident'>inv_transform</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>local_transform</span>.<span class='ident'>inverse</span>() {
@@ -729,7 +839,7 @@
     }
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>)]</span>
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ScrollingState</span> {
     <span class='kw'>pub</span> <span class='ident'>offset</span>: <span class='ident'>LayerPoint</span>,
     <span class='kw'>pub</span> <span class='ident'>spring</span>: <span class='ident'>Spring</span>,

@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["CAN_OVERSCROLL",""]],"enum":[["NodeType",""]],"struct":[["ClipScrollNode","Contains scrolling and transform information stacking contexts."],["ScrollingState",""]]});
+initSidebarItems({"constant":[["CAN_OVERSCROLL",""]],"enum":[["NodeType",""]],"struct":[["ClipInfo",""],["ClipScrollNode","Contains scrolling and transform information stacking contexts."],["ScrollingState",""]]});
