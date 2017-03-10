@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["IntoIter",""],["Iter",""],["StringVec","Vec of immutable strings stored on the heap in the same buffer."]]});

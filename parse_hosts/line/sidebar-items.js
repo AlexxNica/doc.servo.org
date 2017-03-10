@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Line","Formatted line in `/etc/hosts`."]]});

@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["LineReadError","Error found when reading a line in `/etc/hosts`."]],"struct":[["DataLines","Iterator over the lines in `/etc/hosts` with data."],["HostsFile","Representation of `/etc/hosts`."],["Lines","Iterator over the lines in `/etc/hosts`."]]});

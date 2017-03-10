@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["StringPair","Immutable pair of strings stored on the heap in the same buffer."]]});

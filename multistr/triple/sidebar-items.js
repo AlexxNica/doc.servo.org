@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["StringTriple","Immutable triple of strings stored on the heap in the same buffer."]]});
