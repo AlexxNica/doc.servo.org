@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/bfef6db/webrender/src/render_backend.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/94f255d/webrender/src/render_backend.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>render_backend.rs.html -- source</title>
@@ -558,6 +558,23 @@
 <span id="513">513</span>
 <span id="514">514</span>
 <span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -579,7 +596,7 @@
 <span class='kw'>use</span> <span class='ident'>texture_cache</span>::<span class='ident'>TextureCache</span>;
 <span class='kw'>use</span> <span class='ident'>thread_profiler</span>::<span class='ident'>register_thread_with_profiler</span>;
 <span class='kw'>use</span> <span class='ident'>threadpool</span>::<span class='ident'>ThreadPool</span>;
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>DeviceUintPoint</span>, <span class='ident'>DeviceUintRect</span>, <span class='ident'>DeviceUintSize</span>};
+<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>DeviceIntPoint</span>, <span class='ident'>DeviceUintPoint</span>, <span class='ident'>DeviceUintRect</span>, <span class='ident'>DeviceUintSize</span>, <span class='ident'>LayerPoint</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>ApiMsg</span>, <span class='ident'>AuxiliaryLists</span>, <span class='ident'>BuiltDisplayList</span>, <span class='ident'>IdNamespace</span>, <span class='ident'>ImageData</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::{<span class='ident'>PipelineId</span>, <span class='ident'>RenderNotifier</span>, <span class='ident'>RenderDispatcher</span>, <span class='ident'>WebGLCommand</span>, <span class='ident'>WebGLContextId</span>};
 <span class='kw'>use</span> <span class='ident'>webrender_traits</span>::<span class='ident'>channel</span>::{<span class='ident'>PayloadHelperMethods</span>, <span class='ident'>PayloadReceiver</span>, <span class='ident'>PayloadSender</span>, <span class='ident'>MsgReceiver</span>};
@@ -596,8 +613,11 @@
     <span class='ident'>payload_tx</span>: <span class='ident'>PayloadSender</span>,
     <span class='ident'>result_tx</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>ResultMsg</span><span class='op'>&gt;</span>,
 
-    <span class='ident'>device_pixel_ratio</span>: <span class='ident'>f32</span>,
+    <span class='comment'>// TODO(gw): Consider using strongly typed units here.</span>
+    <span class='ident'>hidpi_factor</span>: <span class='ident'>f32</span>,
     <span class='ident'>page_zoom_factor</span>: <span class='ident'>f32</span>,
+    <span class='ident'>pinch_zoom_factor</span>: <span class='ident'>f32</span>,
+    <span class='ident'>pan</span>: <span class='ident'>DeviceIntPoint</span>,
     <span class='ident'>window_size</span>: <span class='ident'>DeviceUintSize</span>,
     <span class='ident'>inner_rect</span>: <span class='ident'>DeviceUintRect</span>,
     <span class='ident'>next_namespace_id</span>: <span class='ident'>IdNamespace</span>,
@@ -624,7 +644,7 @@
                <span class='ident'>payload_rx</span>: <span class='ident'>PayloadReceiver</span>,
                <span class='ident'>payload_tx</span>: <span class='ident'>PayloadSender</span>,
                <span class='ident'>result_tx</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>ResultMsg</span><span class='op'>&gt;</span>,
-               <span class='ident'>device_pixel_ratio</span>: <span class='ident'>f32</span>,
+               <span class='ident'>hidpi_factor</span>: <span class='ident'>f32</span>,
                <span class='ident'>texture_cache</span>: <span class='ident'>TextureCache</span>,
                <span class='ident'>enable_aa</span>: <span class='ident'>bool</span>,
                <span class='ident'>workers</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>ThreadPool</span><span class='op'>&gt;&gt;</span>,
@@ -646,8 +666,10 @@
             <span class='ident'>payload_rx</span>: <span class='ident'>payload_rx</span>,
             <span class='ident'>payload_tx</span>: <span class='ident'>payload_tx</span>,
             <span class='ident'>result_tx</span>: <span class='ident'>result_tx</span>,
-            <span class='ident'>device_pixel_ratio</span>: <span class='ident'>device_pixel_ratio</span>,
+            <span class='ident'>hidpi_factor</span>: <span class='ident'>hidpi_factor</span>,
             <span class='ident'>page_zoom_factor</span>: <span class='number'>1.0</span>,
+            <span class='ident'>pinch_zoom_factor</span>: <span class='number'>1.0</span>,
+            <span class='ident'>pan</span>: <span class='ident'>DeviceIntPoint</span>::<span class='ident'>zero</span>(),
             <span class='ident'>resource_cache</span>: <span class='ident'>resource_cache</span>,
             <span class='ident'>scene</span>: <span class='ident'>Scene</span>::<span class='ident'>new</span>(),
             <span class='ident'>frame</span>: <span class='ident'>Frame</span>::<span class='ident'>new</span>(<span class='ident'>config</span>),
@@ -711,6 +733,12 @@
                         }
                         <span class='ident'>ApiMsg</span>::<span class='ident'>SetPageZoom</span>(<span class='ident'>factor</span>) <span class='op'>=&gt;</span> {
                             <span class='self'>self</span>.<span class='ident'>page_zoom_factor</span> <span class='op'>=</span> <span class='ident'>factor</span>.<span class='ident'>get</span>();
+                        }
+                        <span class='ident'>ApiMsg</span>::<span class='ident'>SetPinchZoom</span>(<span class='ident'>factor</span>) <span class='op'>=&gt;</span> {
+                            <span class='self'>self</span>.<span class='ident'>pinch_zoom_factor</span> <span class='op'>=</span> <span class='ident'>factor</span>.<span class='ident'>get</span>();
+                        }
+                        <span class='ident'>ApiMsg</span>::<span class='ident'>SetPan</span>(<span class='ident'>pan</span>) <span class='op'>=&gt;</span> {
+                            <span class='self'>self</span>.<span class='ident'>pan</span> <span class='op'>=</span> <span class='ident'>pan</span>;
                         }
                         <span class='ident'>ApiMsg</span>::<span class='ident'>SetWindowParameters</span>(<span class='ident'>window_size</span>, <span class='ident'>inner_rect</span>) <span class='op'>=&gt;</span> {
                             <span class='self'>self</span>.<span class='ident'>window_size</span> <span class='op'>=</span> <span class='ident'>window_size</span>;
@@ -977,6 +1005,10 @@
         <span class='self'>self</span>.<span class='ident'>frame</span>.<span class='ident'>discard_frame_state_for_pipeline</span>(<span class='ident'>pipeline_id</span>);
     }
 
+    <span class='kw'>fn</span> <span class='ident'>accumulated_scale_factor</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>f32</span> {
+        <span class='self'>self</span>.<span class='ident'>hidpi_factor</span> <span class='op'>*</span> <span class='self'>self</span>.<span class='ident'>page_zoom_factor</span> <span class='op'>*</span> <span class='self'>self</span>.<span class='ident'>pinch_zoom_factor</span>
+    }
+
     <span class='kw'>fn</span> <span class='ident'>build_scene</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
         <span class='comment'>// Flatten the stacking context hierarchy</span>
         <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>id</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>current_bound_webgl_context_id</span> {
@@ -997,22 +1029,24 @@
             <span class='ident'>webgl_context</span>.<span class='ident'>unbind</span>();
         }
 
-        <span class='kw'>let</span> <span class='ident'>device_pixel_ratio</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>device_pixel_ratio</span> <span class='op'>*</span> <span class='self'>self</span>.<span class='ident'>page_zoom_factor</span>;
-
+        <span class='kw'>let</span> <span class='ident'>accumulated_scale_factor</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>accumulated_scale_factor</span>();
         <span class='self'>self</span>.<span class='ident'>frame</span>.<span class='ident'>create</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>scene</span>,
                           <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>resource_cache</span>,
                           <span class='self'>self</span>.<span class='ident'>window_size</span>,
                           <span class='self'>self</span>.<span class='ident'>inner_rect</span>,
-                          <span class='ident'>device_pixel_ratio</span>);
+                          <span class='ident'>accumulated_scale_factor</span>);
     }
 
     <span class='kw'>fn</span> <span class='ident'>render</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
               <span class='ident'>texture_cache_profile</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>TextureCacheProfileCounters</span>)
               <span class='op'>-&gt;</span> <span class='ident'>RendererFrame</span> {
-        <span class='kw'>let</span> <span class='ident'>device_pixel_ratio</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>device_pixel_ratio</span> <span class='op'>*</span> <span class='self'>self</span>.<span class='ident'>page_zoom_factor</span>;
+        <span class='kw'>let</span> <span class='ident'>accumulated_scale_factor</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>accumulated_scale_factor</span>();
+        <span class='kw'>let</span> <span class='ident'>pan</span> <span class='op'>=</span> <span class='ident'>LayerPoint</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>pan</span>.<span class='ident'>x</span> <span class='kw'>as</span> <span class='ident'>f32</span> <span class='op'>/</span> <span class='ident'>accumulated_scale_factor</span>,
+                                  <span class='self'>self</span>.<span class='ident'>pan</span>.<span class='ident'>y</span> <span class='kw'>as</span> <span class='ident'>f32</span> <span class='op'>/</span> <span class='ident'>accumulated_scale_factor</span>);
         <span class='kw'>let</span> <span class='ident'>frame</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>frame</span>.<span class='ident'>build</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>resource_cache</span>,
                                      <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>scene</span>.<span class='ident'>pipeline_auxiliary_lists</span>,
-                                     <span class='ident'>device_pixel_ratio</span>,
+                                     <span class='ident'>accumulated_scale_factor</span>,
+                                     <span class='ident'>pan</span>,
                                      <span class='ident'>texture_cache_profile</span>);
         <span class='ident'>frame</span>
     }

@@ -1444,6 +1444,22 @@
 <span id="1399">1399</span>
 <span id="1400">1400</span>
 <span id="1401">1401</span>
+<span id="1402">1402</span>
+<span id="1403">1403</span>
+<span id="1404">1404</span>
+<span id="1405">1405</span>
+<span id="1406">1406</span>
+<span id="1407">1407</span>
+<span id="1408">1408</span>
+<span id="1409">1409</span>
+<span id="1410">1410</span>
+<span id="1411">1411</span>
+<span id="1412">1412</span>
+<span id="1413">1413</span>
+<span id="1414">1414</span>
+<span id="1415">1415</span>
+<span id="1416">1416</span>
+<span id="1417">1417</span>
 </pre><pre class='rust '>
 <span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1469,6 +1485,7 @@
 <span class='kw'>use</span> <span class='ident'>hyper</span>::<span class='ident'>header</span>::{<span class='ident'>ContentLength</span>, <span class='ident'>Encoding</span>, <span class='ident'>Header</span>, <span class='ident'>Headers</span>, <span class='ident'>Host</span>, <span class='ident'>IfMatch</span>, <span class='ident'>IfRange</span>};
 <span class='kw'>use</span> <span class='ident'>hyper</span>::<span class='ident'>header</span>::{<span class='ident'>IfUnmodifiedSince</span>, <span class='ident'>IfModifiedSince</span>, <span class='ident'>IfNoneMatch</span>, <span class='ident'>Location</span>, <span class='ident'>Pragma</span>, <span class='ident'>Quality</span>};
 <span class='kw'>use</span> <span class='ident'>hyper</span>::<span class='ident'>header</span>::{<span class='ident'>QualityItem</span>, <span class='ident'>Referer</span>, <span class='ident'>SetCookie</span>, <span class='ident'>UserAgent</span>, <span class='ident'>qitem</span>};
+<span class='kw'>use</span> <span class='ident'>hyper</span>::<span class='ident'>header</span>::<span class='ident'>Origin</span> <span class='kw'>as</span> <span class='ident'>HyperOrigin</span>;
 <span class='kw'>use</span> <span class='ident'>hyper</span>::<span class='ident'>method</span>::<span class='ident'>Method</span>;
 <span class='kw'>use</span> <span class='ident'>hyper</span>::<span class='ident'>net</span>::<span class='ident'>Fresh</span>;
 <span class='kw'>use</span> <span class='ident'>hyper</span>::<span class='ident'>status</span>::<span class='ident'>StatusCode</span>;
@@ -2232,6 +2249,15 @@
     <span class='ident'>main_fetch</span>(<span class='ident'>request</span>, <span class='ident'>cache</span>, <span class='ident'>cors_flag</span>, <span class='bool-val'>true</span>, <span class='ident'>target</span>, <span class='ident'>done_chan</span>, <span class='ident'>context</span>)
 }
 
+<span class='kw'>fn</span> <span class='ident'>try_immutable_origin_to_hyper_origin</span>(<span class='ident'>url_origin</span>: <span class='kw-2'>&amp;</span><span class='ident'>ImmutableOrigin</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>HyperOrigin</span><span class='op'>&gt;</span> {
+    <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>url_origin</span> {
+        <span class='comment'>// TODO (servo/servo#15569) Set &quot;Origin: null&quot; when hyper supports it</span>
+        <span class='ident'>ImmutableOrigin</span>::<span class='ident'>Opaque</span>(_) <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
+        <span class='ident'>ImmutableOrigin</span>::<span class='ident'>Tuple</span>(<span class='kw-2'>ref</span> <span class='ident'>scheme</span>, <span class='kw-2'>ref</span> <span class='ident'>host</span>, <span class='kw-2'>ref</span> <span class='ident'>port</span>) <span class='op'>=&gt;</span>
+            <span class='prelude-val'>Some</span>(<span class='ident'>HyperOrigin</span>::<span class='ident'>new</span>(<span class='ident'>scheme</span>.<span class='ident'>clone</span>(), <span class='ident'>host</span>.<span class='ident'>to_string</span>(), <span class='prelude-val'>Some</span>(<span class='ident'>port</span>.<span class='ident'>clone</span>())))
+    }
+}
+
 <span class='doccomment'>/// [HTTP network or cache fetch](https://fetch.spec.whatwg.org#http-network-or-cache-fetch)</span>
 <span class='kw'>fn</span> <span class='ident'>http_network_or_cache_fetch</span>(<span class='ident'>request</span>: <span class='ident'>Rc</span><span class='op'>&lt;</span><span class='ident'>Request</span><span class='op'>&gt;</span>,
                                <span class='ident'>authentication_fetch_flag</span>: <span class='ident'>bool</span>,
@@ -2290,10 +2316,16 @@
     };
 
     <span class='comment'>// Step 9</span>
-    <span class='kw'>if</span> <span class='ident'>cors_flag</span> <span class='op'>||</span>
-      (<span class='kw-2'>*</span><span class='ident'>http_request</span>.<span class='ident'>method</span>.<span class='ident'>borrow</span>() <span class='op'>!=</span> <span class='ident'>Method</span>::<span class='ident'>Get</span> <span class='op'>&amp;&amp;</span> <span class='kw-2'>*</span><span class='ident'>http_request</span>.<span class='ident'>method</span>.<span class='ident'>borrow</span>() <span class='op'>!=</span> <span class='ident'>Method</span>::<span class='ident'>Head</span>) {
-        <span class='comment'>// TODO update this when https://github.com/hyperium/hyper/pull/691 is finished</span>
-        <span class='comment'>// http_request.headers.borrow_mut().set_raw(&quot;origin&quot;, origin);</span>
+    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>http_request</span>.<span class='ident'>omit_origin_header</span>.<span class='ident'>get</span>() {
+        <span class='kw'>let</span> <span class='ident'>method</span> <span class='op'>=</span> <span class='ident'>http_request</span>.<span class='ident'>method</span>.<span class='ident'>borrow</span>();
+        <span class='kw'>if</span> <span class='ident'>cors_flag</span> <span class='op'>||</span> (<span class='kw-2'>*</span><span class='ident'>method</span> <span class='op'>!=</span> <span class='ident'>Method</span>::<span class='ident'>Get</span> <span class='op'>&amp;&amp;</span> <span class='kw-2'>*</span><span class='ident'>method</span> <span class='op'>!=</span> <span class='ident'>Method</span>::<span class='ident'>Head</span>) {
+            <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='kw-2'>*</span><span class='ident'>http_request</span>.<span class='ident'>origin</span>.<span class='ident'>borrow</span>() <span class='op'>!=</span> <span class='ident'>Origin</span>::<span class='ident'>Client</span>);
+            <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>Origin</span>::<span class='ident'>Origin</span>(<span class='kw-2'>ref</span> <span class='ident'>url_origin</span>) <span class='op'>=</span> <span class='kw-2'>*</span><span class='ident'>http_request</span>.<span class='ident'>origin</span>.<span class='ident'>borrow</span>() {
+                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>hyper_origin</span>) <span class='op'>=</span> <span class='ident'>try_immutable_origin_to_hyper_origin</span>(<span class='ident'>url_origin</span>) {
+                    <span class='ident'>http_request</span>.<span class='ident'>headers</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>set</span>(<span class='ident'>hyper_origin</span>)
+                }
+            }
+        }
     }
 
     <span class='comment'>// Step 10</span>
