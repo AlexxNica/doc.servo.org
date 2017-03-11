@@ -702,664 +702,664 @@
 <span id="657">657</span>
 <span id="658">658</span>
 <span id="659">659</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! Conversions of Rust values to and from `JSVal`.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! | IDL type                | Type                             |</span>
-<span class='doccomment'>//! |-------------------------|----------------------------------|</span>
-<span class='doccomment'>//! | any                     | `JSVal`                          |</span>
-<span class='doccomment'>//! | boolean                 | `bool`                           |</span>
-<span class='doccomment'>//! | byte                    | `i8`                             |</span>
-<span class='doccomment'>//! | octet                   | `u8`                             |</span>
-<span class='doccomment'>//! | short                   | `i16`                            |</span>
-<span class='doccomment'>//! | unsigned short          | `u16`                            |</span>
-<span class='doccomment'>//! | long                    | `i32`                            |</span>
-<span class='doccomment'>//! | unsigned long           | `u32`                            |</span>
-<span class='doccomment'>//! | long long               | `i64`                            |</span>
-<span class='doccomment'>//! | unsigned long long      | `u64`                            |</span>
-<span class='doccomment'>//! | unrestricted float      | `f32`                            |</span>
-<span class='doccomment'>//! | float                   | `Finite&lt;f32&gt;`                    |</span>
-<span class='doccomment'>//! | unrestricted double     | `f64`                            |</span>
-<span class='doccomment'>//! | double                  | `Finite&lt;f64&gt;`                    |</span>
-<span class='doccomment'>//! | USVString               | `String`                         |</span>
-<span class='doccomment'>//! | object                  | `*mut JSObject`                  |</span>
-<span class='doccomment'>//! | nullable types          | `Option&lt;T&gt;`                      |</span>
-<span class='doccomment'>//! | sequences               | `Vec&lt;T&gt;`                         |</span>
+<span class="doccomment">//! Conversions of Rust values to and from `JSVal`.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! | IDL type                | Type                             |</span>
+<span class="doccomment">//! |-------------------------|----------------------------------|</span>
+<span class="doccomment">//! | any                     | `JSVal`                          |</span>
+<span class="doccomment">//! | boolean                 | `bool`                           |</span>
+<span class="doccomment">//! | byte                    | `i8`                             |</span>
+<span class="doccomment">//! | octet                   | `u8`                             |</span>
+<span class="doccomment">//! | short                   | `i16`                            |</span>
+<span class="doccomment">//! | unsigned short          | `u16`                            |</span>
+<span class="doccomment">//! | long                    | `i32`                            |</span>
+<span class="doccomment">//! | unsigned long           | `u32`                            |</span>
+<span class="doccomment">//! | long long               | `i64`                            |</span>
+<span class="doccomment">//! | unsigned long long      | `u64`                            |</span>
+<span class="doccomment">//! | unrestricted float      | `f32`                            |</span>
+<span class="doccomment">//! | float                   | `Finite&lt;f32&gt;`                    |</span>
+<span class="doccomment">//! | unrestricted double     | `f64`                            |</span>
+<span class="doccomment">//! | double                  | `Finite&lt;f64&gt;`                    |</span>
+<span class="doccomment">//! | USVString               | `String`                         |</span>
+<span class="doccomment">//! | object                  | `*mut JSObject`                  |</span>
+<span class="doccomment">//! | nullable types          | `Option&lt;T&gt;`                      |</span>
+<span class="doccomment">//! | sequences               | `Vec&lt;T&gt;`                         |</span>
 
-<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>deny</span>(<span class='ident'>missing_docs</span>)]</span>
+<span class="attribute">#<span class="op">!</span>[<span class="ident">deny</span>(<span class="ident">missing_docs</span>)]</span>
 
-<span class='kw'>use</span> <span class='ident'>core</span>::<span class='ident'>nonzero</span>::<span class='ident'>NonZero</span>;
-<span class='kw'>use</span> <span class='ident'>error</span>::<span class='ident'>throw_type_error</span>;
-<span class='kw'>use</span> <span class='ident'>glue</span>::<span class='ident'>RUST_JS_NumberValue</span>;
-<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>ForOfIterator</span>, <span class='ident'>ForOfIterator_NonIterableBehavior</span>, <span class='ident'>HandleValue</span>};
-<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>Heap</span>, <span class='ident'>JS_DefineElement</span>, <span class='ident'>JS_GetLatin1StringCharsAndLength</span>};
-<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>JS_GetTwoByteStringCharsAndLength</span>, <span class='ident'>JS_NewArrayObject1</span>};
-<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>JS_NewUCStringCopyN</span>, <span class='ident'>JSPROP_ENUMERATE</span>, <span class='ident'>JS_StringHasLatin1Chars</span>};
-<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>JSContext</span>, <span class='ident'>JSObject</span>, <span class='ident'>JSString</span>, <span class='ident'>MutableHandleValue</span>, <span class='ident'>RootedObject</span>};
-<span class='kw'>use</span> <span class='ident'>jsval</span>::{<span class='ident'>BooleanValue</span>, <span class='ident'>Int32Value</span>, <span class='ident'>NullValue</span>, <span class='ident'>UInt32Value</span>, <span class='ident'>UndefinedValue</span>};
-<span class='kw'>use</span> <span class='ident'>jsval</span>::{<span class='ident'>JSVal</span>, <span class='ident'>ObjectValue</span>, <span class='ident'>ObjectOrNullValue</span>, <span class='ident'>StringValue</span>};
-<span class='kw'>use</span> <span class='ident'>rust</span>::{<span class='ident'>ToBoolean</span>, <span class='ident'>ToInt32</span>, <span class='ident'>ToInt64</span>, <span class='ident'>ToNumber</span>, <span class='ident'>ToUint16</span>, <span class='ident'>ToUint32</span>, <span class='ident'>ToUint64</span>};
-<span class='kw'>use</span> <span class='ident'>rust</span>::{<span class='ident'>ToString</span>, <span class='ident'>maybe_wrap_object_or_null_value</span>};
-<span class='kw'>use</span> <span class='ident'>rust</span>::{<span class='ident'>maybe_wrap_object_value</span>, <span class='ident'>maybe_wrap_value</span>};
-<span class='kw'>use</span> <span class='ident'>libc</span>;
-<span class='kw'>use</span> <span class='ident'>num_traits</span>::{<span class='ident'>Bounded</span>, <span class='ident'>Zero</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>Cow</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>rc</span>::<span class='ident'>Rc</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::{<span class='ident'>ptr</span>, <span class='ident'>slice</span>};
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">nonzero</span>::<span class="ident">NonZero</span>;
+<span class="kw">use</span> <span class="ident">error</span>::<span class="ident">throw_type_error</span>;
+<span class="kw">use</span> <span class="ident">glue</span>::<span class="ident">RUST_JS_NumberValue</span>;
+<span class="kw">use</span> <span class="ident">jsapi</span>::{<span class="ident">ForOfIterator</span>, <span class="ident">ForOfIterator_NonIterableBehavior</span>, <span class="ident">HandleValue</span>};
+<span class="kw">use</span> <span class="ident">jsapi</span>::{<span class="ident">Heap</span>, <span class="ident">JS_DefineElement</span>, <span class="ident">JS_GetLatin1StringCharsAndLength</span>};
+<span class="kw">use</span> <span class="ident">jsapi</span>::{<span class="ident">JS_GetTwoByteStringCharsAndLength</span>, <span class="ident">JS_NewArrayObject1</span>};
+<span class="kw">use</span> <span class="ident">jsapi</span>::{<span class="ident">JS_NewUCStringCopyN</span>, <span class="ident">JSPROP_ENUMERATE</span>, <span class="ident">JS_StringHasLatin1Chars</span>};
+<span class="kw">use</span> <span class="ident">jsapi</span>::{<span class="ident">JSContext</span>, <span class="ident">JSObject</span>, <span class="ident">JSString</span>, <span class="ident">MutableHandleValue</span>, <span class="ident">RootedObject</span>};
+<span class="kw">use</span> <span class="ident">jsval</span>::{<span class="ident">BooleanValue</span>, <span class="ident">Int32Value</span>, <span class="ident">NullValue</span>, <span class="ident">UInt32Value</span>, <span class="ident">UndefinedValue</span>};
+<span class="kw">use</span> <span class="ident">jsval</span>::{<span class="ident">JSVal</span>, <span class="ident">ObjectValue</span>, <span class="ident">ObjectOrNullValue</span>, <span class="ident">StringValue</span>};
+<span class="kw">use</span> <span class="ident">rust</span>::{<span class="ident">ToBoolean</span>, <span class="ident">ToInt32</span>, <span class="ident">ToInt64</span>, <span class="ident">ToNumber</span>, <span class="ident">ToUint16</span>, <span class="ident">ToUint32</span>, <span class="ident">ToUint64</span>};
+<span class="kw">use</span> <span class="ident">rust</span>::{<span class="ident">ToString</span>, <span class="ident">maybe_wrap_object_or_null_value</span>};
+<span class="kw">use</span> <span class="ident">rust</span>::{<span class="ident">maybe_wrap_object_value</span>, <span class="ident">maybe_wrap_value</span>};
+<span class="kw">use</span> <span class="ident">libc</span>;
+<span class="kw">use</span> <span class="ident">num_traits</span>::{<span class="ident">Bounded</span>, <span class="ident">Zero</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">rc</span>::<span class="ident">Rc</span>;
+<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">ptr</span>, <span class="ident">slice</span>};
 
-<span class='kw'>trait</span> <span class='ident'>As</span><span class='op'>&lt;</span><span class='ident'>O</span><span class='op'>&gt;</span>: <span class='ident'>Copy</span> {
-    <span class='kw'>fn</span> <span class='ident'>cast</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>O</span>;
+<span class="kw">trait</span> <span class="ident">As</span><span class="op">&lt;</span><span class="ident">O</span><span class="op">&gt;</span>: <span class="ident">Copy</span> {
+    <span class="kw">fn</span> <span class="ident">cast</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">O</span>;
 }
 
-<span class='macro'>macro_rules</span><span class='macro'>!</span> <span class='ident'>impl_as</span> {
-    (<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>I</span>:<span class='ident'>ty</span>, <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>O</span>:<span class='ident'>ty</span>) <span class='op'>=&gt;</span> (
-        <span class='kw'>impl</span> <span class='ident'>As</span><span class='op'>&lt;</span><span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>O</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>I</span> {
-            <span class='kw'>fn</span> <span class='ident'>cast</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>O</span> {
-                <span class='self'>self</span> <span class='kw'>as</span> <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>O</span>
+<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">impl_as</span> {
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">I</span>:<span class="ident">ty</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">O</span>:<span class="ident">ty</span>) <span class="op">=&gt;</span> (
+        <span class="kw">impl</span> <span class="ident">As</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">O</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">I</span> {
+            <span class="kw">fn</span> <span class="ident">cast</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">O</span> {
+                <span class="self">self</span> <span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">O</span>
             }
         }
     )
 }
 
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>f64</span>, <span class='ident'>u8</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>f64</span>, <span class='ident'>u16</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>f64</span>, <span class='ident'>u32</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>f64</span>, <span class='ident'>u64</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>f64</span>, <span class='ident'>i8</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>f64</span>, <span class='ident'>i16</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>f64</span>, <span class='ident'>i32</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>f64</span>, <span class='ident'>i64</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">f64</span>, <span class="ident">u8</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">f64</span>, <span class="ident">u16</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">f64</span>, <span class="ident">u32</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">f64</span>, <span class="ident">u64</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">f64</span>, <span class="ident">i8</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">f64</span>, <span class="ident">i16</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">f64</span>, <span class="ident">i32</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">f64</span>, <span class="ident">i64</span>);
 
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>u8</span>, <span class='ident'>f64</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>u16</span>, <span class='ident'>f64</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>u32</span>, <span class='ident'>f64</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>u64</span>, <span class='ident'>f64</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>i8</span>, <span class='ident'>f64</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>i16</span>, <span class='ident'>f64</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>i32</span>, <span class='ident'>f64</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>i64</span>, <span class='ident'>f64</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">u8</span>, <span class="ident">f64</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">u16</span>, <span class="ident">f64</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">u32</span>, <span class="ident">f64</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">u64</span>, <span class="ident">f64</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">i8</span>, <span class="ident">f64</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">i16</span>, <span class="ident">f64</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">i32</span>, <span class="ident">f64</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">i64</span>, <span class="ident">f64</span>);
 
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>i32</span>, <span class='ident'>i8</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>i32</span>, <span class='ident'>u8</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>i32</span>, <span class='ident'>i16</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>u16</span>, <span class='ident'>u16</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>i32</span>, <span class='ident'>i32</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>u32</span>, <span class='ident'>u32</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>i64</span>, <span class='ident'>i64</span>);
-<span class='macro'>impl_as</span><span class='macro'>!</span>(<span class='ident'>u64</span>, <span class='ident'>u64</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">i32</span>, <span class="ident">i8</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">i32</span>, <span class="ident">u8</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">i32</span>, <span class="ident">i16</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">u16</span>, <span class="ident">u16</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">i32</span>, <span class="ident">i32</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">u32</span>, <span class="ident">u32</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">i64</span>, <span class="ident">i64</span>);
+<span class="macro">impl_as</span><span class="macro">!</span>(<span class="ident">u64</span>, <span class="ident">u64</span>);
 
-<span class='doccomment'>/// A trait to convert Rust types to `JSVal`s.</span>
-<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>ToJSValConvertible</span> {
-    <span class='doccomment'>/// Convert `self` to a `JSVal`. JSAPI failure causes a panic.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>);
+<span class="doccomment">/// A trait to convert Rust types to `JSVal`s.</span>
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">ToJSValConvertible</span> {
+    <span class="doccomment">/// Convert `self` to a `JSVal`. JSAPI failure causes a panic.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>);
 }
 
-<span class='doccomment'>/// An enum to better support enums through FromJSValConvertible::from_jsval.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Everything went fine.</span>
-    <span class='ident'>Success</span>(<span class='ident'>T</span>),
-    <span class='doccomment'>/// Pending exception.</span>
-    <span class='ident'>Failure</span>(<span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;static</span>, <span class='ident'>str</span><span class='op'>&gt;</span>),
+<span class="doccomment">/// An enum to better support enums through FromJSValConvertible::from_jsval.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Everything went fine.</span>
+    <span class="ident">Success</span>(<span class="ident">T</span>),
+    <span class="doccomment">/// Pending exception.</span>
+    <span class="ident">Failure</span>(<span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="ident">str</span><span class="op">&gt;</span>),
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Returns Some(value) if it is `ConversionResult::Success`.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_success_value</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='self'>self</span> {
-            <span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>(<span class='kw-2'>ref</span> <span class='ident'>v</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>v</span>),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Returns Some(value) if it is `ConversionResult::Success`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_success_value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">ConversionResult</span>::<span class="ident">Success</span>(<span class="kw-2">ref</span> <span class="ident">v</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">v</span>),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 }
 
-<span class='doccomment'>/// A trait to convert `JSVal`s to Rust types.</span>
-<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>FromJSValConvertible</span>: <span class='ident'>Sized</span> {
-    <span class='doccomment'>/// Optional configurable behaviour switch; use () for no configuration.</span>
-    <span class='kw'>type</span> <span class='ident'>Config</span>;
-    <span class='doccomment'>/// Convert `val` to type `Self`.</span>
-    <span class='doccomment'>/// Optional configuration of type `T` can be passed as the `option`</span>
-    <span class='doccomment'>/// argument.</span>
-    <span class='doccomment'>/// If it returns `Err(())`, a JSAPI exception is pending.</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-                         <span class='ident'>val</span>: <span class='ident'>HandleValue</span>,
-                         <span class='ident'>option</span>: <span class='self'>Self</span>::<span class='ident'>Config</span>)
-                         <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='self'>Self</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span>;
+<span class="doccomment">/// A trait to convert `JSVal`s to Rust types.</span>
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">FromJSValConvertible</span>: <span class="ident">Sized</span> {
+    <span class="doccomment">/// Optional configurable behaviour switch; use () for no configuration.</span>
+    <span class="kw">type</span> <span class="ident">Config</span>;
+    <span class="doccomment">/// Convert `val` to type `Self`.</span>
+    <span class="doccomment">/// Optional configuration of type `T` can be passed as the `option`</span>
+    <span class="doccomment">/// argument.</span>
+    <span class="doccomment">/// If it returns `Err(())`, a JSAPI exception is pending.</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+                         <span class="ident">val</span>: <span class="ident">HandleValue</span>,
+                         <span class="ident">option</span>: <span class="self">Self</span>::<span class="ident">Config</span>)
+                         <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span>;
 }
 
-<span class='doccomment'>/// Behavior for converting out-of-range integers.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Clone</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>ConversionBehavior</span> {
-    <span class='doccomment'>/// Wrap into the integer&#39;s range.</span>
-    <span class='ident'>Default</span>,
-    <span class='doccomment'>/// Throw an exception.</span>
-    <span class='ident'>EnforceRange</span>,
-    <span class='doccomment'>/// Clamp into the integer&#39;s range.</span>
-    <span class='ident'>Clamp</span>,
+<span class="doccomment">/// Behavior for converting out-of-range integers.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ConversionBehavior</span> {
+    <span class="doccomment">/// Wrap into the integer&#39;s range.</span>
+    <span class="ident">Default</span>,
+    <span class="doccomment">/// Throw an exception.</span>
+    <span class="ident">EnforceRange</span>,
+    <span class="doccomment">/// Clamp into the integer&#39;s range.</span>
+    <span class="ident">Clamp</span>,
 }
 
-<span class='doccomment'>/// Try to cast the number to a smaller type, but</span>
-<span class='doccomment'>/// if it doesn&#39;t fit, it will return an error.</span>
-<span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>enforce_range</span><span class='op'>&lt;</span><span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>d</span>: <span class='ident'>f64</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>D</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>D</span>: <span class='ident'>Bounded</span> <span class='op'>+</span> <span class='ident'>As</span><span class='op'>&lt;</span><span class='ident'>f64</span><span class='op'>&gt;</span>,
-          <span class='ident'>f64</span>: <span class='ident'>As</span><span class='op'>&lt;</span><span class='ident'>D</span><span class='op'>&gt;</span>
+<span class="doccomment">/// Try to cast the number to a smaller type, but</span>
+<span class="doccomment">/// if it doesn&#39;t fit, it will return an error.</span>
+<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">enforce_range</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">d</span>: <span class="ident">f64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">D</span>: <span class="ident">Bounded</span> <span class="op">+</span> <span class="ident">As</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>,
+          <span class="ident">f64</span>: <span class="ident">As</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>
 {
-    <span class='kw'>if</span> <span class='ident'>d</span>.<span class='ident'>is_infinite</span>() {
-        <span class='ident'>throw_type_error</span>(<span class='ident'>cx</span>, <span class='string'>&quot;value out of range in an EnforceRange argument&quot;</span>);
-        <span class='kw'>return</span> <span class='prelude-val'>Err</span>(());
+    <span class="kw">if</span> <span class="ident">d</span>.<span class="ident">is_infinite</span>() {
+        <span class="ident">throw_type_error</span>(<span class="ident">cx</span>, <span class="string">&quot;value out of range in an EnforceRange argument&quot;</span>);
+        <span class="kw">return</span> <span class="prelude-val">Err</span>(());
     }
 
-    <span class='kw'>let</span> <span class='ident'>rounded</span> <span class='op'>=</span> <span class='ident'>d</span>.<span class='ident'>round</span>();
-    <span class='kw'>if</span> <span class='ident'>D</span>::<span class='ident'>min_value</span>().<span class='ident'>cast</span>() <span class='op'>&lt;=</span> <span class='ident'>rounded</span> <span class='op'>&amp;&amp;</span> <span class='ident'>rounded</span> <span class='op'>&lt;=</span> <span class='ident'>D</span>::<span class='ident'>max_value</span>().<span class='ident'>cast</span>() {
-        <span class='prelude-val'>Ok</span>(<span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>(<span class='ident'>rounded</span>.<span class='ident'>cast</span>()))
-    } <span class='kw'>else</span> {
-        <span class='ident'>throw_type_error</span>(<span class='ident'>cx</span>, <span class='string'>&quot;value out of range in an EnforceRange argument&quot;</span>);
-        <span class='prelude-val'>Err</span>(())
+    <span class="kw">let</span> <span class="ident">rounded</span> <span class="op">=</span> <span class="ident">d</span>.<span class="ident">round</span>();
+    <span class="kw">if</span> <span class="ident">D</span>::<span class="ident">min_value</span>().<span class="ident">cast</span>() <span class="op">&lt;=</span> <span class="ident">rounded</span> <span class="op">&amp;&amp;</span> <span class="ident">rounded</span> <span class="op">&lt;=</span> <span class="ident">D</span>::<span class="ident">max_value</span>().<span class="ident">cast</span>() {
+        <span class="prelude-val">Ok</span>(<span class="ident">ConversionResult</span>::<span class="ident">Success</span>(<span class="ident">rounded</span>.<span class="ident">cast</span>()))
+    } <span class="kw">else</span> {
+        <span class="ident">throw_type_error</span>(<span class="ident">cx</span>, <span class="string">&quot;value out of range in an EnforceRange argument&quot;</span>);
+        <span class="prelude-val">Err</span>(())
     }
 }
 
-<span class='doccomment'>/// Try to cast the number to a smaller type, but if it doesn&#39;t fit,</span>
-<span class='doccomment'>/// round it to the MAX or MIN of the source type before casting it to</span>
-<span class='doccomment'>/// the destination type.</span>
-<span class='kw'>fn</span> <span class='ident'>clamp_to</span><span class='op'>&lt;</span><span class='ident'>D</span><span class='op'>&gt;</span>(<span class='ident'>d</span>: <span class='ident'>f64</span>) <span class='op'>-&gt;</span> <span class='ident'>D</span>
-    <span class='kw'>where</span> <span class='ident'>D</span>: <span class='ident'>Bounded</span> <span class='op'>+</span> <span class='ident'>As</span><span class='op'>&lt;</span><span class='ident'>f64</span><span class='op'>&gt;</span> <span class='op'>+</span> <span class='ident'>Zero</span>,
-          <span class='ident'>f64</span>: <span class='ident'>As</span><span class='op'>&lt;</span><span class='ident'>D</span><span class='op'>&gt;</span>
+<span class="doccomment">/// Try to cast the number to a smaller type, but if it doesn&#39;t fit,</span>
+<span class="doccomment">/// round it to the MAX or MIN of the source type before casting it to</span>
+<span class="doccomment">/// the destination type.</span>
+<span class="kw">fn</span> <span class="ident">clamp_to</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">d</span>: <span class="ident">f64</span>) <span class="op">-&gt;</span> <span class="ident">D</span>
+    <span class="kw">where</span> <span class="ident">D</span>: <span class="ident">Bounded</span> <span class="op">+</span> <span class="ident">As</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Zero</span>,
+          <span class="ident">f64</span>: <span class="ident">As</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>
 {
-    <span class='kw'>if</span> <span class='ident'>d</span>.<span class='ident'>is_nan</span>() {
-        <span class='ident'>D</span>::<span class='ident'>zero</span>()
-    } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>d</span> <span class='op'>&gt;</span> <span class='ident'>D</span>::<span class='ident'>max_value</span>().<span class='ident'>cast</span>() {
-        <span class='ident'>D</span>::<span class='ident'>max_value</span>()
-    } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>d</span> <span class='op'>&lt;</span> <span class='ident'>D</span>::<span class='ident'>min_value</span>().<span class='ident'>cast</span>() {
-        <span class='ident'>D</span>::<span class='ident'>min_value</span>()
-    } <span class='kw'>else</span> {
-        <span class='ident'>d</span>.<span class='ident'>cast</span>()
+    <span class="kw">if</span> <span class="ident">d</span>.<span class="ident">is_nan</span>() {
+        <span class="ident">D</span>::<span class="ident">zero</span>()
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">d</span> <span class="op">&gt;</span> <span class="ident">D</span>::<span class="ident">max_value</span>().<span class="ident">cast</span>() {
+        <span class="ident">D</span>::<span class="ident">max_value</span>()
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">d</span> <span class="op">&lt;</span> <span class="ident">D</span>::<span class="ident">min_value</span>().<span class="ident">cast</span>() {
+        <span class="ident">D</span>::<span class="ident">min_value</span>()
+    } <span class="kw">else</span> {
+        <span class="ident">d</span>.<span class="ident">cast</span>()
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-void</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> () {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>UndefinedValue</span>());
+<span class="comment">// https://heycam.github.io/webidl/#es-void</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> () {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">UndefinedValue</span>());
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>JSVal</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> ();
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>_cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-                         <span class='ident'>value</span>: <span class='ident'>HandleValue</span>,
-                         <span class='ident'>_option</span>: ())
-                         <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>JSVal</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='prelude-val'>Ok</span>(<span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>(<span class='ident'>value</span>.<span class='ident'>get</span>()))
+<span class="kw">impl</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="ident">JSVal</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> ();
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">_cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+                         <span class="ident">value</span>: <span class="ident">HandleValue</span>,
+                         <span class="ident">_option</span>: ())
+                         <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">JSVal</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="prelude-val">Ok</span>(<span class="ident">ConversionResult</span>::<span class="ident">Success</span>(<span class="ident">value</span>.<span class="ident">get</span>()))
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>Heap</span><span class='op'>&lt;</span><span class='ident'>JSVal</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> ();
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>_cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-                         <span class='ident'>value</span>: <span class='ident'>HandleValue</span>,
-                         <span class='ident'>_option</span>: ())
-                         <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='self'>Self</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='prelude-val'>Ok</span>(<span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>(<span class='ident'>Heap</span>::<span class='ident'>new</span>(<span class='ident'>value</span>.<span class='ident'>get</span>())))
+<span class="kw">impl</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="ident">Heap</span><span class="op">&lt;</span><span class="ident">JSVal</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> ();
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">_cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+                         <span class="ident">value</span>: <span class="ident">HandleValue</span>,
+                         <span class="ident">_option</span>: ())
+                         <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="prelude-val">Ok</span>(<span class="ident">ConversionResult</span>::<span class="ident">Success</span>(<span class="ident">Heap</span>::<span class="ident">new</span>(<span class="ident">value</span>.<span class="ident">get</span>())))
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>JSVal</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='kw-2'>*</span><span class='self'>self</span>);
-        <span class='ident'>maybe_wrap_value</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>);
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">JSVal</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="kw-2">*</span><span class="self">self</span>);
+        <span class="ident">maybe_wrap_value</span>(<span class="ident">cx</span>, <span class="ident">rval</span>);
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>HandleValue</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='self'>self</span>.<span class='ident'>get</span>());
-        <span class='ident'>maybe_wrap_value</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>);
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">HandleValue</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="self">self</span>.<span class="ident">get</span>());
+        <span class="ident">maybe_wrap_value</span>(<span class="ident">cx</span>, <span class="ident">rval</span>);
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>Heap</span><span class='op'>&lt;</span><span class='ident'>JSVal</span><span class='op'>&gt;</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='self'>self</span>.<span class='ident'>get</span>());
-        <span class='ident'>maybe_wrap_value</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>);
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">Heap</span><span class="op">&lt;</span><span class="ident">JSVal</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="self">self</span>.<span class="ident">get</span>());
+        <span class="ident">maybe_wrap_value</span>(<span class="ident">cx</span>, <span class="ident">rval</span>);
     }
 }
 
-<span class='attribute'>#[<span class='ident'>inline</span>]</span>
-<span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>convert_int_from_jsval</span><span class='op'>&lt;</span><span class='ident'>T</span>, <span class='ident'>M</span><span class='op'>&gt;</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>value</span>: <span class='ident'>HandleValue</span>,
-                                       <span class='ident'>option</span>: <span class='ident'>ConversionBehavior</span>,
-                                       <span class='ident'>convert_fn</span>: <span class='kw'>unsafe</span> <span class='kw'>fn</span>(<span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>HandleValue</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>M</span>, ()<span class='op'>&gt;</span>)
-                                       <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>Bounded</span> <span class='op'>+</span> <span class='ident'>Zero</span> <span class='op'>+</span> <span class='ident'>As</span><span class='op'>&lt;</span><span class='ident'>f64</span><span class='op'>&gt;</span>,
-          <span class='ident'>M</span>: <span class='ident'>Zero</span> <span class='op'>+</span> <span class='ident'>As</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>,
-          <span class='ident'>f64</span>: <span class='ident'>As</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>
+<span class="attribute">#[<span class="ident">inline</span>]</span>
+<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">convert_int_from_jsval</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">M</span><span class="op">&gt;</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">value</span>: <span class="ident">HandleValue</span>,
+                                       <span class="ident">option</span>: <span class="ident">ConversionBehavior</span>,
+                                       <span class="ident">convert_fn</span>: <span class="kw">unsafe</span> <span class="kw">fn</span>(<span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">HandleValue</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">M</span>, ()<span class="op">&gt;</span>)
+                                       <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Bounded</span> <span class="op">+</span> <span class="ident">Zero</span> <span class="op">+</span> <span class="ident">As</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>,
+          <span class="ident">M</span>: <span class="ident">Zero</span> <span class="op">+</span> <span class="ident">As</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
+          <span class="ident">f64</span>: <span class="ident">As</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
 {
-    <span class='kw'>match</span> <span class='ident'>option</span> {
-        <span class='ident'>ConversionBehavior</span>::<span class='ident'>Default</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>(<span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>convert_fn</span>(<span class='ident'>cx</span>, <span class='ident'>value</span>)).<span class='ident'>cast</span>())),
-        <span class='ident'>ConversionBehavior</span>::<span class='ident'>EnforceRange</span> <span class='op'>=&gt;</span> <span class='ident'>enforce_range</span>(<span class='ident'>cx</span>, <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>ToNumber</span>(<span class='ident'>cx</span>, <span class='ident'>value</span>))),
-        <span class='ident'>ConversionBehavior</span>::<span class='ident'>Clamp</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>(<span class='ident'>clamp_to</span>(<span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>ToNumber</span>(<span class='ident'>cx</span>, <span class='ident'>value</span>))))),
+    <span class="kw">match</span> <span class="ident">option</span> {
+        <span class="ident">ConversionBehavior</span>::<span class="ident">Default</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ConversionResult</span>::<span class="ident">Success</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">convert_fn</span>(<span class="ident">cx</span>, <span class="ident">value</span>)).<span class="ident">cast</span>())),
+        <span class="ident">ConversionBehavior</span>::<span class="ident">EnforceRange</span> <span class="op">=&gt;</span> <span class="ident">enforce_range</span>(<span class="ident">cx</span>, <span class="macro">try</span><span class="macro">!</span>(<span class="ident">ToNumber</span>(<span class="ident">cx</span>, <span class="ident">value</span>))),
+        <span class="ident">ConversionBehavior</span>::<span class="ident">Clamp</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ConversionResult</span>::<span class="ident">Success</span>(<span class="ident">clamp_to</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">ToNumber</span>(<span class="ident">cx</span>, <span class="ident">value</span>))))),
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-boolean</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>bool</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>BooleanValue</span>(<span class='kw-2'>*</span><span class='self'>self</span>));
+<span class="comment">// https://heycam.github.io/webidl/#es-boolean</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">bool</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">BooleanValue</span>(<span class="kw-2">*</span><span class="self">self</span>));
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-boolean</span>
-<span class='kw'>impl</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>bool</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> ();
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>_cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>val</span>: <span class='ident'>HandleValue</span>, <span class='ident'>_option</span>: ()) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>bool</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='prelude-val'>Ok</span>(<span class='ident'>ToBoolean</span>(<span class='ident'>val</span>)).<span class='ident'>map</span>(<span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>)
+<span class="comment">// https://heycam.github.io/webidl/#es-boolean</span>
+<span class="kw">impl</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="ident">bool</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> ();
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">_cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">val</span>: <span class="ident">HandleValue</span>, <span class="ident">_option</span>: ()) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="prelude-val">Ok</span>(<span class="ident">ToBoolean</span>(<span class="ident">val</span>)).<span class="ident">map</span>(<span class="ident">ConversionResult</span>::<span class="ident">Success</span>)
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-byte</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>i8</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>Int32Value</span>(<span class='kw-2'>*</span><span class='self'>self</span> <span class='kw'>as</span> <span class='ident'>i32</span>));
+<span class="comment">// https://heycam.github.io/webidl/#es-byte</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">i8</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">Int32Value</span>(<span class="kw-2">*</span><span class="self">self</span> <span class="kw">as</span> <span class="ident">i32</span>));
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-byte</span>
-<span class='kw'>impl</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>i8</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> <span class='ident'>ConversionBehavior</span>;
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-                         <span class='ident'>val</span>: <span class='ident'>HandleValue</span>,
-                         <span class='ident'>option</span>: <span class='ident'>ConversionBehavior</span>)
-                         <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>i8</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='ident'>convert_int_from_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>val</span>, <span class='ident'>option</span>, <span class='ident'>ToInt32</span>)
+<span class="comment">// https://heycam.github.io/webidl/#es-byte</span>
+<span class="kw">impl</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="ident">i8</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> <span class="ident">ConversionBehavior</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+                         <span class="ident">val</span>: <span class="ident">HandleValue</span>,
+                         <span class="ident">option</span>: <span class="ident">ConversionBehavior</span>)
+                         <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">i8</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="ident">convert_int_from_jsval</span>(<span class="ident">cx</span>, <span class="ident">val</span>, <span class="ident">option</span>, <span class="ident">ToInt32</span>)
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-octet</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>u8</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>Int32Value</span>(<span class='kw-2'>*</span><span class='self'>self</span> <span class='kw'>as</span> <span class='ident'>i32</span>));
+<span class="comment">// https://heycam.github.io/webidl/#es-octet</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">u8</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">Int32Value</span>(<span class="kw-2">*</span><span class="self">self</span> <span class="kw">as</span> <span class="ident">i32</span>));
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-octet</span>
-<span class='kw'>impl</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>u8</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> <span class='ident'>ConversionBehavior</span>;
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-                         <span class='ident'>val</span>: <span class='ident'>HandleValue</span>,
-                         <span class='ident'>option</span>: <span class='ident'>ConversionBehavior</span>)
-                         <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='ident'>convert_int_from_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>val</span>, <span class='ident'>option</span>, <span class='ident'>ToInt32</span>)
+<span class="comment">// https://heycam.github.io/webidl/#es-octet</span>
+<span class="kw">impl</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="ident">u8</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> <span class="ident">ConversionBehavior</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+                         <span class="ident">val</span>: <span class="ident">HandleValue</span>,
+                         <span class="ident">option</span>: <span class="ident">ConversionBehavior</span>)
+                         <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="ident">convert_int_from_jsval</span>(<span class="ident">cx</span>, <span class="ident">val</span>, <span class="ident">option</span>, <span class="ident">ToInt32</span>)
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-short</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>i16</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>Int32Value</span>(<span class='kw-2'>*</span><span class='self'>self</span> <span class='kw'>as</span> <span class='ident'>i32</span>));
+<span class="comment">// https://heycam.github.io/webidl/#es-short</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">i16</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">Int32Value</span>(<span class="kw-2">*</span><span class="self">self</span> <span class="kw">as</span> <span class="ident">i32</span>));
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-short</span>
-<span class='kw'>impl</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>i16</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> <span class='ident'>ConversionBehavior</span>;
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-                         <span class='ident'>val</span>: <span class='ident'>HandleValue</span>,
-                         <span class='ident'>option</span>: <span class='ident'>ConversionBehavior</span>)
-                         <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>i16</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='ident'>convert_int_from_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>val</span>, <span class='ident'>option</span>, <span class='ident'>ToInt32</span>)
+<span class="comment">// https://heycam.github.io/webidl/#es-short</span>
+<span class="kw">impl</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="ident">i16</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> <span class="ident">ConversionBehavior</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+                         <span class="ident">val</span>: <span class="ident">HandleValue</span>,
+                         <span class="ident">option</span>: <span class="ident">ConversionBehavior</span>)
+                         <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">i16</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="ident">convert_int_from_jsval</span>(<span class="ident">cx</span>, <span class="ident">val</span>, <span class="ident">option</span>, <span class="ident">ToInt32</span>)
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-unsigned-short</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>u16</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>Int32Value</span>(<span class='kw-2'>*</span><span class='self'>self</span> <span class='kw'>as</span> <span class='ident'>i32</span>));
+<span class="comment">// https://heycam.github.io/webidl/#es-unsigned-short</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">u16</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">Int32Value</span>(<span class="kw-2">*</span><span class="self">self</span> <span class="kw">as</span> <span class="ident">i32</span>));
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-unsigned-short</span>
-<span class='kw'>impl</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>u16</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> <span class='ident'>ConversionBehavior</span>;
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-                         <span class='ident'>val</span>: <span class='ident'>HandleValue</span>,
-                         <span class='ident'>option</span>: <span class='ident'>ConversionBehavior</span>)
-                         <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>u16</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='ident'>convert_int_from_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>val</span>, <span class='ident'>option</span>, <span class='ident'>ToUint16</span>)
+<span class="comment">// https://heycam.github.io/webidl/#es-unsigned-short</span>
+<span class="kw">impl</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="ident">u16</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> <span class="ident">ConversionBehavior</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+                         <span class="ident">val</span>: <span class="ident">HandleValue</span>,
+                         <span class="ident">option</span>: <span class="ident">ConversionBehavior</span>)
+                         <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="ident">convert_int_from_jsval</span>(<span class="ident">cx</span>, <span class="ident">val</span>, <span class="ident">option</span>, <span class="ident">ToUint16</span>)
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-long</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>i32</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>Int32Value</span>(<span class='kw-2'>*</span><span class='self'>self</span>));
+<span class="comment">// https://heycam.github.io/webidl/#es-long</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">i32</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">Int32Value</span>(<span class="kw-2">*</span><span class="self">self</span>));
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-long</span>
-<span class='kw'>impl</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>i32</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> <span class='ident'>ConversionBehavior</span>;
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-                         <span class='ident'>val</span>: <span class='ident'>HandleValue</span>,
-                         <span class='ident'>option</span>: <span class='ident'>ConversionBehavior</span>)
-                         <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>i32</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='ident'>convert_int_from_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>val</span>, <span class='ident'>option</span>, <span class='ident'>ToInt32</span>)
+<span class="comment">// https://heycam.github.io/webidl/#es-long</span>
+<span class="kw">impl</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="ident">i32</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> <span class="ident">ConversionBehavior</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+                         <span class="ident">val</span>: <span class="ident">HandleValue</span>,
+                         <span class="ident">option</span>: <span class="ident">ConversionBehavior</span>)
+                         <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="ident">convert_int_from_jsval</span>(<span class="ident">cx</span>, <span class="ident">val</span>, <span class="ident">option</span>, <span class="ident">ToInt32</span>)
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-unsigned-long</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>u32</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>UInt32Value</span>(<span class='kw-2'>*</span><span class='self'>self</span>));
+<span class="comment">// https://heycam.github.io/webidl/#es-unsigned-long</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">u32</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">UInt32Value</span>(<span class="kw-2">*</span><span class="self">self</span>));
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-unsigned-long</span>
-<span class='kw'>impl</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>u32</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> <span class='ident'>ConversionBehavior</span>;
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-                         <span class='ident'>val</span>: <span class='ident'>HandleValue</span>,
-                         <span class='ident'>option</span>: <span class='ident'>ConversionBehavior</span>)
-                         <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='ident'>convert_int_from_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>val</span>, <span class='ident'>option</span>, <span class='ident'>ToUint32</span>)
+<span class="comment">// https://heycam.github.io/webidl/#es-unsigned-long</span>
+<span class="kw">impl</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="ident">u32</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> <span class="ident">ConversionBehavior</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+                         <span class="ident">val</span>: <span class="ident">HandleValue</span>,
+                         <span class="ident">option</span>: <span class="ident">ConversionBehavior</span>)
+                         <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="ident">convert_int_from_jsval</span>(<span class="ident">cx</span>, <span class="ident">val</span>, <span class="ident">option</span>, <span class="ident">ToUint32</span>)
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-long-long</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>i64</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>RUST_JS_NumberValue</span>(<span class='kw-2'>*</span><span class='self'>self</span> <span class='kw'>as</span> <span class='ident'>f64</span>));
+<span class="comment">// https://heycam.github.io/webidl/#es-long-long</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">i64</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">RUST_JS_NumberValue</span>(<span class="kw-2">*</span><span class="self">self</span> <span class="kw">as</span> <span class="ident">f64</span>));
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-long-long</span>
-<span class='kw'>impl</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>i64</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> <span class='ident'>ConversionBehavior</span>;
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-                         <span class='ident'>val</span>: <span class='ident'>HandleValue</span>,
-                         <span class='ident'>option</span>: <span class='ident'>ConversionBehavior</span>)
-                         <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>i64</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='ident'>convert_int_from_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>val</span>, <span class='ident'>option</span>, <span class='ident'>ToInt64</span>)
+<span class="comment">// https://heycam.github.io/webidl/#es-long-long</span>
+<span class="kw">impl</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="ident">i64</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> <span class="ident">ConversionBehavior</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+                         <span class="ident">val</span>: <span class="ident">HandleValue</span>,
+                         <span class="ident">option</span>: <span class="ident">ConversionBehavior</span>)
+                         <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="ident">convert_int_from_jsval</span>(<span class="ident">cx</span>, <span class="ident">val</span>, <span class="ident">option</span>, <span class="ident">ToInt64</span>)
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-unsigned-long-long</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>u64</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>RUST_JS_NumberValue</span>(<span class='kw-2'>*</span><span class='self'>self</span> <span class='kw'>as</span> <span class='ident'>f64</span>));
+<span class="comment">// https://heycam.github.io/webidl/#es-unsigned-long-long</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">u64</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">RUST_JS_NumberValue</span>(<span class="kw-2">*</span><span class="self">self</span> <span class="kw">as</span> <span class="ident">f64</span>));
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-unsigned-long-long</span>
-<span class='kw'>impl</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>u64</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> <span class='ident'>ConversionBehavior</span>;
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-                         <span class='ident'>val</span>: <span class='ident'>HandleValue</span>,
-                         <span class='ident'>option</span>: <span class='ident'>ConversionBehavior</span>)
-                         <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>u64</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='ident'>convert_int_from_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>val</span>, <span class='ident'>option</span>, <span class='ident'>ToUint64</span>)
+<span class="comment">// https://heycam.github.io/webidl/#es-unsigned-long-long</span>
+<span class="kw">impl</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="ident">u64</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> <span class="ident">ConversionBehavior</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+                         <span class="ident">val</span>: <span class="ident">HandleValue</span>,
+                         <span class="ident">option</span>: <span class="ident">ConversionBehavior</span>)
+                         <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="ident">convert_int_from_jsval</span>(<span class="ident">cx</span>, <span class="ident">val</span>, <span class="ident">option</span>, <span class="ident">ToUint64</span>)
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-float</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>f32</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>RUST_JS_NumberValue</span>(<span class='kw-2'>*</span><span class='self'>self</span> <span class='kw'>as</span> <span class='ident'>f64</span>));
+<span class="comment">// https://heycam.github.io/webidl/#es-float</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">f32</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">RUST_JS_NumberValue</span>(<span class="kw-2">*</span><span class="self">self</span> <span class="kw">as</span> <span class="ident">f64</span>));
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-float</span>
-<span class='kw'>impl</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>f32</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> ();
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>val</span>: <span class='ident'>HandleValue</span>, <span class='ident'>_option</span>: ()) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>ToNumber</span>(<span class='ident'>cx</span>, <span class='ident'>val</span>);
-        <span class='ident'>result</span>.<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>f</span><span class='op'>|</span> <span class='ident'>f</span> <span class='kw'>as</span> <span class='ident'>f32</span>).<span class='ident'>map</span>(<span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>)
+<span class="comment">// https://heycam.github.io/webidl/#es-float</span>
+<span class="kw">impl</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="ident">f32</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> ();
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">val</span>: <span class="ident">HandleValue</span>, <span class="ident">_option</span>: ()) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">ToNumber</span>(<span class="ident">cx</span>, <span class="ident">val</span>);
+        <span class="ident">result</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">f</span><span class="op">|</span> <span class="ident">f</span> <span class="kw">as</span> <span class="ident">f32</span>).<span class="ident">map</span>(<span class="ident">ConversionResult</span>::<span class="ident">Success</span>)
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-double</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>f64</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>RUST_JS_NumberValue</span>(<span class='kw-2'>*</span><span class='self'>self</span>));
+<span class="comment">// https://heycam.github.io/webidl/#es-double</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">f64</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">RUST_JS_NumberValue</span>(<span class="kw-2">*</span><span class="self">self</span>));
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-double</span>
-<span class='kw'>impl</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>f64</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> ();
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>val</span>: <span class='ident'>HandleValue</span>, <span class='ident'>_option</span>: ()) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>f64</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='ident'>ToNumber</span>(<span class='ident'>cx</span>, <span class='ident'>val</span>).<span class='ident'>map</span>(<span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>)
+<span class="comment">// https://heycam.github.io/webidl/#es-double</span>
+<span class="kw">impl</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="ident">f64</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> ();
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">val</span>: <span class="ident">HandleValue</span>, <span class="ident">_option</span>: ()) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="ident">ToNumber</span>(<span class="ident">cx</span>, <span class="ident">val</span>).<span class="ident">map</span>(<span class="ident">ConversionResult</span>::<span class="ident">Success</span>)
     }
 }
 
-<span class='doccomment'>/// Converts a `JSString`, encoded in &quot;Latin1&quot; (i.e. U+0000-U+00FF encoded as 0x00-0xFF) into a</span>
-<span class='doccomment'>/// `String`.</span>
-<span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>latin1_to_string</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>s</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSString</span>) <span class='op'>-&gt;</span> <span class='ident'>String</span> {
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>JS_StringHasLatin1Chars</span>(<span class='ident'>s</span>));
+<span class="doccomment">/// Converts a `JSString`, encoded in &quot;Latin1&quot; (i.e. U+0000-U+00FF encoded as 0x00-0xFF) into a</span>
+<span class="doccomment">/// `String`.</span>
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">latin1_to_string</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">s</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSString</span>) <span class="op">-&gt;</span> <span class="ident">String</span> {
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">JS_StringHasLatin1Chars</span>(<span class="ident">s</span>));
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>length</span> <span class='op'>=</span> <span class='number'>0</span>;
-    <span class='kw'>let</span> <span class='ident'>chars</span> <span class='op'>=</span> <span class='ident'>JS_GetLatin1StringCharsAndLength</span>(<span class='ident'>cx</span>, <span class='ident'>ptr</span>::<span class='ident'>null</span>(), <span class='ident'>s</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>length</span>);
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>chars</span>.<span class='ident'>is_null</span>());
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">length</span> <span class="op">=</span> <span class="number">0</span>;
+    <span class="kw">let</span> <span class="ident">chars</span> <span class="op">=</span> <span class="ident">JS_GetLatin1StringCharsAndLength</span>(<span class="ident">cx</span>, <span class="ident">ptr</span>::<span class="ident">null</span>(), <span class="ident">s</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">length</span>);
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">chars</span>.<span class="ident">is_null</span>());
 
-    <span class='kw'>let</span> <span class='ident'>chars</span> <span class='op'>=</span> <span class='ident'>slice</span>::<span class='ident'>from_raw_parts</span>(<span class='ident'>chars</span>, <span class='ident'>length</span> <span class='kw'>as</span> <span class='ident'>usize</span>);
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>s</span> <span class='op'>=</span> <span class='ident'>String</span>::<span class='ident'>with_capacity</span>(<span class='ident'>length</span> <span class='kw'>as</span> <span class='ident'>usize</span>);
-    <span class='ident'>s</span>.<span class='ident'>extend</span>(<span class='ident'>chars</span>.<span class='ident'>iter</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='kw-2'>&amp;</span><span class='ident'>c</span><span class='op'>|</span> <span class='ident'>c</span> <span class='kw'>as</span> <span class='ident'>char</span>));
-    <span class='ident'>s</span>
+    <span class="kw">let</span> <span class="ident">chars</span> <span class="op">=</span> <span class="ident">slice</span>::<span class="ident">from_raw_parts</span>(<span class="ident">chars</span>, <span class="ident">length</span> <span class="kw">as</span> <span class="ident">usize</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">with_capacity</span>(<span class="ident">length</span> <span class="kw">as</span> <span class="ident">usize</span>);
+    <span class="ident">s</span>.<span class="ident">extend</span>(<span class="ident">chars</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span> <span class="kw">as</span> <span class="ident">char</span>));
+    <span class="ident">s</span>
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-USVString</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>str</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>string_utf16</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u16</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>with_capacity</span>(<span class='self'>self</span>.<span class='ident'>len</span>());
-        <span class='ident'>string_utf16</span>.<span class='ident'>extend</span>(<span class='self'>self</span>.<span class='ident'>encode_utf16</span>());
-        <span class='kw'>let</span> <span class='ident'>jsstr</span> <span class='op'>=</span> <span class='ident'>JS_NewUCStringCopyN</span>(<span class='ident'>cx</span>,
-                                        <span class='ident'>string_utf16</span>.<span class='ident'>as_ptr</span>(),
-                                        <span class='ident'>string_utf16</span>.<span class='ident'>len</span>() <span class='kw'>as</span> <span class='ident'>libc</span>::<span class='ident'>size_t</span>);
-        <span class='kw'>if</span> <span class='ident'>jsstr</span>.<span class='ident'>is_null</span>() {
-            <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;JS_NewUCStringCopyN failed&quot;</span>);
+<span class="comment">// https://heycam.github.io/webidl/#es-USVString</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">str</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">string_utf16</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u16</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="self">self</span>.<span class="ident">len</span>());
+        <span class="ident">string_utf16</span>.<span class="ident">extend</span>(<span class="self">self</span>.<span class="ident">encode_utf16</span>());
+        <span class="kw">let</span> <span class="ident">jsstr</span> <span class="op">=</span> <span class="ident">JS_NewUCStringCopyN</span>(<span class="ident">cx</span>,
+                                        <span class="ident">string_utf16</span>.<span class="ident">as_ptr</span>(),
+                                        <span class="ident">string_utf16</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">size_t</span>);
+        <span class="kw">if</span> <span class="ident">jsstr</span>.<span class="ident">is_null</span>() {
+            <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;JS_NewUCStringCopyN failed&quot;</span>);
         }
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>StringValue</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>jsstr</span>));
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">StringValue</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">jsstr</span>));
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-USVString</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>String</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        (<span class='kw-2'>*</span><span class='kw-2'>*</span><span class='self'>self</span>).<span class='ident'>to_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>);
+<span class="comment">// https://heycam.github.io/webidl/#es-USVString</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">String</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        (<span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>).<span class="ident">to_jsval</span>(<span class="ident">cx</span>, <span class="ident">rval</span>);
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-USVString</span>
-<span class='kw'>impl</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>String</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> ();
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>value</span>: <span class='ident'>HandleValue</span>, _: ()) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>jsstr</span> <span class='op'>=</span> <span class='ident'>ToString</span>(<span class='ident'>cx</span>, <span class='ident'>value</span>);
-        <span class='kw'>if</span> <span class='ident'>jsstr</span>.<span class='ident'>is_null</span>() {
-            <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;ToString failed&quot;</span>);
-            <span class='kw'>return</span> <span class='prelude-val'>Err</span>(());
+<span class="comment">// https://heycam.github.io/webidl/#es-USVString</span>
+<span class="kw">impl</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="ident">String</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> ();
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">value</span>: <span class="ident">HandleValue</span>, _: ()) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">jsstr</span> <span class="op">=</span> <span class="ident">ToString</span>(<span class="ident">cx</span>, <span class="ident">value</span>);
+        <span class="kw">if</span> <span class="ident">jsstr</span>.<span class="ident">is_null</span>() {
+            <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;ToString failed&quot;</span>);
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(());
         }
-        <span class='kw'>if</span> <span class='ident'>JS_StringHasLatin1Chars</span>(<span class='ident'>jsstr</span>) {
-            <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='ident'>latin1_to_string</span>(<span class='ident'>cx</span>, <span class='ident'>jsstr</span>)).<span class='ident'>map</span>(<span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>);
+        <span class="kw">if</span> <span class="ident">JS_StringHasLatin1Chars</span>(<span class="ident">jsstr</span>) {
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">latin1_to_string</span>(<span class="ident">cx</span>, <span class="ident">jsstr</span>)).<span class="ident">map</span>(<span class="ident">ConversionResult</span>::<span class="ident">Success</span>);
         }
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>length</span> <span class='op'>=</span> <span class='number'>0</span>;
-        <span class='kw'>let</span> <span class='ident'>chars</span> <span class='op'>=</span> <span class='ident'>JS_GetTwoByteStringCharsAndLength</span>(<span class='ident'>cx</span>, <span class='ident'>ptr</span>::<span class='ident'>null</span>(), <span class='ident'>jsstr</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>length</span>);
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>chars</span>.<span class='ident'>is_null</span>());
-        <span class='kw'>let</span> <span class='ident'>char_vec</span> <span class='op'>=</span> <span class='ident'>slice</span>::<span class='ident'>from_raw_parts</span>(<span class='ident'>chars</span>, <span class='ident'>length</span> <span class='kw'>as</span> <span class='ident'>usize</span>);
-        <span class='prelude-val'>Ok</span>(<span class='ident'>String</span>::<span class='ident'>from_utf16_lossy</span>(<span class='ident'>char_vec</span>)).<span class='ident'>map</span>(<span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>)
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">length</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="ident">chars</span> <span class="op">=</span> <span class="ident">JS_GetTwoByteStringCharsAndLength</span>(<span class="ident">cx</span>, <span class="ident">ptr</span>::<span class="ident">null</span>(), <span class="ident">jsstr</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">length</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">chars</span>.<span class="ident">is_null</span>());
+        <span class="kw">let</span> <span class="ident">char_vec</span> <span class="op">=</span> <span class="ident">slice</span>::<span class="ident">from_raw_parts</span>(<span class="ident">chars</span>, <span class="ident">length</span> <span class="kw">as</span> <span class="ident">usize</span>);
+        <span class="prelude-val">Ok</span>(<span class="ident">String</span>::<span class="ident">from_utf16_lossy</span>(<span class="ident">char_vec</span>)).<span class="ident">map</span>(<span class="ident">ConversionResult</span>::<span class="ident">Success</span>)
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>ToJSValConvertible</span><span class='op'>&gt;</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='kw'>match</span> <span class='self'>self</span> {
-            <span class='kw-2'>&amp;</span><span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>=&gt;</span> <span class='ident'>value</span>.<span class='ident'>to_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>),
-            <span class='kw-2'>&amp;</span><span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>NullValue</span>()),
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">ToJSValConvertible</span><span class="op">&gt;</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="kw">match</span> <span class="self">self</span> {
+            <span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=&gt;</span> <span class="ident">value</span>.<span class="ident">to_jsval</span>(<span class="ident">cx</span>, <span class="ident">rval</span>),
+            <span class="kw-2">&amp;</span><span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">NullValue</span>()),
         }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>ToJSValConvertible</span><span class='op'>&gt;</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>Rc</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        (<span class='kw-2'>*</span><span class='kw-2'>*</span><span class='self'>self</span>).<span class='ident'>to_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>)
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">ToJSValConvertible</span><span class="op">&gt;</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        (<span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>).<span class="ident">to_jsval</span>(<span class="ident">cx</span>, <span class="ident">rval</span>)
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>FromJSValConvertible</span><span class='op'>&gt;</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> <span class='ident'>T</span>::<span class='ident'>Config</span>;
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-                         <span class='ident'>value</span>: <span class='ident'>HandleValue</span>,
-                         <span class='ident'>option</span>: <span class='ident'>T</span>::<span class='ident'>Config</span>)
-                         <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>if</span> <span class='ident'>value</span>.<span class='ident'>get</span>().<span class='ident'>is_null_or_undefined</span>() {
-            <span class='prelude-val'>Ok</span>(<span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>(<span class='prelude-val'>None</span>))
-        } <span class='kw'>else</span> {
-            <span class='prelude-val'>Ok</span>(<span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>FromJSValConvertible</span>::<span class='ident'>from_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>value</span>, <span class='ident'>option</span>)) {
-                <span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>(<span class='ident'>v</span>) <span class='op'>=&gt;</span> <span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>(<span class='prelude-val'>Some</span>(<span class='ident'>v</span>)),
-                <span class='ident'>ConversionResult</span>::<span class='ident'>Failure</span>(<span class='ident'>v</span>) <span class='op'>=&gt;</span> <span class='ident'>ConversionResult</span>::<span class='ident'>Failure</span>(<span class='ident'>v</span>),
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">FromJSValConvertible</span><span class="op">&gt;</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> <span class="ident">T</span>::<span class="ident">Config</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+                         <span class="ident">value</span>: <span class="ident">HandleValue</span>,
+                         <span class="ident">option</span>: <span class="ident">T</span>::<span class="ident">Config</span>)
+                         <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="ident">value</span>.<span class="ident">get</span>().<span class="ident">is_null_or_undefined</span>() {
+            <span class="prelude-val">Ok</span>(<span class="ident">ConversionResult</span>::<span class="ident">Success</span>(<span class="prelude-val">None</span>))
+        } <span class="kw">else</span> {
+            <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">FromJSValConvertible</span>::<span class="ident">from_jsval</span>(<span class="ident">cx</span>, <span class="ident">value</span>, <span class="ident">option</span>)) {
+                <span class="ident">ConversionResult</span>::<span class="ident">Success</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">ConversionResult</span>::<span class="ident">Success</span>(<span class="prelude-val">Some</span>(<span class="ident">v</span>)),
+                <span class="ident">ConversionResult</span>::<span class="ident">Failure</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">ConversionResult</span>::<span class="ident">Failure</span>(<span class="ident">v</span>),
             })
         }
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-sequence</span>
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>ToJSValConvertible</span><span class='op'>&gt;</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='macro'>rooted</span><span class='macro'>!</span>(<span class='kw'>in</span>(<span class='ident'>cx</span>) <span class='kw'>let</span> <span class='ident'>js_array</span> <span class='op'>=</span> <span class='ident'>JS_NewArrayObject1</span>(<span class='ident'>cx</span>, <span class='self'>self</span>.<span class='ident'>len</span>() <span class='kw'>as</span> <span class='ident'>libc</span>::<span class='ident'>size_t</span>));
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>js_array</span>.<span class='ident'>handle</span>().<span class='ident'>is_null</span>());
+<span class="comment">// https://heycam.github.io/webidl/#es-sequence</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">ToJSValConvertible</span><span class="op">&gt;</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="macro">rooted</span><span class="macro">!</span>(<span class="kw">in</span>(<span class="ident">cx</span>) <span class="kw">let</span> <span class="ident">js_array</span> <span class="op">=</span> <span class="ident">JS_NewArrayObject1</span>(<span class="ident">cx</span>, <span class="self">self</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">size_t</span>));
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">js_array</span>.<span class="ident">handle</span>().<span class="ident">is_null</span>());
 
-        <span class='macro'>rooted</span><span class='macro'>!</span>(<span class='kw'>in</span>(<span class='ident'>cx</span>) <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>val</span> <span class='op'>=</span> <span class='ident'>UndefinedValue</span>());
-        <span class='kw'>for</span> (<span class='ident'>index</span>, <span class='ident'>obj</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>iter</span>().<span class='ident'>enumerate</span>() {
-            <span class='ident'>obj</span>.<span class='ident'>to_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>val</span>.<span class='ident'>handle_mut</span>());
+        <span class="macro">rooted</span><span class="macro">!</span>(<span class="kw">in</span>(<span class="ident">cx</span>) <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">val</span> <span class="op">=</span> <span class="ident">UndefinedValue</span>());
+        <span class="kw">for</span> (<span class="ident">index</span>, <span class="ident">obj</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
+            <span class="ident">obj</span>.<span class="ident">to_jsval</span>(<span class="ident">cx</span>, <span class="ident">val</span>.<span class="ident">handle_mut</span>());
 
-            <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>JS_DefineElement</span>(<span class='ident'>cx</span>, <span class='ident'>js_array</span>.<span class='ident'>handle</span>(),
-                                     <span class='ident'>index</span> <span class='kw'>as</span> <span class='ident'>u32</span>, <span class='ident'>val</span>.<span class='ident'>handle</span>(), <span class='ident'>JSPROP_ENUMERATE</span>, <span class='prelude-val'>None</span>, <span class='prelude-val'>None</span>));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">JS_DefineElement</span>(<span class="ident">cx</span>, <span class="ident">js_array</span>.<span class="ident">handle</span>(),
+                                     <span class="ident">index</span> <span class="kw">as</span> <span class="ident">u32</span>, <span class="ident">val</span>.<span class="ident">handle</span>(), <span class="ident">JSPROP_ENUMERATE</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>));
         }
 
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>ObjectValue</span>(<span class='ident'>js_array</span>.<span class='ident'>handle</span>().<span class='ident'>get</span>()));
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">ObjectValue</span>(<span class="ident">js_array</span>.<span class="ident">handle</span>().<span class="ident">get</span>()));
     }
 }
 
-<span class='doccomment'>/// Rooting guard for the iterator field of ForOfIterator.</span>
-<span class='doccomment'>/// Behaves like RootedGuard (roots on creation, unroots on drop),</span>
-<span class='doccomment'>/// but borrows and allows access to the whole ForOfIterator, so</span>
-<span class='doccomment'>/// that methods on ForOfIterator can still be used through it.</span>
-<span class='kw'>struct</span> <span class='ident'>ForOfIteratorGuard</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='ident'>root</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>ForOfIterator</span>
+<span class="doccomment">/// Rooting guard for the iterator field of ForOfIterator.</span>
+<span class="doccomment">/// Behaves like RootedGuard (roots on creation, unroots on drop),</span>
+<span class="doccomment">/// but borrows and allows access to the whole ForOfIterator, so</span>
+<span class="doccomment">/// that methods on ForOfIterator can still be used through it.</span>
+<span class="kw">struct</span> <span class="ident">ForOfIteratorGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="ident">root</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">ForOfIterator</span>
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>ForOfIteratorGuard</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>root</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>ForOfIterator</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='kw'>unsafe</span> {
-            <span class='ident'>root</span>.<span class='ident'>iterator</span>.<span class='ident'>add_to_root_stack</span>(<span class='ident'>cx</span>);
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">ForOfIteratorGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">root</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">ForOfIterator</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="kw">unsafe</span> {
+            <span class="ident">root</span>.<span class="ident">iterator</span>.<span class="ident">add_to_root_stack</span>(<span class="ident">cx</span>);
         }
-        <span class='ident'>ForOfIteratorGuard</span> {
-            <span class='ident'>root</span>: <span class='ident'>root</span>
-        }
-    }
-}
-
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Drop</span> <span class='kw'>for</span> <span class='ident'>ForOfIteratorGuard</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>drop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='kw'>unsafe</span> {
-            <span class='self'>self</span>.<span class='ident'>root</span>.<span class='ident'>iterator</span>.<span class='ident'>remove_from_root_stack</span>();
+        <span class="ident">ForOfIteratorGuard</span> {
+            <span class="ident">root</span>: <span class="ident">root</span>
         }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>C</span>: <span class='ident'>Clone</span>, <span class='ident'>T</span>: <span class='ident'>FromJSValConvertible</span><span class='op'>&lt;</span><span class='ident'>Config</span><span class='op'>=</span><span class='ident'>C</span><span class='op'>&gt;&gt;</span> <span class='ident'>FromJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Config</span> <span class='op'>=</span> <span class='ident'>C</span>;
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">ForOfIteratorGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="kw">unsafe</span> {
+            <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">iterator</span>.<span class="ident">remove_from_root_stack</span>();
+        }
+    }
+}
 
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_jsval</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-                         <span class='ident'>value</span>: <span class='ident'>HandleValue</span>,
-                         <span class='ident'>option</span>: <span class='ident'>C</span>)
-                         <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ConversionResult</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>iterator</span> <span class='op'>=</span> <span class='ident'>ForOfIterator</span> {
-            <span class='ident'>cx_</span>: <span class='ident'>cx</span>,
-            <span class='ident'>iterator</span>: <span class='ident'>RootedObject</span>::<span class='ident'>new_unrooted</span>(),
-            <span class='ident'>index</span>: ::<span class='ident'>std</span>::<span class='ident'>u32</span>::<span class='ident'>MAX</span>, <span class='comment'>// NOT_ARRAY</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">C</span>: <span class="ident">Clone</span>, <span class="ident">T</span>: <span class="ident">FromJSValConvertible</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">=</span><span class="ident">C</span><span class="op">&gt;&gt;</span> <span class="ident">FromJSValConvertible</span> <span class="kw">for</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> <span class="ident">C</span>;
+
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_jsval</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+                         <span class="ident">value</span>: <span class="ident">HandleValue</span>,
+                         <span class="ident">option</span>: <span class="ident">C</span>)
+                         <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConversionResult</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iterator</span> <span class="op">=</span> <span class="ident">ForOfIterator</span> {
+            <span class="ident">cx_</span>: <span class="ident">cx</span>,
+            <span class="ident">iterator</span>: <span class="ident">RootedObject</span>::<span class="ident">new_unrooted</span>(),
+            <span class="ident">index</span>: ::<span class="ident">std</span>::<span class="ident">u32</span>::<span class="ident">MAX</span>, <span class="comment">// NOT_ARRAY</span>
         };
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>iterator</span> <span class='op'>=</span> <span class='ident'>ForOfIteratorGuard</span>::<span class='ident'>new</span>(<span class='ident'>cx</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>iterator</span>);
-        <span class='kw'>let</span> <span class='ident'>iterator</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='ident'>iterator</span>.<span class='ident'>root</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iterator</span> <span class="op">=</span> <span class="ident">ForOfIteratorGuard</span>::<span class="ident">new</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">iterator</span>);
+        <span class="kw">let</span> <span class="ident">iterator</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="ident">iterator</span>.<span class="ident">root</span>;
 
-        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>iterator</span>.<span class='ident'>init</span>(<span class='ident'>value</span>, <span class='ident'>ForOfIterator_NonIterableBehavior</span>::<span class='ident'>AllowNonIterable</span>) {
-            <span class='kw'>return</span> <span class='prelude-val'>Err</span>(())
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">iterator</span>.<span class="ident">init</span>(<span class="ident">value</span>, <span class="ident">ForOfIterator_NonIterableBehavior</span>::<span class="ident">AllowNonIterable</span>) {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(())
         }
 
-        <span class='kw'>if</span> <span class='ident'>iterator</span>.<span class='ident'>iterator</span>.<span class='ident'>ptr</span>.<span class='ident'>is_null</span>() {
-            <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='ident'>ConversionResult</span>::<span class='ident'>Failure</span>(<span class='string'>&quot;Value is not iterable&quot;</span>.<span class='ident'>into</span>()));
+        <span class="kw">if</span> <span class="ident">iterator</span>.<span class="ident">iterator</span>.<span class="ident">ptr</span>.<span class="ident">is_null</span>() {
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">ConversionResult</span>::<span class="ident">Failure</span>(<span class="string">&quot;Value is not iterable&quot;</span>.<span class="ident">into</span>()));
         }
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>ret</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ret</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
 
-        <span class='kw'>loop</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>done</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-            <span class='macro'>rooted</span><span class='macro'>!</span>(<span class='kw'>in</span>(<span class='ident'>cx</span>) <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>val</span> <span class='op'>=</span> <span class='ident'>UndefinedValue</span>());
-            <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>iterator</span>.<span class='ident'>next</span>(<span class='ident'>val</span>.<span class='ident'>handle_mut</span>(), <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>done</span>) {
-                <span class='kw'>return</span> <span class='prelude-val'>Err</span>(())
+        <span class="kw">loop</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">done</span> <span class="op">=</span> <span class="bool-val">false</span>;
+            <span class="macro">rooted</span><span class="macro">!</span>(<span class="kw">in</span>(<span class="ident">cx</span>) <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">val</span> <span class="op">=</span> <span class="ident">UndefinedValue</span>());
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">iterator</span>.<span class="ident">next</span>(<span class="ident">val</span>.<span class="ident">handle_mut</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">done</span>) {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(())
             }
 
-            <span class='kw'>if</span> <span class='ident'>done</span> {
-                <span class='kw'>break</span>;
+            <span class="kw">if</span> <span class="ident">done</span> {
+                <span class="kw">break</span>;
             }
 
-            <span class='ident'>ret</span>.<span class='ident'>push</span>(<span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>T</span>::<span class='ident'>from_jsval</span>(<span class='ident'>cx</span>, <span class='ident'>val</span>.<span class='ident'>handle</span>(), <span class='ident'>option</span>.<span class='ident'>clone</span>())) {
-                <span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>(<span class='ident'>v</span>) <span class='op'>=&gt;</span> <span class='ident'>v</span>,
-                <span class='ident'>ConversionResult</span>::<span class='ident'>Failure</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='ident'>ConversionResult</span>::<span class='ident'>Failure</span>(<span class='ident'>e</span>)),
+            <span class="ident">ret</span>.<span class="ident">push</span>(<span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">T</span>::<span class="ident">from_jsval</span>(<span class="ident">cx</span>, <span class="ident">val</span>.<span class="ident">handle</span>(), <span class="ident">option</span>.<span class="ident">clone</span>())) {
+                <span class="ident">ConversionResult</span>::<span class="ident">Success</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">v</span>,
+                <span class="ident">ConversionResult</span>::<span class="ident">Failure</span>(<span class="ident">e</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">ConversionResult</span>::<span class="ident">Failure</span>(<span class="ident">e</span>)),
             });
         }
 
-        <span class='prelude-val'>Ok</span>(<span class='ident'>ret</span>).<span class='ident'>map</span>(<span class='ident'>ConversionResult</span>::<span class='ident'>Success</span>)
+        <span class="prelude-val">Ok</span>(<span class="ident">ret</span>).<span class="ident">map</span>(<span class="ident">ConversionResult</span>::<span class="ident">Success</span>)
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-object</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSObject</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>ObjectOrNullValue</span>(<span class='kw-2'>*</span><span class='self'>self</span>));
-        <span class='ident'>maybe_wrap_object_or_null_value</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>);
+<span class="comment">// https://heycam.github.io/webidl/#es-object</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSObject</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">ObjectOrNullValue</span>(<span class="kw-2">*</span><span class="self">self</span>));
+        <span class="ident">maybe_wrap_object_or_null_value</span>(<span class="ident">cx</span>, <span class="ident">rval</span>);
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-object</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>NonZero</span><span class='op'>&lt;</span><span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSObject</span><span class='op'>&gt;</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>ObjectValue</span>(<span class='kw-2'>*</span><span class='kw-2'>*</span><span class='self'>self</span>));
-        <span class='ident'>maybe_wrap_object_value</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>);
+<span class="comment">// https://heycam.github.io/webidl/#es-object</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">NonZero</span><span class="op">&lt;</span><span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSObject</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">ObjectValue</span>(<span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>));
+        <span class="ident">maybe_wrap_object_value</span>(<span class="ident">cx</span>, <span class="ident">rval</span>);
     }
 }
 
-<span class='comment'>// https://heycam.github.io/webidl/#es-object</span>
-<span class='kw'>impl</span> <span class='ident'>ToJSValConvertible</span> <span class='kw'>for</span> <span class='ident'>Heap</span><span class='op'>&lt;</span><span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSObject</span><span class='op'>&gt;</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_jsval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>ObjectOrNullValue</span>(<span class='self'>self</span>.<span class='ident'>get</span>()));
-        <span class='ident'>maybe_wrap_object_or_null_value</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>);
+<span class="comment">// https://heycam.github.io/webidl/#es-object</span>
+<span class="kw">impl</span> <span class="ident">ToJSValConvertible</span> <span class="kw">for</span> <span class="ident">Heap</span><span class="op">&lt;</span><span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSObject</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_jsval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">ObjectOrNullValue</span>(<span class="self">self</span>.<span class="ident">get</span>()));
+        <span class="ident">maybe_wrap_object_or_null_value</span>(<span class="ident">cx</span>, <span class="ident">rval</span>);
     }
 }
 </pre>

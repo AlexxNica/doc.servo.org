@@ -2,7 +2,7 @@
 implementors["gfx"] = [];
 implementors["hyper"] = [];
 implementors["layout_thread"] = [];
-implementors["net"] = ["impl <a class='trait' href='hyper/net/trait.SslClient.html' title='trait hyper::net::SslClient'>SslClient</a> for <a class='struct' href='net/connector/struct.ServoSslClient.html' title='struct net::connector::ServoSslClient'>ServoSslClient</a>",];
+implementors["net"] = ["impl <a class="trait" href="hyper/net/trait.SslClient.html" title="trait hyper::net::SslClient">SslClient</a> for <a class="struct" href="net/connector/struct.ServoSslClient.html" title="struct net::connector::ServoSslClient">ServoSslClient</a>",];
 implementors["net_traits"] = [];
 implementors["script"] = [];
 implementors["servo"] = [];

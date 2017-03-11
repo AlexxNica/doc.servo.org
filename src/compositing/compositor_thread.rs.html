@@ -229,192 +229,192 @@
 <span id="184">184</span>
 <span id="185">185</span>
 <span id="186">186</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! Communication with the compositor thread.</span>
+<span class="doccomment">//! Communication with the compositor thread.</span>
 
-<span class='kw'>use</span> <span class='ident'>SendableFrameTree</span>;
-<span class='kw'>use</span> <span class='ident'>compositor</span>::<span class='ident'>CompositingReason</span>;
-<span class='kw'>use</span> <span class='ident'>euclid</span>::<span class='ident'>point</span>::<span class='ident'>Point2D</span>;
-<span class='kw'>use</span> <span class='ident'>euclid</span>::<span class='ident'>size</span>::<span class='ident'>Size2D</span>;
-<span class='kw'>use</span> <span class='ident'>gfx_traits</span>::<span class='ident'>ScrollRootId</span>;
-<span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>::<span class='ident'>IpcSender</span>;
-<span class='kw'>use</span> <span class='ident'>msg</span>::<span class='ident'>constellation_msg</span>::{<span class='ident'>Key</span>, <span class='ident'>KeyModifiers</span>, <span class='ident'>KeyState</span>, <span class='ident'>PipelineId</span>};
-<span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>image</span>::<span class='ident'>base</span>::<span class='ident'>Image</span>;
-<span class='kw'>use</span> <span class='ident'>profile_traits</span>::<span class='ident'>mem</span>;
-<span class='kw'>use</span> <span class='ident'>profile_traits</span>::<span class='ident'>time</span>;
-<span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>AnimationState</span>, <span class='ident'>ConstellationMsg</span>, <span class='ident'>EventResult</span>};
-<span class='kw'>use</span> <span class='ident'>servo_url</span>::<span class='ident'>ServoUrl</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fmt</span>::{<span class='ident'>Debug</span>, <span class='ident'>Error</span>, <span class='ident'>Formatter</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::{<span class='ident'>Receiver</span>, <span class='ident'>Sender</span>};
-<span class='kw'>use</span> <span class='ident'>style_traits</span>::<span class='ident'>cursor</span>::<span class='ident'>Cursor</span>;
-<span class='kw'>use</span> <span class='ident'>style_traits</span>::<span class='ident'>viewport</span>::<span class='ident'>ViewportConstraints</span>;
-<span class='kw'>use</span> <span class='ident'>webrender</span>;
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>;
+<span class="kw">use</span> <span class="ident">SendableFrameTree</span>;
+<span class="kw">use</span> <span class="ident">compositor</span>::<span class="ident">CompositingReason</span>;
+<span class="kw">use</span> <span class="ident">euclid</span>::<span class="ident">point</span>::<span class="ident">Point2D</span>;
+<span class="kw">use</span> <span class="ident">euclid</span>::<span class="ident">size</span>::<span class="ident">Size2D</span>;
+<span class="kw">use</span> <span class="ident">gfx_traits</span>::<span class="ident">ScrollRootId</span>;
+<span class="kw">use</span> <span class="ident">ipc_channel</span>::<span class="ident">ipc</span>::<span class="ident">IpcSender</span>;
+<span class="kw">use</span> <span class="ident">msg</span>::<span class="ident">constellation_msg</span>::{<span class="ident">Key</span>, <span class="ident">KeyModifiers</span>, <span class="ident">KeyState</span>, <span class="ident">PipelineId</span>};
+<span class="kw">use</span> <span class="ident">net_traits</span>::<span class="ident">image</span>::<span class="ident">base</span>::<span class="ident">Image</span>;
+<span class="kw">use</span> <span class="ident">profile_traits</span>::<span class="ident">mem</span>;
+<span class="kw">use</span> <span class="ident">profile_traits</span>::<span class="ident">time</span>;
+<span class="kw">use</span> <span class="ident">script_traits</span>::{<span class="ident">AnimationState</span>, <span class="ident">ConstellationMsg</span>, <span class="ident">EventResult</span>};
+<span class="kw">use</span> <span class="ident">servo_url</span>::<span class="ident">ServoUrl</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::{<span class="ident">Debug</span>, <span class="ident">Error</span>, <span class="ident">Formatter</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>::{<span class="ident">Receiver</span>, <span class="ident">Sender</span>};
+<span class="kw">use</span> <span class="ident">style_traits</span>::<span class="ident">cursor</span>::<span class="ident">Cursor</span>;
+<span class="kw">use</span> <span class="ident">style_traits</span>::<span class="ident">viewport</span>::<span class="ident">ViewportConstraints</span>;
+<span class="kw">use</span> <span class="ident">webrender</span>;
+<span class="kw">use</span> <span class="ident">webrender_traits</span>;
 
-<span class='doccomment'>/// Sends messages to the compositor. This is a trait supplied by the port because the method used</span>
-<span class='doccomment'>/// to communicate with the compositor may have to kick OS event loops awake, communicate cross-</span>
-<span class='doccomment'>/// process, and so forth.</span>
-<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>CompositorProxy</span> : <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Send</span> {
-    <span class='doccomment'>/// Sends a message to the compositor.</span>
-    <span class='kw'>fn</span> <span class='ident'>send</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>msg</span>: <span class='ident'>Msg</span>);
-    <span class='doccomment'>/// Clones the compositor proxy.</span>
-    <span class='kw'>fn</span> <span class='ident'>clone_compositor_proxy</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>CompositorProxy</span> <span class='op'>+</span> <span class='lifetime'>&#39;static</span> <span class='op'>+</span> <span class='ident'>Send</span><span class='op'>&gt;</span>;
+<span class="doccomment">/// Sends messages to the compositor. This is a trait supplied by the port because the method used</span>
+<span class="doccomment">/// to communicate with the compositor may have to kick OS event loops awake, communicate cross-</span>
+<span class="doccomment">/// process, and so forth.</span>
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">CompositorProxy</span> : <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">Send</span> {
+    <span class="doccomment">/// Sends a message to the compositor.</span>
+    <span class="kw">fn</span> <span class="ident">send</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">Msg</span>);
+    <span class="doccomment">/// Clones the compositor proxy.</span>
+    <span class="kw">fn</span> <span class="ident">clone_compositor_proxy</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">CompositorProxy</span> <span class="op">+</span> <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">Send</span><span class="op">&gt;</span>;
 }
 
-<span class='doccomment'>/// The port that the compositor receives messages on. As above, this is a trait supplied by the</span>
-<span class='doccomment'>/// Servo port.</span>
-<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>CompositorReceiver</span> : <span class='lifetime'>&#39;static</span> {
-    <span class='doccomment'>/// Receives the next message inbound for the compositor. This must not block.</span>
-    <span class='kw'>fn</span> <span class='ident'>try_recv_compositor_msg</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Msg</span><span class='op'>&gt;</span>;
-    <span class='doccomment'>/// Synchronously waits for, and returns, the next message inbound for the compositor.</span>
-    <span class='kw'>fn</span> <span class='ident'>recv_compositor_msg</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Msg</span>;
+<span class="doccomment">/// The port that the compositor receives messages on. As above, this is a trait supplied by the</span>
+<span class="doccomment">/// Servo port.</span>
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">CompositorReceiver</span> : <span class="lifetime">&#39;static</span> {
+    <span class="doccomment">/// Receives the next message inbound for the compositor. This must not block.</span>
+    <span class="kw">fn</span> <span class="ident">try_recv_compositor_msg</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Msg</span><span class="op">&gt;</span>;
+    <span class="doccomment">/// Synchronously waits for, and returns, the next message inbound for the compositor.</span>
+    <span class="kw">fn</span> <span class="ident">recv_compositor_msg</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Msg</span>;
 }
 
-<span class='doccomment'>/// A convenience implementation of `CompositorReceiver` for a plain old Rust `Receiver`.</span>
-<span class='kw'>impl</span> <span class='ident'>CompositorReceiver</span> <span class='kw'>for</span> <span class='ident'>Receiver</span><span class='op'>&lt;</span><span class='ident'>Msg</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>try_recv_compositor_msg</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Msg</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>try_recv</span>().<span class='ident'>ok</span>()
+<span class="doccomment">/// A convenience implementation of `CompositorReceiver` for a plain old Rust `Receiver`.</span>
+<span class="kw">impl</span> <span class="ident">CompositorReceiver</span> <span class="kw">for</span> <span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Msg</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">try_recv_compositor_msg</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Msg</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">try_recv</span>().<span class="ident">ok</span>()
     }
-    <span class='kw'>fn</span> <span class='ident'>recv_compositor_msg</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Msg</span> {
-        <span class='self'>self</span>.<span class='ident'>recv</span>().<span class='ident'>unwrap</span>()
-    }
-}
-
-<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>RenderListener</span> {
-    <span class='kw'>fn</span> <span class='ident'>recomposite</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>reason</span>: <span class='ident'>CompositingReason</span>);
-}
-
-<span class='kw'>impl</span> <span class='ident'>RenderListener</span> <span class='kw'>for</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>CompositorProxy</span> <span class='op'>+</span> <span class='lifetime'>&#39;static</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>recomposite</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>reason</span>: <span class='ident'>CompositingReason</span>) {
-        <span class='self'>self</span>.<span class='ident'>send</span>(<span class='ident'>Msg</span>::<span class='ident'>Recomposite</span>(<span class='ident'>reason</span>));
+    <span class="kw">fn</span> <span class="ident">recv_compositor_msg</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Msg</span> {
+        <span class="self">self</span>.<span class="ident">recv</span>().<span class="ident">unwrap</span>()
     }
 }
 
-<span class='doccomment'>/// Messages from the painting thread and the constellation thread to the compositor thread.</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>Msg</span> {
-    <span class='doccomment'>/// Requests that the compositor shut down.</span>
-    <span class='ident'>Exit</span>,
-
-    <span class='doccomment'>/// Informs the compositor that the constellation has completed shutdown.</span>
-    <span class='doccomment'>/// Required because the constellation can have pending calls to make</span>
-    <span class='doccomment'>/// (e.g. SetFrameTree) at the time that we send it an ExitMsg.</span>
-    <span class='ident'>ShutdownComplete</span>,
-
-    <span class='doccomment'>/// Scroll a page in a window</span>
-    <span class='ident'>ScrollFragmentPoint</span>(<span class='ident'>PipelineId</span>, <span class='ident'>ScrollRootId</span>, <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>, <span class='ident'>bool</span>),
-    <span class='doccomment'>/// Alerts the compositor that the current page has changed its title.</span>
-    <span class='ident'>ChangePageTitle</span>(<span class='ident'>PipelineId</span>, <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>),
-    <span class='doccomment'>/// Alerts the compositor that the current page has changed its URL.</span>
-    <span class='ident'>ChangePageUrl</span>(<span class='ident'>PipelineId</span>, <span class='ident'>ServoUrl</span>),
-    <span class='doccomment'>/// Alerts the compositor that the given pipeline has changed whether it is running animations.</span>
-    <span class='ident'>ChangeRunningAnimationsState</span>(<span class='ident'>PipelineId</span>, <span class='ident'>AnimationState</span>),
-    <span class='doccomment'>/// Replaces the current frame tree, typically called during main frame navigation.</span>
-    <span class='ident'>SetFrameTree</span>(<span class='ident'>SendableFrameTree</span>, <span class='ident'>IpcSender</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span>),
-    <span class='doccomment'>/// The load of a page has begun: (can go back, can go forward).</span>
-    <span class='ident'>LoadStart</span>(<span class='ident'>bool</span>, <span class='ident'>bool</span>),
-    <span class='doccomment'>/// The load of a page has completed: (can go back, can go forward, is root frame).</span>
-    <span class='ident'>LoadComplete</span>(<span class='ident'>bool</span>, <span class='ident'>bool</span>, <span class='ident'>bool</span>),
-    <span class='doccomment'>/// We hit the delayed composition timeout. (See `delayed_composition.rs`.)</span>
-    <span class='ident'>DelayedCompositionTimeout</span>(<span class='ident'>u64</span>),
-    <span class='doccomment'>/// Composite.</span>
-    <span class='ident'>Recomposite</span>(<span class='ident'>CompositingReason</span>),
-    <span class='doccomment'>/// Sends an unconsumed key event back to the compositor.</span>
-    <span class='ident'>KeyEvent</span>(<span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>char</span><span class='op'>&gt;</span>, <span class='ident'>Key</span>, <span class='ident'>KeyState</span>, <span class='ident'>KeyModifiers</span>),
-    <span class='doccomment'>/// Script has handled a touch event, and either prevented or allowed default actions.</span>
-    <span class='ident'>TouchEventProcessed</span>(<span class='ident'>EventResult</span>),
-    <span class='doccomment'>/// Changes the cursor.</span>
-    <span class='ident'>SetCursor</span>(<span class='ident'>Cursor</span>),
-    <span class='doccomment'>/// Composite to a PNG file and return the Image over a passed channel.</span>
-    <span class='ident'>CreatePng</span>(<span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Image</span><span class='op'>&gt;&gt;</span>),
-    <span class='doccomment'>/// Alerts the compositor that the viewport has been constrained in some manner</span>
-    <span class='ident'>ViewportConstrained</span>(<span class='ident'>PipelineId</span>, <span class='ident'>ViewportConstraints</span>),
-    <span class='doccomment'>/// A reply to the compositor asking if the output image is stable.</span>
-    <span class='ident'>IsReadyToSaveImageReply</span>(<span class='ident'>bool</span>),
-    <span class='doccomment'>/// A favicon was detected</span>
-    <span class='ident'>NewFavicon</span>(<span class='ident'>ServoUrl</span>),
-    <span class='doccomment'>/// &lt;head&gt; tag finished parsing</span>
-    <span class='ident'>HeadParsed</span>,
-    <span class='doccomment'>/// A status message to be displayed by the browser chrome.</span>
-    <span class='ident'>Status</span>(<span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>),
-    <span class='doccomment'>/// Get Window Informations size and position</span>
-    <span class='ident'>GetClientWindow</span>(<span class='ident'>IpcSender</span><span class='op'>&lt;</span>(<span class='ident'>Size2D</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>, <span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>i32</span><span class='op'>&gt;</span>)<span class='op'>&gt;</span>),
-    <span class='doccomment'>/// Move the window to a point</span>
-    <span class='ident'>MoveTo</span>(<span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>i32</span><span class='op'>&gt;</span>),
-    <span class='doccomment'>/// Resize the window to size</span>
-    <span class='ident'>ResizeTo</span>(<span class='ident'>Size2D</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>),
-    <span class='doccomment'>/// Pipeline visibility changed</span>
-    <span class='ident'>PipelineVisibilityChanged</span>(<span class='ident'>PipelineId</span>, <span class='ident'>bool</span>),
-    <span class='doccomment'>/// WebRender has successfully processed a scroll. The boolean specifies whether a composite is</span>
-    <span class='doccomment'>/// needed.</span>
-    <span class='ident'>NewScrollFrameReady</span>(<span class='ident'>bool</span>),
-    <span class='doccomment'>/// A pipeline was shut down.</span>
-    <span class='comment'>// This message acts as a synchronization point between the constellation,</span>
-    <span class='comment'>// when it shuts down a pipeline, to the compositor; when the compositor</span>
-    <span class='comment'>// sends a reply on the IpcSender, the constellation knows it&#39;s safe to</span>
-    <span class='comment'>// tear down the other threads associated with this pipeline.</span>
-    <span class='ident'>PipelineExited</span>(<span class='ident'>PipelineId</span>, <span class='ident'>IpcSender</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span>),
-    <span class='doccomment'>/// Runs a closure in the compositor thread.</span>
-    <span class='doccomment'>/// It&#39;s used to dispatch functions from webrender to the main thread&#39;s event loop.</span>
-    <span class='doccomment'>/// Required to allow WGL GLContext sharing in Windows.</span>
-    <span class='ident'>Dispatch</span>(<span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>Fn</span>() <span class='op'>+</span> <span class='ident'>Send</span><span class='op'>&gt;</span>),
-    <span class='doccomment'>/// Enter or exit fullscreen</span>
-    <span class='ident'>SetFullscreenState</span>(<span class='ident'>bool</span>),
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">RenderListener</span> {
+    <span class="kw">fn</span> <span class="ident">recomposite</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">reason</span>: <span class="ident">CompositingReason</span>);
 }
 
-<span class='kw'>impl</span> <span class='ident'>Debug</span> <span class='kw'>for</span> <span class='ident'>Msg</span> {
-    <span class='kw'>fn</span> <span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>f</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Formatter</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), <span class='ident'>Error</span><span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='self'>self</span> {
-            <span class='ident'>Msg</span>::<span class='ident'>Exit</span> <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;Exit&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>ShutdownComplete</span> <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;ShutdownComplete&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>ScrollFragmentPoint</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;ScrollFragmentPoint&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>ChangeRunningAnimationsState</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;ChangeRunningAnimationsState&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>ChangePageTitle</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;ChangePageTitle&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>ChangePageUrl</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;ChangePageUrl&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>SetFrameTree</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;SetFrameTree&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>LoadComplete</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;LoadComplete&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>LoadStart</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;LoadStart&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>DelayedCompositionTimeout</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;DelayedCompositionTimeout&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>Recomposite</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;Recomposite&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>KeyEvent</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;KeyEvent&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>TouchEventProcessed</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;TouchEventProcessed&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>SetCursor</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;SetCursor&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>CreatePng</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;CreatePng&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>ViewportConstrained</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;ViewportConstrained&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>IsReadyToSaveImageReply</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;IsReadyToSaveImageReply&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>NewFavicon</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;NewFavicon&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>HeadParsed</span> <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;HeadParsed&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>Status</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;Status&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>GetClientWindow</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;GetClientWindow&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>MoveTo</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;MoveTo&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>ResizeTo</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;ResizeTo&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>PipelineVisibilityChanged</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;PipelineVisibilityChanged&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>PipelineExited</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;PipelineExited&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>NewScrollFrameReady</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;NewScrollFrameReady&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>Dispatch</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;Dispatch&quot;</span>),
-            <span class='ident'>Msg</span>::<span class='ident'>SetFullscreenState</span>(..) <span class='op'>=&gt;</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;SetFullscreenState&quot;</span>),
+<span class="kw">impl</span> <span class="ident">RenderListener</span> <span class="kw">for</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">CompositorProxy</span> <span class="op">+</span> <span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">recomposite</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">reason</span>: <span class="ident">CompositingReason</span>) {
+        <span class="self">self</span>.<span class="ident">send</span>(<span class="ident">Msg</span>::<span class="ident">Recomposite</span>(<span class="ident">reason</span>));
+    }
+}
+
+<span class="doccomment">/// Messages from the painting thread and the constellation thread to the compositor thread.</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Msg</span> {
+    <span class="doccomment">/// Requests that the compositor shut down.</span>
+    <span class="ident">Exit</span>,
+
+    <span class="doccomment">/// Informs the compositor that the constellation has completed shutdown.</span>
+    <span class="doccomment">/// Required because the constellation can have pending calls to make</span>
+    <span class="doccomment">/// (e.g. SetFrameTree) at the time that we send it an ExitMsg.</span>
+    <span class="ident">ShutdownComplete</span>,
+
+    <span class="doccomment">/// Scroll a page in a window</span>
+    <span class="ident">ScrollFragmentPoint</span>(<span class="ident">PipelineId</span>, <span class="ident">ScrollRootId</span>, <span class="ident">Point2D</span><span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span>, <span class="ident">bool</span>),
+    <span class="doccomment">/// Alerts the compositor that the current page has changed its title.</span>
+    <span class="ident">ChangePageTitle</span>(<span class="ident">PipelineId</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>),
+    <span class="doccomment">/// Alerts the compositor that the current page has changed its URL.</span>
+    <span class="ident">ChangePageUrl</span>(<span class="ident">PipelineId</span>, <span class="ident">ServoUrl</span>),
+    <span class="doccomment">/// Alerts the compositor that the given pipeline has changed whether it is running animations.</span>
+    <span class="ident">ChangeRunningAnimationsState</span>(<span class="ident">PipelineId</span>, <span class="ident">AnimationState</span>),
+    <span class="doccomment">/// Replaces the current frame tree, typically called during main frame navigation.</span>
+    <span class="ident">SetFrameTree</span>(<span class="ident">SendableFrameTree</span>, <span class="ident">IpcSender</span><span class="op">&lt;</span>()<span class="op">&gt;</span>),
+    <span class="doccomment">/// The load of a page has begun: (can go back, can go forward).</span>
+    <span class="ident">LoadStart</span>(<span class="ident">bool</span>, <span class="ident">bool</span>),
+    <span class="doccomment">/// The load of a page has completed: (can go back, can go forward, is root frame).</span>
+    <span class="ident">LoadComplete</span>(<span class="ident">bool</span>, <span class="ident">bool</span>, <span class="ident">bool</span>),
+    <span class="doccomment">/// We hit the delayed composition timeout. (See `delayed_composition.rs`.)</span>
+    <span class="ident">DelayedCompositionTimeout</span>(<span class="ident">u64</span>),
+    <span class="doccomment">/// Composite.</span>
+    <span class="ident">Recomposite</span>(<span class="ident">CompositingReason</span>),
+    <span class="doccomment">/// Sends an unconsumed key event back to the compositor.</span>
+    <span class="ident">KeyEvent</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">char</span><span class="op">&gt;</span>, <span class="ident">Key</span>, <span class="ident">KeyState</span>, <span class="ident">KeyModifiers</span>),
+    <span class="doccomment">/// Script has handled a touch event, and either prevented or allowed default actions.</span>
+    <span class="ident">TouchEventProcessed</span>(<span class="ident">EventResult</span>),
+    <span class="doccomment">/// Changes the cursor.</span>
+    <span class="ident">SetCursor</span>(<span class="ident">Cursor</span>),
+    <span class="doccomment">/// Composite to a PNG file and return the Image over a passed channel.</span>
+    <span class="ident">CreatePng</span>(<span class="ident">IpcSender</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Image</span><span class="op">&gt;&gt;</span>),
+    <span class="doccomment">/// Alerts the compositor that the viewport has been constrained in some manner</span>
+    <span class="ident">ViewportConstrained</span>(<span class="ident">PipelineId</span>, <span class="ident">ViewportConstraints</span>),
+    <span class="doccomment">/// A reply to the compositor asking if the output image is stable.</span>
+    <span class="ident">IsReadyToSaveImageReply</span>(<span class="ident">bool</span>),
+    <span class="doccomment">/// A favicon was detected</span>
+    <span class="ident">NewFavicon</span>(<span class="ident">ServoUrl</span>),
+    <span class="doccomment">/// &lt;head&gt; tag finished parsing</span>
+    <span class="ident">HeadParsed</span>,
+    <span class="doccomment">/// A status message to be displayed by the browser chrome.</span>
+    <span class="ident">Status</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>),
+    <span class="doccomment">/// Get Window Informations size and position</span>
+    <span class="ident">GetClientWindow</span>(<span class="ident">IpcSender</span><span class="op">&lt;</span>(<span class="ident">Size2D</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>, <span class="ident">Point2D</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>)<span class="op">&gt;</span>),
+    <span class="doccomment">/// Move the window to a point</span>
+    <span class="ident">MoveTo</span>(<span class="ident">Point2D</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>),
+    <span class="doccomment">/// Resize the window to size</span>
+    <span class="ident">ResizeTo</span>(<span class="ident">Size2D</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>),
+    <span class="doccomment">/// Pipeline visibility changed</span>
+    <span class="ident">PipelineVisibilityChanged</span>(<span class="ident">PipelineId</span>, <span class="ident">bool</span>),
+    <span class="doccomment">/// WebRender has successfully processed a scroll. The boolean specifies whether a composite is</span>
+    <span class="doccomment">/// needed.</span>
+    <span class="ident">NewScrollFrameReady</span>(<span class="ident">bool</span>),
+    <span class="doccomment">/// A pipeline was shut down.</span>
+    <span class="comment">// This message acts as a synchronization point between the constellation,</span>
+    <span class="comment">// when it shuts down a pipeline, to the compositor; when the compositor</span>
+    <span class="comment">// sends a reply on the IpcSender, the constellation knows it&#39;s safe to</span>
+    <span class="comment">// tear down the other threads associated with this pipeline.</span>
+    <span class="ident">PipelineExited</span>(<span class="ident">PipelineId</span>, <span class="ident">IpcSender</span><span class="op">&lt;</span>()<span class="op">&gt;</span>),
+    <span class="doccomment">/// Runs a closure in the compositor thread.</span>
+    <span class="doccomment">/// It&#39;s used to dispatch functions from webrender to the main thread&#39;s event loop.</span>
+    <span class="doccomment">/// Required to allow WGL GLContext sharing in Windows.</span>
+    <span class="ident">Dispatch</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Fn</span>() <span class="op">+</span> <span class="ident">Send</span><span class="op">&gt;</span>),
+    <span class="doccomment">/// Enter or exit fullscreen</span>
+    <span class="ident">SetFullscreenState</span>(<span class="ident">bool</span>),
+}
+
+<span class="kw">impl</span> <span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Msg</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">Msg</span>::<span class="ident">Exit</span> <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;Exit&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">ShutdownComplete</span> <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;ShutdownComplete&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">ScrollFragmentPoint</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;ScrollFragmentPoint&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">ChangeRunningAnimationsState</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;ChangeRunningAnimationsState&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">ChangePageTitle</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;ChangePageTitle&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">ChangePageUrl</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;ChangePageUrl&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">SetFrameTree</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;SetFrameTree&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">LoadComplete</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;LoadComplete&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">LoadStart</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;LoadStart&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">DelayedCompositionTimeout</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;DelayedCompositionTimeout&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">Recomposite</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;Recomposite&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">KeyEvent</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;KeyEvent&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">TouchEventProcessed</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;TouchEventProcessed&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">SetCursor</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;SetCursor&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">CreatePng</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;CreatePng&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">ViewportConstrained</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;ViewportConstrained&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">IsReadyToSaveImageReply</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;IsReadyToSaveImageReply&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">NewFavicon</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;NewFavicon&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">HeadParsed</span> <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;HeadParsed&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">Status</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;Status&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">GetClientWindow</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;GetClientWindow&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">MoveTo</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;MoveTo&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">ResizeTo</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;ResizeTo&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">PipelineVisibilityChanged</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;PipelineVisibilityChanged&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">PipelineExited</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;PipelineExited&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">NewScrollFrameReady</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;NewScrollFrameReady&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">Dispatch</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;Dispatch&quot;</span>),
+            <span class="ident">Msg</span>::<span class="ident">SetFullscreenState</span>(..) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;SetFullscreenState&quot;</span>),
         }
     }
 }
 
-<span class='doccomment'>/// Data used to construct a compositor.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>InitialCompositorState</span> {
-    <span class='doccomment'>/// A channel to the compositor.</span>
-    <span class='kw'>pub</span> <span class='ident'>sender</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>CompositorProxy</span> <span class='op'>+</span> <span class='ident'>Send</span><span class='op'>&gt;</span>,
-    <span class='doccomment'>/// A port on which messages inbound to the compositor can be received.</span>
-    <span class='kw'>pub</span> <span class='ident'>receiver</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>CompositorReceiver</span><span class='op'>&gt;</span>,
-    <span class='doccomment'>/// A channel to the constellation.</span>
-    <span class='kw'>pub</span> <span class='ident'>constellation_chan</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>ConstellationMsg</span><span class='op'>&gt;</span>,
-    <span class='doccomment'>/// A channel to the time profiler thread.</span>
-    <span class='kw'>pub</span> <span class='ident'>time_profiler_chan</span>: <span class='ident'>time</span>::<span class='ident'>ProfilerChan</span>,
-    <span class='doccomment'>/// A channel to the memory profiler thread.</span>
-    <span class='kw'>pub</span> <span class='ident'>mem_profiler_chan</span>: <span class='ident'>mem</span>::<span class='ident'>ProfilerChan</span>,
-    <span class='doccomment'>/// Instance of webrender API</span>
-    <span class='kw'>pub</span> <span class='ident'>webrender</span>: <span class='ident'>webrender</span>::<span class='ident'>Renderer</span>,
-    <span class='kw'>pub</span> <span class='ident'>webrender_api_sender</span>: <span class='ident'>webrender_traits</span>::<span class='ident'>RenderApiSender</span>,
+<span class="doccomment">/// Data used to construct a compositor.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">InitialCompositorState</span> {
+    <span class="doccomment">/// A channel to the compositor.</span>
+    <span class="kw">pub</span> <span class="ident">sender</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">CompositorProxy</span> <span class="op">+</span> <span class="ident">Send</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// A port on which messages inbound to the compositor can be received.</span>
+    <span class="kw">pub</span> <span class="ident">receiver</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">CompositorReceiver</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// A channel to the constellation.</span>
+    <span class="kw">pub</span> <span class="ident">constellation_chan</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">ConstellationMsg</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// A channel to the time profiler thread.</span>
+    <span class="kw">pub</span> <span class="ident">time_profiler_chan</span>: <span class="ident">time</span>::<span class="ident">ProfilerChan</span>,
+    <span class="doccomment">/// A channel to the memory profiler thread.</span>
+    <span class="kw">pub</span> <span class="ident">mem_profiler_chan</span>: <span class="ident">mem</span>::<span class="ident">ProfilerChan</span>,
+    <span class="doccomment">/// Instance of webrender API</span>
+    <span class="kw">pub</span> <span class="ident">webrender</span>: <span class="ident">webrender</span>::<span class="ident">Renderer</span>,
+    <span class="kw">pub</span> <span class="ident">webrender_api_sender</span>: <span class="ident">webrender_traits</span>::<span class="ident">RenderApiSender</span>,
 }
 </pre>
 </section>

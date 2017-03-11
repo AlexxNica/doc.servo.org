@@ -710,672 +710,672 @@
 <span id="665">665</span>
 <span id="666">666</span>
 <span id="667">667</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! Memory profiling functions.</span>
+<span class="doccomment">//! Memory profiling functions.</span>
 
-<span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>::{<span class='self'>self</span>, <span class='ident'>IpcReceiver</span>};
-<span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>router</span>::<span class='ident'>ROUTER</span>;
-<span class='kw'>use</span> <span class='ident'>profile_traits</span>::<span class='ident'>mem</span>::{<span class='ident'>ProfilerChan</span>, <span class='ident'>ProfilerMsg</span>, <span class='ident'>ReportKind</span>, <span class='ident'>Reporter</span>, <span class='ident'>ReporterRequest</span>};
-<span class='kw'>use</span> <span class='ident'>profile_traits</span>::<span class='ident'>mem</span>::<span class='ident'>ReportsChan</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>ToOwned</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cmp</span>::<span class='ident'>Ordering</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>HashMap</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>thread</span>;
-<span class='kw'>use</span> <span class='ident'>time</span>::<span class='ident'>duration_from_seconds</span>;
+<span class="kw">use</span> <span class="ident">ipc_channel</span>::<span class="ident">ipc</span>::{<span class="self">self</span>, <span class="ident">IpcReceiver</span>};
+<span class="kw">use</span> <span class="ident">ipc_channel</span>::<span class="ident">router</span>::<span class="ident">ROUTER</span>;
+<span class="kw">use</span> <span class="ident">profile_traits</span>::<span class="ident">mem</span>::{<span class="ident">ProfilerChan</span>, <span class="ident">ProfilerMsg</span>, <span class="ident">ReportKind</span>, <span class="ident">Reporter</span>, <span class="ident">ReporterRequest</span>};
+<span class="kw">use</span> <span class="ident">profile_traits</span>::<span class="ident">mem</span>::<span class="ident">ReportsChan</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">ToOwned</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>;
+<span class="kw">use</span> <span class="ident">time</span>::<span class="ident">duration_from_seconds</span>;
 
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Profiler</span> {
-    <span class='doccomment'>/// The port through which messages are received.</span>
-    <span class='kw'>pub</span> <span class='ident'>port</span>: <span class='ident'>IpcReceiver</span><span class='op'>&lt;</span><span class='ident'>ProfilerMsg</span><span class='op'>&gt;</span>,
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Profiler</span> {
+    <span class="doccomment">/// The port through which messages are received.</span>
+    <span class="kw">pub</span> <span class="ident">port</span>: <span class="ident">IpcReceiver</span><span class="op">&lt;</span><span class="ident">ProfilerMsg</span><span class="op">&gt;</span>,
 
-    <span class='doccomment'>/// Registered memory reporters.</span>
-    <span class='ident'>reporters</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>String</span>, <span class='ident'>Reporter</span><span class='op'>&gt;</span>,
+    <span class="doccomment">/// Registered memory reporters.</span>
+    <span class="ident">reporters</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Reporter</span><span class="op">&gt;</span>,
 }
 
-<span class='kw'>const</span> <span class='ident'>JEMALLOC_HEAP_ALLOCATED_STR</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span> <span class='op'>=</span> <span class='string'>&quot;jemalloc-heap-allocated&quot;</span>;
-<span class='kw'>const</span> <span class='ident'>SYSTEM_HEAP_ALLOCATED_STR</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span> <span class='op'>=</span> <span class='string'>&quot;system-heap-allocated&quot;</span>;
+<span class="kw">const</span> <span class="ident">JEMALLOC_HEAP_ALLOCATED_STR</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;jemalloc-heap-allocated&quot;</span>;
+<span class="kw">const</span> <span class="ident">SYSTEM_HEAP_ALLOCATED_STR</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;system-heap-allocated&quot;</span>;
 
-<span class='kw'>impl</span> <span class='ident'>Profiler</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>create</span>(<span class='ident'>period</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>f64</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>ProfilerChan</span> {
-        <span class='kw'>let</span> (<span class='ident'>chan</span>, <span class='ident'>port</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
+<span class="kw">impl</span> <span class="ident">Profiler</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">period</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">ProfilerChan</span> {
+        <span class="kw">let</span> (<span class="ident">chan</span>, <span class="ident">port</span>) <span class="op">=</span> <span class="ident">ipc</span>::<span class="ident">channel</span>().<span class="ident">unwrap</span>();
 
-        <span class='comment'>// Create the timer thread if a period was provided.</span>
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>period</span>) <span class='op'>=</span> <span class='ident'>period</span> {
-            <span class='kw'>let</span> <span class='ident'>chan</span> <span class='op'>=</span> <span class='ident'>chan</span>.<span class='ident'>clone</span>();
-            <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;Memory profiler timer&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
-                <span class='kw'>loop</span> {
-                    <span class='ident'>thread</span>::<span class='ident'>sleep</span>(<span class='ident'>duration_from_seconds</span>(<span class='ident'>period</span>));
-                    <span class='kw'>if</span> <span class='ident'>chan</span>.<span class='ident'>send</span>(<span class='ident'>ProfilerMsg</span>::<span class='ident'>Print</span>).<span class='ident'>is_err</span>() {
-                        <span class='kw'>break</span>;
+        <span class="comment">// Create the timer thread if a period was provided.</span>
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">period</span>) <span class="op">=</span> <span class="ident">period</span> {
+            <span class="kw">let</span> <span class="ident">chan</span> <span class="op">=</span> <span class="ident">chan</span>.<span class="ident">clone</span>();
+            <span class="ident">thread</span>::<span class="ident">Builder</span>::<span class="ident">new</span>().<span class="ident">name</span>(<span class="string">&quot;Memory profiler timer&quot;</span>.<span class="ident">to_owned</span>()).<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">||</span> {
+                <span class="kw">loop</span> {
+                    <span class="ident">thread</span>::<span class="ident">sleep</span>(<span class="ident">duration_from_seconds</span>(<span class="ident">period</span>));
+                    <span class="kw">if</span> <span class="ident">chan</span>.<span class="ident">send</span>(<span class="ident">ProfilerMsg</span>::<span class="ident">Print</span>).<span class="ident">is_err</span>() {
+                        <span class="kw">break</span>;
                     }
                 }
-            }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
+            }).<span class="ident">expect</span>(<span class="string">&quot;Thread spawning failed&quot;</span>);
         }
 
-        <span class='comment'>// Always spawn the memory profiler. If there is no timer thread it won&#39;t receive regular</span>
-        <span class='comment'>// `Print` events, but it will still receive the other events.</span>
-        <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;Memory profiler&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>mem_profiler</span> <span class='op'>=</span> <span class='ident'>Profiler</span>::<span class='ident'>new</span>(<span class='ident'>port</span>);
-            <span class='ident'>mem_profiler</span>.<span class='ident'>start</span>();
-        }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
+        <span class="comment">// Always spawn the memory profiler. If there is no timer thread it won&#39;t receive regular</span>
+        <span class="comment">// `Print` events, but it will still receive the other events.</span>
+        <span class="ident">thread</span>::<span class="ident">Builder</span>::<span class="ident">new</span>().<span class="ident">name</span>(<span class="string">&quot;Memory profiler&quot;</span>.<span class="ident">to_owned</span>()).<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">||</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mem_profiler</span> <span class="op">=</span> <span class="ident">Profiler</span>::<span class="ident">new</span>(<span class="ident">port</span>);
+            <span class="ident">mem_profiler</span>.<span class="ident">start</span>();
+        }).<span class="ident">expect</span>(<span class="string">&quot;Thread spawning failed&quot;</span>);
 
-        <span class='kw'>let</span> <span class='ident'>mem_profiler_chan</span> <span class='op'>=</span> <span class='ident'>ProfilerChan</span>(<span class='ident'>chan</span>);
+        <span class="kw">let</span> <span class="ident">mem_profiler_chan</span> <span class="op">=</span> <span class="ident">ProfilerChan</span>(<span class="ident">chan</span>);
 
-        <span class='comment'>// Register the system memory reporter, which will run on its own thread. It never needs to</span>
-        <span class='comment'>// be unregistered, because as long as the memory profiler is running the system memory</span>
-        <span class='comment'>// reporter can make measurements.</span>
-        <span class='kw'>let</span> (<span class='ident'>system_reporter_sender</span>, <span class='ident'>system_reporter_receiver</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
-        <span class='ident'>ROUTER</span>.<span class='ident'>add_route</span>(<span class='ident'>system_reporter_receiver</span>.<span class='ident'>to_opaque</span>(), <span class='kw'>box</span> <span class='op'>|</span><span class='ident'>message</span><span class='op'>|</span> {
-            <span class='kw'>let</span> <span class='ident'>request</span>: <span class='ident'>ReporterRequest</span> <span class='op'>=</span> <span class='ident'>message</span>.<span class='ident'>to</span>().<span class='ident'>unwrap</span>();
-            <span class='ident'>system_reporter</span>::<span class='ident'>collect_reports</span>(<span class='ident'>request</span>)
+        <span class="comment">// Register the system memory reporter, which will run on its own thread. It never needs to</span>
+        <span class="comment">// be unregistered, because as long as the memory profiler is running the system memory</span>
+        <span class="comment">// reporter can make measurements.</span>
+        <span class="kw">let</span> (<span class="ident">system_reporter_sender</span>, <span class="ident">system_reporter_receiver</span>) <span class="op">=</span> <span class="ident">ipc</span>::<span class="ident">channel</span>().<span class="ident">unwrap</span>();
+        <span class="ident">ROUTER</span>.<span class="ident">add_route</span>(<span class="ident">system_reporter_receiver</span>.<span class="ident">to_opaque</span>(), <span class="kw">box</span> <span class="op">|</span><span class="ident">message</span><span class="op">|</span> {
+            <span class="kw">let</span> <span class="ident">request</span>: <span class="ident">ReporterRequest</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">to</span>().<span class="ident">unwrap</span>();
+            <span class="ident">system_reporter</span>::<span class="ident">collect_reports</span>(<span class="ident">request</span>)
         });
-        <span class='ident'>mem_profiler_chan</span>.<span class='ident'>send</span>(<span class='ident'>ProfilerMsg</span>::<span class='ident'>RegisterReporter</span>(<span class='string'>&quot;system&quot;</span>.<span class='ident'>to_owned</span>(),
-                                                             <span class='ident'>Reporter</span>(<span class='ident'>system_reporter_sender</span>)));
+        <span class="ident">mem_profiler_chan</span>.<span class="ident">send</span>(<span class="ident">ProfilerMsg</span>::<span class="ident">RegisterReporter</span>(<span class="string">&quot;system&quot;</span>.<span class="ident">to_owned</span>(),
+                                                             <span class="ident">Reporter</span>(<span class="ident">system_reporter_sender</span>)));
 
-        <span class='ident'>mem_profiler_chan</span>
+        <span class="ident">mem_profiler_chan</span>
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>port</span>: <span class='ident'>IpcReceiver</span><span class='op'>&lt;</span><span class='ident'>ProfilerMsg</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>Profiler</span> {
-        <span class='ident'>Profiler</span> {
-            <span class='ident'>port</span>: <span class='ident'>port</span>,
-            <span class='ident'>reporters</span>: <span class='ident'>HashMap</span>::<span class='ident'>new</span>(),
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">port</span>: <span class="ident">IpcReceiver</span><span class="op">&lt;</span><span class="ident">ProfilerMsg</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Profiler</span> {
+        <span class="ident">Profiler</span> {
+            <span class="ident">port</span>: <span class="ident">port</span>,
+            <span class="ident">reporters</span>: <span class="ident">HashMap</span>::<span class="ident">new</span>(),
         }
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>start</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>msg</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>port</span>.<span class='ident'>recv</span>() {
-           <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>handle_msg</span>(<span class='ident'>msg</span>) {
-               <span class='kw'>break</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">msg</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">port</span>.<span class="ident">recv</span>() {
+           <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">handle_msg</span>(<span class="ident">msg</span>) {
+               <span class="kw">break</span>
            }
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_msg</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>msg</span>: <span class='ident'>ProfilerMsg</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>match</span> <span class='ident'>msg</span> {
-            <span class='ident'>ProfilerMsg</span>::<span class='ident'>RegisterReporter</span>(<span class='ident'>name</span>, <span class='ident'>reporter</span>) <span class='op'>=&gt;</span> {
-                <span class='comment'>// Panic if it has already been registered.</span>
-                <span class='kw'>let</span> <span class='ident'>name_clone</span> <span class='op'>=</span> <span class='ident'>name</span>.<span class='ident'>clone</span>();
-                <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>reporters</span>.<span class='ident'>insert</span>(<span class='ident'>name</span>, <span class='ident'>reporter</span>) {
-                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='bool-val'>true</span>,
-                    <span class='prelude-val'>Some</span>(_) <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;RegisterReporter: &#39;{}&#39; name is already in use&quot;</span>,
-                                              <span class='ident'>name_clone</span>)),
+    <span class="kw">fn</span> <span class="ident">handle_msg</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">ProfilerMsg</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">match</span> <span class="ident">msg</span> {
+            <span class="ident">ProfilerMsg</span>::<span class="ident">RegisterReporter</span>(<span class="ident">name</span>, <span class="ident">reporter</span>) <span class="op">=&gt;</span> {
+                <span class="comment">// Panic if it has already been registered.</span>
+                <span class="kw">let</span> <span class="ident">name_clone</span> <span class="op">=</span> <span class="ident">name</span>.<span class="ident">clone</span>();
+                <span class="kw">match</span> <span class="self">self</span>.<span class="ident">reporters</span>.<span class="ident">insert</span>(<span class="ident">name</span>, <span class="ident">reporter</span>) {
+                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+                    <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;RegisterReporter: &#39;{}&#39; name is already in use&quot;</span>,
+                                              <span class="ident">name_clone</span>)),
                 }
             },
 
-            <span class='ident'>ProfilerMsg</span>::<span class='ident'>UnregisterReporter</span>(<span class='ident'>name</span>) <span class='op'>=&gt;</span> {
-                <span class='comment'>// Panic if it hasn&#39;t previously been registered.</span>
-                <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>reporters</span>.<span class='ident'>remove</span>(<span class='kw-2'>&amp;</span><span class='ident'>name</span>) {
-                    <span class='prelude-val'>Some</span>(_) <span class='op'>=&gt;</span> <span class='bool-val'>true</span>,
-                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span>
-                        <span class='macro'>panic</span><span class='macro'>!</span>(<span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;UnregisterReporter: &#39;{}&#39; name is unknown&quot;</span>, <span class='kw-2'>&amp;</span><span class='ident'>name</span>)),
+            <span class="ident">ProfilerMsg</span>::<span class="ident">UnregisterReporter</span>(<span class="ident">name</span>) <span class="op">=&gt;</span> {
+                <span class="comment">// Panic if it hasn&#39;t previously been registered.</span>
+                <span class="kw">match</span> <span class="self">self</span>.<span class="ident">reporters</span>.<span class="ident">remove</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>) {
+                    <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+                    <span class="prelude-val">None</span> <span class="op">=&gt;</span>
+                        <span class="macro">panic</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;UnregisterReporter: &#39;{}&#39; name is unknown&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">name</span>)),
                 }
             },
 
-            <span class='ident'>ProfilerMsg</span>::<span class='ident'>Print</span> <span class='op'>=&gt;</span> {
-                <span class='self'>self</span>.<span class='ident'>handle_print_msg</span>();
-                <span class='bool-val'>true</span>
+            <span class="ident">ProfilerMsg</span>::<span class="ident">Print</span> <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">handle_print_msg</span>();
+                <span class="bool-val">true</span>
             },
 
-            <span class='ident'>ProfilerMsg</span>::<span class='ident'>Exit</span> <span class='op'>=&gt;</span> <span class='bool-val'>false</span>
+            <span class="ident">ProfilerMsg</span>::<span class="ident">Exit</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_print_msg</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) {
-        <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;Begin memory reports&quot;</span>);
-        <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;|&quot;</span>);
+    <span class="kw">fn</span> <span class="ident">handle_print_msg</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Begin memory reports&quot;</span>);
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;|&quot;</span>);
 
-        <span class='comment'>// Collect reports from memory reporters.</span>
-        <span class='comment'>//</span>
-        <span class='comment'>// This serializes the report-gathering. It might be worth creating a new scoped thread for</span>
-        <span class='comment'>// each reporter once we have enough of them.</span>
-        <span class='comment'>//</span>
-        <span class='comment'>// If anything goes wrong with a reporter, we just skip it.</span>
-        <span class='comment'>//</span>
-        <span class='comment'>// We also track the total memory reported on the jemalloc heap and the system heap, and</span>
-        <span class='comment'>// use that to compute the special &quot;jemalloc-heap-unclassified&quot; and</span>
-        <span class='comment'>// &quot;system-heap-unclassified&quot; values.</span>
+        <span class="comment">// Collect reports from memory reporters.</span>
+        <span class="comment">//</span>
+        <span class="comment">// This serializes the report-gathering. It might be worth creating a new scoped thread for</span>
+        <span class="comment">// each reporter once we have enough of them.</span>
+        <span class="comment">//</span>
+        <span class="comment">// If anything goes wrong with a reporter, we just skip it.</span>
+        <span class="comment">//</span>
+        <span class="comment">// We also track the total memory reported on the jemalloc heap and the system heap, and</span>
+        <span class="comment">// use that to compute the special &quot;jemalloc-heap-unclassified&quot; and</span>
+        <span class="comment">// &quot;system-heap-unclassified&quot; values.</span>
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>forest</span> <span class='op'>=</span> <span class='ident'>ReportsForest</span>::<span class='ident'>new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">forest</span> <span class="op">=</span> <span class="ident">ReportsForest</span>::<span class="ident">new</span>();
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>jemalloc_heap_reported_size</span> <span class='op'>=</span> <span class='number'>0</span>;
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>system_heap_reported_size</span> <span class='op'>=</span> <span class='number'>0</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">jemalloc_heap_reported_size</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">system_heap_reported_size</span> <span class="op">=</span> <span class="number">0</span>;
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>jemalloc_heap_allocated_size</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='prelude-val'>None</span>;
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>system_heap_allocated_size</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='prelude-val'>None</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">jemalloc_heap_allocated_size</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> <span class="op">=</span> <span class="prelude-val">None</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">system_heap_allocated_size</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> <span class="op">=</span> <span class="prelude-val">None</span>;
 
-        <span class='kw'>for</span> <span class='ident'>reporter</span> <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>reporters</span>.<span class='ident'>values</span>() {
-            <span class='kw'>let</span> (<span class='ident'>chan</span>, <span class='ident'>port</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
-            <span class='ident'>reporter</span>.<span class='ident'>collect_reports</span>(<span class='ident'>ReportsChan</span>(<span class='ident'>chan</span>));
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='kw-2'>mut</span> <span class='ident'>reports</span>) <span class='op'>=</span> <span class='ident'>port</span>.<span class='ident'>recv</span>() {
-                <span class='kw'>for</span> <span class='ident'>report</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>reports</span> {
-                    <span class='comment'>// Add &quot;explicit&quot; to the start of the path, when appropriate.</span>
-                    <span class='kw'>match</span> <span class='ident'>report</span>.<span class='ident'>kind</span> {
-                        <span class='ident'>ReportKind</span>::<span class='ident'>ExplicitJemallocHeapSize</span> <span class='op'>|</span>
-                        <span class='ident'>ReportKind</span>::<span class='ident'>ExplicitSystemHeapSize</span> <span class='op'>|</span>
-                        <span class='ident'>ReportKind</span>::<span class='ident'>ExplicitNonHeapSize</span> <span class='op'>|</span>
-                        <span class='ident'>ReportKind</span>::<span class='ident'>ExplicitUnknownLocationSize</span> <span class='op'>=&gt;</span>
-                            <span class='ident'>report</span>.<span class='ident'>path</span>.<span class='ident'>insert</span>(<span class='number'>0</span>, <span class='ident'>String</span>::<span class='ident'>from</span>(<span class='string'>&quot;explicit&quot;</span>)),
-                        <span class='ident'>ReportKind</span>::<span class='ident'>NonExplicitSize</span> <span class='op'>=&gt;</span> {},
+        <span class="kw">for</span> <span class="ident">reporter</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">reporters</span>.<span class="ident">values</span>() {
+            <span class="kw">let</span> (<span class="ident">chan</span>, <span class="ident">port</span>) <span class="op">=</span> <span class="ident">ipc</span>::<span class="ident">channel</span>().<span class="ident">unwrap</span>();
+            <span class="ident">reporter</span>.<span class="ident">collect_reports</span>(<span class="ident">ReportsChan</span>(<span class="ident">chan</span>));
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="kw-2">mut</span> <span class="ident">reports</span>) <span class="op">=</span> <span class="ident">port</span>.<span class="ident">recv</span>() {
+                <span class="kw">for</span> <span class="ident">report</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">reports</span> {
+                    <span class="comment">// Add &quot;explicit&quot; to the start of the path, when appropriate.</span>
+                    <span class="kw">match</span> <span class="ident">report</span>.<span class="ident">kind</span> {
+                        <span class="ident">ReportKind</span>::<span class="ident">ExplicitJemallocHeapSize</span> <span class="op">|</span>
+                        <span class="ident">ReportKind</span>::<span class="ident">ExplicitSystemHeapSize</span> <span class="op">|</span>
+                        <span class="ident">ReportKind</span>::<span class="ident">ExplicitNonHeapSize</span> <span class="op">|</span>
+                        <span class="ident">ReportKind</span>::<span class="ident">ExplicitUnknownLocationSize</span> <span class="op">=&gt;</span>
+                            <span class="ident">report</span>.<span class="ident">path</span>.<span class="ident">insert</span>(<span class="number">0</span>, <span class="ident">String</span>::<span class="ident">from</span>(<span class="string">&quot;explicit&quot;</span>)),
+                        <span class="ident">ReportKind</span>::<span class="ident">NonExplicitSize</span> <span class="op">=&gt;</span> {},
                     }
 
-                    <span class='comment'>// Update the reported fractions of the heaps, when appropriate.</span>
-                    <span class='kw'>match</span> <span class='ident'>report</span>.<span class='ident'>kind</span> {
-                        <span class='ident'>ReportKind</span>::<span class='ident'>ExplicitJemallocHeapSize</span> <span class='op'>=&gt;</span>
-                            <span class='ident'>jemalloc_heap_reported_size</span> <span class='op'>+=</span> <span class='ident'>report</span>.<span class='ident'>size</span>,
-                        <span class='ident'>ReportKind</span>::<span class='ident'>ExplicitSystemHeapSize</span> <span class='op'>=&gt;</span>
-                            <span class='ident'>system_heap_reported_size</span> <span class='op'>+=</span> <span class='ident'>report</span>.<span class='ident'>size</span>,
-                        _ <span class='op'>=&gt;</span> {},
+                    <span class="comment">// Update the reported fractions of the heaps, when appropriate.</span>
+                    <span class="kw">match</span> <span class="ident">report</span>.<span class="ident">kind</span> {
+                        <span class="ident">ReportKind</span>::<span class="ident">ExplicitJemallocHeapSize</span> <span class="op">=&gt;</span>
+                            <span class="ident">jemalloc_heap_reported_size</span> <span class="op">+=</span> <span class="ident">report</span>.<span class="ident">size</span>,
+                        <span class="ident">ReportKind</span>::<span class="ident">ExplicitSystemHeapSize</span> <span class="op">=&gt;</span>
+                            <span class="ident">system_heap_reported_size</span> <span class="op">+=</span> <span class="ident">report</span>.<span class="ident">size</span>,
+                        _ <span class="op">=&gt;</span> {},
                     }
 
-                    <span class='comment'>// Record total size of the heaps, when we see them.</span>
-                    <span class='kw'>if</span> <span class='ident'>report</span>.<span class='ident'>path</span>.<span class='ident'>len</span>() <span class='op'>==</span> <span class='number'>1</span> {
-                        <span class='kw'>if</span> <span class='ident'>report</span>.<span class='ident'>path</span>[<span class='number'>0</span>] <span class='op'>==</span> <span class='ident'>JEMALLOC_HEAP_ALLOCATED_STR</span> {
-                            <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>jemalloc_heap_allocated_size</span>.<span class='ident'>is_none</span>());
-                            <span class='ident'>jemalloc_heap_allocated_size</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>report</span>.<span class='ident'>size</span>);
-                        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>report</span>.<span class='ident'>path</span>[<span class='number'>0</span>] <span class='op'>==</span> <span class='ident'>SYSTEM_HEAP_ALLOCATED_STR</span> {
-                            <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>system_heap_allocated_size</span>.<span class='ident'>is_none</span>());
-                            <span class='ident'>system_heap_allocated_size</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>report</span>.<span class='ident'>size</span>);
+                    <span class="comment">// Record total size of the heaps, when we see them.</span>
+                    <span class="kw">if</span> <span class="ident">report</span>.<span class="ident">path</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> {
+                        <span class="kw">if</span> <span class="ident">report</span>.<span class="ident">path</span>[<span class="number">0</span>] <span class="op">==</span> <span class="ident">JEMALLOC_HEAP_ALLOCATED_STR</span> {
+                            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">jemalloc_heap_allocated_size</span>.<span class="ident">is_none</span>());
+                            <span class="ident">jemalloc_heap_allocated_size</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">report</span>.<span class="ident">size</span>);
+                        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">report</span>.<span class="ident">path</span>[<span class="number">0</span>] <span class="op">==</span> <span class="ident">SYSTEM_HEAP_ALLOCATED_STR</span> {
+                            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">system_heap_allocated_size</span>.<span class="ident">is_none</span>());
+                            <span class="ident">system_heap_allocated_size</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">report</span>.<span class="ident">size</span>);
                         }
                     }
 
-                    <span class='comment'>// Insert the report.</span>
-                    <span class='ident'>forest</span>.<span class='ident'>insert</span>(<span class='kw-2'>&amp;</span><span class='ident'>report</span>.<span class='ident'>path</span>, <span class='ident'>report</span>.<span class='ident'>size</span>);
+                    <span class="comment">// Insert the report.</span>
+                    <span class="ident">forest</span>.<span class="ident">insert</span>(<span class="kw-2">&amp;</span><span class="ident">report</span>.<span class="ident">path</span>, <span class="ident">report</span>.<span class="ident">size</span>);
                 }
             }
         }
 
-        <span class='comment'>// Compute and insert the heap-unclassified values.</span>
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>jemalloc_heap_allocated_size</span>) <span class='op'>=</span> <span class='ident'>jemalloc_heap_allocated_size</span> {
-            <span class='ident'>forest</span>.<span class='ident'>insert</span>(<span class='kw-2'>&amp;</span><span class='macro'>path</span><span class='macro'>!</span>[<span class='string'>&quot;explicit&quot;</span>, <span class='string'>&quot;jemalloc-heap-unclassified&quot;</span>],
-                          <span class='ident'>jemalloc_heap_allocated_size</span> <span class='op'>-</span> <span class='ident'>jemalloc_heap_reported_size</span>);
+        <span class="comment">// Compute and insert the heap-unclassified values.</span>
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">jemalloc_heap_allocated_size</span>) <span class="op">=</span> <span class="ident">jemalloc_heap_allocated_size</span> {
+            <span class="ident">forest</span>.<span class="ident">insert</span>(<span class="kw-2">&amp;</span><span class="macro">path</span><span class="macro">!</span>[<span class="string">&quot;explicit&quot;</span>, <span class="string">&quot;jemalloc-heap-unclassified&quot;</span>],
+                          <span class="ident">jemalloc_heap_allocated_size</span> <span class="op">-</span> <span class="ident">jemalloc_heap_reported_size</span>);
         }
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>system_heap_allocated_size</span>) <span class='op'>=</span> <span class='ident'>system_heap_allocated_size</span> {
-            <span class='ident'>forest</span>.<span class='ident'>insert</span>(<span class='kw-2'>&amp;</span><span class='macro'>path</span><span class='macro'>!</span>[<span class='string'>&quot;explicit&quot;</span>, <span class='string'>&quot;system-heap-unclassified&quot;</span>],
-                          <span class='ident'>system_heap_allocated_size</span> <span class='op'>-</span> <span class='ident'>system_heap_reported_size</span>);
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">system_heap_allocated_size</span>) <span class="op">=</span> <span class="ident">system_heap_allocated_size</span> {
+            <span class="ident">forest</span>.<span class="ident">insert</span>(<span class="kw-2">&amp;</span><span class="macro">path</span><span class="macro">!</span>[<span class="string">&quot;explicit&quot;</span>, <span class="string">&quot;system-heap-unclassified&quot;</span>],
+                          <span class="ident">system_heap_allocated_size</span> <span class="op">-</span> <span class="ident">system_heap_reported_size</span>);
         }
 
-        <span class='ident'>forest</span>.<span class='ident'>print</span>();
+        <span class="ident">forest</span>.<span class="ident">print</span>();
 
-        <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;|&quot;</span>);
-        <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;End memory reports&quot;</span>);
-        <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;&quot;</span>);
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;|&quot;</span>);
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;End memory reports&quot;</span>);
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;&quot;</span>);
     }
 }
 
-<span class='doccomment'>/// A collection of one or more reports with the same initial path segment. A ReportsTree</span>
-<span class='doccomment'>/// containing a single node is described as &quot;degenerate&quot;.</span>
-<span class='kw'>struct</span> <span class='ident'>ReportsTree</span> {
-    <span class='doccomment'>/// For leaf nodes, this is the sum of the sizes of all reports that mapped to this location.</span>
-    <span class='doccomment'>/// For interior nodes, this is the sum of the sizes of all its child nodes.</span>
-    <span class='ident'>size</span>: <span class='ident'>usize</span>,
+<span class="doccomment">/// A collection of one or more reports with the same initial path segment. A ReportsTree</span>
+<span class="doccomment">/// containing a single node is described as &quot;degenerate&quot;.</span>
+<span class="kw">struct</span> <span class="ident">ReportsTree</span> {
+    <span class="doccomment">/// For leaf nodes, this is the sum of the sizes of all reports that mapped to this location.</span>
+    <span class="doccomment">/// For interior nodes, this is the sum of the sizes of all its child nodes.</span>
+    <span class="ident">size</span>: <span class="ident">usize</span>,
 
-    <span class='doccomment'>/// For leaf nodes, this is the count of all reports that mapped to this location.</span>
-    <span class='doccomment'>/// For interor nodes, this is always zero.</span>
-    <span class='ident'>count</span>: <span class='ident'>u32</span>,
+    <span class="doccomment">/// For leaf nodes, this is the count of all reports that mapped to this location.</span>
+    <span class="doccomment">/// For interor nodes, this is always zero.</span>
+    <span class="ident">count</span>: <span class="ident">u32</span>,
 
-    <span class='doccomment'>/// The segment from the report path that maps to this node.</span>
-    <span class='ident'>path_seg</span>: <span class='ident'>String</span>,
+    <span class="doccomment">/// The segment from the report path that maps to this node.</span>
+    <span class="ident">path_seg</span>: <span class="ident">String</span>,
 
-    <span class='doccomment'>/// Child nodes.</span>
-    <span class='ident'>children</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>ReportsTree</span><span class='op'>&gt;</span>,
+    <span class="doccomment">/// Child nodes.</span>
+    <span class="ident">children</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ReportsTree</span><span class="op">&gt;</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>ReportsTree</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>path_seg</span>: <span class='ident'>String</span>) <span class='op'>-&gt;</span> <span class='ident'>ReportsTree</span> {
-        <span class='ident'>ReportsTree</span> {
-            <span class='ident'>size</span>: <span class='number'>0</span>,
-            <span class='ident'>count</span>: <span class='number'>0</span>,
-            <span class='ident'>path_seg</span>: <span class='ident'>path_seg</span>,
-            <span class='ident'>children</span>: <span class='macro'>vec</span><span class='macro'>!</span>[]
+<span class="kw">impl</span> <span class="ident">ReportsTree</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">path_seg</span>: <span class="ident">String</span>) <span class="op">-&gt;</span> <span class="ident">ReportsTree</span> {
+        <span class="ident">ReportsTree</span> {
+            <span class="ident">size</span>: <span class="number">0</span>,
+            <span class="ident">count</span>: <span class="number">0</span>,
+            <span class="ident">path_seg</span>: <span class="ident">path_seg</span>,
+            <span class="ident">children</span>: <span class="macro">vec</span><span class="macro">!</span>[]
         }
     }
 
-    <span class='comment'>// Searches the tree&#39;s children for a path_seg match, and returns the index if there is a</span>
-    <span class='comment'>// match.</span>
-    <span class='kw'>fn</span> <span class='ident'>find_child</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>path_seg</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> {
-        <span class='kw'>for</span> (<span class='ident'>i</span>, <span class='ident'>child</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>children</span>.<span class='ident'>iter</span>().<span class='ident'>enumerate</span>() {
-            <span class='kw'>if</span> <span class='ident'>child</span>.<span class='ident'>path_seg</span> <span class='op'>==</span> <span class='kw-2'>*</span><span class='ident'>path_seg</span> {
-                <span class='kw'>return</span> <span class='prelude-val'>Some</span>(<span class='ident'>i</span>);
+    <span class="comment">// Searches the tree&#39;s children for a path_seg match, and returns the index if there is a</span>
+    <span class="comment">// match.</span>
+    <span class="kw">fn</span> <span class="ident">find_child</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path_seg</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="kw">for</span> (<span class="ident">i</span>, <span class="ident">child</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">children</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
+            <span class="kw">if</span> <span class="ident">child</span>.<span class="ident">path_seg</span> <span class="op">==</span> <span class="kw-2">*</span><span class="ident">path_seg</span> {
+                <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">i</span>);
             }
         }
-        <span class='prelude-val'>None</span>
+        <span class="prelude-val">None</span>
     }
 
-    <span class='comment'>// Insert the path and size into the tree, adding any nodes as necessary.</span>
-    <span class='kw'>fn</span> <span class='ident'>insert</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>path</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>String</span>], <span class='ident'>size</span>: <span class='ident'>usize</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>t</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ReportsTree</span> <span class='op'>=</span> <span class='self'>self</span>;
-        <span class='kw'>for</span> <span class='ident'>path_seg</span> <span class='kw'>in</span> <span class='ident'>path</span> {
-            <span class='kw'>let</span> <span class='ident'>i</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>t</span>.<span class='ident'>find_child</span>(<span class='kw-2'>&amp;</span><span class='ident'>path_seg</span>) {
-                <span class='prelude-val'>Some</span>(<span class='ident'>i</span>) <span class='op'>=&gt;</span> <span class='ident'>i</span>,
-                <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
-                    <span class='kw'>let</span> <span class='ident'>new_t</span> <span class='op'>=</span> <span class='ident'>ReportsTree</span>::<span class='ident'>new</span>(<span class='ident'>path_seg</span>.<span class='ident'>clone</span>());
-                    <span class='ident'>t</span>.<span class='ident'>children</span>.<span class='ident'>push</span>(<span class='ident'>new_t</span>);
-                    <span class='ident'>t</span>.<span class='ident'>children</span>.<span class='ident'>len</span>() <span class='op'>-</span> <span class='number'>1</span>
+    <span class="comment">// Insert the path and size into the tree, adding any nodes as necessary.</span>
+    <span class="kw">fn</span> <span class="ident">insert</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>], <span class="ident">size</span>: <span class="ident">usize</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">t</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ReportsTree</span> <span class="op">=</span> <span class="self">self</span>;
+        <span class="kw">for</span> <span class="ident">path_seg</span> <span class="kw">in</span> <span class="ident">path</span> {
+            <span class="kw">let</span> <span class="ident">i</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">t</span>.<span class="ident">find_child</span>(<span class="kw-2">&amp;</span><span class="ident">path_seg</span>) {
+                <span class="prelude-val">Some</span>(<span class="ident">i</span>) <span class="op">=&gt;</span> <span class="ident">i</span>,
+                <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                    <span class="kw">let</span> <span class="ident">new_t</span> <span class="op">=</span> <span class="ident">ReportsTree</span>::<span class="ident">new</span>(<span class="ident">path_seg</span>.<span class="ident">clone</span>());
+                    <span class="ident">t</span>.<span class="ident">children</span>.<span class="ident">push</span>(<span class="ident">new_t</span>);
+                    <span class="ident">t</span>.<span class="ident">children</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>
                 },
             };
-            <span class='kw'>let</span> <span class='ident'>tmp</span> <span class='op'>=</span> <span class='ident'>t</span>;    <span class='comment'>// this temporary is needed to satisfy the borrow checker</span>
-            <span class='ident'>t</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>tmp</span>.<span class='ident'>children</span>[<span class='ident'>i</span>];
+            <span class="kw">let</span> <span class="ident">tmp</span> <span class="op">=</span> <span class="ident">t</span>;    <span class="comment">// this temporary is needed to satisfy the borrow checker</span>
+            <span class="ident">t</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">tmp</span>.<span class="ident">children</span>[<span class="ident">i</span>];
         }
 
-        <span class='ident'>t</span>.<span class='ident'>size</span> <span class='op'>+=</span> <span class='ident'>size</span>;
-        <span class='ident'>t</span>.<span class='ident'>count</span> <span class='op'>+=</span> <span class='number'>1</span>;
+        <span class="ident">t</span>.<span class="ident">size</span> <span class="op">+=</span> <span class="ident">size</span>;
+        <span class="ident">t</span>.<span class="ident">count</span> <span class="op">+=</span> <span class="number">1</span>;
     }
 
-    <span class='comment'>// Fill in sizes for interior nodes and sort sub-trees accordingly. Should only be done once</span>
-    <span class='comment'>// all the reports have been inserted.</span>
-    <span class='kw'>fn</span> <span class='ident'>compute_interior_node_sizes_and_sort</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>children</span>.<span class='ident'>is_empty</span>() {
-            <span class='comment'>// Interior node. Derive its size from its children.</span>
-            <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>size</span> <span class='op'>!=</span> <span class='number'>0</span> {
-                <span class='comment'>// This will occur if e.g. we have paths [&quot;a&quot;, &quot;b&quot;] and [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;].</span>
-                <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;one report&#39;s path is a sub-path of another report&#39;s path&quot;</span>);
+    <span class="comment">// Fill in sizes for interior nodes and sort sub-trees accordingly. Should only be done once</span>
+    <span class="comment">// all the reports have been inserted.</span>
+    <span class="kw">fn</span> <span class="ident">compute_interior_node_sizes_and_sort</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">children</span>.<span class="ident">is_empty</span>() {
+            <span class="comment">// Interior node. Derive its size from its children.</span>
+            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">size</span> <span class="op">!=</span> <span class="number">0</span> {
+                <span class="comment">// This will occur if e.g. we have paths [&quot;a&quot;, &quot;b&quot;] and [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;].</span>
+                <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;one report&#39;s path is a sub-path of another report&#39;s path&quot;</span>);
             }
-            <span class='kw'>for</span> <span class='ident'>child</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>children</span> {
-                <span class='self'>self</span>.<span class='ident'>size</span> <span class='op'>+=</span> <span class='ident'>child</span>.<span class='ident'>compute_interior_node_sizes_and_sort</span>();
+            <span class="kw">for</span> <span class="ident">child</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">children</span> {
+                <span class="self">self</span>.<span class="ident">size</span> <span class="op">+=</span> <span class="ident">child</span>.<span class="ident">compute_interior_node_sizes_and_sort</span>();
             }
-            <span class='comment'>// Now that child sizes have been computed, we can sort the children.</span>
-            <span class='self'>self</span>.<span class='ident'>children</span>.<span class='ident'>sort_by</span>(<span class='op'>|</span><span class='ident'>t1</span>, <span class='ident'>t2</span><span class='op'>|</span> <span class='ident'>t2</span>.<span class='ident'>size</span>.<span class='ident'>cmp</span>(<span class='kw-2'>&amp;</span><span class='ident'>t1</span>.<span class='ident'>size</span>));
+            <span class="comment">// Now that child sizes have been computed, we can sort the children.</span>
+            <span class="self">self</span>.<span class="ident">children</span>.<span class="ident">sort_by</span>(<span class="op">|</span><span class="ident">t1</span>, <span class="ident">t2</span><span class="op">|</span> <span class="ident">t2</span>.<span class="ident">size</span>.<span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="ident">t1</span>.<span class="ident">size</span>));
         }
-        <span class='self'>self</span>.<span class='ident'>size</span>
+        <span class="self">self</span>.<span class="ident">size</span>
     }
 
-    <span class='kw'>fn</span> <span class='ident'>print</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>depth</span>: <span class='ident'>i32</span>) {
-        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>children</span>.<span class='ident'>is_empty</span>() {
-            <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>count</span>, <span class='number'>0</span>);
+    <span class="kw">fn</span> <span class="ident">print</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">depth</span>: <span class="ident">i32</span>) {
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">children</span>.<span class="ident">is_empty</span>() {
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">count</span>, <span class="number">0</span>);
         }
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>indent_str</span> <span class='op'>=</span> <span class='ident'>String</span>::<span class='ident'>new</span>();
-        <span class='kw'>for</span> _ <span class='kw'>in</span> <span class='number'>0</span>..<span class='ident'>depth</span> {
-            <span class='ident'>indent_str</span>.<span class='ident'>push_str</span>(<span class='string'>&quot;   &quot;</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">indent_str</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">new</span>();
+        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">depth</span> {
+            <span class="ident">indent_str</span>.<span class="ident">push_str</span>(<span class="string">&quot;   &quot;</span>);
         }
 
-        <span class='kw'>let</span> <span class='ident'>mebi</span> <span class='op'>=</span> <span class='number'>1024f64</span> <span class='op'>*</span> <span class='number'>1024f64</span>;
-        <span class='kw'>let</span> <span class='ident'>count_str</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>count</span> <span class='op'>&gt;</span> <span class='number'>1</span> { <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot; [{}]&quot;</span>, <span class='self'>self</span>.<span class='ident'>count</span>) } <span class='kw'>else</span> { <span class='string'>&quot;&quot;</span>.<span class='ident'>to_owned</span>() };
-        <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;|{}{:8.2} MiB -- {}{}&quot;</span>,
-                 <span class='ident'>indent_str</span>, (<span class='self'>self</span>.<span class='ident'>size</span> <span class='kw'>as</span> <span class='ident'>f64</span>) <span class='op'>/</span> <span class='ident'>mebi</span>, <span class='self'>self</span>.<span class='ident'>path_seg</span>, <span class='ident'>count_str</span>);
+        <span class="kw">let</span> <span class="ident">mebi</span> <span class="op">=</span> <span class="number">1024f64</span> <span class="op">*</span> <span class="number">1024f64</span>;
+        <span class="kw">let</span> <span class="ident">count_str</span> <span class="op">=</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">count</span> <span class="op">&gt;</span> <span class="number">1</span> { <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot; [{}]&quot;</span>, <span class="self">self</span>.<span class="ident">count</span>) } <span class="kw">else</span> { <span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>() };
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;|{}{:8.2} MiB -- {}{}&quot;</span>,
+                 <span class="ident">indent_str</span>, (<span class="self">self</span>.<span class="ident">size</span> <span class="kw">as</span> <span class="ident">f64</span>) <span class="op">/</span> <span class="ident">mebi</span>, <span class="self">self</span>.<span class="ident">path_seg</span>, <span class="ident">count_str</span>);
 
-        <span class='kw'>for</span> <span class='ident'>child</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>children</span> {
-            <span class='ident'>child</span>.<span class='ident'>print</span>(<span class='ident'>depth</span> <span class='op'>+</span> <span class='number'>1</span>);
+        <span class="kw">for</span> <span class="ident">child</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">children</span> {
+            <span class="ident">child</span>.<span class="ident">print</span>(<span class="ident">depth</span> <span class="op">+</span> <span class="number">1</span>);
         }
     }
 }
 
-<span class='doccomment'>/// A collection of ReportsTrees. It represents the data from multiple memory reports in a form</span>
-<span class='doccomment'>/// that&#39;s good to print.</span>
-<span class='kw'>struct</span> <span class='ident'>ReportsForest</span> {
-    <span class='ident'>trees</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>String</span>, <span class='ident'>ReportsTree</span><span class='op'>&gt;</span>,
+<span class="doccomment">/// A collection of ReportsTrees. It represents the data from multiple memory reports in a form</span>
+<span class="doccomment">/// that&#39;s good to print.</span>
+<span class="kw">struct</span> <span class="ident">ReportsForest</span> {
+    <span class="ident">trees</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">ReportsTree</span><span class="op">&gt;</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>ReportsForest</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>ReportsForest</span> {
-        <span class='ident'>ReportsForest</span> {
-            <span class='ident'>trees</span>: <span class='ident'>HashMap</span>::<span class='ident'>new</span>(),
+<span class="kw">impl</span> <span class="ident">ReportsForest</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">ReportsForest</span> {
+        <span class="ident">ReportsForest</span> {
+            <span class="ident">trees</span>: <span class="ident">HashMap</span>::<span class="ident">new</span>(),
         }
     }
 
-    <span class='comment'>// Insert the path and size into the forest, adding any trees and nodes as necessary.</span>
-    <span class='kw'>fn</span> <span class='ident'>insert</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>path</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>String</span>], <span class='ident'>size</span>: <span class='ident'>usize</span>) {
-        <span class='kw'>let</span> (<span class='ident'>head</span>, <span class='ident'>tail</span>) <span class='op'>=</span> <span class='ident'>path</span>.<span class='ident'>split_first</span>().<span class='ident'>unwrap</span>();
-        <span class='comment'>// Get the right tree, creating it if necessary.</span>
-        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>trees</span>.<span class='ident'>contains_key</span>(<span class='ident'>head</span>) {
-            <span class='self'>self</span>.<span class='ident'>trees</span>.<span class='ident'>insert</span>(<span class='ident'>head</span>.<span class='ident'>clone</span>(), <span class='ident'>ReportsTree</span>::<span class='ident'>new</span>(<span class='ident'>head</span>.<span class='ident'>clone</span>()));
+    <span class="comment">// Insert the path and size into the forest, adding any trees and nodes as necessary.</span>
+    <span class="kw">fn</span> <span class="ident">insert</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>], <span class="ident">size</span>: <span class="ident">usize</span>) {
+        <span class="kw">let</span> (<span class="ident">head</span>, <span class="ident">tail</span>) <span class="op">=</span> <span class="ident">path</span>.<span class="ident">split_first</span>().<span class="ident">unwrap</span>();
+        <span class="comment">// Get the right tree, creating it if necessary.</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">trees</span>.<span class="ident">contains_key</span>(<span class="ident">head</span>) {
+            <span class="self">self</span>.<span class="ident">trees</span>.<span class="ident">insert</span>(<span class="ident">head</span>.<span class="ident">clone</span>(), <span class="ident">ReportsTree</span>::<span class="ident">new</span>(<span class="ident">head</span>.<span class="ident">clone</span>()));
         }
-        <span class='kw'>let</span> <span class='ident'>t</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>trees</span>.<span class='ident'>get_mut</span>(<span class='ident'>head</span>).<span class='ident'>unwrap</span>();
+        <span class="kw">let</span> <span class="ident">t</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">trees</span>.<span class="ident">get_mut</span>(<span class="ident">head</span>).<span class="ident">unwrap</span>();
 
-        <span class='comment'>// Use tail because the 0th path segment was used to find the right tree in the forest.</span>
-        <span class='ident'>t</span>.<span class='ident'>insert</span>(<span class='ident'>tail</span>, <span class='ident'>size</span>);
+        <span class="comment">// Use tail because the 0th path segment was used to find the right tree in the forest.</span>
+        <span class="ident">t</span>.<span class="ident">insert</span>(<span class="ident">tail</span>, <span class="ident">size</span>);
     }
 
-    <span class='kw'>fn</span> <span class='ident'>print</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='comment'>// Fill in sizes of interior nodes, and recursively sort the sub-trees.</span>
-        <span class='kw'>for</span> (_, <span class='ident'>tree</span>) <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>trees</span> {
-            <span class='ident'>tree</span>.<span class='ident'>compute_interior_node_sizes_and_sort</span>();
+    <span class="kw">fn</span> <span class="ident">print</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="comment">// Fill in sizes of interior nodes, and recursively sort the sub-trees.</span>
+        <span class="kw">for</span> (_, <span class="ident">tree</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">trees</span> {
+            <span class="ident">tree</span>.<span class="ident">compute_interior_node_sizes_and_sort</span>();
         }
 
-        <span class='comment'>// Put the trees into a sorted vector. Primary sort: degenerate trees (those containing a</span>
-        <span class='comment'>// single node) come after non-degenerate trees. Secondary sort: alphabetical order of the</span>
-        <span class='comment'>// root node&#39;s path_seg.</span>
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>v</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
-        <span class='kw'>for</span> (_, <span class='ident'>tree</span>) <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>trees</span> {
-            <span class='ident'>v</span>.<span class='ident'>push</span>(<span class='ident'>tree</span>);
+        <span class="comment">// Put the trees into a sorted vector. Primary sort: degenerate trees (those containing a</span>
+        <span class="comment">// single node) come after non-degenerate trees. Secondary sort: alphabetical order of the</span>
+        <span class="comment">// root node&#39;s path_seg.</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+        <span class="kw">for</span> (_, <span class="ident">tree</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">trees</span> {
+            <span class="ident">v</span>.<span class="ident">push</span>(<span class="ident">tree</span>);
         }
-        <span class='ident'>v</span>.<span class='ident'>sort_by</span>(<span class='op'>|</span><span class='ident'>a</span>, <span class='ident'>b</span><span class='op'>|</span> {
-            <span class='kw'>if</span> <span class='ident'>a</span>.<span class='ident'>children</span>.<span class='ident'>is_empty</span>() <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='ident'>b</span>.<span class='ident'>children</span>.<span class='ident'>is_empty</span>() {
-                <span class='ident'>Ordering</span>::<span class='ident'>Greater</span>
-            } <span class='kw'>else</span> <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>a</span>.<span class='ident'>children</span>.<span class='ident'>is_empty</span>() <span class='op'>&amp;&amp;</span> <span class='ident'>b</span>.<span class='ident'>children</span>.<span class='ident'>is_empty</span>() {
-                <span class='ident'>Ordering</span>::<span class='ident'>Less</span>
-            } <span class='kw'>else</span> {
-                <span class='ident'>a</span>.<span class='ident'>path_seg</span>.<span class='ident'>cmp</span>(<span class='kw-2'>&amp;</span><span class='ident'>b</span>.<span class='ident'>path_seg</span>)
+        <span class="ident">v</span>.<span class="ident">sort_by</span>(<span class="op">|</span><span class="ident">a</span>, <span class="ident">b</span><span class="op">|</span> {
+            <span class="kw">if</span> <span class="ident">a</span>.<span class="ident">children</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">b</span>.<span class="ident">children</span>.<span class="ident">is_empty</span>() {
+                <span class="ident">Ordering</span>::<span class="ident">Greater</span>
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">a</span>.<span class="ident">children</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="ident">b</span>.<span class="ident">children</span>.<span class="ident">is_empty</span>() {
+                <span class="ident">Ordering</span>::<span class="ident">Less</span>
+            } <span class="kw">else</span> {
+                <span class="ident">a</span>.<span class="ident">path_seg</span>.<span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="ident">b</span>.<span class="ident">path_seg</span>)
             }
         });
 
-        <span class='comment'>// Print the forest.</span>
-        <span class='kw'>for</span> <span class='ident'>tree</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>v</span> {
-            <span class='ident'>tree</span>.<span class='ident'>print</span>(<span class='number'>0</span>);
-            <span class='comment'>// Print a blank line after non-degenerate trees.</span>
-            <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>tree</span>.<span class='ident'>children</span>.<span class='ident'>is_empty</span>() {
-                <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;|&quot;</span>);
+        <span class="comment">// Print the forest.</span>
+        <span class="kw">for</span> <span class="ident">tree</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">v</span> {
+            <span class="ident">tree</span>.<span class="ident">print</span>(<span class="number">0</span>);
+            <span class="comment">// Print a blank line after non-degenerate trees.</span>
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">tree</span>.<span class="ident">children</span>.<span class="ident">is_empty</span>() {
+                <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;|&quot;</span>);
             }
         }
     }
 }
 
-<span class='comment'>//---------------------------------------------------------------------------</span>
+<span class="comment">//---------------------------------------------------------------------------</span>
 
-<span class='kw'>mod</span> <span class='ident'>system_reporter</span> {
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;windows&quot;</span>))]</span>
-    <span class='kw'>use</span> <span class='ident'>libc</span>::{<span class='ident'>c_char</span>, <span class='ident'>c_int</span>, <span class='ident'>c_void</span>, <span class='ident'>size_t</span>};
-    <span class='kw'>use</span> <span class='ident'>profile_traits</span>::<span class='ident'>mem</span>::{<span class='ident'>Report</span>, <span class='ident'>ReportKind</span>, <span class='ident'>ReporterRequest</span>};
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;windows&quot;</span>))]</span>
-    <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ffi</span>::<span class='ident'>CString</span>;
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;windows&quot;</span>))]</span>
-    <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>::<span class='ident'>size_of</span>;
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;windows&quot;</span>))]</span>
-    <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ptr</span>::<span class='ident'>null_mut</span>;
-    <span class='kw'>use</span> <span class='kw'>super</span>::{<span class='ident'>JEMALLOC_HEAP_ALLOCATED_STR</span>, <span class='ident'>SYSTEM_HEAP_ALLOCATED_STR</span>};
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;macos&quot;</span>)]</span>
-    <span class='kw'>use</span> <span class='ident'>task_info</span>::<span class='ident'>task_basic_info</span>::{<span class='ident'>virtual_size</span>, <span class='ident'>resident_size</span>};
+<span class="kw">mod</span> <span class="ident">system_reporter</span> {
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;windows&quot;</span>))]</span>
+    <span class="kw">use</span> <span class="ident">libc</span>::{<span class="ident">c_char</span>, <span class="ident">c_int</span>, <span class="ident">c_void</span>, <span class="ident">size_t</span>};
+    <span class="kw">use</span> <span class="ident">profile_traits</span>::<span class="ident">mem</span>::{<span class="ident">Report</span>, <span class="ident">ReportKind</span>, <span class="ident">ReporterRequest</span>};
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;windows&quot;</span>))]</span>
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ffi</span>::<span class="ident">CString</span>;
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;windows&quot;</span>))]</span>
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>;
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;windows&quot;</span>))]</span>
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>::<span class="ident">null_mut</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">JEMALLOC_HEAP_ALLOCATED_STR</span>, <span class="ident">SYSTEM_HEAP_ALLOCATED_STR</span>};
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>)]</span>
+    <span class="kw">use</span> <span class="ident">task_info</span>::<span class="ident">task_basic_info</span>::{<span class="ident">virtual_size</span>, <span class="ident">resident_size</span>};
 
-    <span class='doccomment'>/// Collects global measurements from the OS and heap allocators.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>collect_reports</span>(<span class='ident'>request</span>: <span class='ident'>ReporterRequest</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>reports</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
+    <span class="doccomment">/// Collects global measurements from the OS and heap allocators.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">collect_reports</span>(<span class="ident">request</span>: <span class="ident">ReporterRequest</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reports</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
         {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>report</span> <span class='op'>=</span> <span class='op'>|</span><span class='ident'>path</span>, <span class='ident'>size</span><span class='op'>|</span> {
-                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>size</span>) <span class='op'>=</span> <span class='ident'>size</span> {
-                    <span class='ident'>reports</span>.<span class='ident'>push</span>(<span class='ident'>Report</span> {
-                        <span class='ident'>path</span>: <span class='ident'>path</span>,
-                        <span class='ident'>kind</span>: <span class='ident'>ReportKind</span>::<span class='ident'>NonExplicitSize</span>,
-                        <span class='ident'>size</span>: <span class='ident'>size</span>,
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">report</span> <span class="op">=</span> <span class="op">|</span><span class="ident">path</span>, <span class="ident">size</span><span class="op">|</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">size</span>) <span class="op">=</span> <span class="ident">size</span> {
+                    <span class="ident">reports</span>.<span class="ident">push</span>(<span class="ident">Report</span> {
+                        <span class="ident">path</span>: <span class="ident">path</span>,
+                        <span class="ident">kind</span>: <span class="ident">ReportKind</span>::<span class="ident">NonExplicitSize</span>,
+                        <span class="ident">size</span>: <span class="ident">size</span>,
                     });
                 }
             };
 
-            <span class='comment'>// Virtual and physical memory usage, as reported by the OS.</span>
-            <span class='ident'>report</span>(<span class='macro'>path</span><span class='macro'>!</span>[<span class='string'>&quot;vsize&quot;</span>], <span class='ident'>vsize</span>());
-            <span class='ident'>report</span>(<span class='macro'>path</span><span class='macro'>!</span>[<span class='string'>&quot;resident&quot;</span>], <span class='ident'>resident</span>());
+            <span class="comment">// Virtual and physical memory usage, as reported by the OS.</span>
+            <span class="ident">report</span>(<span class="macro">path</span><span class="macro">!</span>[<span class="string">&quot;vsize&quot;</span>], <span class="ident">vsize</span>());
+            <span class="ident">report</span>(<span class="macro">path</span><span class="macro">!</span>[<span class="string">&quot;resident&quot;</span>], <span class="ident">resident</span>());
 
-            <span class='comment'>// Memory segments, as reported by the OS.</span>
-            <span class='kw'>for</span> <span class='ident'>seg</span> <span class='kw'>in</span> <span class='ident'>resident_segments</span>() {
-                <span class='ident'>report</span>(<span class='macro'>path</span><span class='macro'>!</span>[<span class='string'>&quot;resident-according-to-smaps&quot;</span>, <span class='ident'>seg</span>.<span class='number'>0</span>], <span class='prelude-val'>Some</span>(<span class='ident'>seg</span>.<span class='number'>1</span>));
+            <span class="comment">// Memory segments, as reported by the OS.</span>
+            <span class="kw">for</span> <span class="ident">seg</span> <span class="kw">in</span> <span class="ident">resident_segments</span>() {
+                <span class="ident">report</span>(<span class="macro">path</span><span class="macro">!</span>[<span class="string">&quot;resident-according-to-smaps&quot;</span>, <span class="ident">seg</span>.<span class="number">0</span>], <span class="prelude-val">Some</span>(<span class="ident">seg</span>.<span class="number">1</span>));
             }
 
-            <span class='comment'>// Total number of bytes allocated by the application on the system</span>
-            <span class='comment'>// heap.</span>
-            <span class='ident'>report</span>(<span class='macro'>path</span><span class='macro'>!</span>[<span class='ident'>SYSTEM_HEAP_ALLOCATED_STR</span>], <span class='ident'>system_heap_allocated</span>());
+            <span class="comment">// Total number of bytes allocated by the application on the system</span>
+            <span class="comment">// heap.</span>
+            <span class="ident">report</span>(<span class="macro">path</span><span class="macro">!</span>[<span class="ident">SYSTEM_HEAP_ALLOCATED_STR</span>], <span class="ident">system_heap_allocated</span>());
 
-            <span class='comment'>// The descriptions of the following jemalloc measurements are taken</span>
-            <span class='comment'>// directly from the jemalloc documentation.</span>
+            <span class="comment">// The descriptions of the following jemalloc measurements are taken</span>
+            <span class="comment">// directly from the jemalloc documentation.</span>
 
-            <span class='comment'>// &quot;Total number of bytes allocated by the application.&quot;</span>
-            <span class='ident'>report</span>(<span class='macro'>path</span><span class='macro'>!</span>[<span class='ident'>JEMALLOC_HEAP_ALLOCATED_STR</span>], <span class='ident'>jemalloc_stat</span>(<span class='string'>&quot;stats.allocated&quot;</span>));
+            <span class="comment">// &quot;Total number of bytes allocated by the application.&quot;</span>
+            <span class="ident">report</span>(<span class="macro">path</span><span class="macro">!</span>[<span class="ident">JEMALLOC_HEAP_ALLOCATED_STR</span>], <span class="ident">jemalloc_stat</span>(<span class="string">&quot;stats.allocated&quot;</span>));
 
-            <span class='comment'>// &quot;Total number of bytes in active pages allocated by the application.</span>
-            <span class='comment'>// This is a multiple of the page size, and greater than or equal to</span>
-            <span class='comment'>// |stats.allocated|.&quot;</span>
-            <span class='ident'>report</span>(<span class='macro'>path</span><span class='macro'>!</span>[<span class='string'>&quot;jemalloc-heap-active&quot;</span>], <span class='ident'>jemalloc_stat</span>(<span class='string'>&quot;stats.active&quot;</span>));
+            <span class="comment">// &quot;Total number of bytes in active pages allocated by the application.</span>
+            <span class="comment">// This is a multiple of the page size, and greater than or equal to</span>
+            <span class="comment">// |stats.allocated|.&quot;</span>
+            <span class="ident">report</span>(<span class="macro">path</span><span class="macro">!</span>[<span class="string">&quot;jemalloc-heap-active&quot;</span>], <span class="ident">jemalloc_stat</span>(<span class="string">&quot;stats.active&quot;</span>));
 
-            <span class='comment'>// &quot;Total number of bytes in chunks mapped on behalf of the application.</span>
-            <span class='comment'>// This is a multiple of the chunk size, and is at least as large as</span>
-            <span class='comment'>// |stats.active|. This does not include inactive chunks.&quot;</span>
-            <span class='ident'>report</span>(<span class='macro'>path</span><span class='macro'>!</span>[<span class='string'>&quot;jemalloc-heap-mapped&quot;</span>], <span class='ident'>jemalloc_stat</span>(<span class='string'>&quot;stats.mapped&quot;</span>));
+            <span class="comment">// &quot;Total number of bytes in chunks mapped on behalf of the application.</span>
+            <span class="comment">// This is a multiple of the chunk size, and is at least as large as</span>
+            <span class="comment">// |stats.active|. This does not include inactive chunks.&quot;</span>
+            <span class="ident">report</span>(<span class="macro">path</span><span class="macro">!</span>[<span class="string">&quot;jemalloc-heap-mapped&quot;</span>], <span class="ident">jemalloc_stat</span>(<span class="string">&quot;stats.mapped&quot;</span>));
         }
 
-        <span class='ident'>request</span>.<span class='ident'>reports_channel</span>.<span class='ident'>send</span>(<span class='ident'>reports</span>);
+        <span class="ident">request</span>.<span class="ident">reports_channel</span>.<span class="ident">send</span>(<span class="ident">reports</span>);
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;linux&quot;</span>)]</span>
-    <span class='kw'>extern</span> {
-        <span class='kw'>fn</span> <span class='ident'>mallinfo</span>() <span class='op'>-&gt;</span> <span class='ident'>struct_mallinfo</span>;
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+    <span class="kw">extern</span> {
+        <span class="kw">fn</span> <span class="ident">mallinfo</span>() <span class="op">-&gt;</span> <span class="ident">struct_mallinfo</span>;
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;linux&quot;</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>repr</span>(<span class='ident'>C</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>struct_mallinfo</span> {
-        <span class='ident'>arena</span>:    <span class='ident'>c_int</span>,
-        <span class='ident'>ordblks</span>:  <span class='ident'>c_int</span>,
-        <span class='ident'>smblks</span>:   <span class='ident'>c_int</span>,
-        <span class='ident'>hblks</span>:    <span class='ident'>c_int</span>,
-        <span class='ident'>hblkhd</span>:   <span class='ident'>c_int</span>,
-        <span class='ident'>usmblks</span>:  <span class='ident'>c_int</span>,
-        <span class='ident'>fsmblks</span>:  <span class='ident'>c_int</span>,
-        <span class='ident'>uordblks</span>: <span class='ident'>c_int</span>,
-        <span class='ident'>fordblks</span>: <span class='ident'>c_int</span>,
-        <span class='ident'>keepcost</span>: <span class='ident'>c_int</span>,
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">struct_mallinfo</span> {
+        <span class="ident">arena</span>:    <span class="ident">c_int</span>,
+        <span class="ident">ordblks</span>:  <span class="ident">c_int</span>,
+        <span class="ident">smblks</span>:   <span class="ident">c_int</span>,
+        <span class="ident">hblks</span>:    <span class="ident">c_int</span>,
+        <span class="ident">hblkhd</span>:   <span class="ident">c_int</span>,
+        <span class="ident">usmblks</span>:  <span class="ident">c_int</span>,
+        <span class="ident">fsmblks</span>:  <span class="ident">c_int</span>,
+        <span class="ident">uordblks</span>: <span class="ident">c_int</span>,
+        <span class="ident">fordblks</span>: <span class="ident">c_int</span>,
+        <span class="ident">keepcost</span>: <span class="ident">c_int</span>,
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;linux&quot;</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>system_heap_allocated</span>() <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>info</span>: <span class='ident'>struct_mallinfo</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>mallinfo</span>() };
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">system_heap_allocated</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">info</span>: <span class="ident">struct_mallinfo</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mallinfo</span>() };
 
-        <span class='comment'>// The documentation in the glibc man page makes it sound like |uordblks| would suffice,</span>
-        <span class='comment'>// but that only gets the small allocations that are put in the brk heap. We need |hblkhd|</span>
-        <span class='comment'>// as well to get the larger allocations that are mmapped.</span>
-        <span class='comment'>//</span>
-        <span class='comment'>// These fields are unfortunately |int| and so can overflow (becoming negative) if memory</span>
-        <span class='comment'>// usage gets high enough. So don&#39;t report anything in that case. In the non-overflow case</span>
-        <span class='comment'>// we cast the two values to usize before adding them to make sure the sum also doesn&#39;t</span>
-        <span class='comment'>// overflow.</span>
-        <span class='kw'>if</span> <span class='ident'>info</span>.<span class='ident'>hblkhd</span> <span class='op'>&lt;</span> <span class='number'>0</span> <span class='op'>||</span> <span class='ident'>info</span>.<span class='ident'>uordblks</span> <span class='op'>&lt;</span> <span class='number'>0</span> {
-            <span class='prelude-val'>None</span>
-        } <span class='kw'>else</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>info</span>.<span class='ident'>hblkhd</span> <span class='kw'>as</span> <span class='ident'>usize</span> <span class='op'>+</span> <span class='ident'>info</span>.<span class='ident'>uordblks</span> <span class='kw'>as</span> <span class='ident'>usize</span>)
+        <span class="comment">// The documentation in the glibc man page makes it sound like |uordblks| would suffice,</span>
+        <span class="comment">// but that only gets the small allocations that are put in the brk heap. We need |hblkhd|</span>
+        <span class="comment">// as well to get the larger allocations that are mmapped.</span>
+        <span class="comment">//</span>
+        <span class="comment">// These fields are unfortunately |int| and so can overflow (becoming negative) if memory</span>
+        <span class="comment">// usage gets high enough. So don&#39;t report anything in that case. In the non-overflow case</span>
+        <span class="comment">// we cast the two values to usize before adding them to make sure the sum also doesn&#39;t</span>
+        <span class="comment">// overflow.</span>
+        <span class="kw">if</span> <span class="ident">info</span>.<span class="ident">hblkhd</span> <span class="op">&lt;</span> <span class="number">0</span> <span class="op">||</span> <span class="ident">info</span>.<span class="ident">uordblks</span> <span class="op">&lt;</span> <span class="number">0</span> {
+            <span class="prelude-val">None</span>
+        } <span class="kw">else</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">info</span>.<span class="ident">hblkhd</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">+</span> <span class="ident">info</span>.<span class="ident">uordblks</span> <span class="kw">as</span> <span class="ident">usize</span>)
         }
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;linux&quot;</span>))]</span>
-    <span class='kw'>fn</span> <span class='ident'>system_heap_allocated</span>() <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> {
-        <span class='prelude-val'>None</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+    <span class="kw">fn</span> <span class="ident">system_heap_allocated</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="prelude-val">None</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;windows&quot;</span>))]</span>
-    <span class='kw'>extern</span> {
-        <span class='attribute'>#[<span class='ident'>cfg_attr</span>(<span class='ident'>any</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;macos&quot;</span>, <span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;android&quot;</span>), <span class='ident'>link_name</span> <span class='op'>=</span> <span class='string'>&quot;je_mallctl&quot;</span>)]</span>
-        <span class='kw'>fn</span> <span class='ident'>mallctl</span>(<span class='ident'>name</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>c_char</span>, <span class='ident'>oldp</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>c_void</span>, <span class='ident'>oldlenp</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>size_t</span>,
-                   <span class='ident'>newp</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>c_void</span>, <span class='ident'>newlen</span>: <span class='ident'>size_t</span>) <span class='op'>-&gt;</span> <span class='ident'>c_int</span>;
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;windows&quot;</span>))]</span>
+    <span class="kw">extern</span> {
+        <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>), <span class="ident">link_name</span> <span class="op">=</span> <span class="string">&quot;je_mallctl&quot;</span>)]</span>
+        <span class="kw">fn</span> <span class="ident">mallctl</span>(<span class="ident">name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_char</span>, <span class="ident">oldp</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>, <span class="ident">oldlenp</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">size_t</span>,
+                   <span class="ident">newp</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>, <span class="ident">newlen</span>: <span class="ident">size_t</span>) <span class="op">-&gt;</span> <span class="ident">c_int</span>;
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;windows&quot;</span>))]</span>
-    <span class='kw'>fn</span> <span class='ident'>jemalloc_stat</span>(<span class='ident'>value_name</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> {
-        <span class='comment'>// Before we request the measurement of interest, we first send an &quot;epoch&quot;</span>
-        <span class='comment'>// request. Without that jemalloc gives cached statistics(!) which can be</span>
-        <span class='comment'>// highly inaccurate.</span>
-        <span class='kw'>let</span> <span class='ident'>epoch_name</span> <span class='op'>=</span> <span class='string'>&quot;epoch&quot;</span>;
-        <span class='kw'>let</span> <span class='ident'>epoch_c_name</span> <span class='op'>=</span> <span class='ident'>CString</span>::<span class='ident'>new</span>(<span class='ident'>epoch_name</span>).<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>epoch</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='number'>0</span>;
-        <span class='kw'>let</span> <span class='ident'>epoch_ptr</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>epoch</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> _ <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>c_void</span>;
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>epoch_len</span> <span class='op'>=</span> <span class='ident'>size_of</span>::<span class='op'>&lt;</span><span class='ident'>u64</span><span class='op'>&gt;</span>() <span class='kw'>as</span> <span class='ident'>size_t</span>;
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;windows&quot;</span>))]</span>
+    <span class="kw">fn</span> <span class="ident">jemalloc_stat</span>(<span class="ident">value_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="comment">// Before we request the measurement of interest, we first send an &quot;epoch&quot;</span>
+        <span class="comment">// request. Without that jemalloc gives cached statistics(!) which can be</span>
+        <span class="comment">// highly inaccurate.</span>
+        <span class="kw">let</span> <span class="ident">epoch_name</span> <span class="op">=</span> <span class="string">&quot;epoch&quot;</span>;
+        <span class="kw">let</span> <span class="ident">epoch_c_name</span> <span class="op">=</span> <span class="ident">CString</span>::<span class="ident">new</span>(<span class="ident">epoch_name</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">epoch</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="ident">epoch_ptr</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">epoch</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">epoch_len</span> <span class="op">=</span> <span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">size_t</span>;
 
-        <span class='kw'>let</span> <span class='ident'>value_c_name</span> <span class='op'>=</span> <span class='ident'>CString</span>::<span class='ident'>new</span>(<span class='ident'>value_name</span>).<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>value</span>: <span class='ident'>size_t</span> <span class='op'>=</span> <span class='number'>0</span>;
-        <span class='kw'>let</span> <span class='ident'>value_ptr</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>value</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> _ <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>c_void</span>;
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>value_len</span> <span class='op'>=</span> <span class='ident'>size_of</span>::<span class='op'>&lt;</span><span class='ident'>size_t</span><span class='op'>&gt;</span>() <span class='kw'>as</span> <span class='ident'>size_t</span>;
+        <span class="kw">let</span> <span class="ident">value_c_name</span> <span class="op">=</span> <span class="ident">CString</span>::<span class="ident">new</span>(<span class="ident">value_name</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value</span>: <span class="ident">size_t</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="ident">value_ptr</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">value</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value_len</span> <span class="op">=</span> <span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">size_t</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">size_t</span>;
 
-        <span class='comment'>// Using the same values for the `old` and `new` parameters is enough</span>
-        <span class='comment'>// to get the statistics updated.</span>
-        <span class='kw'>let</span> <span class='ident'>rv</span> <span class='op'>=</span> <span class='kw'>unsafe</span> {
-            <span class='ident'>mallctl</span>(<span class='ident'>epoch_c_name</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>epoch_ptr</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>epoch_len</span>, <span class='ident'>epoch_ptr</span>,
-                       <span class='ident'>epoch_len</span>)
+        <span class="comment">// Using the same values for the `old` and `new` parameters is enough</span>
+        <span class="comment">// to get the statistics updated.</span>
+        <span class="kw">let</span> <span class="ident">rv</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">mallctl</span>(<span class="ident">epoch_c_name</span>.<span class="ident">as_ptr</span>(), <span class="ident">epoch_ptr</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">epoch_len</span>, <span class="ident">epoch_ptr</span>,
+                       <span class="ident">epoch_len</span>)
         };
-        <span class='kw'>if</span> <span class='ident'>rv</span> <span class='op'>!=</span> <span class='number'>0</span> {
-            <span class='kw'>return</span> <span class='prelude-val'>None</span>;
+        <span class="kw">if</span> <span class="ident">rv</span> <span class="op">!=</span> <span class="number">0</span> {
+            <span class="kw">return</span> <span class="prelude-val">None</span>;
         }
 
-        <span class='kw'>let</span> <span class='ident'>rv</span> <span class='op'>=</span> <span class='kw'>unsafe</span> {
-            <span class='ident'>mallctl</span>(<span class='ident'>value_c_name</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>value_ptr</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>value_len</span>, <span class='ident'>null_mut</span>(), <span class='number'>0</span>)
+        <span class="kw">let</span> <span class="ident">rv</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">mallctl</span>(<span class="ident">value_c_name</span>.<span class="ident">as_ptr</span>(), <span class="ident">value_ptr</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">value_len</span>, <span class="ident">null_mut</span>(), <span class="number">0</span>)
         };
-        <span class='kw'>if</span> <span class='ident'>rv</span> <span class='op'>!=</span> <span class='number'>0</span> {
-            <span class='kw'>return</span> <span class='prelude-val'>None</span>;
+        <span class="kw">if</span> <span class="ident">rv</span> <span class="op">!=</span> <span class="number">0</span> {
+            <span class="kw">return</span> <span class="prelude-val">None</span>;
         }
 
-        <span class='prelude-val'>Some</span>(<span class='ident'>value</span> <span class='kw'>as</span> <span class='ident'>usize</span>)
+        <span class="prelude-val">Some</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">usize</span>)
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;windows&quot;</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>jemalloc_stat</span>(<span class='ident'>_value_name</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> {
-        <span class='prelude-val'>None</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;windows&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">jemalloc_stat</span>(<span class="ident">_value_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="prelude-val">None</span>
     }
 
-    <span class='comment'>// Like std::macros::try!, but for Option&lt;&gt;.</span>
-    <span class='macro'>macro_rules</span><span class='macro'>!</span> <span class='ident'>option_try</span>(
-        (<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>e</span>:<span class='ident'>expr</span>) <span class='op'>=&gt;</span> (<span class='kw'>match</span> <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>e</span> { <span class='prelude-val'>Some</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> <span class='ident'>e</span>, <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>None</span> })
+    <span class="comment">// Like std::macros::try!, but for Option&lt;&gt;.</span>
+    <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">option_try</span>(
+        (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">e</span>:<span class="ident">expr</span>) <span class="op">=&gt;</span> (<span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">e</span> { <span class="prelude-val">Some</span>(<span class="ident">e</span>) <span class="op">=&gt;</span> <span class="ident">e</span>, <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span> })
     );
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;linux&quot;</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>page_size</span>() <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-        <span class='kw'>unsafe</span> {
-            ::<span class='ident'>libc</span>::<span class='ident'>sysconf</span>(::<span class='ident'>libc</span>::<span class='ident'>_SC_PAGESIZE</span>) <span class='kw'>as</span> <span class='ident'>usize</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">page_size</span>() <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="kw">unsafe</span> {
+            ::<span class="ident">libc</span>::<span class="ident">sysconf</span>(::<span class="ident">libc</span>::<span class="ident">_SC_PAGESIZE</span>) <span class="kw">as</span> <span class="ident">usize</span>
         }
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;linux&quot;</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>proc_self_statm_field</span>(<span class='ident'>field</span>: <span class='ident'>usize</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> {
-        <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fs</span>::<span class='ident'>File</span>;
-        <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::<span class='ident'>Read</span>;
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">proc_self_statm_field</span>(<span class="ident">field</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="ident">File</span>;
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Read</span>;
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>f</span> <span class='op'>=</span> <span class='macro'>option_try</span><span class='macro'>!</span>(<span class='ident'>File</span>::<span class='ident'>open</span>(<span class='string'>&quot;/proc/self/statm&quot;</span>).<span class='ident'>ok</span>());
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>contents</span> <span class='op'>=</span> <span class='ident'>String</span>::<span class='ident'>new</span>();
-        <span class='macro'>option_try</span><span class='macro'>!</span>(<span class='ident'>f</span>.<span class='ident'>read_to_string</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>contents</span>).<span class='ident'>ok</span>());
-        <span class='kw'>let</span> <span class='ident'>s</span> <span class='op'>=</span> <span class='macro'>option_try</span><span class='macro'>!</span>(<span class='ident'>contents</span>.<span class='ident'>split_whitespace</span>().<span class='ident'>nth</span>(<span class='ident'>field</span>));
-        <span class='kw'>let</span> <span class='ident'>npages</span> <span class='op'>=</span> <span class='macro'>option_try</span><span class='macro'>!</span>(<span class='ident'>s</span>.<span class='ident'>parse</span>::<span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span>().<span class='ident'>ok</span>());
-        <span class='prelude-val'>Some</span>(<span class='ident'>npages</span> <span class='op'>*</span> <span class='ident'>page_size</span>())
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">f</span> <span class="op">=</span> <span class="macro">option_try</span><span class="macro">!</span>(<span class="ident">File</span>::<span class="ident">open</span>(<span class="string">&quot;/proc/self/statm&quot;</span>).<span class="ident">ok</span>());
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contents</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">new</span>();
+        <span class="macro">option_try</span><span class="macro">!</span>(<span class="ident">f</span>.<span class="ident">read_to_string</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">contents</span>).<span class="ident">ok</span>());
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="macro">option_try</span><span class="macro">!</span>(<span class="ident">contents</span>.<span class="ident">split_whitespace</span>().<span class="ident">nth</span>(<span class="ident">field</span>));
+        <span class="kw">let</span> <span class="ident">npages</span> <span class="op">=</span> <span class="macro">option_try</span><span class="macro">!</span>(<span class="ident">s</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>().<span class="ident">ok</span>());
+        <span class="prelude-val">Some</span>(<span class="ident">npages</span> <span class="op">*</span> <span class="ident">page_size</span>())
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;linux&quot;</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>vsize</span>() <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> {
-        <span class='ident'>proc_self_statm_field</span>(<span class='number'>0</span>)
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">vsize</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="ident">proc_self_statm_field</span>(<span class="number">0</span>)
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;linux&quot;</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>resident</span>() <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> {
-        <span class='ident'>proc_self_statm_field</span>(<span class='number'>1</span>)
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">resident</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="ident">proc_self_statm_field</span>(<span class="number">1</span>)
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;macos&quot;</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>vsize</span>() <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> {
-        <span class='ident'>virtual_size</span>()
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">vsize</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="ident">virtual_size</span>()
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;macos&quot;</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>resident</span>() <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> {
-        <span class='ident'>resident_size</span>()
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">resident</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="ident">resident_size</span>()
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>any</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;linux&quot;</span>, <span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;macos&quot;</span>)))]</span>
-    <span class='kw'>fn</span> <span class='ident'>vsize</span>() <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> {
-        <span class='prelude-val'>None</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>)))]</span>
+    <span class="kw">fn</span> <span class="ident">vsize</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="prelude-val">None</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>any</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;linux&quot;</span>, <span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;macos&quot;</span>)))]</span>
-    <span class='kw'>fn</span> <span class='ident'>resident</span>() <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> {
-        <span class='prelude-val'>None</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>)))]</span>
+    <span class="kw">fn</span> <span class="ident">resident</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="prelude-val">None</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;linux&quot;</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>resident_segments</span>() <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span>(<span class='ident'>String</span>, <span class='ident'>usize</span>)<span class='op'>&gt;</span> {
-        <span class='kw'>use</span> <span class='ident'>regex</span>::<span class='ident'>Regex</span>;
-        <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>HashMap</span>;
-        <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>hash_map</span>::<span class='ident'>Entry</span>;
-        <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fs</span>::<span class='ident'>File</span>;
-        <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::{<span class='ident'>BufReader</span>, <span class='ident'>BufRead</span>};
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">resident_segments</span>() <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
+        <span class="kw">use</span> <span class="ident">regex</span>::<span class="ident">Regex</span>;
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">hash_map</span>::<span class="ident">Entry</span>;
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="ident">File</span>;
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">BufReader</span>, <span class="ident">BufRead</span>};
 
-        <span class='comment'>// The first line of an entry in /proc/&lt;pid&gt;/smaps looks just like an entry</span>
-        <span class='comment'>// in /proc/&lt;pid&gt;/maps:</span>
-        <span class='comment'>//</span>
-        <span class='comment'>//   address           perms offset  dev   inode  pathname</span>
-        <span class='comment'>//   02366000-025d8000 rw-p 00000000 00:00 0      [heap]</span>
-        <span class='comment'>//</span>
-        <span class='comment'>// Each of the following lines contains a key and a value, separated</span>
-        <span class='comment'>// by &quot;: &quot;, where the key does not contain either of those characters.</span>
-        <span class='comment'>// For example:</span>
-        <span class='comment'>//</span>
-        <span class='comment'>//   Rss:           132 kB</span>
+        <span class="comment">// The first line of an entry in /proc/&lt;pid&gt;/smaps looks just like an entry</span>
+        <span class="comment">// in /proc/&lt;pid&gt;/maps:</span>
+        <span class="comment">//</span>
+        <span class="comment">//   address           perms offset  dev   inode  pathname</span>
+        <span class="comment">//   02366000-025d8000 rw-p 00000000 00:00 0      [heap]</span>
+        <span class="comment">//</span>
+        <span class="comment">// Each of the following lines contains a key and a value, separated</span>
+        <span class="comment">// by &quot;: &quot;, where the key does not contain either of those characters.</span>
+        <span class="comment">// For example:</span>
+        <span class="comment">//</span>
+        <span class="comment">//   Rss:           132 kB</span>
 
-        <span class='kw'>let</span> <span class='ident'>f</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>File</span>::<span class='ident'>open</span>(<span class='string'>&quot;/proc/self/smaps&quot;</span>) {
-            <span class='prelude-val'>Ok</span>(<span class='ident'>f</span>) <span class='op'>=&gt;</span> <span class='ident'>BufReader</span>::<span class='ident'>new</span>(<span class='ident'>f</span>),
-            <span class='prelude-val'>Err</span>(_) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='macro'>vec</span><span class='macro'>!</span>[],
+        <span class="kw">let</span> <span class="ident">f</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">File</span>::<span class="ident">open</span>(<span class="string">&quot;/proc/self/smaps&quot;</span>) {
+            <span class="prelude-val">Ok</span>(<span class="ident">f</span>) <span class="op">=&gt;</span> <span class="ident">BufReader</span>::<span class="ident">new</span>(<span class="ident">f</span>),
+            <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="macro">vec</span><span class="macro">!</span>[],
         };
 
-        <span class='kw'>let</span> <span class='ident'>seg_re</span> <span class='op'>=</span> <span class='ident'>Regex</span>::<span class='ident'>new</span>(
-            <span class='string'>r&quot;^[:xdigit:]+-[:xdigit:]+ (....) [:xdigit:]+ [:xdigit:]+:[:xdigit:]+ \d+ +(.*)&quot;</span>).<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>rss_re</span> <span class='op'>=</span> <span class='ident'>Regex</span>::<span class='ident'>new</span>(<span class='string'>r&quot;^Rss: +(\d+) kB&quot;</span>).<span class='ident'>unwrap</span>();
+        <span class="kw">let</span> <span class="ident">seg_re</span> <span class="op">=</span> <span class="ident">Regex</span>::<span class="ident">new</span>(
+            <span class="string">r&quot;^[:xdigit:]+-[:xdigit:]+ (....) [:xdigit:]+ [:xdigit:]+:[:xdigit:]+ \d+ +(.*)&quot;</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">rss_re</span> <span class="op">=</span> <span class="ident">Regex</span>::<span class="ident">new</span>(<span class="string">r&quot;^Rss: +(\d+) kB&quot;</span>).<span class="ident">unwrap</span>();
 
-        <span class='comment'>// We record each segment&#39;s resident size.</span>
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>seg_map</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>String</span>, <span class='ident'>usize</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>HashMap</span>::<span class='ident'>new</span>();
+        <span class="comment">// We record each segment&#39;s resident size.</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">seg_map</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">usize</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
 
-        <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>PartialEq</span>)]</span>
-        <span class='kw'>enum</span> <span class='ident'>LookingFor</span> { <span class='ident'>Segment</span>, <span class='ident'>Rss</span> }
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>looking_for</span> <span class='op'>=</span> <span class='ident'>LookingFor</span>::<span class='ident'>Segment</span>;
+        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">PartialEq</span>)]</span>
+        <span class="kw">enum</span> <span class="ident">LookingFor</span> { <span class="ident">Segment</span>, <span class="ident">Rss</span> }
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">looking_for</span> <span class="op">=</span> <span class="ident">LookingFor</span>::<span class="ident">Segment</span>;
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>curr_seg_name</span> <span class='op'>=</span> <span class='ident'>String</span>::<span class='ident'>new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">curr_seg_name</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">new</span>();
 
-        <span class='comment'>// Parse the file.</span>
-        <span class='kw'>for</span> <span class='ident'>line</span> <span class='kw'>in</span> <span class='ident'>f</span>.<span class='ident'>lines</span>() {
-            <span class='kw'>let</span> <span class='ident'>line</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>line</span> {
-                <span class='prelude-val'>Ok</span>(<span class='ident'>line</span>) <span class='op'>=&gt;</span> <span class='ident'>line</span>,
-                <span class='prelude-val'>Err</span>(_) <span class='op'>=&gt;</span> <span class='kw'>continue</span>,
+        <span class="comment">// Parse the file.</span>
+        <span class="kw">for</span> <span class="ident">line</span> <span class="kw">in</span> <span class="ident">f</span>.<span class="ident">lines</span>() {
+            <span class="kw">let</span> <span class="ident">line</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">line</span> {
+                <span class="prelude-val">Ok</span>(<span class="ident">line</span>) <span class="op">=&gt;</span> <span class="ident">line</span>,
+                <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="kw">continue</span>,
             };
-            <span class='kw'>if</span> <span class='ident'>looking_for</span> <span class='op'>==</span> <span class='ident'>LookingFor</span>::<span class='ident'>Segment</span> {
-                <span class='comment'>// Look for a segment info line.</span>
-                <span class='kw'>let</span> <span class='ident'>cap</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>seg_re</span>.<span class='ident'>captures</span>(<span class='kw-2'>&amp;</span><span class='ident'>line</span>) {
-                    <span class='prelude-val'>Some</span>(<span class='ident'>cap</span>) <span class='op'>=&gt;</span> <span class='ident'>cap</span>,
-                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>continue</span>,
+            <span class="kw">if</span> <span class="ident">looking_for</span> <span class="op">==</span> <span class="ident">LookingFor</span>::<span class="ident">Segment</span> {
+                <span class="comment">// Look for a segment info line.</span>
+                <span class="kw">let</span> <span class="ident">cap</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">seg_re</span>.<span class="ident">captures</span>(<span class="kw-2">&amp;</span><span class="ident">line</span>) {
+                    <span class="prelude-val">Some</span>(<span class="ident">cap</span>) <span class="op">=&gt;</span> <span class="ident">cap</span>,
+                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">continue</span>,
                 };
-                <span class='kw'>let</span> <span class='ident'>perms</span> <span class='op'>=</span> <span class='ident'>cap</span>.<span class='ident'>get</span>(<span class='number'>1</span>).<span class='ident'>unwrap</span>().<span class='ident'>as_str</span>();
-                <span class='kw'>let</span> <span class='ident'>pathname</span> <span class='op'>=</span> <span class='ident'>cap</span>.<span class='ident'>get</span>(<span class='number'>2</span>).<span class='ident'>unwrap</span>().<span class='ident'>as_str</span>();
+                <span class="kw">let</span> <span class="ident">perms</span> <span class="op">=</span> <span class="ident">cap</span>.<span class="ident">get</span>(<span class="number">1</span>).<span class="ident">unwrap</span>().<span class="ident">as_str</span>();
+                <span class="kw">let</span> <span class="ident">pathname</span> <span class="op">=</span> <span class="ident">cap</span>.<span class="ident">get</span>(<span class="number">2</span>).<span class="ident">unwrap</span>().<span class="ident">as_str</span>();
 
-                <span class='comment'>// Construct the segment name from its pathname and permissions.</span>
-                <span class='ident'>curr_seg_name</span>.<span class='ident'>clear</span>();
-                <span class='kw'>if</span> <span class='ident'>pathname</span> <span class='op'>==</span> <span class='string'>&quot;&quot;</span> <span class='op'>||</span> <span class='ident'>pathname</span>.<span class='ident'>starts_with</span>(<span class='string'>&quot;[stack:&quot;</span>) {
-                    <span class='comment'>// Anonymous memory. Entries marked with &quot;[stack:nnn]&quot;</span>
-                    <span class='comment'>// look like thread stacks but they may include other</span>
-                    <span class='comment'>// anonymous mappings, so we can&#39;t trust them and just</span>
-                    <span class='comment'>// treat them as entirely anonymous.</span>
-                    <span class='ident'>curr_seg_name</span>.<span class='ident'>push_str</span>(<span class='string'>&quot;anonymous&quot;</span>);
-                } <span class='kw'>else</span> {
-                    <span class='ident'>curr_seg_name</span>.<span class='ident'>push_str</span>(<span class='ident'>pathname</span>);
+                <span class="comment">// Construct the segment name from its pathname and permissions.</span>
+                <span class="ident">curr_seg_name</span>.<span class="ident">clear</span>();
+                <span class="kw">if</span> <span class="ident">pathname</span> <span class="op">==</span> <span class="string">&quot;&quot;</span> <span class="op">||</span> <span class="ident">pathname</span>.<span class="ident">starts_with</span>(<span class="string">&quot;[stack:&quot;</span>) {
+                    <span class="comment">// Anonymous memory. Entries marked with &quot;[stack:nnn]&quot;</span>
+                    <span class="comment">// look like thread stacks but they may include other</span>
+                    <span class="comment">// anonymous mappings, so we can&#39;t trust them and just</span>
+                    <span class="comment">// treat them as entirely anonymous.</span>
+                    <span class="ident">curr_seg_name</span>.<span class="ident">push_str</span>(<span class="string">&quot;anonymous&quot;</span>);
+                } <span class="kw">else</span> {
+                    <span class="ident">curr_seg_name</span>.<span class="ident">push_str</span>(<span class="ident">pathname</span>);
                 }
-                <span class='ident'>curr_seg_name</span>.<span class='ident'>push_str</span>(<span class='string'>&quot; (&quot;</span>);
-                <span class='ident'>curr_seg_name</span>.<span class='ident'>push_str</span>(<span class='ident'>perms</span>);
-                <span class='ident'>curr_seg_name</span>.<span class='ident'>push_str</span>(<span class='string'>&quot;)&quot;</span>);
+                <span class="ident">curr_seg_name</span>.<span class="ident">push_str</span>(<span class="string">&quot; (&quot;</span>);
+                <span class="ident">curr_seg_name</span>.<span class="ident">push_str</span>(<span class="ident">perms</span>);
+                <span class="ident">curr_seg_name</span>.<span class="ident">push_str</span>(<span class="string">&quot;)&quot;</span>);
 
-                <span class='ident'>looking_for</span> <span class='op'>=</span> <span class='ident'>LookingFor</span>::<span class='ident'>Rss</span>;
-            } <span class='kw'>else</span> {
-                <span class='comment'>// Look for an &quot;Rss:&quot; line.</span>
-                <span class='kw'>let</span> <span class='ident'>cap</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>rss_re</span>.<span class='ident'>captures</span>(<span class='kw-2'>&amp;</span><span class='ident'>line</span>) {
-                    <span class='prelude-val'>Some</span>(<span class='ident'>cap</span>) <span class='op'>=&gt;</span> <span class='ident'>cap</span>,
-                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>continue</span>,
+                <span class="ident">looking_for</span> <span class="op">=</span> <span class="ident">LookingFor</span>::<span class="ident">Rss</span>;
+            } <span class="kw">else</span> {
+                <span class="comment">// Look for an &quot;Rss:&quot; line.</span>
+                <span class="kw">let</span> <span class="ident">cap</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">rss_re</span>.<span class="ident">captures</span>(<span class="kw-2">&amp;</span><span class="ident">line</span>) {
+                    <span class="prelude-val">Some</span>(<span class="ident">cap</span>) <span class="op">=&gt;</span> <span class="ident">cap</span>,
+                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">continue</span>,
                 };
-                <span class='kw'>let</span> <span class='ident'>rss</span> <span class='op'>=</span> <span class='ident'>cap</span>.<span class='ident'>get</span>(<span class='number'>1</span>).<span class='ident'>unwrap</span>().<span class='ident'>as_str</span>().<span class='ident'>parse</span>::<span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span>().<span class='ident'>unwrap</span>() <span class='op'>*</span> <span class='number'>1024</span>;
+                <span class="kw">let</span> <span class="ident">rss</span> <span class="op">=</span> <span class="ident">cap</span>.<span class="ident">get</span>(<span class="number">1</span>).<span class="ident">unwrap</span>().<span class="ident">as_str</span>().<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>().<span class="ident">unwrap</span>() <span class="op">*</span> <span class="number">1024</span>;
 
-                <span class='kw'>if</span> <span class='ident'>rss</span> <span class='op'>&gt;</span> <span class='number'>0</span> {
-                    <span class='comment'>// Aggregate small segments into &quot;other&quot;.</span>
-                    <span class='kw'>let</span> <span class='ident'>seg_name</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>rss</span> <span class='op'>&lt;</span> <span class='number'>512</span> <span class='op'>*</span> <span class='number'>1024</span> {
-                        <span class='string'>&quot;other&quot;</span>.<span class='ident'>to_owned</span>()
-                    } <span class='kw'>else</span> {
-                        <span class='ident'>curr_seg_name</span>.<span class='ident'>clone</span>()
+                <span class="kw">if</span> <span class="ident">rss</span> <span class="op">&gt;</span> <span class="number">0</span> {
+                    <span class="comment">// Aggregate small segments into &quot;other&quot;.</span>
+                    <span class="kw">let</span> <span class="ident">seg_name</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">rss</span> <span class="op">&lt;</span> <span class="number">512</span> <span class="op">*</span> <span class="number">1024</span> {
+                        <span class="string">&quot;other&quot;</span>.<span class="ident">to_owned</span>()
+                    } <span class="kw">else</span> {
+                        <span class="ident">curr_seg_name</span>.<span class="ident">clone</span>()
                     };
-                    <span class='kw'>match</span> <span class='ident'>seg_map</span>.<span class='ident'>entry</span>(<span class='ident'>seg_name</span>) {
-                        <span class='ident'>Entry</span>::<span class='ident'>Vacant</span>(<span class='ident'>entry</span>) <span class='op'>=&gt;</span> { <span class='ident'>entry</span>.<span class='ident'>insert</span>(<span class='ident'>rss</span>); },
-                        <span class='ident'>Entry</span>::<span class='ident'>Occupied</span>(<span class='kw-2'>mut</span> <span class='ident'>entry</span>) <span class='op'>=&gt;</span> <span class='kw-2'>*</span><span class='ident'>entry</span>.<span class='ident'>get_mut</span>() <span class='op'>+=</span> <span class='ident'>rss</span>,
+                    <span class="kw">match</span> <span class="ident">seg_map</span>.<span class="ident">entry</span>(<span class="ident">seg_name</span>) {
+                        <span class="ident">Entry</span>::<span class="ident">Vacant</span>(<span class="ident">entry</span>) <span class="op">=&gt;</span> { <span class="ident">entry</span>.<span class="ident">insert</span>(<span class="ident">rss</span>); },
+                        <span class="ident">Entry</span>::<span class="ident">Occupied</span>(<span class="kw-2">mut</span> <span class="ident">entry</span>) <span class="op">=&gt;</span> <span class="kw-2">*</span><span class="ident">entry</span>.<span class="ident">get_mut</span>() <span class="op">+=</span> <span class="ident">rss</span>,
                     }
                 }
 
-                <span class='ident'>looking_for</span> <span class='op'>=</span> <span class='ident'>LookingFor</span>::<span class='ident'>Segment</span>;
+                <span class="ident">looking_for</span> <span class="op">=</span> <span class="ident">LookingFor</span>::<span class="ident">Segment</span>;
             }
         }
 
-        <span class='comment'>// Note that the sum of all these segments&#39; RSS values differs from the &quot;resident&quot;</span>
-        <span class='comment'>// measurement obtained via /proc/&lt;pid&gt;/statm in resident(). It&#39;s unclear why this</span>
-        <span class='comment'>// difference occurs; for some processes the measurements match, but for Servo they do not.</span>
-        <span class='ident'>seg_map</span>.<span class='ident'>into_iter</span>().<span class='ident'>collect</span>()
+        <span class="comment">// Note that the sum of all these segments&#39; RSS values differs from the &quot;resident&quot;</span>
+        <span class="comment">// measurement obtained via /proc/&lt;pid&gt;/statm in resident(). It&#39;s unclear why this</span>
+        <span class="comment">// difference occurs; for some processes the measurements match, but for Servo they do not.</span>
+        <span class="ident">seg_map</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>()
     }
 
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>target_os</span> <span class='op'>=</span> <span class='string'>&quot;linux&quot;</span>))]</span>
-    <span class='kw'>fn</span> <span class='ident'>resident_segments</span>() <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span>(<span class='ident'>String</span>, <span class='ident'>usize</span>)<span class='op'>&gt;</span> {
-        <span class='macro'>vec</span><span class='macro'>!</span>[]
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+    <span class="kw">fn</span> <span class="ident">resident_segments</span>() <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
+        <span class="macro">vec</span><span class="macro">!</span>[]
     }
 }
 </pre>

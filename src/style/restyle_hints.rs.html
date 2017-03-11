@@ -626,585 +626,595 @@
 <span id="581">581</span>
 <span id="582">582</span>
 <span id="583">583</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+<span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! Restyle hints: an optimization to avoid unnecessarily matching selectors.</span>
+<span class="doccomment">//! Restyle hints: an optimization to avoid unnecessarily matching selectors.</span>
 
-<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>deny</span>(<span class='ident'>missing_docs</span>)]</span>
+<span class="attribute">#<span class="op">!</span>[<span class="ident">deny</span>(<span class="ident">missing_docs</span>)]</span>
 
-<span class='kw'>use</span> <span class='ident'>Atom</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>TElement</span>;
-<span class='kw'>use</span> <span class='ident'>element_state</span>::<span class='kw-2'>*</span>;
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;gecko&quot;</span>)]</span>
-<span class='kw'>use</span> <span class='ident'>gecko_bindings</span>::<span class='ident'>structs</span>::<span class='ident'>nsRestyleHint</span>;
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>)]</span>
-<span class='kw'>use</span> <span class='ident'>heapsize</span>::<span class='ident'>HeapSizeOf</span>;
-<span class='kw'>use</span> <span class='ident'>selector_parser</span>::{<span class='ident'>AttrValue</span>, <span class='ident'>NonTSPseudoClass</span>, <span class='ident'>Snapshot</span>, <span class='ident'>SelectorImpl</span>};
-<span class='kw'>use</span> <span class='ident'>selectors</span>::{<span class='ident'>Element</span>, <span class='ident'>MatchAttr</span>};
-<span class='kw'>use</span> <span class='ident'>selectors</span>::<span class='ident'>matching</span>::{<span class='ident'>ElementSelectorFlags</span>, <span class='ident'>StyleRelations</span>};
-<span class='kw'>use</span> <span class='ident'>selectors</span>::<span class='ident'>matching</span>::<span class='ident'>matches_complex_selector</span>;
-<span class='kw'>use</span> <span class='ident'>selectors</span>::<span class='ident'>parser</span>::{<span class='ident'>AttrSelector</span>, <span class='ident'>Combinator</span>, <span class='ident'>ComplexSelector</span>, <span class='ident'>SimpleSelector</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>clone</span>::<span class='ident'>Clone</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>Arc</span>;
+<span class="kw">use</span> <span class="ident">Atom</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">TElement</span>;
+<span class="kw">use</span> <span class="ident">element_state</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;gecko&quot;</span>)]</span>
+<span class="kw">use</span> <span class="ident">gecko_bindings</span>::<span class="ident">structs</span>::<span class="ident">nsRestyleHint</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>)]</span>
+<span class="kw">use</span> <span class="ident">heapsize</span>::<span class="ident">HeapSizeOf</span>;
+<span class="kw">use</span> <span class="ident">selector_parser</span>::{<span class="ident">AttrValue</span>, <span class="ident">NonTSPseudoClass</span>, <span class="ident">Snapshot</span>, <span class="ident">SelectorImpl</span>};
+<span class="kw">use</span> <span class="ident">selectors</span>::{<span class="ident">Element</span>, <span class="ident">MatchAttr</span>};
+<span class="kw">use</span> <span class="ident">selectors</span>::<span class="ident">matching</span>::{<span class="ident">ElementSelectorFlags</span>, <span class="ident">StyleRelations</span>};
+<span class="kw">use</span> <span class="ident">selectors</span>::<span class="ident">matching</span>::<span class="ident">matches_complex_selector</span>;
+<span class="kw">use</span> <span class="ident">selectors</span>::<span class="ident">parser</span>::{<span class="ident">AttrSelector</span>, <span class="ident">Combinator</span>, <span class="ident">ComplexSelector</span>, <span class="ident">SimpleSelector</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">clone</span>::<span class="ident">Clone</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 
-<span class='macro'>bitflags</span><span class='macro'>!</span> {
-    <span class='doccomment'>/// When the ElementState of an element (like IN_HOVER_STATE) changes,</span>
-    <span class='doccomment'>/// certain pseudo-classes (like :hover) may require us to restyle that</span>
-    <span class='doccomment'>/// element, its siblings, and/or its descendants. Similarly, when various</span>
-    <span class='doccomment'>/// attributes of an element change, we may also need to restyle things with</span>
-    <span class='doccomment'>/// id, class, and attribute selectors. Doing this conservatively is</span>
-    <span class='doccomment'>/// expensive, and so we use RestyleHints to short-circuit work we know is</span>
-    <span class='doccomment'>/// unnecessary.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Note that the bit values here must be kept in sync with the Gecko</span>
-    <span class='doccomment'>/// nsRestyleHint values.  If you add more bits with matching values,</span>
-    <span class='doccomment'>/// please add assertions to assert_restyle_hints_match below.</span>
-    <span class='kw'>pub</span> <span class='ident'>flags</span> <span class='ident'>RestyleHint</span>: <span class='ident'>u32</span> {
-        <span class='doccomment'>/// Rerun selector matching on the element.</span>
-        <span class='kw'>const</span> <span class='ident'>RESTYLE_SELF</span> <span class='op'>=</span> <span class='number'>0x01</span>,
+<span class="macro">bitflags</span><span class="macro">!</span> {
+    <span class="doccomment">/// When the ElementState of an element (like IN_HOVER_STATE) changes,</span>
+    <span class="doccomment">/// certain pseudo-classes (like :hover) may require us to restyle that</span>
+    <span class="doccomment">/// element, its siblings, and/or its descendants. Similarly, when various</span>
+    <span class="doccomment">/// attributes of an element change, we may also need to restyle things with</span>
+    <span class="doccomment">/// id, class, and attribute selectors. Doing this conservatively is</span>
+    <span class="doccomment">/// expensive, and so we use RestyleHints to short-circuit work we know is</span>
+    <span class="doccomment">/// unnecessary.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Note that the bit values here must be kept in sync with the Gecko</span>
+    <span class="doccomment">/// nsRestyleHint values.  If you add more bits with matching values,</span>
+    <span class="doccomment">/// please add assertions to assert_restyle_hints_match below.</span>
+    <span class="kw">pub</span> <span class="ident">flags</span> <span class="ident">RestyleHint</span>: <span class="ident">u32</span> {
+        <span class="doccomment">/// Rerun selector matching on the element.</span>
+        <span class="kw">const</span> <span class="ident">RESTYLE_SELF</span> <span class="op">=</span> <span class="number">0x01</span>,
 
-        <span class='doccomment'>/// Rerun selector matching on all of the element&#39;s descendants.</span>
-        <span class='doccomment'>///</span>
-        <span class='doccomment'>/// NB: In Gecko, we have RESTYLE_SUBTREE which is inclusive of self,</span>
-        <span class='doccomment'>/// but heycam isn&#39;t aware of a good reason for that.</span>
-        <span class='kw'>const</span> <span class='ident'>RESTYLE_DESCENDANTS</span> <span class='op'>=</span> <span class='number'>0x02</span>,
+        <span class="doccomment">/// Rerun selector matching on all of the element&#39;s descendants.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// NB: In Gecko, we have RESTYLE_SUBTREE which is inclusive of self,</span>
+        <span class="doccomment">/// but heycam isn&#39;t aware of a good reason for that.</span>
+        <span class="kw">const</span> <span class="ident">RESTYLE_DESCENDANTS</span> <span class="op">=</span> <span class="number">0x04</span>,
 
-        <span class='doccomment'>/// Rerun selector matching on all later siblings of the element and all</span>
-        <span class='doccomment'>/// of their descendants.</span>
-        <span class='kw'>const</span> <span class='ident'>RESTYLE_LATER_SIBLINGS</span> <span class='op'>=</span> <span class='number'>0x08</span>,
+        <span class="doccomment">/// Rerun selector matching on all later siblings of the element and all</span>
+        <span class="doccomment">/// of their descendants.</span>
+        <span class="kw">const</span> <span class="ident">RESTYLE_LATER_SIBLINGS</span> <span class="op">=</span> <span class="number">0x08</span>,
 
-        <span class='doccomment'>/// Don&#39;t re-run selector-matching on the element, only the style</span>
-        <span class='doccomment'>/// attribute has changed, and this change didn&#39;t have any other</span>
-        <span class='doccomment'>/// dependencies.</span>
-        <span class='kw'>const</span> <span class='ident'>RESTYLE_STYLE_ATTRIBUTE</span> <span class='op'>=</span> <span class='number'>0x80</span>,
+        <span class="doccomment">/// Don&#39;t re-run selector-matching on the element, only the style</span>
+        <span class="doccomment">/// attribute has changed, and this change didn&#39;t have any other</span>
+        <span class="doccomment">/// dependencies.</span>
+        <span class="kw">const</span> <span class="ident">RESTYLE_STYLE_ATTRIBUTE</span> <span class="op">=</span> <span class="number">0x80</span>,
     }
 }
 
-<span class='doccomment'>/// Asserts that all RestyleHint flags have a matching nsRestyleHint value.</span>
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;gecko&quot;</span>)]</span>
-<span class='attribute'>#[<span class='ident'>inline</span>]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>assert_restyle_hints_match</span>() {
-    <span class='kw'>use</span> <span class='ident'>gecko_bindings</span>::<span class='ident'>structs</span>;
+<span class="doccomment">/// Asserts that all RestyleHint flags have a matching nsRestyleHint value.</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;gecko&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">inline</span>]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">assert_restyle_hints_match</span>() {
+    <span class="kw">use</span> <span class="ident">gecko_bindings</span>::<span class="ident">structs</span>;
 
-    <span class='macro'>macro_rules</span><span class='macro'>!</span> <span class='ident'>check_restyle_hints</span> {
-        ( $( <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>a</span>:<span class='ident'>ident</span> <span class='op'>=&gt;</span> <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>b</span>:<span class='ident'>ident</span> ),<span class='kw-2'>*</span>, ) <span class='op'>=&gt;</span> {
-            <span class='kw'>if</span> <span class='macro'>cfg</span><span class='macro'>!</span>(<span class='ident'>debug_assertions</span>) {
-                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>hints</span> <span class='op'>=</span> <span class='ident'>RestyleHint</span>::<span class='ident'>all</span>();
+    <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">check_restyle_hints</span> {
+        ( $( <span class="macro-nonterminal">$</span><span class="macro-nonterminal">a</span>:<span class="ident">ident</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">b</span>:<span class="ident">ident</span> ),<span class="kw-2">*</span>, ) <span class="op">=&gt;</span> {
+            <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">debug_assertions</span>) {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">hints</span> <span class="op">=</span> <span class="ident">RestyleHint</span>::<span class="ident">all</span>();
                 $(
-                    <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>structs</span>::<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>a</span>.<span class='number'>0</span> <span class='kw'>as</span> <span class='ident'>usize</span>, <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>b</span>.<span class='ident'>bits</span>() <span class='kw'>as</span> <span class='ident'>usize</span>, <span class='macro'>stringify</span><span class='macro'>!</span>(<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>b</span>));
-                    <span class='ident'>hints</span>.<span class='ident'>remove</span>(<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>b</span>);
-                )<span class='op'>*</span>
-                <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>hints</span>, <span class='ident'>RestyleHint</span>::<span class='ident'>empty</span>(), <span class='string'>&quot;all RestyleHint bits should have an assertion&quot;</span>);
+                    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">structs</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">a</span>.<span class="number">0</span> <span class="kw">as</span> <span class="ident">usize</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">b</span>.<span class="ident">bits</span>() <span class="kw">as</span> <span class="ident">usize</span>, <span class="macro">stringify</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">b</span>));
+                    <span class="ident">hints</span>.<span class="ident">remove</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">b</span>);
+                )<span class="op">*</span>
+                <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">hints</span>, <span class="ident">RestyleHint</span>::<span class="ident">empty</span>(), <span class="string">&quot;all RestyleHint bits should have an assertion&quot;</span>);
             }
         }
     }
 
-    <span class='macro'>check_restyle_hints</span><span class='macro'>!</span> {
-        <span class='ident'>nsRestyleHint_eRestyle_Self</span> <span class='op'>=&gt;</span> <span class='ident'>RESTYLE_SELF</span>,
-        <span class='comment'>// XXX This for Servo actually means something like an hypothetical</span>
-        <span class='comment'>// Restyle_AllDescendants (but without running selector matching on the</span>
-        <span class='comment'>// element). ServoRestyleManager interprets it like that, but in practice we</span>
-        <span class='comment'>// should align the behavior with Gecko adding a new restyle hint, maybe?</span>
-        <span class='comment'>//</span>
-        <span class='comment'>// See https://bugzilla.mozilla.org/show_bug.cgi?id=1291786</span>
-        <span class='ident'>nsRestyleHint_eRestyle_SomeDescendants</span> <span class='op'>=&gt;</span> <span class='ident'>RESTYLE_DESCENDANTS</span>,
-        <span class='ident'>nsRestyleHint_eRestyle_LaterSiblings</span> <span class='op'>=&gt;</span> <span class='ident'>RESTYLE_LATER_SIBLINGS</span>,
-        <span class='ident'>nsRestyleHint_eRestyle_StyleAttribute</span> <span class='op'>=&gt;</span> <span class='ident'>RESTYLE_STYLE_ATTRIBUTE</span>,
+    <span class="macro">check_restyle_hints</span><span class="macro">!</span> {
+        <span class="ident">nsRestyleHint_eRestyle_Self</span> <span class="op">=&gt;</span> <span class="ident">RESTYLE_SELF</span>,
+        <span class="comment">// Note that eRestyle_Subtree means &quot;self and descendants&quot;, while</span>
+        <span class="comment">// RESTYLE_DESCENDANTS means descendants only.  The From impl</span>
+        <span class="comment">// below handles converting eRestyle_Subtree into</span>
+        <span class="comment">// (RESTYLE_SELF | RESTYLE_DESCENDANTS).</span>
+        <span class="ident">nsRestyleHint_eRestyle_Subtree</span> <span class="op">=&gt;</span> <span class="ident">RESTYLE_DESCENDANTS</span>,
+        <span class="ident">nsRestyleHint_eRestyle_LaterSiblings</span> <span class="op">=&gt;</span> <span class="ident">RESTYLE_LATER_SIBLINGS</span>,
+        <span class="ident">nsRestyleHint_eRestyle_StyleAttribute</span> <span class="op">=&gt;</span> <span class="ident">RESTYLE_STYLE_ATTRIBUTE</span>,
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>RestyleHint</span> {
-    <span class='doccomment'>/// The subset hints that affect the styling of a single element during the</span>
-    <span class='doccomment'>/// traversal.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>for_self</span>() <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='ident'>RESTYLE_SELF</span> <span class='op'>|</span> <span class='ident'>RESTYLE_STYLE_ATTRIBUTE</span>
+<span class="kw">impl</span> <span class="ident">RestyleHint</span> {
+    <span class="doccomment">/// The subset hints that affect the styling of a single element during the</span>
+    <span class="doccomment">/// traversal.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">for_self</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">RESTYLE_SELF</span> <span class="op">|</span> <span class="ident">RESTYLE_STYLE_ATTRIBUTE</span>
     }
 }
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;gecko&quot;</span>)]</span>
-<span class='kw'>impl</span> <span class='ident'>From</span><span class='op'>&lt;</span><span class='ident'>nsRestyleHint</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>RestyleHint</span> {
-    <span class='kw'>fn</span> <span class='ident'>from</span>(<span class='ident'>raw</span>: <span class='ident'>nsRestyleHint</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
-        <span class='kw'>let</span> <span class='ident'>raw_bits</span>: <span class='ident'>u32</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>mem</span>::<span class='ident'>transmute</span>(<span class='ident'>raw</span>) };
-        <span class='comment'>// FIXME(bholley): Finish aligning the binary representations here and</span>
-        <span class='comment'>// then .expect() the result of the checked version.</span>
-        <span class='kw'>if</span> <span class='self'>Self</span>::<span class='ident'>from_bits</span>(<span class='ident'>raw_bits</span>).<span class='ident'>is_none</span>() {
-            <span class='macro'>warn</span><span class='macro'>!</span>(<span class='string'>&quot;stylo: dropping unsupported restyle hint bits&quot;</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;gecko&quot;</span>)]</span>
+<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">nsRestyleHint</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RestyleHint</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">raw</span>: <span class="ident">nsRestyleHint</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
+        <span class="kw">let</span> <span class="ident">raw_bits</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">raw</span>) };
+        <span class="comment">// FIXME(bholley): Finish aligning the binary representations here and</span>
+        <span class="comment">// then .expect() the result of the checked version.</span>
+        <span class="kw">if</span> <span class="self">Self</span>::<span class="ident">from_bits</span>(<span class="ident">raw_bits</span>).<span class="ident">is_none</span>() {
+            <span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;stylo: dropping unsupported restyle hint bits&quot;</span>);
         }
 
-        <span class='self'>Self</span>::<span class='ident'>from_bits_truncate</span>(<span class='ident'>raw_bits</span>)
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bits</span> <span class="op">=</span> <span class="self">Self</span>::<span class="ident">from_bits_truncate</span>(<span class="ident">raw_bits</span>);
+
+        <span class="comment">// eRestyle_Subtree converts to (RESTYLE_SELF | RESTYLE_DESCENDANTS).</span>
+        <span class="kw">if</span> <span class="ident">bits</span>.<span class="ident">contains</span>(<span class="ident">RESTYLE_DESCENDANTS</span>) {
+            <span class="ident">bits</span> <span class="op">|=</span> <span class="ident">RESTYLE_SELF</span>;
+        }
+
+        <span class="ident">bits</span>
     }
 }
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>)]</span>
-<span class='kw'>impl</span> <span class='ident'>HeapSizeOf</span> <span class='kw'>for</span> <span class='ident'>RestyleHint</span> {
-    <span class='kw'>fn</span> <span class='ident'>heap_size_of_children</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> { <span class='number'>0</span> }
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>)]</span>
+<span class="kw">impl</span> <span class="ident">HeapSizeOf</span> <span class="kw">for</span> <span class="ident">RestyleHint</span> {
+    <span class="kw">fn</span> <span class="ident">heap_size_of_children</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> { <span class="number">0</span> }
 }
 
-<span class='doccomment'>/// In order to compute restyle hints, we perform a selector match against a</span>
-<span class='doccomment'>/// list of partial selectors whose rightmost simple selector may be sensitive</span>
-<span class='doccomment'>/// to the thing being changed. We do this matching twice, once for the element</span>
-<span class='doccomment'>/// as it exists now and once for the element as it existed at the time of the</span>
-<span class='doccomment'>/// last restyle. If the results of the selector match differ, that means that</span>
-<span class='doccomment'>/// the given partial selector is sensitive to the change, and we compute a</span>
-<span class='doccomment'>/// restyle hint based on its combinator.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// In order to run selector matching against the old element state, we generate</span>
-<span class='doccomment'>/// a wrapper for the element which claims to have the old state. This is the</span>
-<span class='doccomment'>/// ElementWrapper logic below.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Gecko does this differently for element states, and passes a mask called</span>
-<span class='doccomment'>/// mStateMask, which indicates the states that need to be ignored during</span>
-<span class='doccomment'>/// selector matching. This saves an ElementWrapper allocation and an additional</span>
-<span class='doccomment'>/// selector match call at the expense of additional complexity inside the</span>
-<span class='doccomment'>/// selector matching logic. This only works for boolean states though, so we</span>
-<span class='doccomment'>/// still need to take the ElementWrapper approach for attribute-dependent</span>
-<span class='doccomment'>/// style. So we do it the same both ways for now to reduce complexity, but it&#39;s</span>
-<span class='doccomment'>/// worth measuring the performance impact (if any) of the mStateMask approach.</span>
-<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>ElementSnapshot</span> : <span class='ident'>Sized</span> <span class='op'>+</span> <span class='ident'>MatchAttr</span><span class='op'>&lt;</span><span class='ident'>Impl</span><span class='op'>=</span><span class='ident'>SelectorImpl</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// The state of the snapshot, if any.</span>
-    <span class='kw'>fn</span> <span class='ident'>state</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ElementState</span><span class='op'>&gt;</span>;
+<span class="doccomment">/// In order to compute restyle hints, we perform a selector match against a</span>
+<span class="doccomment">/// list of partial selectors whose rightmost simple selector may be sensitive</span>
+<span class="doccomment">/// to the thing being changed. We do this matching twice, once for the element</span>
+<span class="doccomment">/// as it exists now and once for the element as it existed at the time of the</span>
+<span class="doccomment">/// last restyle. If the results of the selector match differ, that means that</span>
+<span class="doccomment">/// the given partial selector is sensitive to the change, and we compute a</span>
+<span class="doccomment">/// restyle hint based on its combinator.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// In order to run selector matching against the old element state, we generate</span>
+<span class="doccomment">/// a wrapper for the element which claims to have the old state. This is the</span>
+<span class="doccomment">/// ElementWrapper logic below.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Gecko does this differently for element states, and passes a mask called</span>
+<span class="doccomment">/// mStateMask, which indicates the states that need to be ignored during</span>
+<span class="doccomment">/// selector matching. This saves an ElementWrapper allocation and an additional</span>
+<span class="doccomment">/// selector match call at the expense of additional complexity inside the</span>
+<span class="doccomment">/// selector matching logic. This only works for boolean states though, so we</span>
+<span class="doccomment">/// still need to take the ElementWrapper approach for attribute-dependent</span>
+<span class="doccomment">/// style. So we do it the same both ways for now to reduce complexity, but it&#39;s</span>
+<span class="doccomment">/// worth measuring the performance impact (if any) of the mStateMask approach.</span>
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">ElementSnapshot</span> : <span class="ident">Sized</span> <span class="op">+</span> <span class="ident">MatchAttr</span><span class="op">&lt;</span><span class="ident">Impl</span><span class="op">=</span><span class="ident">SelectorImpl</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// The state of the snapshot, if any.</span>
+    <span class="kw">fn</span> <span class="ident">state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ElementState</span><span class="op">&gt;</span>;
 
-    <span class='doccomment'>/// If this snapshot contains attribute information.</span>
-    <span class='kw'>fn</span> <span class='ident'>has_attrs</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
+    <span class="doccomment">/// If this snapshot contains attribute information.</span>
+    <span class="kw">fn</span> <span class="ident">has_attrs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>;
 
-    <span class='doccomment'>/// The ID attribute per this snapshot. Should only be called if</span>
-    <span class='doccomment'>/// `has_attrs()` returns true.</span>
-    <span class='kw'>fn</span> <span class='ident'>id_attr</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Atom</span><span class='op'>&gt;</span>;
+    <span class="doccomment">/// The ID attribute per this snapshot. Should only be called if</span>
+    <span class="doccomment">/// `has_attrs()` returns true.</span>
+    <span class="kw">fn</span> <span class="ident">id_attr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Atom</span><span class="op">&gt;</span>;
 
-    <span class='doccomment'>/// Whether this snapshot contains the class `name`. Should only be called</span>
-    <span class='doccomment'>/// if `has_attrs()` returns true.</span>
-    <span class='kw'>fn</span> <span class='ident'>has_class</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>name</span>: <span class='kw-2'>&amp;</span><span class='ident'>Atom</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
+    <span class="doccomment">/// Whether this snapshot contains the class `name`. Should only be called</span>
+    <span class="doccomment">/// if `has_attrs()` returns true.</span>
+    <span class="kw">fn</span> <span class="ident">has_class</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">Atom</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>;
 
-    <span class='doccomment'>/// A callback that should be called for each class of the snapshot. Should</span>
-    <span class='doccomment'>/// only be called if `has_attrs()` returns true.</span>
-    <span class='kw'>fn</span> <span class='ident'>each_class</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>F</span>)
-        <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>FnMut</span>(<span class='kw-2'>&amp;</span><span class='ident'>Atom</span>);
+    <span class="doccomment">/// A callback that should be called for each class of the snapshot. Should</span>
+    <span class="doccomment">/// only be called if `has_attrs()` returns true.</span>
+    <span class="kw">fn</span> <span class="ident">each_class</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">F</span>)
+        <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">Atom</span>);
 }
 
-<span class='kw'>struct</span> <span class='ident'>ElementWrapper</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>E</span><span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
+<span class="kw">struct</span> <span class="ident">ElementWrapper</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">E</span><span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">TElement</span>,
 {
-    <span class='ident'>element</span>: <span class='ident'>E</span>,
-    <span class='ident'>snapshot</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Snapshot</span><span class='op'>&gt;</span>,
+    <span class="ident">element</span>: <span class="ident">E</span>,
+    <span class="ident">snapshot</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Snapshot</span><span class="op">&gt;</span>,
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>E</span><span class='op'>&gt;</span> <span class='ident'>ElementWrapper</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>E</span><span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">E</span><span class="op">&gt;</span> <span class="ident">ElementWrapper</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">E</span><span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">TElement</span>,
 {
-    <span class='doccomment'>/// Trivially constructs an `ElementWrapper` without a snapshot.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>el</span>: <span class='ident'>E</span>) <span class='op'>-&gt;</span> <span class='ident'>ElementWrapper</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>E</span><span class='op'>&gt;</span> {
-        <span class='ident'>ElementWrapper</span> { <span class='ident'>element</span>: <span class='ident'>el</span>, <span class='ident'>snapshot</span>: <span class='prelude-val'>None</span> }
+    <span class="doccomment">/// Trivially constructs an `ElementWrapper` without a snapshot.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">el</span>: <span class="ident">E</span>) <span class="op">-&gt;</span> <span class="ident">ElementWrapper</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">E</span><span class="op">&gt;</span> {
+        <span class="ident">ElementWrapper</span> { <span class="ident">element</span>: <span class="ident">el</span>, <span class="ident">snapshot</span>: <span class="prelude-val">None</span> }
     }
 
-    <span class='doccomment'>/// Trivially constructs an `ElementWrapper` with a snapshot.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new_with_snapshot</span>(<span class='ident'>el</span>: <span class='ident'>E</span>, <span class='ident'>snapshot</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Snapshot</span>) <span class='op'>-&gt;</span> <span class='ident'>ElementWrapper</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>E</span><span class='op'>&gt;</span> {
-        <span class='ident'>ElementWrapper</span> { <span class='ident'>element</span>: <span class='ident'>el</span>, <span class='ident'>snapshot</span>: <span class='prelude-val'>Some</span>(<span class='ident'>snapshot</span>) }
-    }
-}
-
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>E</span><span class='op'>&gt;</span> <span class='ident'>MatchAttr</span> <span class='kw'>for</span> <span class='ident'>ElementWrapper</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>E</span><span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
-{
-    <span class='kw'>type</span> <span class='ident'>Impl</span> <span class='op'>=</span> <span class='ident'>SelectorImpl</span>;
-
-    <span class='kw'>fn</span> <span class='ident'>match_attr_has</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>attr</span>: <span class='kw-2'>&amp;</span><span class='ident'>AttrSelector</span><span class='op'>&lt;</span><span class='ident'>SelectorImpl</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>snapshot</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>snapshot</span>) <span class='kw'>if</span> <span class='ident'>snapshot</span>.<span class='ident'>has_attrs</span>()
-                <span class='op'>=&gt;</span> <span class='ident'>snapshot</span>.<span class='ident'>match_attr_has</span>(<span class='ident'>attr</span>),
-            _   <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>match_attr_has</span>(<span class='ident'>attr</span>)
-        }
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>match_attr_equals</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
-                         <span class='ident'>attr</span>: <span class='kw-2'>&amp;</span><span class='ident'>AttrSelector</span><span class='op'>&lt;</span><span class='ident'>SelectorImpl</span><span class='op'>&gt;</span>,
-                         <span class='ident'>value</span>: <span class='kw-2'>&amp;</span><span class='ident'>AttrValue</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>snapshot</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>snapshot</span>) <span class='kw'>if</span> <span class='ident'>snapshot</span>.<span class='ident'>has_attrs</span>()
-                <span class='op'>=&gt;</span> <span class='ident'>snapshot</span>.<span class='ident'>match_attr_equals</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>),
-            _   <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>match_attr_equals</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>)
-        }
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>match_attr_equals_ignore_ascii_case</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
-                                           <span class='ident'>attr</span>: <span class='kw-2'>&amp;</span><span class='ident'>AttrSelector</span><span class='op'>&lt;</span><span class='ident'>SelectorImpl</span><span class='op'>&gt;</span>,
-                                           <span class='ident'>value</span>: <span class='kw-2'>&amp;</span><span class='ident'>AttrValue</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>snapshot</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>snapshot</span>) <span class='kw'>if</span> <span class='ident'>snapshot</span>.<span class='ident'>has_attrs</span>()
-                <span class='op'>=&gt;</span> <span class='ident'>snapshot</span>.<span class='ident'>match_attr_equals_ignore_ascii_case</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>),
-            _   <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>match_attr_equals_ignore_ascii_case</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>)
-        }
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>match_attr_includes</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
-                           <span class='ident'>attr</span>: <span class='kw-2'>&amp;</span><span class='ident'>AttrSelector</span><span class='op'>&lt;</span><span class='ident'>SelectorImpl</span><span class='op'>&gt;</span>,
-                           <span class='ident'>value</span>: <span class='kw-2'>&amp;</span><span class='ident'>AttrValue</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>snapshot</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>snapshot</span>) <span class='kw'>if</span> <span class='ident'>snapshot</span>.<span class='ident'>has_attrs</span>()
-                <span class='op'>=&gt;</span> <span class='ident'>snapshot</span>.<span class='ident'>match_attr_includes</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>),
-            _   <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>match_attr_includes</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>)
-        }
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>match_attr_dash</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
-                       <span class='ident'>attr</span>: <span class='kw-2'>&amp;</span><span class='ident'>AttrSelector</span><span class='op'>&lt;</span><span class='ident'>SelectorImpl</span><span class='op'>&gt;</span>,
-                       <span class='ident'>value</span>: <span class='kw-2'>&amp;</span><span class='ident'>AttrValue</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>snapshot</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>snapshot</span>) <span class='kw'>if</span> <span class='ident'>snapshot</span>.<span class='ident'>has_attrs</span>()
-                <span class='op'>=&gt;</span> <span class='ident'>snapshot</span>.<span class='ident'>match_attr_dash</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>),
-            _   <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>match_attr_dash</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>)
-        }
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>match_attr_prefix</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
-                         <span class='ident'>attr</span>: <span class='kw-2'>&amp;</span><span class='ident'>AttrSelector</span><span class='op'>&lt;</span><span class='ident'>SelectorImpl</span><span class='op'>&gt;</span>,
-                         <span class='ident'>value</span>: <span class='kw-2'>&amp;</span><span class='ident'>AttrValue</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>snapshot</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>snapshot</span>) <span class='kw'>if</span> <span class='ident'>snapshot</span>.<span class='ident'>has_attrs</span>()
-                <span class='op'>=&gt;</span> <span class='ident'>snapshot</span>.<span class='ident'>match_attr_prefix</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>),
-            _   <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>match_attr_prefix</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>)
-        }
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>match_attr_substring</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
-                            <span class='ident'>attr</span>: <span class='kw-2'>&amp;</span><span class='ident'>AttrSelector</span><span class='op'>&lt;</span><span class='ident'>SelectorImpl</span><span class='op'>&gt;</span>,
-                            <span class='ident'>value</span>: <span class='kw-2'>&amp;</span><span class='ident'>AttrValue</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>snapshot</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>snapshot</span>) <span class='kw'>if</span> <span class='ident'>snapshot</span>.<span class='ident'>has_attrs</span>()
-                <span class='op'>=&gt;</span> <span class='ident'>snapshot</span>.<span class='ident'>match_attr_substring</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>),
-            _   <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>match_attr_substring</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>)
-        }
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>match_attr_suffix</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
-                         <span class='ident'>attr</span>: <span class='kw-2'>&amp;</span><span class='ident'>AttrSelector</span><span class='op'>&lt;</span><span class='ident'>SelectorImpl</span><span class='op'>&gt;</span>,
-                         <span class='ident'>value</span>: <span class='kw-2'>&amp;</span><span class='ident'>AttrValue</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>snapshot</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>snapshot</span>) <span class='kw'>if</span> <span class='ident'>snapshot</span>.<span class='ident'>has_attrs</span>()
-                <span class='op'>=&gt;</span> <span class='ident'>snapshot</span>.<span class='ident'>match_attr_suffix</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>),
-            _   <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>match_attr_suffix</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>)
-        }
+    <span class="doccomment">/// Trivially constructs an `ElementWrapper` with a snapshot.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_with_snapshot</span>(<span class="ident">el</span>: <span class="ident">E</span>, <span class="ident">snapshot</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Snapshot</span>) <span class="op">-&gt;</span> <span class="ident">ElementWrapper</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">E</span><span class="op">&gt;</span> {
+        <span class="ident">ElementWrapper</span> { <span class="ident">element</span>: <span class="ident">el</span>, <span class="ident">snapshot</span>: <span class="prelude-val">Some</span>(<span class="ident">snapshot</span>) }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>E</span><span class='op'>&gt;</span> <span class='ident'>Element</span> <span class='kw'>for</span> <span class='ident'>ElementWrapper</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>E</span><span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">E</span><span class="op">&gt;</span> <span class="ident">MatchAttr</span> <span class="kw">for</span> <span class="ident">ElementWrapper</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">E</span><span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">TElement</span>,
 {
-    <span class='kw'>fn</span> <span class='ident'>match_non_ts_pseudo_class</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>pseudo_class</span>: <span class='kw-2'>&amp;</span><span class='ident'>NonTSPseudoClass</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>let</span> <span class='ident'>flag</span> <span class='op'>=</span> <span class='ident'>SelectorImpl</span>::<span class='ident'>pseudo_class_state_flag</span>(<span class='ident'>pseudo_class</span>);
-        <span class='kw'>if</span> <span class='ident'>flag</span> <span class='op'>==</span> <span class='ident'>ElementState</span>::<span class='ident'>empty</span>() {
-            <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>match_non_ts_pseudo_class</span>(<span class='ident'>pseudo_class</span>)
-        } <span class='kw'>else</span> {
-            <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>snapshot</span>.<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> <span class='ident'>s</span>.<span class='ident'>state</span>()) {
-                <span class='prelude-val'>Some</span>(<span class='ident'>snapshot_state</span>) <span class='op'>=&gt;</span> <span class='ident'>snapshot_state</span>.<span class='ident'>contains</span>(<span class='ident'>flag</span>),
-                _   <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>match_non_ts_pseudo_class</span>(<span class='ident'>pseudo_class</span>)
+    <span class="kw">type</span> <span class="ident">Impl</span> <span class="op">=</span> <span class="ident">SelectorImpl</span>;
+
+    <span class="kw">fn</span> <span class="ident">match_attr_has</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">attr</span>: <span class="kw-2">&amp;</span><span class="ident">AttrSelector</span><span class="op">&lt;</span><span class="ident">SelectorImpl</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">snapshot</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">snapshot</span>) <span class="kw">if</span> <span class="ident">snapshot</span>.<span class="ident">has_attrs</span>()
+                <span class="op">=&gt;</span> <span class="ident">snapshot</span>.<span class="ident">match_attr_has</span>(<span class="ident">attr</span>),
+            _   <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">match_attr_has</span>(<span class="ident">attr</span>)
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">match_attr_equals</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
+                         <span class="ident">attr</span>: <span class="kw-2">&amp;</span><span class="ident">AttrSelector</span><span class="op">&lt;</span><span class="ident">SelectorImpl</span><span class="op">&gt;</span>,
+                         <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">AttrValue</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">snapshot</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">snapshot</span>) <span class="kw">if</span> <span class="ident">snapshot</span>.<span class="ident">has_attrs</span>()
+                <span class="op">=&gt;</span> <span class="ident">snapshot</span>.<span class="ident">match_attr_equals</span>(<span class="ident">attr</span>, <span class="ident">value</span>),
+            _   <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">match_attr_equals</span>(<span class="ident">attr</span>, <span class="ident">value</span>)
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">match_attr_equals_ignore_ascii_case</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
+                                           <span class="ident">attr</span>: <span class="kw-2">&amp;</span><span class="ident">AttrSelector</span><span class="op">&lt;</span><span class="ident">SelectorImpl</span><span class="op">&gt;</span>,
+                                           <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">AttrValue</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">snapshot</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">snapshot</span>) <span class="kw">if</span> <span class="ident">snapshot</span>.<span class="ident">has_attrs</span>()
+                <span class="op">=&gt;</span> <span class="ident">snapshot</span>.<span class="ident">match_attr_equals_ignore_ascii_case</span>(<span class="ident">attr</span>, <span class="ident">value</span>),
+            _   <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">match_attr_equals_ignore_ascii_case</span>(<span class="ident">attr</span>, <span class="ident">value</span>)
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">match_attr_includes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
+                           <span class="ident">attr</span>: <span class="kw-2">&amp;</span><span class="ident">AttrSelector</span><span class="op">&lt;</span><span class="ident">SelectorImpl</span><span class="op">&gt;</span>,
+                           <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">AttrValue</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">snapshot</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">snapshot</span>) <span class="kw">if</span> <span class="ident">snapshot</span>.<span class="ident">has_attrs</span>()
+                <span class="op">=&gt;</span> <span class="ident">snapshot</span>.<span class="ident">match_attr_includes</span>(<span class="ident">attr</span>, <span class="ident">value</span>),
+            _   <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">match_attr_includes</span>(<span class="ident">attr</span>, <span class="ident">value</span>)
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">match_attr_dash</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
+                       <span class="ident">attr</span>: <span class="kw-2">&amp;</span><span class="ident">AttrSelector</span><span class="op">&lt;</span><span class="ident">SelectorImpl</span><span class="op">&gt;</span>,
+                       <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">AttrValue</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">snapshot</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">snapshot</span>) <span class="kw">if</span> <span class="ident">snapshot</span>.<span class="ident">has_attrs</span>()
+                <span class="op">=&gt;</span> <span class="ident">snapshot</span>.<span class="ident">match_attr_dash</span>(<span class="ident">attr</span>, <span class="ident">value</span>),
+            _   <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">match_attr_dash</span>(<span class="ident">attr</span>, <span class="ident">value</span>)
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">match_attr_prefix</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
+                         <span class="ident">attr</span>: <span class="kw-2">&amp;</span><span class="ident">AttrSelector</span><span class="op">&lt;</span><span class="ident">SelectorImpl</span><span class="op">&gt;</span>,
+                         <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">AttrValue</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">snapshot</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">snapshot</span>) <span class="kw">if</span> <span class="ident">snapshot</span>.<span class="ident">has_attrs</span>()
+                <span class="op">=&gt;</span> <span class="ident">snapshot</span>.<span class="ident">match_attr_prefix</span>(<span class="ident">attr</span>, <span class="ident">value</span>),
+            _   <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">match_attr_prefix</span>(<span class="ident">attr</span>, <span class="ident">value</span>)
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">match_attr_substring</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
+                            <span class="ident">attr</span>: <span class="kw-2">&amp;</span><span class="ident">AttrSelector</span><span class="op">&lt;</span><span class="ident">SelectorImpl</span><span class="op">&gt;</span>,
+                            <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">AttrValue</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">snapshot</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">snapshot</span>) <span class="kw">if</span> <span class="ident">snapshot</span>.<span class="ident">has_attrs</span>()
+                <span class="op">=&gt;</span> <span class="ident">snapshot</span>.<span class="ident">match_attr_substring</span>(<span class="ident">attr</span>, <span class="ident">value</span>),
+            _   <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">match_attr_substring</span>(<span class="ident">attr</span>, <span class="ident">value</span>)
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">match_attr_suffix</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
+                         <span class="ident">attr</span>: <span class="kw-2">&amp;</span><span class="ident">AttrSelector</span><span class="op">&lt;</span><span class="ident">SelectorImpl</span><span class="op">&gt;</span>,
+                         <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">AttrValue</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">snapshot</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">snapshot</span>) <span class="kw">if</span> <span class="ident">snapshot</span>.<span class="ident">has_attrs</span>()
+                <span class="op">=&gt;</span> <span class="ident">snapshot</span>.<span class="ident">match_attr_suffix</span>(<span class="ident">attr</span>, <span class="ident">value</span>),
+            _   <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">match_attr_suffix</span>(<span class="ident">attr</span>, <span class="ident">value</span>)
+        }
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">E</span><span class="op">&gt;</span> <span class="ident">Element</span> <span class="kw">for</span> <span class="ident">ElementWrapper</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">E</span><span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">TElement</span>,
+{
+    <span class="kw">fn</span> <span class="ident">match_non_ts_pseudo_class</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">pseudo_class</span>: <span class="kw-2">&amp;</span><span class="ident">NonTSPseudoClass</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">let</span> <span class="ident">flag</span> <span class="op">=</span> <span class="ident">SelectorImpl</span>::<span class="ident">pseudo_class_state_flag</span>(<span class="ident">pseudo_class</span>);
+        <span class="kw">if</span> <span class="ident">flag</span> <span class="op">==</span> <span class="ident">ElementState</span>::<span class="ident">empty</span>() {
+            <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">match_non_ts_pseudo_class</span>(<span class="ident">pseudo_class</span>)
+        } <span class="kw">else</span> {
+            <span class="kw">match</span> <span class="self">self</span>.<span class="ident">snapshot</span>.<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">state</span>()) {
+                <span class="prelude-val">Some</span>(<span class="ident">snapshot_state</span>) <span class="op">=&gt;</span> <span class="ident">snapshot_state</span>.<span class="ident">contains</span>(<span class="ident">flag</span>),
+                _   <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">match_non_ts_pseudo_class</span>(<span class="ident">pseudo_class</span>)
             }
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>parent_element</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='self'>Self</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>parent_element</span>().<span class='ident'>map</span>(<span class='ident'>ElementWrapper</span>::<span class='ident'>new</span>)
+    <span class="kw">fn</span> <span class="ident">parent_element</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">parent_element</span>().<span class="ident">map</span>(<span class="ident">ElementWrapper</span>::<span class="ident">new</span>)
     }
 
-    <span class='kw'>fn</span> <span class='ident'>first_child_element</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='self'>Self</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>first_child_element</span>().<span class='ident'>map</span>(<span class='ident'>ElementWrapper</span>::<span class='ident'>new</span>)
+    <span class="kw">fn</span> <span class="ident">first_child_element</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">first_child_element</span>().<span class="ident">map</span>(<span class="ident">ElementWrapper</span>::<span class="ident">new</span>)
     }
 
-    <span class='kw'>fn</span> <span class='ident'>last_child_element</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='self'>Self</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>last_child_element</span>().<span class='ident'>map</span>(<span class='ident'>ElementWrapper</span>::<span class='ident'>new</span>)
+    <span class="kw">fn</span> <span class="ident">last_child_element</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">last_child_element</span>().<span class="ident">map</span>(<span class="ident">ElementWrapper</span>::<span class="ident">new</span>)
     }
 
-    <span class='kw'>fn</span> <span class='ident'>prev_sibling_element</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='self'>Self</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>prev_sibling_element</span>().<span class='ident'>map</span>(<span class='ident'>ElementWrapper</span>::<span class='ident'>new</span>)
+    <span class="kw">fn</span> <span class="ident">prev_sibling_element</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">prev_sibling_element</span>().<span class="ident">map</span>(<span class="ident">ElementWrapper</span>::<span class="ident">new</span>)
     }
 
-    <span class='kw'>fn</span> <span class='ident'>next_sibling_element</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='self'>Self</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>next_sibling_element</span>().<span class='ident'>map</span>(<span class='ident'>ElementWrapper</span>::<span class='ident'>new</span>)
+    <span class="kw">fn</span> <span class="ident">next_sibling_element</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">next_sibling_element</span>().<span class="ident">map</span>(<span class="ident">ElementWrapper</span>::<span class="ident">new</span>)
     }
 
-    <span class='kw'>fn</span> <span class='ident'>is_html_element_in_html_document</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>is_html_element_in_html_document</span>()
+    <span class="kw">fn</span> <span class="ident">is_html_element_in_html_document</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">is_html_element_in_html_document</span>()
     }
 
-    <span class='kw'>fn</span> <span class='ident'>get_local_name</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='op'>&lt;</span><span class='self'>Self</span>::<span class='ident'>Impl</span> <span class='kw'>as</span> ::<span class='ident'>selectors</span>::<span class='ident'>SelectorImpl</span><span class='op'>&gt;</span>::<span class='ident'>BorrowedLocalName</span> {
-        <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>get_local_name</span>()
+    <span class="kw">fn</span> <span class="ident">get_local_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Impl</span> <span class="kw">as</span> ::<span class="ident">selectors</span>::<span class="ident">SelectorImpl</span><span class="op">&gt;</span>::<span class="ident">BorrowedLocalName</span> {
+        <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">get_local_name</span>()
     }
 
-    <span class='kw'>fn</span> <span class='ident'>get_namespace</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='op'>&lt;</span><span class='self'>Self</span>::<span class='ident'>Impl</span> <span class='kw'>as</span> ::<span class='ident'>selectors</span>::<span class='ident'>SelectorImpl</span><span class='op'>&gt;</span>::<span class='ident'>BorrowedNamespaceUrl</span> {
-        <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>get_namespace</span>()
+    <span class="kw">fn</span> <span class="ident">get_namespace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Impl</span> <span class="kw">as</span> ::<span class="ident">selectors</span>::<span class="ident">SelectorImpl</span><span class="op">&gt;</span>::<span class="ident">BorrowedNamespaceUrl</span> {
+        <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">get_namespace</span>()
     }
 
-    <span class='kw'>fn</span> <span class='ident'>get_id</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Atom</span><span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>snapshot</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>snapshot</span>) <span class='kw'>if</span> <span class='ident'>snapshot</span>.<span class='ident'>has_attrs</span>()
-                <span class='op'>=&gt;</span> <span class='ident'>snapshot</span>.<span class='ident'>id_attr</span>(),
-            _   <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>get_id</span>()
+    <span class="kw">fn</span> <span class="ident">get_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Atom</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">snapshot</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">snapshot</span>) <span class="kw">if</span> <span class="ident">snapshot</span>.<span class="ident">has_attrs</span>()
+                <span class="op">=&gt;</span> <span class="ident">snapshot</span>.<span class="ident">id_attr</span>(),
+            _   <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">get_id</span>()
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>has_class</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>name</span>: <span class='kw-2'>&amp;</span><span class='ident'>Atom</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>snapshot</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>snapshot</span>) <span class='kw'>if</span> <span class='ident'>snapshot</span>.<span class='ident'>has_attrs</span>()
-                <span class='op'>=&gt;</span> <span class='ident'>snapshot</span>.<span class='ident'>has_class</span>(<span class='ident'>name</span>),
-            _   <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>has_class</span>(<span class='ident'>name</span>)
+    <span class="kw">fn</span> <span class="ident">has_class</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">Atom</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">snapshot</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">snapshot</span>) <span class="kw">if</span> <span class="ident">snapshot</span>.<span class="ident">has_attrs</span>()
+                <span class="op">=&gt;</span> <span class="ident">snapshot</span>.<span class="ident">has_class</span>(<span class="ident">name</span>),
+            _   <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">has_class</span>(<span class="ident">name</span>)
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>is_empty</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>is_empty</span>()
+    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">is_empty</span>()
     }
 
-    <span class='kw'>fn</span> <span class='ident'>is_root</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>is_root</span>()
+    <span class="kw">fn</span> <span class="ident">is_root</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">is_root</span>()
     }
 
-    <span class='kw'>fn</span> <span class='ident'>each_class</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>callback</span>: <span class='ident'>F</span>)
-        <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>FnMut</span>(<span class='kw-2'>&amp;</span><span class='ident'>Atom</span>) {
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>snapshot</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>snapshot</span>) <span class='kw'>if</span> <span class='ident'>snapshot</span>.<span class='ident'>has_attrs</span>()
-                <span class='op'>=&gt;</span> <span class='ident'>snapshot</span>.<span class='ident'>each_class</span>(<span class='ident'>callback</span>),
-            _   <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>element</span>.<span class='ident'>each_class</span>(<span class='ident'>callback</span>)
-        }
-    }
-}
-
-<span class='kw'>fn</span> <span class='ident'>selector_to_state</span>(<span class='ident'>sel</span>: <span class='kw-2'>&amp;</span><span class='ident'>SimpleSelector</span><span class='op'>&lt;</span><span class='ident'>SelectorImpl</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>ElementState</span> {
-    <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>sel</span> {
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>NonTSPseudoClass</span>(<span class='kw-2'>ref</span> <span class='ident'>pc</span>) <span class='op'>=&gt;</span> <span class='ident'>SelectorImpl</span>::<span class='ident'>pseudo_class_state_flag</span>(<span class='ident'>pc</span>),
-        _ <span class='op'>=&gt;</span> <span class='ident'>ElementState</span>::<span class='ident'>empty</span>(),
-    }
-}
-
-<span class='kw'>fn</span> <span class='ident'>is_attr_selector</span>(<span class='ident'>sel</span>: <span class='kw-2'>&amp;</span><span class='ident'>SimpleSelector</span><span class='op'>&lt;</span><span class='ident'>SelectorImpl</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-    <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>sel</span> {
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>ID</span>(_) <span class='op'>|</span>
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>Class</span>(_) <span class='op'>|</span>
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrExists</span>(_) <span class='op'>|</span>
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrEqual</span>(_, _, _) <span class='op'>|</span>
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrIncludes</span>(_, _) <span class='op'>|</span>
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrDashMatch</span>(_, _) <span class='op'>|</span>
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrPrefixMatch</span>(_, _) <span class='op'>|</span>
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrSubstringMatch</span>(_, _) <span class='op'>|</span>
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrSuffixMatch</span>(_, _) <span class='op'>=&gt;</span> <span class='bool-val'>true</span>,
-        _ <span class='op'>=&gt;</span> <span class='bool-val'>false</span>,
-    }
-}
-
-<span class='kw'>fn</span> <span class='ident'>combinator_to_restyle_hint</span>(<span class='ident'>combinator</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Combinator</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>RestyleHint</span> {
-    <span class='kw'>match</span> <span class='ident'>combinator</span> {
-        <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='ident'>RESTYLE_SELF</span>,
-        <span class='prelude-val'>Some</span>(<span class='ident'>c</span>) <span class='op'>=&gt;</span> <span class='kw'>match</span> <span class='ident'>c</span> {
-            <span class='ident'>Combinator</span>::<span class='ident'>Child</span> <span class='op'>=&gt;</span> <span class='ident'>RESTYLE_DESCENDANTS</span>,
-            <span class='ident'>Combinator</span>::<span class='ident'>Descendant</span> <span class='op'>=&gt;</span> <span class='ident'>RESTYLE_DESCENDANTS</span>,
-            <span class='ident'>Combinator</span>::<span class='ident'>NextSibling</span> <span class='op'>=&gt;</span> <span class='ident'>RESTYLE_LATER_SIBLINGS</span>,
-            <span class='ident'>Combinator</span>::<span class='ident'>LaterSibling</span> <span class='op'>=&gt;</span> <span class='ident'>RESTYLE_LATER_SIBLINGS</span>,
+    <span class="kw">fn</span> <span class="ident">each_class</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">callback</span>: <span class="ident">F</span>)
+        <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">Atom</span>) {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">snapshot</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">snapshot</span>) <span class="kw">if</span> <span class="ident">snapshot</span>.<span class="ident">has_attrs</span>()
+                <span class="op">=&gt;</span> <span class="ident">snapshot</span>.<span class="ident">each_class</span>(<span class="ident">callback</span>),
+            _   <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">element</span>.<span class="ident">each_class</span>(<span class="ident">callback</span>)
         }
     }
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
-<span class='attribute'>#[<span class='ident'>cfg_attr</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>, <span class='ident'>derive</span>(<span class='ident'>HeapSizeOf</span>))]</span>
-<span class='kw'>struct</span> <span class='ident'>Sensitivities</span> {
-    <span class='kw'>pub</span> <span class='ident'>states</span>: <span class='ident'>ElementState</span>,
-    <span class='kw'>pub</span> <span class='ident'>attrs</span>: <span class='ident'>bool</span>,
+<span class="kw">fn</span> <span class="ident">selector_to_state</span>(<span class="ident">sel</span>: <span class="kw-2">&amp;</span><span class="ident">SimpleSelector</span><span class="op">&lt;</span><span class="ident">SelectorImpl</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">ElementState</span> {
+    <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">sel</span> {
+        <span class="ident">SimpleSelector</span>::<span class="ident">NonTSPseudoClass</span>(<span class="kw-2">ref</span> <span class="ident">pc</span>) <span class="op">=&gt;</span> <span class="ident">SelectorImpl</span>::<span class="ident">pseudo_class_state_flag</span>(<span class="ident">pc</span>),
+        _ <span class="op">=&gt;</span> <span class="ident">ElementState</span>::<span class="ident">empty</span>(),
+    }
 }
 
-<span class='kw'>impl</span> <span class='ident'>Sensitivities</span> {
-    <span class='kw'>fn</span> <span class='ident'>is_empty</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>states</span>.<span class='ident'>is_empty</span>() <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>attrs</span>
+<span class="kw">fn</span> <span class="ident">is_attr_selector</span>(<span class="ident">sel</span>: <span class="kw-2">&amp;</span><span class="ident">SimpleSelector</span><span class="op">&lt;</span><span class="ident">SelectorImpl</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">sel</span> {
+        <span class="ident">SimpleSelector</span>::<span class="ident">ID</span>(_) <span class="op">|</span>
+        <span class="ident">SimpleSelector</span>::<span class="ident">Class</span>(_) <span class="op">|</span>
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrExists</span>(_) <span class="op">|</span>
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrEqual</span>(_, _, _) <span class="op">|</span>
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrIncludes</span>(_, _) <span class="op">|</span>
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrDashMatch</span>(_, _) <span class="op">|</span>
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrPrefixMatch</span>(_, _) <span class="op">|</span>
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrSubstringMatch</span>(_, _) <span class="op">|</span>
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrSuffixMatch</span>(_, _) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+        _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
     }
+}
 
-    <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>Sensitivities</span> {
-        <span class='ident'>Sensitivities</span> {
-            <span class='ident'>states</span>: <span class='ident'>ElementState</span>::<span class='ident'>empty</span>(),
-            <span class='ident'>attrs</span>: <span class='bool-val'>false</span>,
+<span class="kw">fn</span> <span class="ident">combinator_to_restyle_hint</span>(<span class="ident">combinator</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Combinator</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">RestyleHint</span> {
+    <span class="kw">match</span> <span class="ident">combinator</span> {
+        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">RESTYLE_SELF</span>,
+        <span class="prelude-val">Some</span>(<span class="ident">c</span>) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">c</span> {
+            <span class="ident">Combinator</span>::<span class="ident">Child</span> <span class="op">=&gt;</span> <span class="ident">RESTYLE_DESCENDANTS</span>,
+            <span class="ident">Combinator</span>::<span class="ident">Descendant</span> <span class="op">=&gt;</span> <span class="ident">RESTYLE_DESCENDANTS</span>,
+            <span class="ident">Combinator</span>::<span class="ident">NextSibling</span> <span class="op">=&gt;</span> <span class="ident">RESTYLE_LATER_SIBLINGS</span>,
+            <span class="ident">Combinator</span>::<span class="ident">LaterSibling</span> <span class="op">=&gt;</span> <span class="ident">RESTYLE_LATER_SIBLINGS</span>,
         }
     }
 }
 
-<span class='doccomment'>/// Mapping between (partial) CompoundSelectors (and the combinator to their</span>
-<span class='doccomment'>/// right) and the states and attributes they depend on.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// In general, for all selectors in all applicable stylesheets of the form:</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// |a _ b _ c _ d _ e|</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Where:</span>
-<span class='doccomment'>///   * |b| and |d| are simple selectors that depend on state (like :hover) or</span>
-<span class='doccomment'>///     attributes (like [attr...], .foo, or #foo).</span>
-<span class='doccomment'>///   * |a|, |c|, and |e| are arbitrary simple selectors that do not depend on</span>
-<span class='doccomment'>///     state or attributes.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// We generate a Dependency for both |a _ b:X _| and |a _ b:X _ c _ d:Y _|,</span>
-<span class='doccomment'>/// even though those selectors may not appear on their own in any stylesheet.</span>
-<span class='doccomment'>/// This allows us to quickly scan through the dependency sites of all style</span>
-<span class='doccomment'>/// rules and determine the maximum effect that a given state or attribute</span>
-<span class='doccomment'>/// change may have on the style of elements in the document.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
-<span class='attribute'>#[<span class='ident'>cfg_attr</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>, <span class='ident'>derive</span>(<span class='ident'>HeapSizeOf</span>))]</span>
-<span class='kw'>struct</span> <span class='ident'>Dependency</span> {
-    <span class='attribute'>#[<span class='ident'>cfg_attr</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>, <span class='ident'>ignore_heap_size_of</span> <span class='op'>=</span> <span class='string'>&quot;Arc&quot;</span>)]</span>
-    <span class='ident'>selector</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>ComplexSelector</span><span class='op'>&lt;</span><span class='ident'>SelectorImpl</span><span class='op'>&gt;&gt;</span>,
-    <span class='ident'>hint</span>: <span class='ident'>RestyleHint</span>,
-    <span class='ident'>sensitivities</span>: <span class='ident'>Sensitivities</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>, <span class="ident">derive</span>(<span class="ident">HeapSizeOf</span>))]</span>
+<span class="kw">struct</span> <span class="ident">Sensitivities</span> {
+    <span class="kw">pub</span> <span class="ident">states</span>: <span class="ident">ElementState</span>,
+    <span class="kw">pub</span> <span class="ident">attrs</span>: <span class="ident">bool</span>,
 }
 
-<span class='doccomment'>/// A set of dependencies for a given stylist.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Note that there are measurable perf wins from storing them separately</span>
-<span class='doccomment'>/// depending on what kind of change they affect, and its also not a big deal to</span>
-<span class='doccomment'>/// do it, since the dependencies are per-document.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
-<span class='attribute'>#[<span class='ident'>cfg_attr</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>, <span class='ident'>derive</span>(<span class='ident'>HeapSizeOf</span>))]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>DependencySet</span> {
-    <span class='doccomment'>/// Dependencies only affected by state.</span>
-    <span class='ident'>state_deps</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Dependency</span><span class='op'>&gt;</span>,
-    <span class='doccomment'>/// Dependencies only affected by attributes.</span>
-    <span class='ident'>attr_deps</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Dependency</span><span class='op'>&gt;</span>,
-    <span class='doccomment'>/// Dependencies affected by both.</span>
-    <span class='ident'>common_deps</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Dependency</span><span class='op'>&gt;</span>,
+<span class="kw">impl</span> <span class="ident">Sensitivities</span> {
+    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">states</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">attrs</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">Sensitivities</span> {
+        <span class="ident">Sensitivities</span> {
+            <span class="ident">states</span>: <span class="ident">ElementState</span>::<span class="ident">empty</span>(),
+            <span class="ident">attrs</span>: <span class="bool-val">false</span>,
+        }
+    }
 }
 
-<span class='kw'>impl</span> <span class='ident'>DependencySet</span> {
-    <span class='kw'>fn</span> <span class='ident'>add_dependency</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>dep</span>: <span class='ident'>Dependency</span>) {
-        <span class='kw'>let</span> <span class='ident'>affects_attrs</span> <span class='op'>=</span> <span class='ident'>dep</span>.<span class='ident'>sensitivities</span>.<span class='ident'>attrs</span>;
-        <span class='kw'>let</span> <span class='ident'>affects_states</span> <span class='op'>=</span> <span class='op'>!</span><span class='ident'>dep</span>.<span class='ident'>sensitivities</span>.<span class='ident'>states</span>.<span class='ident'>is_empty</span>();
+<span class="doccomment">/// Mapping between (partial) CompoundSelectors (and the combinator to their</span>
+<span class="doccomment">/// right) and the states and attributes they depend on.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// In general, for all selectors in all applicable stylesheets of the form:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// |a _ b _ c _ d _ e|</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Where:</span>
+<span class="doccomment">///   * |b| and |d| are simple selectors that depend on state (like :hover) or</span>
+<span class="doccomment">///     attributes (like [attr...], .foo, or #foo).</span>
+<span class="doccomment">///   * |a|, |c|, and |e| are arbitrary simple selectors that do not depend on</span>
+<span class="doccomment">///     state or attributes.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// We generate a Dependency for both |a _ b:X _| and |a _ b:X _ c _ d:Y _|,</span>
+<span class="doccomment">/// even though those selectors may not appear on their own in any stylesheet.</span>
+<span class="doccomment">/// This allows us to quickly scan through the dependency sites of all style</span>
+<span class="doccomment">/// rules and determine the maximum effect that a given state or attribute</span>
+<span class="doccomment">/// change may have on the style of elements in the document.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>, <span class="ident">derive</span>(<span class="ident">HeapSizeOf</span>))]</span>
+<span class="kw">struct</span> <span class="ident">Dependency</span> {
+    <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>, <span class="ident">ignore_heap_size_of</span> <span class="op">=</span> <span class="string">&quot;Arc&quot;</span>)]</span>
+    <span class="ident">selector</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ComplexSelector</span><span class="op">&lt;</span><span class="ident">SelectorImpl</span><span class="op">&gt;&gt;</span>,
+    <span class="ident">hint</span>: <span class="ident">RestyleHint</span>,
+    <span class="ident">sensitivities</span>: <span class="ident">Sensitivities</span>,
+}
 
-        <span class='kw'>if</span> <span class='ident'>affects_attrs</span> <span class='op'>&amp;&amp;</span> <span class='ident'>affects_states</span> {
-            <span class='self'>self</span>.<span class='ident'>common_deps</span>.<span class='ident'>push</span>(<span class='ident'>dep</span>)
-        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>affects_attrs</span> {
-            <span class='self'>self</span>.<span class='ident'>attr_deps</span>.<span class='ident'>push</span>(<span class='ident'>dep</span>)
-        } <span class='kw'>else</span> {
-            <span class='self'>self</span>.<span class='ident'>state_deps</span>.<span class='ident'>push</span>(<span class='ident'>dep</span>)
+<span class="doccomment">/// A set of dependencies for a given stylist.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Note that there are measurable perf wins from storing them separately</span>
+<span class="doccomment">/// depending on what kind of change they affect, and its also not a big deal to</span>
+<span class="doccomment">/// do it, since the dependencies are per-document.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>, <span class="ident">derive</span>(<span class="ident">HeapSizeOf</span>))]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DependencySet</span> {
+    <span class="doccomment">/// Dependencies only affected by state.</span>
+    <span class="ident">state_deps</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Dependency</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Dependencies only affected by attributes.</span>
+    <span class="ident">attr_deps</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Dependency</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Dependencies affected by both.</span>
+    <span class="ident">common_deps</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Dependency</span><span class="op">&gt;</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">DependencySet</span> {
+    <span class="kw">fn</span> <span class="ident">add_dependency</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">dep</span>: <span class="ident">Dependency</span>) {
+        <span class="kw">let</span> <span class="ident">affects_attrs</span> <span class="op">=</span> <span class="ident">dep</span>.<span class="ident">sensitivities</span>.<span class="ident">attrs</span>;
+        <span class="kw">let</span> <span class="ident">affects_states</span> <span class="op">=</span> <span class="op">!</span><span class="ident">dep</span>.<span class="ident">sensitivities</span>.<span class="ident">states</span>.<span class="ident">is_empty</span>();
+
+        <span class="kw">if</span> <span class="ident">affects_attrs</span> <span class="op">&amp;&amp;</span> <span class="ident">affects_states</span> {
+            <span class="self">self</span>.<span class="ident">common_deps</span>.<span class="ident">push</span>(<span class="ident">dep</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">affects_attrs</span> {
+            <span class="self">self</span>.<span class="ident">attr_deps</span>.<span class="ident">push</span>(<span class="ident">dep</span>)
+        } <span class="kw">else</span> {
+            <span class="self">self</span>.<span class="ident">state_deps</span>.<span class="ident">push</span>(<span class="ident">dep</span>)
         }
     }
 
-    <span class='doccomment'>/// Create an empty `DependencySet`.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='ident'>DependencySet</span> {
-            <span class='ident'>state_deps</span>: <span class='macro'>vec</span><span class='macro'>!</span>[],
-            <span class='ident'>attr_deps</span>: <span class='macro'>vec</span><span class='macro'>!</span>[],
-            <span class='ident'>common_deps</span>: <span class='macro'>vec</span><span class='macro'>!</span>[],
+    <span class="doccomment">/// Create an empty `DependencySet`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">DependencySet</span> {
+            <span class="ident">state_deps</span>: <span class="macro">vec</span><span class="macro">!</span>[],
+            <span class="ident">attr_deps</span>: <span class="macro">vec</span><span class="macro">!</span>[],
+            <span class="ident">common_deps</span>: <span class="macro">vec</span><span class="macro">!</span>[],
         }
     }
 
-    <span class='doccomment'>/// Return the total number of dependencies that this set contains.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>len</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-        <span class='self'>self</span>.<span class='ident'>common_deps</span>.<span class='ident'>len</span>() <span class='op'>+</span> <span class='self'>self</span>.<span class='ident'>attr_deps</span>.<span class='ident'>len</span>() <span class='op'>+</span> <span class='self'>self</span>.<span class='ident'>state_deps</span>.<span class='ident'>len</span>()
+    <span class="doccomment">/// Return the total number of dependencies that this set contains.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">common_deps</span>.<span class="ident">len</span>() <span class="op">+</span> <span class="self">self</span>.<span class="ident">attr_deps</span>.<span class="ident">len</span>() <span class="op">+</span> <span class="self">self</span>.<span class="ident">state_deps</span>.<span class="ident">len</span>()
     }
 
-    <span class='doccomment'>/// Create the needed dependencies that a given selector creates, and add</span>
-    <span class='doccomment'>/// them to the set.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>note_selector</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>selector</span>: <span class='kw-2'>&amp;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>ComplexSelector</span><span class='op'>&lt;</span><span class='ident'>SelectorImpl</span><span class='op'>&gt;&gt;</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>cur</span> <span class='op'>=</span> <span class='ident'>selector</span>;
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>combinator</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Combinator</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='prelude-val'>None</span>;
-        <span class='kw'>loop</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>sensitivities</span> <span class='op'>=</span> <span class='ident'>Sensitivities</span>::<span class='ident'>new</span>();
-            <span class='kw'>for</span> <span class='ident'>s</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>cur</span>.<span class='ident'>compound_selector</span> {
-                <span class='ident'>sensitivities</span>.<span class='ident'>states</span>.<span class='ident'>insert</span>(<span class='ident'>selector_to_state</span>(<span class='ident'>s</span>));
-                <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>sensitivities</span>.<span class='ident'>attrs</span> {
-                    <span class='ident'>sensitivities</span>.<span class='ident'>attrs</span> <span class='op'>=</span> <span class='ident'>is_attr_selector</span>(<span class='ident'>s</span>);
+    <span class="doccomment">/// Create the needed dependencies that a given selector creates, and add</span>
+    <span class="doccomment">/// them to the set.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">note_selector</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">selector</span>: <span class="kw-2">&amp;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ComplexSelector</span><span class="op">&lt;</span><span class="ident">SelectorImpl</span><span class="op">&gt;&gt;</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cur</span> <span class="op">=</span> <span class="ident">selector</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">combinator</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Combinator</span><span class="op">&gt;</span> <span class="op">=</span> <span class="prelude-val">None</span>;
+        <span class="kw">loop</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sensitivities</span> <span class="op">=</span> <span class="ident">Sensitivities</span>::<span class="ident">new</span>();
+            <span class="kw">for</span> <span class="ident">s</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">cur</span>.<span class="ident">compound_selector</span> {
+                <span class="ident">sensitivities</span>.<span class="ident">states</span>.<span class="ident">insert</span>(<span class="ident">selector_to_state</span>(<span class="ident">s</span>));
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">sensitivities</span>.<span class="ident">attrs</span> {
+                    <span class="ident">sensitivities</span>.<span class="ident">attrs</span> <span class="op">=</span> <span class="ident">is_attr_selector</span>(<span class="ident">s</span>);
                 }
             }
-            <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>sensitivities</span>.<span class='ident'>is_empty</span>() {
-                <span class='self'>self</span>.<span class='ident'>add_dependency</span>(<span class='ident'>Dependency</span> {
-                    <span class='ident'>selector</span>: <span class='ident'>cur</span>.<span class='ident'>clone</span>(),
-                    <span class='ident'>hint</span>: <span class='ident'>combinator_to_restyle_hint</span>(<span class='ident'>combinator</span>),
-                    <span class='ident'>sensitivities</span>: <span class='ident'>sensitivities</span>,
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">sensitivities</span>.<span class="ident">is_empty</span>() {
+                <span class="self">self</span>.<span class="ident">add_dependency</span>(<span class="ident">Dependency</span> {
+                    <span class="ident">selector</span>: <span class="ident">cur</span>.<span class="ident">clone</span>(),
+                    <span class="ident">hint</span>: <span class="ident">combinator_to_restyle_hint</span>(<span class="ident">combinator</span>),
+                    <span class="ident">sensitivities</span>: <span class="ident">sensitivities</span>,
                 });
             }
 
-            <span class='ident'>cur</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>cur</span>.<span class='ident'>next</span> {
-                <span class='prelude-val'>Some</span>((<span class='kw-2'>ref</span> <span class='ident'>sel</span>, <span class='ident'>comb</span>)) <span class='op'>=&gt;</span> {
-                    <span class='ident'>combinator</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>comb</span>);
-                    <span class='ident'>sel</span>
+            <span class="ident">cur</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">cur</span>.<span class="ident">next</span> {
+                <span class="prelude-val">Some</span>((<span class="kw-2">ref</span> <span class="ident">sel</span>, <span class="ident">comb</span>)) <span class="op">=&gt;</span> {
+                    <span class="ident">combinator</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">comb</span>);
+                    <span class="ident">sel</span>
                 }
-                <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>break</span>,
+                <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">break</span>,
             }
         }
     }
 
-    <span class='doccomment'>/// Clear this dependency set.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>clear</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>common_deps</span>.<span class='ident'>clear</span>();
-        <span class='self'>self</span>.<span class='ident'>attr_deps</span>.<span class='ident'>clear</span>();
-        <span class='self'>self</span>.<span class='ident'>state_deps</span>.<span class='ident'>clear</span>();
+    <span class="doccomment">/// Clear this dependency set.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">clear</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">common_deps</span>.<span class="ident">clear</span>();
+        <span class="self">self</span>.<span class="ident">attr_deps</span>.<span class="ident">clear</span>();
+        <span class="self">self</span>.<span class="ident">state_deps</span>.<span class="ident">clear</span>();
     }
 
-    <span class='doccomment'>/// Compute a restyle hint given an element and a snapshot, per the rules</span>
-    <span class='doccomment'>/// explained in the rest of the documentation.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>compute_hint</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
-                           <span class='ident'>el</span>: <span class='kw-2'>&amp;</span><span class='ident'>E</span>,
-                           <span class='ident'>snapshot</span>: <span class='kw-2'>&amp;</span><span class='ident'>Snapshot</span>)
-                           <span class='op'>-&gt;</span> <span class='ident'>RestyleHint</span>
-        <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span> <span class='op'>+</span> <span class='ident'>Clone</span>,
+    <span class="doccomment">/// Compute a restyle hint given an element and a snapshot, per the rules</span>
+    <span class="doccomment">/// explained in the rest of the documentation.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">compute_hint</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
+                           <span class="ident">el</span>: <span class="kw-2">&amp;</span><span class="ident">E</span>,
+                           <span class="ident">snapshot</span>: <span class="kw-2">&amp;</span><span class="ident">Snapshot</span>)
+                           <span class="op">-&gt;</span> <span class="ident">RestyleHint</span>
+        <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">TElement</span> <span class="op">+</span> <span class="ident">Clone</span>,
     {
-        <span class='kw'>let</span> <span class='ident'>current_state</span> <span class='op'>=</span> <span class='ident'>el</span>.<span class='ident'>get_state</span>();
-        <span class='kw'>let</span> <span class='ident'>state_changes</span> <span class='op'>=</span> <span class='ident'>snapshot</span>.<span class='ident'>state</span>()
-                                    .<span class='ident'>map_or_else</span>(<span class='ident'>ElementState</span>::<span class='ident'>empty</span>, <span class='op'>|</span><span class='ident'>old_state</span><span class='op'>|</span> <span class='ident'>current_state</span> <span class='op'>^</span> <span class='ident'>old_state</span>);
-        <span class='kw'>let</span> <span class='ident'>attrs_changed</span> <span class='op'>=</span> <span class='ident'>snapshot</span>.<span class='ident'>has_attrs</span>();
+        <span class="kw">let</span> <span class="ident">current_state</span> <span class="op">=</span> <span class="ident">el</span>.<span class="ident">get_state</span>();
+        <span class="kw">let</span> <span class="ident">state_changes</span> <span class="op">=</span> <span class="ident">snapshot</span>.<span class="ident">state</span>()
+                                    .<span class="ident">map_or_else</span>(<span class="ident">ElementState</span>::<span class="ident">empty</span>, <span class="op">|</span><span class="ident">old_state</span><span class="op">|</span> <span class="ident">current_state</span> <span class="op">^</span> <span class="ident">old_state</span>);
+        <span class="kw">let</span> <span class="ident">attrs_changed</span> <span class="op">=</span> <span class="ident">snapshot</span>.<span class="ident">has_attrs</span>();
 
-        <span class='kw'>if</span> <span class='ident'>state_changes</span>.<span class='ident'>is_empty</span>() <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='ident'>attrs_changed</span> {
-            <span class='kw'>return</span> <span class='ident'>RestyleHint</span>::<span class='ident'>empty</span>();
+        <span class="kw">if</span> <span class="ident">state_changes</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">attrs_changed</span> {
+            <span class="kw">return</span> <span class="ident">RestyleHint</span>::<span class="ident">empty</span>();
         }
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>hint</span> <span class='op'>=</span> <span class='ident'>RestyleHint</span>::<span class='ident'>empty</span>();
-        <span class='kw'>let</span> <span class='ident'>snapshot_el</span> <span class='op'>=</span> <span class='ident'>ElementWrapper</span>::<span class='ident'>new_with_snapshot</span>(<span class='ident'>el</span>.<span class='ident'>clone</span>(), <span class='ident'>snapshot</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">hint</span> <span class="op">=</span> <span class="ident">RestyleHint</span>::<span class="ident">empty</span>();
+        <span class="kw">let</span> <span class="ident">snapshot_el</span> <span class="op">=</span> <span class="ident">ElementWrapper</span>::<span class="ident">new_with_snapshot</span>(<span class="ident">el</span>.<span class="ident">clone</span>(), <span class="ident">snapshot</span>);
 
-        <span class='self'>Self</span>::<span class='ident'>compute_partial_hint</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>common_deps</span>, <span class='ident'>el</span>, <span class='kw-2'>&amp;</span><span class='ident'>snapshot_el</span>,
-                                   <span class='kw-2'>&amp;</span><span class='ident'>state_changes</span>, <span class='ident'>attrs_changed</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>hint</span>);
+        <span class="self">Self</span>::<span class="ident">compute_partial_hint</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">common_deps</span>, <span class="ident">el</span>, <span class="kw-2">&amp;</span><span class="ident">snapshot_el</span>,
+                                   <span class="kw-2">&amp;</span><span class="ident">state_changes</span>, <span class="ident">attrs_changed</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">hint</span>);
 
-        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>state_changes</span>.<span class='ident'>is_empty</span>() {
-            <span class='self'>Self</span>::<span class='ident'>compute_partial_hint</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>state_deps</span>, <span class='ident'>el</span>, <span class='kw-2'>&amp;</span><span class='ident'>snapshot_el</span>,
-                                       <span class='kw-2'>&amp;</span><span class='ident'>state_changes</span>, <span class='ident'>attrs_changed</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>hint</span>);
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">state_changes</span>.<span class="ident">is_empty</span>() {
+            <span class="self">Self</span>::<span class="ident">compute_partial_hint</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">state_deps</span>, <span class="ident">el</span>, <span class="kw-2">&amp;</span><span class="ident">snapshot_el</span>,
+                                       <span class="kw-2">&amp;</span><span class="ident">state_changes</span>, <span class="ident">attrs_changed</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">hint</span>);
         }
 
-        <span class='kw'>if</span> <span class='ident'>attrs_changed</span> {
-            <span class='self'>Self</span>::<span class='ident'>compute_partial_hint</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>attr_deps</span>, <span class='ident'>el</span>, <span class='kw-2'>&amp;</span><span class='ident'>snapshot_el</span>,
-                                       <span class='kw-2'>&amp;</span><span class='ident'>state_changes</span>, <span class='ident'>attrs_changed</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>hint</span>);
+        <span class="kw">if</span> <span class="ident">attrs_changed</span> {
+            <span class="self">Self</span>::<span class="ident">compute_partial_hint</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">attr_deps</span>, <span class="ident">el</span>, <span class="kw-2">&amp;</span><span class="ident">snapshot_el</span>,
+                                       <span class="kw-2">&amp;</span><span class="ident">state_changes</span>, <span class="ident">attrs_changed</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">hint</span>);
         }
 
-        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Calculated restyle hint: {:?}. (Element={:?}, State={:?}, Snapshot={:?}, {} Deps)&quot;</span>,
-               <span class='ident'>hint</span>, <span class='ident'>el</span>, <span class='ident'>current_state</span>, <span class='ident'>snapshot</span>, <span class='self'>self</span>.<span class='ident'>len</span>());
-        <span class='macro'>trace</span><span class='macro'>!</span>(<span class='string'>&quot;Deps: {:?}&quot;</span>, <span class='self'>self</span>);
+        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Calculated restyle hint: {:?}. (Element={:?}, State={:?}, Snapshot={:?}, {} Deps)&quot;</span>,
+               <span class="ident">hint</span>, <span class="ident">el</span>, <span class="ident">current_state</span>, <span class="ident">snapshot</span>, <span class="self">self</span>.<span class="ident">len</span>());
+        <span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;Deps: {:?}&quot;</span>, <span class="self">self</span>);
 
-        <span class='ident'>hint</span>
+        <span class="ident">hint</span>
     }
 
-    <span class='kw'>fn</span> <span class='ident'>compute_partial_hint</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='ident'>deps</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Dependency</span>],
-                               <span class='ident'>element</span>: <span class='kw-2'>&amp;</span><span class='ident'>E</span>,
-                               <span class='ident'>snapshot</span>: <span class='kw-2'>&amp;</span><span class='ident'>ElementWrapper</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>,
-                               <span class='ident'>state_changes</span>: <span class='kw-2'>&amp;</span><span class='ident'>ElementState</span>,
-                               <span class='ident'>attrs_changed</span>: <span class='ident'>bool</span>,
-                               <span class='ident'>hint</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>RestyleHint</span>)
-        <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>TElement</span>,
+    <span class="kw">fn</span> <span class="ident">compute_partial_hint</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="ident">deps</span>: <span class="kw-2">&amp;</span>[<span class="ident">Dependency</span>],
+                               <span class="ident">element</span>: <span class="kw-2">&amp;</span><span class="ident">E</span>,
+                               <span class="ident">snapshot</span>: <span class="kw-2">&amp;</span><span class="ident">ElementWrapper</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>,
+                               <span class="ident">state_changes</span>: <span class="kw-2">&amp;</span><span class="ident">ElementState</span>,
+                               <span class="ident">attrs_changed</span>: <span class="ident">bool</span>,
+                               <span class="ident">hint</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">RestyleHint</span>)
+        <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">TElement</span>,
     {
-        <span class='kw'>if</span> <span class='ident'>hint</span>.<span class='ident'>is_all</span>() {
-            <span class='kw'>return</span>;
+        <span class="kw">if</span> <span class="ident">hint</span>.<span class="ident">is_all</span>() {
+            <span class="kw">return</span>;
         }
-        <span class='kw'>for</span> <span class='ident'>dep</span> <span class='kw'>in</span> <span class='ident'>deps</span> {
-            <span class='macro'>debug_assert</span><span class='macro'>!</span>((<span class='op'>!</span><span class='ident'>state_changes</span>.<span class='ident'>is_empty</span>() <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='ident'>dep</span>.<span class='ident'>sensitivities</span>.<span class='ident'>states</span>.<span class='ident'>is_empty</span>()) <span class='op'>||</span>
-                          (<span class='ident'>attrs_changed</span> <span class='op'>&amp;&amp;</span> <span class='ident'>dep</span>.<span class='ident'>sensitivities</span>.<span class='ident'>attrs</span>),
-                          <span class='string'>&quot;Testing a known ineffective dependency?&quot;</span>);
-            <span class='kw'>if</span> (<span class='ident'>attrs_changed</span> <span class='op'>||</span> <span class='ident'>state_changes</span>.<span class='ident'>intersects</span>(<span class='ident'>dep</span>.<span class='ident'>sensitivities</span>.<span class='ident'>states</span>)) <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='ident'>hint</span>.<span class='ident'>intersects</span>(<span class='ident'>dep</span>.<span class='ident'>hint</span>) {
-                <span class='comment'>// We can ignore the selector flags, since they would have already been set during</span>
-                <span class='comment'>// original matching for any element that might change its matching behavior here.</span>
-                <span class='kw'>let</span> <span class='ident'>matched_then</span> <span class='op'>=</span>
-                    <span class='ident'>matches_complex_selector</span>(<span class='kw-2'>&amp;</span><span class='ident'>dep</span>.<span class='ident'>selector</span>, <span class='ident'>snapshot</span>, <span class='prelude-val'>None</span>,
-                                             <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>StyleRelations</span>::<span class='ident'>empty</span>(),
-                                             <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ElementSelectorFlags</span>::<span class='ident'>empty</span>());
-                <span class='kw'>let</span> <span class='ident'>matches_now</span> <span class='op'>=</span>
-                    <span class='ident'>matches_complex_selector</span>(<span class='kw-2'>&amp;</span><span class='ident'>dep</span>.<span class='ident'>selector</span>, <span class='ident'>element</span>, <span class='prelude-val'>None</span>,
-                                             <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>StyleRelations</span>::<span class='ident'>empty</span>(),
-                                             <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ElementSelectorFlags</span>::<span class='ident'>empty</span>());
-                <span class='kw'>if</span> <span class='ident'>matched_then</span> <span class='op'>!=</span> <span class='ident'>matches_now</span> {
-                    <span class='ident'>hint</span>.<span class='ident'>insert</span>(<span class='ident'>dep</span>.<span class='ident'>hint</span>);
+        <span class="kw">for</span> <span class="ident">dep</span> <span class="kw">in</span> <span class="ident">deps</span> {
+            <span class="macro">debug_assert</span><span class="macro">!</span>((<span class="op">!</span><span class="ident">state_changes</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">dep</span>.<span class="ident">sensitivities</span>.<span class="ident">states</span>.<span class="ident">is_empty</span>()) <span class="op">||</span>
+                          (<span class="ident">attrs_changed</span> <span class="op">&amp;&amp;</span> <span class="ident">dep</span>.<span class="ident">sensitivities</span>.<span class="ident">attrs</span>),
+                          <span class="string">&quot;Testing a known ineffective dependency?&quot;</span>);
+            <span class="kw">if</span> (<span class="ident">attrs_changed</span> <span class="op">||</span> <span class="ident">state_changes</span>.<span class="ident">intersects</span>(<span class="ident">dep</span>.<span class="ident">sensitivities</span>.<span class="ident">states</span>)) <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">hint</span>.<span class="ident">intersects</span>(<span class="ident">dep</span>.<span class="ident">hint</span>) {
+                <span class="comment">// We can ignore the selector flags, since they would have already been set during</span>
+                <span class="comment">// original matching for any element that might change its matching behavior here.</span>
+                <span class="kw">let</span> <span class="ident">matched_then</span> <span class="op">=</span>
+                    <span class="ident">matches_complex_selector</span>(<span class="kw-2">&amp;</span><span class="ident">dep</span>.<span class="ident">selector</span>, <span class="ident">snapshot</span>, <span class="prelude-val">None</span>,
+                                             <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">StyleRelations</span>::<span class="ident">empty</span>(),
+                                             <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ElementSelectorFlags</span>::<span class="ident">empty</span>());
+                <span class="kw">let</span> <span class="ident">matches_now</span> <span class="op">=</span>
+                    <span class="ident">matches_complex_selector</span>(<span class="kw-2">&amp;</span><span class="ident">dep</span>.<span class="ident">selector</span>, <span class="ident">element</span>, <span class="prelude-val">None</span>,
+                                             <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">StyleRelations</span>::<span class="ident">empty</span>(),
+                                             <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ElementSelectorFlags</span>::<span class="ident">empty</span>());
+                <span class="kw">if</span> <span class="ident">matched_then</span> <span class="op">!=</span> <span class="ident">matches_now</span> {
+                    <span class="ident">hint</span>.<span class="ident">insert</span>(<span class="ident">dep</span>.<span class="ident">hint</span>);
                 }
-                <span class='kw'>if</span> <span class='ident'>hint</span>.<span class='ident'>is_all</span>() {
-                    <span class='kw'>break</span>;
+                <span class="kw">if</span> <span class="ident">hint</span>.<span class="ident">is_all</span>() {
+                    <span class="kw">break</span>;
                 }
             }
         }

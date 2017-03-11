@@ -4,7 +4,6 @@ implementors["gfx"] = [];
 implementors["html5ever"] = [];
 implementors["ipc_channel"] = [];
 implementors["layout_thread"] = [];
-implementors["net"] = [];
 implementors["net_traits"] = [];
 implementors["offscreen_gl_context"] = [];
 implementors["script"] = [];

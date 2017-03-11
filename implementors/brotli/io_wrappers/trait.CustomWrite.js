@@ -1,6 +1,5 @@
 (function() {var implementors = {};
 implementors["brotli"] = [];
-implementors["net"] = [];
 implementors["servo"] = [];
 
             if (window.register_implementors) {

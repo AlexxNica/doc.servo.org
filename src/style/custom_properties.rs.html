@@ -669,632 +669,632 @@
 <span id="624">624</span>
 <span id="625">625</span>
 <span id="626">626</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! Support for [custom properties for cascading variables][custom].</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! [custom]: https://drafts.csswg.org/css-variables/</span>
+<span class="doccomment">//! Support for [custom properties for cascading variables][custom].</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! [custom]: https://drafts.csswg.org/css-variables/</span>
 
-<span class='kw'>use</span> <span class='ident'>Atom</span>;
-<span class='kw'>use</span> <span class='ident'>cssparser</span>::{<span class='ident'>Delimiter</span>, <span class='ident'>Parser</span>, <span class='ident'>SourcePosition</span>, <span class='ident'>Token</span>, <span class='ident'>TokenSerializationType</span>};
-<span class='kw'>use</span> <span class='ident'>parser</span>::<span class='ident'>ParserContext</span>;
-<span class='kw'>use</span> <span class='ident'>properties</span>::{<span class='ident'>CSSWideKeyword</span>, <span class='ident'>DeclaredValue</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ascii</span>::<span class='ident'>AsciiExt</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>Cow</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::{<span class='ident'>HashMap</span>, <span class='ident'>HashSet</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fmt</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>Arc</span>;
-<span class='kw'>use</span> <span class='ident'>style_traits</span>::<span class='ident'>ToCss</span>;
+<span class="kw">use</span> <span class="ident">Atom</span>;
+<span class="kw">use</span> <span class="ident">cssparser</span>::{<span class="ident">Delimiter</span>, <span class="ident">Parser</span>, <span class="ident">SourcePosition</span>, <span class="ident">Token</span>, <span class="ident">TokenSerializationType</span>};
+<span class="kw">use</span> <span class="ident">parser</span>::<span class="ident">ParserContext</span>;
+<span class="kw">use</span> <span class="ident">properties</span>::{<span class="ident">CSSWideKeyword</span>, <span class="ident">DeclaredValue</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ascii</span>::<span class="ident">AsciiExt</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::{<span class="ident">HashMap</span>, <span class="ident">HashSet</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
+<span class="kw">use</span> <span class="ident">style_traits</span>::<span class="ident">ToCss</span>;
 
-<span class='doccomment'>/// A custom property name is just an `Atom`.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Note that this does not include the `--` prefix</span>
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>Name</span> <span class='op'>=</span> <span class='ident'>Atom</span>;
+<span class="doccomment">/// A custom property name is just an `Atom`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Note that this does not include the `--` prefix</span>
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">Name</span> <span class="op">=</span> <span class="ident">Atom</span>;
 
-<span class='doccomment'>/// Parse a custom property name.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// https://drafts.csswg.org/css-variables/#typedef-custom-property-name</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_name</span>(<span class='ident'>s</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>str</span>, ()<span class='op'>&gt;</span> {
-    <span class='kw'>if</span> <span class='ident'>s</span>.<span class='ident'>starts_with</span>(<span class='string'>&quot;--&quot;</span>) {
-        <span class='prelude-val'>Ok</span>(<span class='kw-2'>&amp;</span><span class='ident'>s</span>[<span class='number'>2</span>..])
-    } <span class='kw'>else</span> {
-        <span class='prelude-val'>Err</span>(())
+<span class="doccomment">/// Parse a custom property name.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// https://drafts.csswg.org/css-variables/#typedef-custom-property-name</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_name</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span>, ()<span class="op">&gt;</span> {
+    <span class="kw">if</span> <span class="ident">s</span>.<span class="ident">starts_with</span>(<span class="string">&quot;--&quot;</span>) {
+        <span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span><span class="ident">s</span>[<span class="number">2</span>..])
+    } <span class="kw">else</span> {
+        <span class="prelude-val">Err</span>(())
     }
 }
 
-<span class='doccomment'>/// A specified value for a custom property is just a set of tokens.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// We preserve the original CSS for serialization, and also the variable</span>
-<span class='doccomment'>/// references to other custom property names.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Debug</span>)]</span>
-<span class='attribute'>#[<span class='ident'>cfg_attr</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>, <span class='ident'>derive</span>(<span class='ident'>HeapSizeOf</span>))]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>SpecifiedValue</span> {
-    <span class='ident'>css</span>: <span class='ident'>String</span>,
+<span class="doccomment">/// A specified value for a custom property is just a set of tokens.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// We preserve the original CSS for serialization, and also the variable</span>
+<span class="doccomment">/// references to other custom property names.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>, <span class="ident">derive</span>(<span class="ident">HeapSizeOf</span>))]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SpecifiedValue</span> {
+    <span class="ident">css</span>: <span class="ident">String</span>,
 
-    <span class='ident'>first_token_type</span>: <span class='ident'>TokenSerializationType</span>,
-    <span class='ident'>last_token_type</span>: <span class='ident'>TokenSerializationType</span>,
+    <span class="ident">first_token_type</span>: <span class="ident">TokenSerializationType</span>,
+    <span class="ident">last_token_type</span>: <span class="ident">TokenSerializationType</span>,
 
-    <span class='doccomment'>/// Custom property names in var() functions.</span>
-    <span class='ident'>references</span>: <span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='ident'>Name</span><span class='op'>&gt;</span>,
+    <span class="doccomment">/// Custom property names in var() functions.</span>
+    <span class="ident">references</span>: <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">Name</span><span class="op">&gt;</span>,
 }
 
-<span class='kw'>impl</span> ::<span class='ident'>values</span>::<span class='ident'>HasViewportPercentage</span> <span class='kw'>for</span> <span class='ident'>SpecifiedValue</span> {
-    <span class='kw'>fn</span> <span class='ident'>has_viewport_percentage</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;has_viewport_percentage called before resolving!&quot;</span>);
+<span class="kw">impl</span> ::<span class="ident">values</span>::<span class="ident">HasViewportPercentage</span> <span class="kw">for</span> <span class="ident">SpecifiedValue</span> {
+    <span class="kw">fn</span> <span class="ident">has_viewport_percentage</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;has_viewport_percentage called before resolving!&quot;</span>);
     }
 }
 
-<span class='doccomment'>/// This struct is a cheap borrowed version of a `SpecifiedValue`.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>BorrowedSpecifiedValue</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='ident'>css</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>,
-    <span class='ident'>first_token_type</span>: <span class='ident'>TokenSerializationType</span>,
-    <span class='ident'>last_token_type</span>: <span class='ident'>TokenSerializationType</span>,
-    <span class='ident'>references</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='ident'>Name</span><span class='op'>&gt;&gt;</span>,
+<span class="doccomment">/// This struct is a cheap borrowed version of a `SpecifiedValue`.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">BorrowedSpecifiedValue</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="ident">css</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>,
+    <span class="ident">first_token_type</span>: <span class="ident">TokenSerializationType</span>,
+    <span class="ident">last_token_type</span>: <span class="ident">TokenSerializationType</span>,
+    <span class="ident">references</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">Name</span><span class="op">&gt;&gt;</span>,
 }
 
-<span class='doccomment'>/// A computed value is just a set of tokens as well, until we resolve variables</span>
-<span class='doccomment'>/// properly.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
-<span class='attribute'>#[<span class='ident'>cfg_attr</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>, <span class='ident'>derive</span>(<span class='ident'>HeapSizeOf</span>))]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ComputedValue</span> {
-    <span class='ident'>css</span>: <span class='ident'>String</span>,
-    <span class='ident'>first_token_type</span>: <span class='ident'>TokenSerializationType</span>,
-    <span class='ident'>last_token_type</span>: <span class='ident'>TokenSerializationType</span>,
+<span class="doccomment">/// A computed value is just a set of tokens as well, until we resolve variables</span>
+<span class="doccomment">/// properly.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>, <span class="ident">derive</span>(<span class="ident">HeapSizeOf</span>))]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ComputedValue</span> {
+    <span class="ident">css</span>: <span class="ident">String</span>,
+    <span class="ident">first_token_type</span>: <span class="ident">TokenSerializationType</span>,
+    <span class="ident">last_token_type</span>: <span class="ident">TokenSerializationType</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>ToCss</span> <span class='kw'>for</span> <span class='ident'>SpecifiedValue</span> {
-    <span class='kw'>fn</span> <span class='ident'>to_css</span><span class='op'>&lt;</span><span class='ident'>W</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>dest</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>W</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span>
-        <span class='kw'>where</span> <span class='ident'>W</span>: <span class='ident'>fmt</span>::<span class='ident'>Write</span>,
+<span class="kw">impl</span> <span class="ident">ToCss</span> <span class="kw">for</span> <span class="ident">SpecifiedValue</span> {
+    <span class="kw">fn</span> <span class="ident">to_css</span><span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">dest</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span>
+        <span class="kw">where</span> <span class="ident">W</span>: <span class="ident">fmt</span>::<span class="ident">Write</span>,
     {
-        <span class='ident'>dest</span>.<span class='ident'>write_str</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>css</span>)
+        <span class="ident">dest</span>.<span class="ident">write_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">css</span>)
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>ToCss</span> <span class='kw'>for</span> <span class='ident'>ComputedValue</span> {
-    <span class='kw'>fn</span> <span class='ident'>to_css</span><span class='op'>&lt;</span><span class='ident'>W</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>dest</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>W</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span>
-        <span class='kw'>where</span> <span class='ident'>W</span>: <span class='ident'>fmt</span>::<span class='ident'>Write</span>,
+<span class="kw">impl</span> <span class="ident">ToCss</span> <span class="kw">for</span> <span class="ident">ComputedValue</span> {
+    <span class="kw">fn</span> <span class="ident">to_css</span><span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">dest</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span>
+        <span class="kw">where</span> <span class="ident">W</span>: <span class="ident">fmt</span>::<span class="ident">Write</span>,
     {
-        <span class='ident'>dest</span>.<span class='ident'>write_str</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>css</span>)
+        <span class="ident">dest</span>.<span class="ident">write_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">css</span>)
     }
 }
 
-<span class='doccomment'>/// A map from CSS variable names to CSS variable computed values, used for</span>
-<span class='doccomment'>/// resolving.</span>
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>ComputedValuesMap</span> <span class='op'>=</span> <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>Name</span>, <span class='ident'>ComputedValue</span><span class='op'>&gt;</span>;
+<span class="doccomment">/// A map from CSS variable names to CSS variable computed values, used for</span>
+<span class="doccomment">/// resolving.</span>
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">ComputedValuesMap</span> <span class="op">=</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Name</span>, <span class="ident">ComputedValue</span><span class="op">&gt;</span>;
 
-<span class='kw'>impl</span> <span class='ident'>ComputedValue</span> {
-    <span class='kw'>fn</span> <span class='ident'>empty</span>() <span class='op'>-&gt;</span> <span class='ident'>ComputedValue</span> {
-        <span class='ident'>ComputedValue</span> {
-            <span class='ident'>css</span>: <span class='ident'>String</span>::<span class='ident'>new</span>(),
-            <span class='ident'>last_token_type</span>: <span class='ident'>TokenSerializationType</span>::<span class='ident'>nothing</span>(),
-            <span class='ident'>first_token_type</span>: <span class='ident'>TokenSerializationType</span>::<span class='ident'>nothing</span>(),
+<span class="kw">impl</span> <span class="ident">ComputedValue</span> {
+    <span class="kw">fn</span> <span class="ident">empty</span>() <span class="op">-&gt;</span> <span class="ident">ComputedValue</span> {
+        <span class="ident">ComputedValue</span> {
+            <span class="ident">css</span>: <span class="ident">String</span>::<span class="ident">new</span>(),
+            <span class="ident">last_token_type</span>: <span class="ident">TokenSerializationType</span>::<span class="ident">nothing</span>(),
+            <span class="ident">first_token_type</span>: <span class="ident">TokenSerializationType</span>::<span class="ident">nothing</span>(),
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>css</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>css_first_token_type</span>: <span class='ident'>TokenSerializationType</span>,
-            <span class='ident'>css_last_token_type</span>: <span class='ident'>TokenSerializationType</span>) {
-        <span class='comment'>// This happens e.g. between to subsequent var() functions: `var(--a)var(--b)`.</span>
-        <span class='comment'>// In that case, css_*_token_type is non-sensical.</span>
-        <span class='kw'>if</span> <span class='ident'>css</span>.<span class='ident'>is_empty</span>() {
-            <span class='kw'>return</span>
+    <span class="kw">fn</span> <span class="ident">push</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">css</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">css_first_token_type</span>: <span class="ident">TokenSerializationType</span>,
+            <span class="ident">css_last_token_type</span>: <span class="ident">TokenSerializationType</span>) {
+        <span class="comment">// This happens e.g. between to subsequent var() functions: `var(--a)var(--b)`.</span>
+        <span class="comment">// In that case, css_*_token_type is non-sensical.</span>
+        <span class="kw">if</span> <span class="ident">css</span>.<span class="ident">is_empty</span>() {
+            <span class="kw">return</span>
         }
-        <span class='self'>self</span>.<span class='ident'>first_token_type</span>.<span class='ident'>set_if_nothing</span>(<span class='ident'>css_first_token_type</span>);
-        <span class='comment'>// If self.first_token_type was nothing,</span>
-        <span class='comment'>// self.last_token_type is also nothing and this will be false:</span>
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>last_token_type</span>.<span class='ident'>needs_separator_when_before</span>(<span class='ident'>css_first_token_type</span>) {
-            <span class='self'>self</span>.<span class='ident'>css</span>.<span class='ident'>push_str</span>(<span class='string'>&quot;/**/&quot;</span>)
+        <span class="self">self</span>.<span class="ident">first_token_type</span>.<span class="ident">set_if_nothing</span>(<span class="ident">css_first_token_type</span>);
+        <span class="comment">// If self.first_token_type was nothing,</span>
+        <span class="comment">// self.last_token_type is also nothing and this will be false:</span>
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">last_token_type</span>.<span class="ident">needs_separator_when_before</span>(<span class="ident">css_first_token_type</span>) {
+            <span class="self">self</span>.<span class="ident">css</span>.<span class="ident">push_str</span>(<span class="string">&quot;/**/&quot;</span>)
         }
-        <span class='self'>self</span>.<span class='ident'>css</span>.<span class='ident'>push_str</span>(<span class='ident'>css</span>);
-        <span class='self'>self</span>.<span class='ident'>last_token_type</span> <span class='op'>=</span> <span class='ident'>css_last_token_type</span>
+        <span class="self">self</span>.<span class="ident">css</span>.<span class="ident">push_str</span>(<span class="ident">css</span>);
+        <span class="self">self</span>.<span class="ident">last_token_type</span> <span class="op">=</span> <span class="ident">css_last_token_type</span>
     }
 
-    <span class='kw'>fn</span> <span class='ident'>push_from</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>position</span>: (<span class='ident'>SourcePosition</span>, <span class='ident'>TokenSerializationType</span>),
-                 <span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='ident'>Parser</span>, <span class='ident'>last_token_type</span>: <span class='ident'>TokenSerializationType</span>) {
-        <span class='self'>self</span>.<span class='ident'>push</span>(<span class='ident'>input</span>.<span class='ident'>slice_from</span>(<span class='ident'>position</span>.<span class='number'>0</span>), <span class='ident'>position</span>.<span class='number'>1</span>, <span class='ident'>last_token_type</span>)
+    <span class="kw">fn</span> <span class="ident">push_from</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">position</span>: (<span class="ident">SourcePosition</span>, <span class="ident">TokenSerializationType</span>),
+                 <span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">Parser</span>, <span class="ident">last_token_type</span>: <span class="ident">TokenSerializationType</span>) {
+        <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">input</span>.<span class="ident">slice_from</span>(<span class="ident">position</span>.<span class="number">0</span>), <span class="ident">position</span>.<span class="number">1</span>, <span class="ident">last_token_type</span>)
     }
 
-    <span class='kw'>fn</span> <span class='ident'>push_variable</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>variable</span>: <span class='kw-2'>&amp;</span><span class='ident'>ComputedValue</span>) {
-        <span class='self'>self</span>.<span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='ident'>variable</span>.<span class='ident'>css</span>, <span class='ident'>variable</span>.<span class='ident'>first_token_type</span>, <span class='ident'>variable</span>.<span class='ident'>last_token_type</span>)
+    <span class="kw">fn</span> <span class="ident">push_variable</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">variable</span>: <span class="kw-2">&amp;</span><span class="ident">ComputedValue</span>) {
+        <span class="self">self</span>.<span class="ident">push</span>(<span class="kw-2">&amp;</span><span class="ident">variable</span>.<span class="ident">css</span>, <span class="ident">variable</span>.<span class="ident">first_token_type</span>, <span class="ident">variable</span>.<span class="ident">last_token_type</span>)
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>SpecifiedValue</span> {
-    <span class='doccomment'>/// Parse a custom property SpecifiedValue.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='ident'>_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>ParserContext</span>, <span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='self'>Self</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>references</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>HashSet</span>::<span class='ident'>new</span>());
-        <span class='kw'>let</span> (<span class='ident'>first</span>, <span class='ident'>css</span>, <span class='ident'>last</span>) <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>parse_self_contained_declaration_value</span>(<span class='ident'>input</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>references</span>));
-        <span class='prelude-val'>Ok</span>(<span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>SpecifiedValue</span> {
-            <span class='ident'>css</span>: <span class='ident'>css</span>.<span class='ident'>into_owned</span>(),
-            <span class='ident'>first_token_type</span>: <span class='ident'>first</span>,
-            <span class='ident'>last_token_type</span>: <span class='ident'>last</span>,
-            <span class='ident'>references</span>: <span class='ident'>references</span>.<span class='ident'>unwrap</span>(),
+<span class="kw">impl</span> <span class="ident">SpecifiedValue</span> {
+    <span class="doccomment">/// Parse a custom property SpecifiedValue.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="ident">ParserContext</span>, <span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">references</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">HashSet</span>::<span class="ident">new</span>());
+        <span class="kw">let</span> (<span class="ident">first</span>, <span class="ident">css</span>, <span class="ident">last</span>) <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">parse_self_contained_declaration_value</span>(<span class="ident">input</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">references</span>));
+        <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">SpecifiedValue</span> {
+            <span class="ident">css</span>: <span class="ident">css</span>.<span class="ident">into_owned</span>(),
+            <span class="ident">first_token_type</span>: <span class="ident">first</span>,
+            <span class="ident">last_token_type</span>: <span class="ident">last</span>,
+            <span class="ident">references</span>: <span class="ident">references</span>.<span class="ident">unwrap</span>(),
         }))
     }
 }
 
-<span class='doccomment'>/// Parse the value of a non-custom property that contains `var()` references.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_non_custom_with_var</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;t</span><span class='op'>&gt;</span>
-                                (<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;t</span><span class='op'>&gt;</span>)
-                                <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(<span class='ident'>TokenSerializationType</span>, <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='ident'>str</span><span class='op'>&gt;</span>), ()<span class='op'>&gt;</span> {
-    <span class='kw'>let</span> (<span class='ident'>first_token_type</span>, <span class='ident'>css</span>, _) <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>parse_self_contained_declaration_value</span>(<span class='ident'>input</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='prelude-val'>None</span>));
-    <span class='prelude-val'>Ok</span>((<span class='ident'>first_token_type</span>, <span class='ident'>css</span>))
+<span class="doccomment">/// Parse the value of a non-custom property that contains `var()` references.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_non_custom_with_var</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>
+                                (<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>)
+                                <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">TokenSerializationType</span>, <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="ident">str</span><span class="op">&gt;</span>), ()<span class="op">&gt;</span> {
+    <span class="kw">let</span> (<span class="ident">first_token_type</span>, <span class="ident">css</span>, _) <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">parse_self_contained_declaration_value</span>(<span class="ident">input</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="prelude-val">None</span>));
+    <span class="prelude-val">Ok</span>((<span class="ident">first_token_type</span>, <span class="ident">css</span>))
 }
 
-<span class='kw'>fn</span> <span class='ident'>parse_self_contained_declaration_value</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;t</span><span class='op'>&gt;</span>
-                                         (<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;t</span><span class='op'>&gt;</span>,
-                                          <span class='ident'>references</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='ident'>Name</span><span class='op'>&gt;&gt;</span>)
-                                          <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(
-                                              <span class='ident'>TokenSerializationType</span>,
-                                              <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='ident'>str</span><span class='op'>&gt;</span>,
-                                              <span class='ident'>TokenSerializationType</span>
-                                          ), ()<span class='op'>&gt;</span> {
-    <span class='kw'>let</span> <span class='ident'>start_position</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>position</span>();
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>missing_closing_characters</span> <span class='op'>=</span> <span class='ident'>String</span>::<span class='ident'>new</span>();
-    <span class='kw'>let</span> (<span class='ident'>first</span>, <span class='ident'>last</span>) <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(
-        <span class='ident'>parse_declaration_value</span>(<span class='ident'>input</span>, <span class='ident'>references</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>missing_closing_characters</span>));
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>css</span>: <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='ident'>str</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>slice_from</span>(<span class='ident'>start_position</span>).<span class='ident'>into</span>();
-    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>missing_closing_characters</span>.<span class='ident'>is_empty</span>() {
-        <span class='comment'>// Unescaped backslash at EOF in a quoted string is ignored.</span>
-        <span class='kw'>if</span> <span class='ident'>css</span>.<span class='ident'>ends_with</span>(<span class='string'>&quot;\\&quot;</span>) <span class='op'>&amp;&amp;</span> <span class='macro'>matches</span><span class='macro'>!</span>(<span class='ident'>missing_closing_characters</span>.<span class='ident'>as_bytes</span>()[<span class='number'>0</span>], <span class='string'>b&#39;&quot;&#39;</span> <span class='op'>|</span> <span class='string'>b&#39;\&#39;&#39;</span>) {
-            <span class='ident'>css</span>.<span class='ident'>to_mut</span>().<span class='ident'>pop</span>();
+<span class="kw">fn</span> <span class="ident">parse_self_contained_declaration_value</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>
+                                         (<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>,
+                                          <span class="ident">references</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">Name</span><span class="op">&gt;&gt;</span>)
+                                          <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(
+                                              <span class="ident">TokenSerializationType</span>,
+                                              <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="ident">str</span><span class="op">&gt;</span>,
+                                              <span class="ident">TokenSerializationType</span>
+                                          ), ()<span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">start_position</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">position</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">missing_closing_characters</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">new</span>();
+    <span class="kw">let</span> (<span class="ident">first</span>, <span class="ident">last</span>) <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(
+        <span class="ident">parse_declaration_value</span>(<span class="ident">input</span>, <span class="ident">references</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">missing_closing_characters</span>));
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">css</span>: <span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">slice_from</span>(<span class="ident">start_position</span>).<span class="ident">into</span>();
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">missing_closing_characters</span>.<span class="ident">is_empty</span>() {
+        <span class="comment">// Unescaped backslash at EOF in a quoted string is ignored.</span>
+        <span class="kw">if</span> <span class="ident">css</span>.<span class="ident">ends_with</span>(<span class="string">&quot;\\&quot;</span>) <span class="op">&amp;&amp;</span> <span class="macro">matches</span><span class="macro">!</span>(<span class="ident">missing_closing_characters</span>.<span class="ident">as_bytes</span>()[<span class="number">0</span>], <span class="string">b&#39;&quot;&#39;</span> <span class="op">|</span> <span class="string">b&#39;\&#39;&#39;</span>) {
+            <span class="ident">css</span>.<span class="ident">to_mut</span>().<span class="ident">pop</span>();
         }
-        <span class='ident'>css</span>.<span class='ident'>to_mut</span>().<span class='ident'>push_str</span>(<span class='kw-2'>&amp;</span><span class='ident'>missing_closing_characters</span>);
+        <span class="ident">css</span>.<span class="ident">to_mut</span>().<span class="ident">push_str</span>(<span class="kw-2">&amp;</span><span class="ident">missing_closing_characters</span>);
     }
-    <span class='prelude-val'>Ok</span>((<span class='ident'>first</span>, <span class='ident'>css</span>, <span class='ident'>last</span>))
+    <span class="prelude-val">Ok</span>((<span class="ident">first</span>, <span class="ident">css</span>, <span class="ident">last</span>))
 }
 
-<span class='doccomment'>/// https://drafts.csswg.org/css-syntax-3/#typedef-declaration-value</span>
-<span class='kw'>fn</span> <span class='ident'>parse_declaration_value</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;t</span><span class='op'>&gt;</span>
-                          (<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;t</span><span class='op'>&gt;</span>,
-                           <span class='ident'>references</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='ident'>Name</span><span class='op'>&gt;&gt;</span>,
-                           <span class='ident'>missing_closing_characters</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>String</span>)
-                          <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(<span class='ident'>TokenSerializationType</span>, <span class='ident'>TokenSerializationType</span>), ()<span class='op'>&gt;</span> {
-    <span class='ident'>input</span>.<span class='ident'>parse_until_before</span>(<span class='ident'>Delimiter</span>::<span class='ident'>Bang</span> <span class='op'>|</span> <span class='ident'>Delimiter</span>::<span class='ident'>Semicolon</span>, <span class='op'>|</span><span class='ident'>input</span><span class='op'>|</span> {
-        <span class='comment'>// Need at least one token</span>
-        <span class='kw'>let</span> <span class='ident'>start_position</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>position</span>();
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>input</span>.<span class='ident'>next_including_whitespace</span>());
-        <span class='ident'>input</span>.<span class='ident'>reset</span>(<span class='ident'>start_position</span>);
+<span class="doccomment">/// https://drafts.csswg.org/css-syntax-3/#typedef-declaration-value</span>
+<span class="kw">fn</span> <span class="ident">parse_declaration_value</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>
+                          (<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>,
+                           <span class="ident">references</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">Name</span><span class="op">&gt;&gt;</span>,
+                           <span class="ident">missing_closing_characters</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">String</span>)
+                          <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">TokenSerializationType</span>, <span class="ident">TokenSerializationType</span>), ()<span class="op">&gt;</span> {
+    <span class="ident">input</span>.<span class="ident">parse_until_before</span>(<span class="ident">Delimiter</span>::<span class="ident">Bang</span> <span class="op">|</span> <span class="ident">Delimiter</span>::<span class="ident">Semicolon</span>, <span class="op">|</span><span class="ident">input</span><span class="op">|</span> {
+        <span class="comment">// Need at least one token</span>
+        <span class="kw">let</span> <span class="ident">start_position</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">position</span>();
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">input</span>.<span class="ident">next_including_whitespace</span>());
+        <span class="ident">input</span>.<span class="ident">reset</span>(<span class="ident">start_position</span>);
 
-        <span class='ident'>parse_declaration_value_block</span>(<span class='ident'>input</span>, <span class='ident'>references</span>, <span class='ident'>missing_closing_characters</span>)
+        <span class="ident">parse_declaration_value_block</span>(<span class="ident">input</span>, <span class="ident">references</span>, <span class="ident">missing_closing_characters</span>)
     })
 }
 
-<span class='doccomment'>/// Like parse_declaration_value, but accept `!` and `;` since they are only</span>
-<span class='doccomment'>/// invalid at the top level</span>
-<span class='kw'>fn</span> <span class='ident'>parse_declaration_value_block</span>(<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>,
-                                 <span class='ident'>references</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='ident'>Name</span><span class='op'>&gt;&gt;</span>,
-                                 <span class='ident'>missing_closing_characters</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>String</span>)
-                                 <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(<span class='ident'>TokenSerializationType</span>, <span class='ident'>TokenSerializationType</span>), ()<span class='op'>&gt;</span> {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>token_start</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>position</span>();
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>token</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>input</span>.<span class='ident'>next_including_whitespace_and_comments</span>() {
-        <span class='prelude-val'>Ok</span>(<span class='ident'>token</span>) <span class='op'>=&gt;</span> <span class='ident'>token</span>,
-        <span class='prelude-val'>Err</span>(()) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Ok</span>((<span class='ident'>TokenSerializationType</span>::<span class='ident'>nothing</span>(), <span class='ident'>TokenSerializationType</span>::<span class='ident'>nothing</span>()))
+<span class="doccomment">/// Like parse_declaration_value, but accept `!` and `;` since they are only</span>
+<span class="doccomment">/// invalid at the top level</span>
+<span class="kw">fn</span> <span class="ident">parse_declaration_value_block</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>,
+                                 <span class="ident">references</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">Name</span><span class="op">&gt;&gt;</span>,
+                                 <span class="ident">missing_closing_characters</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">String</span>)
+                                 <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">TokenSerializationType</span>, <span class="ident">TokenSerializationType</span>), ()<span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">token_start</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">position</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">token</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">input</span>.<span class="ident">next_including_whitespace_and_comments</span>() {
+        <span class="prelude-val">Ok</span>(<span class="ident">token</span>) <span class="op">=&gt;</span> <span class="ident">token</span>,
+        <span class="prelude-val">Err</span>(()) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>((<span class="ident">TokenSerializationType</span>::<span class="ident">nothing</span>(), <span class="ident">TokenSerializationType</span>::<span class="ident">nothing</span>()))
     };
-    <span class='kw'>let</span> <span class='ident'>first_token_type</span> <span class='op'>=</span> <span class='ident'>token</span>.<span class='ident'>serialization_type</span>();
-    <span class='kw'>loop</span> {
-        <span class='macro'>macro_rules</span><span class='macro'>!</span> <span class='ident'>nested</span> {
-            () <span class='op'>=&gt;</span> {
-                <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>input</span>.<span class='ident'>parse_nested_block</span>(<span class='op'>|</span><span class='ident'>input</span><span class='op'>|</span> {
-                    <span class='ident'>parse_declaration_value_block</span>(<span class='ident'>input</span>, <span class='ident'>references</span>, <span class='ident'>missing_closing_characters</span>)
+    <span class="kw">let</span> <span class="ident">first_token_type</span> <span class="op">=</span> <span class="ident">token</span>.<span class="ident">serialization_type</span>();
+    <span class="kw">loop</span> {
+        <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">nested</span> {
+            () <span class="op">=&gt;</span> {
+                <span class="macro">try</span><span class="macro">!</span>(<span class="ident">input</span>.<span class="ident">parse_nested_block</span>(<span class="op">|</span><span class="ident">input</span><span class="op">|</span> {
+                    <span class="ident">parse_declaration_value_block</span>(<span class="ident">input</span>, <span class="ident">references</span>, <span class="ident">missing_closing_characters</span>)
                 }))
             }
         }
-        <span class='macro'>macro_rules</span><span class='macro'>!</span> <span class='ident'>check_closed</span> {
-            (<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>closing</span>: <span class='ident'>expr</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>input</span>.<span class='ident'>slice_from</span>(<span class='ident'>token_start</span>).<span class='ident'>ends_with</span>(<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>closing</span>) {
-                    <span class='ident'>missing_closing_characters</span>.<span class='ident'>push_str</span>(<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>closing</span>)
+        <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">check_closed</span> {
+            (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">closing</span>: <span class="ident">expr</span>) <span class="op">=&gt;</span> {
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">input</span>.<span class="ident">slice_from</span>(<span class="ident">token_start</span>).<span class="ident">ends_with</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">closing</span>) {
+                    <span class="ident">missing_closing_characters</span>.<span class="ident">push_str</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">closing</span>)
                 }
             }
         }
-        <span class='kw'>let</span> <span class='ident'>last_token_type</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>token</span> {
-            <span class='ident'>Token</span>::<span class='ident'>Comment</span>(_) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>token_slice</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>slice_from</span>(<span class='ident'>token_start</span>);
-                <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>token_slice</span>.<span class='ident'>ends_with</span>(<span class='string'>&quot;*/&quot;</span>) {
-                    <span class='ident'>missing_closing_characters</span>.<span class='ident'>push_str</span>(
-                        <span class='kw'>if</span> <span class='ident'>token_slice</span>.<span class='ident'>ends_with</span>(<span class='string'>&#39;*&#39;</span>) { <span class='string'>&quot;/&quot;</span> } <span class='kw'>else</span> { <span class='string'>&quot;*/&quot;</span> })
+        <span class="kw">let</span> <span class="ident">last_token_type</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">token</span> {
+            <span class="ident">Token</span>::<span class="ident">Comment</span>(_) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">token_slice</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">slice_from</span>(<span class="ident">token_start</span>);
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">token_slice</span>.<span class="ident">ends_with</span>(<span class="string">&quot;*/&quot;</span>) {
+                    <span class="ident">missing_closing_characters</span>.<span class="ident">push_str</span>(
+                        <span class="kw">if</span> <span class="ident">token_slice</span>.<span class="ident">ends_with</span>(<span class="string">&#39;*&#39;</span>) { <span class="string">&quot;/&quot;</span> } <span class="kw">else</span> { <span class="string">&quot;*/&quot;</span> })
                 }
-                <span class='ident'>token</span>.<span class='ident'>serialization_type</span>()
+                <span class="ident">token</span>.<span class="ident">serialization_type</span>()
             }
-            <span class='ident'>Token</span>::<span class='ident'>BadUrl</span> <span class='op'>|</span>
-            <span class='ident'>Token</span>::<span class='ident'>BadString</span> <span class='op'>|</span>
-            <span class='ident'>Token</span>::<span class='ident'>CloseParenthesis</span> <span class='op'>|</span>
-            <span class='ident'>Token</span>::<span class='ident'>CloseSquareBracket</span> <span class='op'>|</span>
-            <span class='ident'>Token</span>::<span class='ident'>CloseCurlyBracket</span> <span class='op'>=&gt;</span> {
-                <span class='kw'>return</span> <span class='prelude-val'>Err</span>(())
+            <span class="ident">Token</span>::<span class="ident">BadUrl</span> <span class="op">|</span>
+            <span class="ident">Token</span>::<span class="ident">BadString</span> <span class="op">|</span>
+            <span class="ident">Token</span>::<span class="ident">CloseParenthesis</span> <span class="op">|</span>
+            <span class="ident">Token</span>::<span class="ident">CloseSquareBracket</span> <span class="op">|</span>
+            <span class="ident">Token</span>::<span class="ident">CloseCurlyBracket</span> <span class="op">=&gt;</span> {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(())
             }
-            <span class='ident'>Token</span>::<span class='ident'>Function</span>(<span class='kw-2'>ref</span> <span class='ident'>name</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>if</span> <span class='ident'>name</span>.<span class='ident'>eq_ignore_ascii_case</span>(<span class='string'>&quot;var&quot;</span>) {
-                    <span class='kw'>let</span> <span class='ident'>position</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>position</span>();
-                    <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>input</span>.<span class='ident'>parse_nested_block</span>(<span class='op'>|</span><span class='ident'>input</span><span class='op'>|</span> {
-                        <span class='ident'>parse_var_function</span>(<span class='ident'>input</span>, <span class='ident'>references</span>)
+            <span class="ident">Token</span>::<span class="ident">Function</span>(<span class="kw-2">ref</span> <span class="ident">name</span>) <span class="op">=&gt;</span> {
+                <span class="kw">if</span> <span class="ident">name</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="string">&quot;var&quot;</span>) {
+                    <span class="kw">let</span> <span class="ident">position</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">position</span>();
+                    <span class="macro">try</span><span class="macro">!</span>(<span class="ident">input</span>.<span class="ident">parse_nested_block</span>(<span class="op">|</span><span class="ident">input</span><span class="op">|</span> {
+                        <span class="ident">parse_var_function</span>(<span class="ident">input</span>, <span class="ident">references</span>)
                     }));
-                    <span class='ident'>input</span>.<span class='ident'>reset</span>(<span class='ident'>position</span>);
+                    <span class="ident">input</span>.<span class="ident">reset</span>(<span class="ident">position</span>);
                 }
-                <span class='macro'>nested</span><span class='macro'>!</span>();
-                <span class='macro'>check_closed</span><span class='macro'>!</span>(<span class='string'>&quot;)&quot;</span>);
-                <span class='ident'>Token</span>::<span class='ident'>CloseParenthesis</span>.<span class='ident'>serialization_type</span>()
+                <span class="macro">nested</span><span class="macro">!</span>();
+                <span class="macro">check_closed</span><span class="macro">!</span>(<span class="string">&quot;)&quot;</span>);
+                <span class="ident">Token</span>::<span class="ident">CloseParenthesis</span>.<span class="ident">serialization_type</span>()
             }
-            <span class='ident'>Token</span>::<span class='ident'>ParenthesisBlock</span> <span class='op'>=&gt;</span> {
-                <span class='macro'>nested</span><span class='macro'>!</span>();
-                <span class='macro'>check_closed</span><span class='macro'>!</span>(<span class='string'>&quot;)&quot;</span>);
-                <span class='ident'>Token</span>::<span class='ident'>CloseParenthesis</span>.<span class='ident'>serialization_type</span>()
+            <span class="ident">Token</span>::<span class="ident">ParenthesisBlock</span> <span class="op">=&gt;</span> {
+                <span class="macro">nested</span><span class="macro">!</span>();
+                <span class="macro">check_closed</span><span class="macro">!</span>(<span class="string">&quot;)&quot;</span>);
+                <span class="ident">Token</span>::<span class="ident">CloseParenthesis</span>.<span class="ident">serialization_type</span>()
             }
-            <span class='ident'>Token</span>::<span class='ident'>CurlyBracketBlock</span> <span class='op'>=&gt;</span> {
-                <span class='macro'>nested</span><span class='macro'>!</span>();
-                <span class='macro'>check_closed</span><span class='macro'>!</span>(<span class='string'>&quot;}&quot;</span>);
-                <span class='ident'>Token</span>::<span class='ident'>CloseCurlyBracket</span>.<span class='ident'>serialization_type</span>()
+            <span class="ident">Token</span>::<span class="ident">CurlyBracketBlock</span> <span class="op">=&gt;</span> {
+                <span class="macro">nested</span><span class="macro">!</span>();
+                <span class="macro">check_closed</span><span class="macro">!</span>(<span class="string">&quot;}&quot;</span>);
+                <span class="ident">Token</span>::<span class="ident">CloseCurlyBracket</span>.<span class="ident">serialization_type</span>()
             }
-            <span class='ident'>Token</span>::<span class='ident'>SquareBracketBlock</span> <span class='op'>=&gt;</span> {
-                <span class='macro'>nested</span><span class='macro'>!</span>();
-                <span class='macro'>check_closed</span><span class='macro'>!</span>(<span class='string'>&quot;]&quot;</span>);
-                <span class='ident'>Token</span>::<span class='ident'>CloseSquareBracket</span>.<span class='ident'>serialization_type</span>()
+            <span class="ident">Token</span>::<span class="ident">SquareBracketBlock</span> <span class="op">=&gt;</span> {
+                <span class="macro">nested</span><span class="macro">!</span>();
+                <span class="macro">check_closed</span><span class="macro">!</span>(<span class="string">&quot;]&quot;</span>);
+                <span class="ident">Token</span>::<span class="ident">CloseSquareBracket</span>.<span class="ident">serialization_type</span>()
             }
-            <span class='ident'>Token</span>::<span class='ident'>QuotedString</span>(_) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>token_slice</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>slice_from</span>(<span class='ident'>token_start</span>);
-                <span class='kw'>let</span> <span class='ident'>quote</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>token_slice</span>[..<span class='number'>1</span>];
-                <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='macro'>matches</span><span class='macro'>!</span>(<span class='ident'>quote</span>, <span class='string'>&quot;\&quot;&quot;</span> <span class='op'>|</span> <span class='string'>&quot;&#39;&quot;</span>));
-                <span class='kw'>if</span> <span class='op'>!</span>(<span class='ident'>token_slice</span>.<span class='ident'>ends_with</span>(<span class='ident'>quote</span>) <span class='op'>&amp;&amp;</span> <span class='ident'>token_slice</span>.<span class='ident'>len</span>() <span class='op'>&gt;</span> <span class='number'>1</span>) {
-                    <span class='ident'>missing_closing_characters</span>.<span class='ident'>push_str</span>(<span class='ident'>quote</span>)
+            <span class="ident">Token</span>::<span class="ident">QuotedString</span>(_) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">token_slice</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">slice_from</span>(<span class="ident">token_start</span>);
+                <span class="kw">let</span> <span class="ident">quote</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">token_slice</span>[..<span class="number">1</span>];
+                <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="macro">matches</span><span class="macro">!</span>(<span class="ident">quote</span>, <span class="string">&quot;\&quot;&quot;</span> <span class="op">|</span> <span class="string">&quot;&#39;&quot;</span>));
+                <span class="kw">if</span> <span class="op">!</span>(<span class="ident">token_slice</span>.<span class="ident">ends_with</span>(<span class="ident">quote</span>) <span class="op">&amp;&amp;</span> <span class="ident">token_slice</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">1</span>) {
+                    <span class="ident">missing_closing_characters</span>.<span class="ident">push_str</span>(<span class="ident">quote</span>)
                 }
-                <span class='ident'>token</span>.<span class='ident'>serialization_type</span>()
+                <span class="ident">token</span>.<span class="ident">serialization_type</span>()
             }
-            <span class='ident'>Token</span>::<span class='ident'>Ident</span>(<span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>|</span>
-            <span class='ident'>Token</span>::<span class='ident'>AtKeyword</span>(<span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>|</span>
-            <span class='ident'>Token</span>::<span class='ident'>Hash</span>(<span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>|</span>
-            <span class='ident'>Token</span>::<span class='ident'>IDHash</span>(<span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>|</span>
-            <span class='ident'>Token</span>::<span class='ident'>UnquotedUrl</span>(<span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>|</span>
-            <span class='ident'>Token</span>::<span class='ident'>Dimension</span>(_, <span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>if</span> <span class='ident'>value</span>.<span class='ident'>ends_with</span>(<span class='string'>&quot;�&quot;</span>) <span class='op'>&amp;&amp;</span> <span class='ident'>input</span>.<span class='ident'>slice_from</span>(<span class='ident'>token_start</span>).<span class='ident'>ends_with</span>(<span class='string'>&quot;\\&quot;</span>) {
-                    <span class='comment'>// Unescaped backslash at EOF in these contexts is interpreted as U+FFFD</span>
-                    <span class='comment'>// Check the value in case the final backslash was itself escaped.</span>
-                    <span class='comment'>// Serialize as escaped U+FFFD, which is also interpreted as U+FFFD.</span>
-                    <span class='comment'>// (Unescaped U+FFFD would also work, but removing the backslash is annoying.)</span>
-                    <span class='ident'>missing_closing_characters</span>.<span class='ident'>push_str</span>(<span class='string'>&quot;�&quot;</span>)
+            <span class="ident">Token</span>::<span class="ident">Ident</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">|</span>
+            <span class="ident">Token</span>::<span class="ident">AtKeyword</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">|</span>
+            <span class="ident">Token</span>::<span class="ident">Hash</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">|</span>
+            <span class="ident">Token</span>::<span class="ident">IDHash</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">|</span>
+            <span class="ident">Token</span>::<span class="ident">UnquotedUrl</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">|</span>
+            <span class="ident">Token</span>::<span class="ident">Dimension</span>(_, <span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=&gt;</span> {
+                <span class="kw">if</span> <span class="ident">value</span>.<span class="ident">ends_with</span>(<span class="string">&quot;�&quot;</span>) <span class="op">&amp;&amp;</span> <span class="ident">input</span>.<span class="ident">slice_from</span>(<span class="ident">token_start</span>).<span class="ident">ends_with</span>(<span class="string">&quot;\\&quot;</span>) {
+                    <span class="comment">// Unescaped backslash at EOF in these contexts is interpreted as U+FFFD</span>
+                    <span class="comment">// Check the value in case the final backslash was itself escaped.</span>
+                    <span class="comment">// Serialize as escaped U+FFFD, which is also interpreted as U+FFFD.</span>
+                    <span class="comment">// (Unescaped U+FFFD would also work, but removing the backslash is annoying.)</span>
+                    <span class="ident">missing_closing_characters</span>.<span class="ident">push_str</span>(<span class="string">&quot;�&quot;</span>)
                 }
-                <span class='kw'>if</span> <span class='macro'>matches</span><span class='macro'>!</span>(<span class='ident'>token</span>, <span class='ident'>Token</span>::<span class='ident'>UnquotedUrl</span>(_)) {
-                    <span class='macro'>check_closed</span><span class='macro'>!</span>(<span class='string'>&quot;)&quot;</span>);
+                <span class="kw">if</span> <span class="macro">matches</span><span class="macro">!</span>(<span class="ident">token</span>, <span class="ident">Token</span>::<span class="ident">UnquotedUrl</span>(_)) {
+                    <span class="macro">check_closed</span><span class="macro">!</span>(<span class="string">&quot;)&quot;</span>);
                 }
-                <span class='ident'>token</span>.<span class='ident'>serialization_type</span>()
+                <span class="ident">token</span>.<span class="ident">serialization_type</span>()
             }
-            _ <span class='op'>=&gt;</span> {
-                <span class='ident'>token</span>.<span class='ident'>serialization_type</span>()
+            _ <span class="op">=&gt;</span> {
+                <span class="ident">token</span>.<span class="ident">serialization_type</span>()
             }
         };
 
-        <span class='ident'>token_start</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>position</span>();
-        <span class='ident'>token</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>input</span>.<span class='ident'>next_including_whitespace_and_comments</span>() {
-            <span class='prelude-val'>Ok</span>(<span class='ident'>token</span>) <span class='op'>=&gt;</span> <span class='ident'>token</span>,
-            <span class='prelude-val'>Err</span>(..) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Ok</span>((<span class='ident'>first_token_type</span>, <span class='ident'>last_token_type</span>)),
+        <span class="ident">token_start</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">position</span>();
+        <span class="ident">token</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">input</span>.<span class="ident">next_including_whitespace_and_comments</span>() {
+            <span class="prelude-val">Ok</span>(<span class="ident">token</span>) <span class="op">=&gt;</span> <span class="ident">token</span>,
+            <span class="prelude-val">Err</span>(..) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>((<span class="ident">first_token_type</span>, <span class="ident">last_token_type</span>)),
         };
     }
 }
 
-<span class='comment'>// If the var function is valid, return Ok((custom_property_name, fallback))</span>
-<span class='kw'>fn</span> <span class='ident'>parse_var_function</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;t</span><span class='op'>&gt;</span>(<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;t</span><span class='op'>&gt;</span>,
-                              <span class='ident'>references</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='ident'>Name</span><span class='op'>&gt;&gt;</span>)
-                              <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), ()<span class='op'>&gt;</span> {
-    <span class='kw'>let</span> <span class='ident'>name</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>input</span>.<span class='ident'>expect_ident</span>());
-    <span class='kw'>let</span> <span class='ident'>name</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>parse_name</span>(<span class='kw-2'>&amp;</span><span class='ident'>name</span>));
-    <span class='kw'>if</span> <span class='ident'>input</span>.<span class='ident'>try</span>(<span class='op'>|</span><span class='ident'>input</span><span class='op'>|</span> <span class='ident'>input</span>.<span class='ident'>expect_comma</span>()).<span class='ident'>is_ok</span>() {
-        <span class='comment'>// Exclude `!` and `;` at the top level</span>
-        <span class='comment'>// https://drafts.csswg.org/css-syntax/#typedef-declaration-value</span>
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>input</span>.<span class='ident'>parse_until_before</span>(<span class='ident'>Delimiter</span>::<span class='ident'>Bang</span> <span class='op'>|</span> <span class='ident'>Delimiter</span>::<span class='ident'>Semicolon</span>, <span class='op'>|</span><span class='ident'>input</span><span class='op'>|</span> {
-            <span class='comment'>// At least one non-comment token.</span>
-            <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>input</span>.<span class='ident'>next_including_whitespace</span>());
-            <span class='comment'>// Skip until the end.</span>
-            <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(_) <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>next_including_whitespace_and_comments</span>() {}
-            <span class='prelude-val'>Ok</span>(())
+<span class="comment">// If the var function is valid, return Ok((custom_property_name, fallback))</span>
+<span class="kw">fn</span> <span class="ident">parse_var_function</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>,
+                              <span class="ident">references</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">Name</span><span class="op">&gt;&gt;</span>)
+                              <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">input</span>.<span class="ident">expect_ident</span>());
+    <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">parse_name</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>));
+    <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">try</span>(<span class="op">|</span><span class="ident">input</span><span class="op">|</span> <span class="ident">input</span>.<span class="ident">expect_comma</span>()).<span class="ident">is_ok</span>() {
+        <span class="comment">// Exclude `!` and `;` at the top level</span>
+        <span class="comment">// https://drafts.csswg.org/css-syntax/#typedef-declaration-value</span>
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">input</span>.<span class="ident">parse_until_before</span>(<span class="ident">Delimiter</span>::<span class="ident">Bang</span> <span class="op">|</span> <span class="ident">Delimiter</span>::<span class="ident">Semicolon</span>, <span class="op">|</span><span class="ident">input</span><span class="op">|</span> {
+            <span class="comment">// At least one non-comment token.</span>
+            <span class="macro">try</span><span class="macro">!</span>(<span class="ident">input</span>.<span class="ident">next_including_whitespace</span>());
+            <span class="comment">// Skip until the end.</span>
+            <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(_) <span class="op">=</span> <span class="ident">input</span>.<span class="ident">next_including_whitespace_and_comments</span>() {}
+            <span class="prelude-val">Ok</span>(())
         }));
     }
-    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>refs</span>) <span class='op'>=</span> <span class='kw-2'>*</span><span class='ident'>references</span> {
-        <span class='ident'>refs</span>.<span class='ident'>insert</span>(<span class='ident'>Atom</span>::<span class='ident'>from</span>(<span class='ident'>name</span>));
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">refs</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">references</span> {
+        <span class="ident">refs</span>.<span class="ident">insert</span>(<span class="ident">Atom</span>::<span class="ident">from</span>(<span class="ident">name</span>));
     }
-    <span class='prelude-val'>Ok</span>(())
+    <span class="prelude-val">Ok</span>(())
 }
 
-<span class='doccomment'>/// Add one custom property declaration to a map, unless another with the same</span>
-<span class='doccomment'>/// name was already there.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>cascade</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>(<span class='ident'>custom_properties</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Name</span>, <span class='ident'>BorrowedSpecifiedValue</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>,
-                   <span class='ident'>inherited</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>Name</span>, <span class='ident'>ComputedValue</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>,
-                   <span class='ident'>seen</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Name</span><span class='op'>&gt;</span>,
-                   <span class='ident'>name</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Name</span>,
-                   <span class='ident'>specified_value</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>DeclaredValue</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>SpecifiedValue</span><span class='op'>&gt;&gt;</span>) {
-    <span class='kw'>let</span> <span class='ident'>was_already_present</span> <span class='op'>=</span> <span class='op'>!</span><span class='ident'>seen</span>.<span class='ident'>insert</span>(<span class='ident'>name</span>);
-    <span class='kw'>if</span> <span class='ident'>was_already_present</span> {
-        <span class='kw'>return</span>;
+<span class="doccomment">/// Add one custom property declaration to a map, unless another with the same</span>
+<span class="doccomment">/// name was already there.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cascade</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">custom_properties</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Name</span>, <span class="ident">BorrowedSpecifiedValue</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>,
+                   <span class="ident">inherited</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Name</span>, <span class="ident">ComputedValue</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>,
+                   <span class="ident">seen</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">HashSet</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Name</span><span class="op">&gt;</span>,
+                   <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Name</span>,
+                   <span class="ident">specified_value</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">DeclaredValue</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">SpecifiedValue</span><span class="op">&gt;&gt;</span>) {
+    <span class="kw">let</span> <span class="ident">was_already_present</span> <span class="op">=</span> <span class="op">!</span><span class="ident">seen</span>.<span class="ident">insert</span>(<span class="ident">name</span>);
+    <span class="kw">if</span> <span class="ident">was_already_present</span> {
+        <span class="kw">return</span>;
     }
 
-    <span class='kw'>let</span> <span class='ident'>map</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>custom_properties</span> {
-        <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>map</span>) <span class='op'>=&gt;</span> <span class='ident'>map</span>,
-        <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
-            <span class='kw-2'>*</span><span class='ident'>custom_properties</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>inherited</span> {
-                <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>inherited</span>) <span class='op'>=&gt;</span> <span class='ident'>inherited</span>.<span class='ident'>iter</span>().<span class='ident'>map</span>(<span class='op'>|</span>(<span class='ident'>key</span>, <span class='ident'>inherited_value</span>)<span class='op'>|</span> {
-                    (<span class='ident'>key</span>, <span class='ident'>BorrowedSpecifiedValue</span> {
-                        <span class='ident'>css</span>: <span class='kw-2'>&amp;</span><span class='ident'>inherited_value</span>.<span class='ident'>css</span>,
-                        <span class='ident'>first_token_type</span>: <span class='ident'>inherited_value</span>.<span class='ident'>first_token_type</span>,
-                        <span class='ident'>last_token_type</span>: <span class='ident'>inherited_value</span>.<span class='ident'>last_token_type</span>,
-                        <span class='ident'>references</span>: <span class='prelude-val'>None</span>
+    <span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">custom_properties</span> {
+        <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">map</span>) <span class="op">=&gt;</span> <span class="ident">map</span>,
+        <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+            <span class="kw-2">*</span><span class="ident">custom_properties</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="kw">match</span> <span class="kw-2">*</span><span class="ident">inherited</span> {
+                <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">inherited</span>) <span class="op">=&gt;</span> <span class="ident">inherited</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">key</span>, <span class="ident">inherited_value</span>)<span class="op">|</span> {
+                    (<span class="ident">key</span>, <span class="ident">BorrowedSpecifiedValue</span> {
+                        <span class="ident">css</span>: <span class="kw-2">&amp;</span><span class="ident">inherited_value</span>.<span class="ident">css</span>,
+                        <span class="ident">first_token_type</span>: <span class="ident">inherited_value</span>.<span class="ident">first_token_type</span>,
+                        <span class="ident">last_token_type</span>: <span class="ident">inherited_value</span>.<span class="ident">last_token_type</span>,
+                        <span class="ident">references</span>: <span class="prelude-val">None</span>
                     })
-                }).<span class='ident'>collect</span>(),
-                <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='ident'>HashMap</span>::<span class='ident'>new</span>(),
+                }).<span class="ident">collect</span>(),
+                <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">HashMap</span>::<span class="ident">new</span>(),
             });
-            <span class='ident'>custom_properties</span>.<span class='ident'>as_mut</span>().<span class='ident'>unwrap</span>()
+            <span class="ident">custom_properties</span>.<span class="ident">as_mut</span>().<span class="ident">unwrap</span>()
         }
     };
-    <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>specified_value</span> {
-        <span class='ident'>DeclaredValue</span>::<span class='ident'>Value</span>(<span class='kw-2'>ref</span> <span class='ident'>specified_value</span>) <span class='op'>=&gt;</span> {
-            <span class='ident'>map</span>.<span class='ident'>insert</span>(<span class='ident'>name</span>, <span class='ident'>BorrowedSpecifiedValue</span> {
-                <span class='ident'>css</span>: <span class='kw-2'>&amp;</span><span class='ident'>specified_value</span>.<span class='ident'>css</span>,
-                <span class='ident'>first_token_type</span>: <span class='ident'>specified_value</span>.<span class='ident'>first_token_type</span>,
-                <span class='ident'>last_token_type</span>: <span class='ident'>specified_value</span>.<span class='ident'>last_token_type</span>,
-                <span class='ident'>references</span>: <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='ident'>specified_value</span>.<span class='ident'>references</span>),
+    <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">specified_value</span> {
+        <span class="ident">DeclaredValue</span>::<span class="ident">Value</span>(<span class="kw-2">ref</span> <span class="ident">specified_value</span>) <span class="op">=&gt;</span> {
+            <span class="ident">map</span>.<span class="ident">insert</span>(<span class="ident">name</span>, <span class="ident">BorrowedSpecifiedValue</span> {
+                <span class="ident">css</span>: <span class="kw-2">&amp;</span><span class="ident">specified_value</span>.<span class="ident">css</span>,
+                <span class="ident">first_token_type</span>: <span class="ident">specified_value</span>.<span class="ident">first_token_type</span>,
+                <span class="ident">last_token_type</span>: <span class="ident">specified_value</span>.<span class="ident">last_token_type</span>,
+                <span class="ident">references</span>: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">specified_value</span>.<span class="ident">references</span>),
             });
         },
-        <span class='ident'>DeclaredValue</span>::<span class='ident'>WithVariables</span>(_) <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(),
-        <span class='ident'>DeclaredValue</span>::<span class='ident'>CSSWideKeyword</span>(<span class='ident'>keyword</span>) <span class='op'>=&gt;</span> <span class='kw'>match</span> <span class='ident'>keyword</span> {
-            <span class='ident'>CSSWideKeyword</span>::<span class='ident'>Initial</span> <span class='op'>=&gt;</span> {
-                <span class='ident'>map</span>.<span class='ident'>remove</span>(<span class='kw-2'>&amp;</span><span class='ident'>name</span>);
+        <span class="ident">DeclaredValue</span>::<span class="ident">WithVariables</span>(_) <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+        <span class="ident">DeclaredValue</span>::<span class="ident">CSSWideKeyword</span>(<span class="ident">keyword</span>) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">keyword</span> {
+            <span class="ident">CSSWideKeyword</span>::<span class="ident">Initial</span> <span class="op">=&gt;</span> {
+                <span class="ident">map</span>.<span class="ident">remove</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>);
             }
-            <span class='ident'>CSSWideKeyword</span>::<span class='ident'>Unset</span> <span class='op'>|</span> <span class='comment'>// Custom properties are inherited by default.</span>
-            <span class='ident'>CSSWideKeyword</span>::<span class='ident'>Inherit</span> <span class='op'>=&gt;</span> {} <span class='comment'>// The inherited value is what we already have.</span>
+            <span class="ident">CSSWideKeyword</span>::<span class="ident">Unset</span> <span class="op">|</span> <span class="comment">// Custom properties are inherited by default.</span>
+            <span class="ident">CSSWideKeyword</span>::<span class="ident">Inherit</span> <span class="op">=&gt;</span> {} <span class="comment">// The inherited value is what we already have.</span>
         }
     }
 }
 
-<span class='doccomment'>/// Returns the final map of applicable custom properties.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// If there was any specified property, we&#39;ve created a new map and now we need</span>
-<span class='doccomment'>/// to remove any potential cycles, and wrap it in an arc.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Otherwise, just use the inherited custom properties map.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>finish_cascade</span>(<span class='ident'>specified_values_map</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>Name</span>, <span class='ident'>BorrowedSpecifiedValue</span><span class='op'>&gt;&gt;</span>,
-                      <span class='ident'>inherited</span>: <span class='kw-2'>&amp;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>Name</span>, <span class='ident'>ComputedValue</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>)
-                      <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>Name</span>, <span class='ident'>ComputedValue</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
-    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>mut</span> <span class='ident'>map</span>) <span class='op'>=</span> <span class='ident'>specified_values_map</span> {
-        <span class='ident'>remove_cycles</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>map</span>);
-        <span class='prelude-val'>Some</span>(<span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>substitute_all</span>(<span class='ident'>map</span>, <span class='ident'>inherited</span>)))
-    } <span class='kw'>else</span> {
-        <span class='ident'>inherited</span>.<span class='ident'>clone</span>()
+<span class="doccomment">/// Returns the final map of applicable custom properties.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// If there was any specified property, we&#39;ve created a new map and now we need</span>
+<span class="doccomment">/// to remove any potential cycles, and wrap it in an arc.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Otherwise, just use the inherited custom properties map.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">finish_cascade</span>(<span class="ident">specified_values_map</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Name</span>, <span class="ident">BorrowedSpecifiedValue</span><span class="op">&gt;&gt;</span>,
+                      <span class="ident">inherited</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Name</span>, <span class="ident">ComputedValue</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>)
+                      <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Name</span>, <span class="ident">ComputedValue</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">map</span>) <span class="op">=</span> <span class="ident">specified_values_map</span> {
+        <span class="ident">remove_cycles</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">map</span>);
+        <span class="prelude-val">Some</span>(<span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">substitute_all</span>(<span class="ident">map</span>, <span class="ident">inherited</span>)))
+    } <span class="kw">else</span> {
+        <span class="ident">inherited</span>.<span class="ident">clone</span>()
     }
 }
 
-<span class='doccomment'>/// https://drafts.csswg.org/css-variables/#cycles</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// The initial value of a custom property is represented by this property not</span>
-<span class='doccomment'>/// being in the map.</span>
-<span class='kw'>fn</span> <span class='ident'>remove_cycles</span>(<span class='ident'>map</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>Name</span>, <span class='ident'>BorrowedSpecifiedValue</span><span class='op'>&gt;</span>) {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>to_remove</span> <span class='op'>=</span> <span class='ident'>HashSet</span>::<span class='ident'>new</span>();
+<span class="doccomment">/// https://drafts.csswg.org/css-variables/#cycles</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The initial value of a custom property is represented by this property not</span>
+<span class="doccomment">/// being in the map.</span>
+<span class="kw">fn</span> <span class="ident">remove_cycles</span>(<span class="ident">map</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Name</span>, <span class="ident">BorrowedSpecifiedValue</span><span class="op">&gt;</span>) {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">to_remove</span> <span class="op">=</span> <span class="ident">HashSet</span>::<span class="ident">new</span>();
     {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>visited</span> <span class='op'>=</span> <span class='ident'>HashSet</span>::<span class='ident'>new</span>();
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>stack</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
-        <span class='kw'>for</span> <span class='ident'>name</span> <span class='kw'>in</span> <span class='ident'>map</span>.<span class='ident'>keys</span>() {
-            <span class='ident'>walk</span>(<span class='ident'>map</span>, <span class='ident'>name</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>stack</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>visited</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>to_remove</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">visited</span> <span class="op">=</span> <span class="ident">HashSet</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stack</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+        <span class="kw">for</span> <span class="ident">name</span> <span class="kw">in</span> <span class="ident">map</span>.<span class="ident">keys</span>() {
+            <span class="ident">walk</span>(<span class="ident">map</span>, <span class="ident">name</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">stack</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">visited</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">to_remove</span>);
 
-            <span class='kw'>fn</span> <span class='ident'>walk</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>(<span class='ident'>map</span>: <span class='kw-2'>&amp;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Name</span>, <span class='ident'>BorrowedSpecifiedValue</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;&gt;</span>,
-                        <span class='ident'>name</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Name</span>,
-                        <span class='ident'>stack</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Name</span><span class='op'>&gt;</span>,
-                        <span class='ident'>visited</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Name</span><span class='op'>&gt;</span>,
-                        <span class='ident'>to_remove</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='ident'>Name</span><span class='op'>&gt;</span>) {
-                <span class='kw'>let</span> <span class='ident'>already_visited_before</span> <span class='op'>=</span> <span class='op'>!</span><span class='ident'>visited</span>.<span class='ident'>insert</span>(<span class='ident'>name</span>);
-                <span class='kw'>if</span> <span class='ident'>already_visited_before</span> {
-                    <span class='kw'>return</span>
+            <span class="kw">fn</span> <span class="ident">walk</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">map</span>: <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Name</span>, <span class="ident">BorrowedSpecifiedValue</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span>,
+                        <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Name</span>,
+                        <span class="ident">stack</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Name</span><span class="op">&gt;</span>,
+                        <span class="ident">visited</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">HashSet</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Name</span><span class="op">&gt;</span>,
+                        <span class="ident">to_remove</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">Name</span><span class="op">&gt;</span>) {
+                <span class="kw">let</span> <span class="ident">already_visited_before</span> <span class="op">=</span> <span class="op">!</span><span class="ident">visited</span>.<span class="ident">insert</span>(<span class="ident">name</span>);
+                <span class="kw">if</span> <span class="ident">already_visited_before</span> {
+                    <span class="kw">return</span>
                 }
-                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>value</span>) <span class='op'>=</span> <span class='ident'>map</span>.<span class='ident'>get</span>(<span class='ident'>name</span>) {
-                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>references</span>) <span class='op'>=</span> <span class='ident'>value</span>.<span class='ident'>references</span> {
-                        <span class='ident'>stack</span>.<span class='ident'>push</span>(<span class='ident'>name</span>);
-                        <span class='kw'>for</span> <span class='ident'>next</span> <span class='kw'>in</span> <span class='ident'>references</span> {
-                            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>position</span>) <span class='op'>=</span> <span class='ident'>stack</span>.<span class='ident'>iter</span>().<span class='ident'>position</span>(<span class='op'>|</span><span class='kw-2'>&amp;</span><span class='ident'>x</span><span class='op'>|</span> <span class='ident'>x</span> <span class='op'>==</span> <span class='ident'>next</span>) {
-                                <span class='comment'>// Found a cycle</span>
-                                <span class='kw'>for</span> <span class='kw-2'>&amp;</span><span class='ident'>in_cycle</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>stack</span>[<span class='ident'>position</span>..] {
-                                    <span class='ident'>to_remove</span>.<span class='ident'>insert</span>(<span class='ident'>in_cycle</span>.<span class='ident'>clone</span>());
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="ident">map</span>.<span class="ident">get</span>(<span class="ident">name</span>) {
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">references</span>) <span class="op">=</span> <span class="ident">value</span>.<span class="ident">references</span> {
+                        <span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">name</span>);
+                        <span class="kw">for</span> <span class="ident">next</span> <span class="kw">in</span> <span class="ident">references</span> {
+                            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">position</span>) <span class="op">=</span> <span class="ident">stack</span>.<span class="ident">iter</span>().<span class="ident">position</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span> <span class="op">==</span> <span class="ident">next</span>) {
+                                <span class="comment">// Found a cycle</span>
+                                <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">in_cycle</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">stack</span>[<span class="ident">position</span>..] {
+                                    <span class="ident">to_remove</span>.<span class="ident">insert</span>(<span class="ident">in_cycle</span>.<span class="ident">clone</span>());
                                 }
-                            } <span class='kw'>else</span> {
-                                <span class='ident'>walk</span>(<span class='ident'>map</span>, <span class='ident'>next</span>, <span class='ident'>stack</span>, <span class='ident'>visited</span>, <span class='ident'>to_remove</span>);
+                            } <span class="kw">else</span> {
+                                <span class="ident">walk</span>(<span class="ident">map</span>, <span class="ident">next</span>, <span class="ident">stack</span>, <span class="ident">visited</span>, <span class="ident">to_remove</span>);
                             }
                         }
-                        <span class='ident'>stack</span>.<span class='ident'>pop</span>();
+                        <span class="ident">stack</span>.<span class="ident">pop</span>();
                     }
                 }
             }
         }
     }
-    <span class='kw'>for</span> <span class='ident'>name</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>to_remove</span> {
-        <span class='ident'>map</span>.<span class='ident'>remove</span>(<span class='ident'>name</span>);
+    <span class="kw">for</span> <span class="ident">name</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">to_remove</span> {
+        <span class="ident">map</span>.<span class="ident">remove</span>(<span class="ident">name</span>);
     }
 }
 
-<span class='doccomment'>/// Replace `var()` functions for all custom properties.</span>
-<span class='kw'>fn</span> <span class='ident'>substitute_all</span>(<span class='ident'>specified_values_map</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>Name</span>, <span class='ident'>BorrowedSpecifiedValue</span><span class='op'>&gt;</span>,
-                  <span class='ident'>inherited</span>: <span class='kw-2'>&amp;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>Name</span>, <span class='ident'>ComputedValue</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>)
-                  <span class='op'>-&gt;</span> <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>Name</span>, <span class='ident'>ComputedValue</span><span class='op'>&gt;</span> {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>computed_values_map</span> <span class='op'>=</span> <span class='ident'>HashMap</span>::<span class='ident'>new</span>();
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>invalid</span> <span class='op'>=</span> <span class='ident'>HashSet</span>::<span class='ident'>new</span>();
-    <span class='kw'>for</span> (<span class='kw-2'>&amp;</span><span class='ident'>name</span>, <span class='ident'>value</span>) <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>specified_values_map</span> {
-        <span class='comment'>// If this value is invalid at computed-time it won’t be inserted in computed_values_map.</span>
-        <span class='comment'>// Nothing else to do.</span>
-        <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>substitute_one</span>(
-            <span class='ident'>name</span>, <span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>specified_values_map</span>, <span class='ident'>inherited</span>, <span class='prelude-val'>None</span>,
-            <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>computed_values_map</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>invalid</span>);
+<span class="doccomment">/// Replace `var()` functions for all custom properties.</span>
+<span class="kw">fn</span> <span class="ident">substitute_all</span>(<span class="ident">specified_values_map</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Name</span>, <span class="ident">BorrowedSpecifiedValue</span><span class="op">&gt;</span>,
+                  <span class="ident">inherited</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Name</span>, <span class="ident">ComputedValue</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>)
+                  <span class="op">-&gt;</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Name</span>, <span class="ident">ComputedValue</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">computed_values_map</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">invalid</span> <span class="op">=</span> <span class="ident">HashSet</span>::<span class="ident">new</span>();
+    <span class="kw">for</span> (<span class="kw-2">&amp;</span><span class="ident">name</span>, <span class="ident">value</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">specified_values_map</span> {
+        <span class="comment">// If this value is invalid at computed-time it won’t be inserted in computed_values_map.</span>
+        <span class="comment">// Nothing else to do.</span>
+        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">substitute_one</span>(
+            <span class="ident">name</span>, <span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">specified_values_map</span>, <span class="ident">inherited</span>, <span class="prelude-val">None</span>,
+            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">computed_values_map</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">invalid</span>);
     }
-    <span class='ident'>computed_values_map</span>
+    <span class="ident">computed_values_map</span>
 }
 
-<span class='doccomment'>/// Replace `var()` functions for one custom property.</span>
-<span class='doccomment'>/// Also recursively record results for other custom properties referenced by `var()` functions.</span>
-<span class='doccomment'>/// Return `Err(())` for invalid at computed time.</span>
-<span class='doccomment'>/// or `Ok(last_token_type that was pushed to partial_computed_value)` otherwise.</span>
-<span class='kw'>fn</span> <span class='ident'>substitute_one</span>(<span class='ident'>name</span>: <span class='kw-2'>&amp;</span><span class='ident'>Name</span>,
-                  <span class='ident'>specified_value</span>: <span class='kw-2'>&amp;</span><span class='ident'>BorrowedSpecifiedValue</span>,
-                  <span class='ident'>specified_values_map</span>: <span class='kw-2'>&amp;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>Name</span>, <span class='ident'>BorrowedSpecifiedValue</span><span class='op'>&gt;</span>,
-                  <span class='ident'>inherited</span>: <span class='kw-2'>&amp;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>Name</span>, <span class='ident'>ComputedValue</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>,
-                  <span class='ident'>partial_computed_value</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ComputedValue</span><span class='op'>&gt;</span>,
-                  <span class='ident'>computed_values_map</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>Name</span>, <span class='ident'>ComputedValue</span><span class='op'>&gt;</span>,
-                  <span class='ident'>invalid</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='ident'>Name</span><span class='op'>&gt;</span>)
-                  <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>TokenSerializationType</span>, ()<span class='op'>&gt;</span> {
-    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>computed_value</span>) <span class='op'>=</span> <span class='ident'>computed_values_map</span>.<span class='ident'>get</span>(<span class='ident'>name</span>) {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>partial_computed_value</span>) <span class='op'>=</span> <span class='ident'>partial_computed_value</span> {
-            <span class='ident'>partial_computed_value</span>.<span class='ident'>push_variable</span>(<span class='ident'>computed_value</span>)
+<span class="doccomment">/// Replace `var()` functions for one custom property.</span>
+<span class="doccomment">/// Also recursively record results for other custom properties referenced by `var()` functions.</span>
+<span class="doccomment">/// Return `Err(())` for invalid at computed time.</span>
+<span class="doccomment">/// or `Ok(last_token_type that was pushed to partial_computed_value)` otherwise.</span>
+<span class="kw">fn</span> <span class="ident">substitute_one</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">Name</span>,
+                  <span class="ident">specified_value</span>: <span class="kw-2">&amp;</span><span class="ident">BorrowedSpecifiedValue</span>,
+                  <span class="ident">specified_values_map</span>: <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Name</span>, <span class="ident">BorrowedSpecifiedValue</span><span class="op">&gt;</span>,
+                  <span class="ident">inherited</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Name</span>, <span class="ident">ComputedValue</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>,
+                  <span class="ident">partial_computed_value</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ComputedValue</span><span class="op">&gt;</span>,
+                  <span class="ident">computed_values_map</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Name</span>, <span class="ident">ComputedValue</span><span class="op">&gt;</span>,
+                  <span class="ident">invalid</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">Name</span><span class="op">&gt;</span>)
+                  <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">TokenSerializationType</span>, ()<span class="op">&gt;</span> {
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">computed_value</span>) <span class="op">=</span> <span class="ident">computed_values_map</span>.<span class="ident">get</span>(<span class="ident">name</span>) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">partial_computed_value</span>) <span class="op">=</span> <span class="ident">partial_computed_value</span> {
+            <span class="ident">partial_computed_value</span>.<span class="ident">push_variable</span>(<span class="ident">computed_value</span>)
         }
-        <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='ident'>computed_value</span>.<span class='ident'>last_token_type</span>)
+        <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">computed_value</span>.<span class="ident">last_token_type</span>)
     }
 
-    <span class='kw'>if</span> <span class='ident'>invalid</span>.<span class='ident'>contains</span>(<span class='ident'>name</span>) {
-        <span class='kw'>return</span> <span class='prelude-val'>Err</span>(());
+    <span class="kw">if</span> <span class="ident">invalid</span>.<span class="ident">contains</span>(<span class="ident">name</span>) {
+        <span class="kw">return</span> <span class="prelude-val">Err</span>(());
     }
-    <span class='kw'>let</span> <span class='ident'>computed_value</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>specified_value</span>.<span class='ident'>references</span>.<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>set</span><span class='op'>|</span> <span class='ident'>set</span>.<span class='ident'>is_empty</span>()) <span class='op'>==</span> <span class='prelude-val'>Some</span>(<span class='bool-val'>false</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>partial_computed_value</span> <span class='op'>=</span> <span class='ident'>ComputedValue</span>::<span class='ident'>empty</span>();
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>input</span> <span class='op'>=</span> <span class='ident'>Parser</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>specified_value</span>.<span class='ident'>css</span>);
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>position</span> <span class='op'>=</span> (<span class='ident'>input</span>.<span class='ident'>position</span>(), <span class='ident'>specified_value</span>.<span class='ident'>first_token_type</span>);
-        <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>substitute_block</span>(
-            <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>input</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>position</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>partial_computed_value</span>,
-            <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>|</span><span class='ident'>name</span>, <span class='ident'>partial_computed_value</span><span class='op'>|</span> {
-                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>other_specified_value</span>) <span class='op'>=</span> <span class='ident'>specified_values_map</span>.<span class='ident'>get</span>(<span class='ident'>name</span>) {
-                    <span class='ident'>substitute_one</span>(<span class='ident'>name</span>, <span class='ident'>other_specified_value</span>, <span class='ident'>specified_values_map</span>, <span class='ident'>inherited</span>,
-                                   <span class='prelude-val'>Some</span>(<span class='ident'>partial_computed_value</span>), <span class='ident'>computed_values_map</span>, <span class='ident'>invalid</span>)
-                } <span class='kw'>else</span> {
-                    <span class='prelude-val'>Err</span>(())
+    <span class="kw">let</span> <span class="ident">computed_value</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">specified_value</span>.<span class="ident">references</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">set</span><span class="op">|</span> <span class="ident">set</span>.<span class="ident">is_empty</span>()) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="bool-val">false</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">partial_computed_value</span> <span class="op">=</span> <span class="ident">ComputedValue</span>::<span class="ident">empty</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">input</span> <span class="op">=</span> <span class="ident">Parser</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">specified_value</span>.<span class="ident">css</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">position</span> <span class="op">=</span> (<span class="ident">input</span>.<span class="ident">position</span>(), <span class="ident">specified_value</span>.<span class="ident">first_token_type</span>);
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">substitute_block</span>(
+            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">input</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">position</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">partial_computed_value</span>,
+            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">|</span><span class="ident">name</span>, <span class="ident">partial_computed_value</span><span class="op">|</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">other_specified_value</span>) <span class="op">=</span> <span class="ident">specified_values_map</span>.<span class="ident">get</span>(<span class="ident">name</span>) {
+                    <span class="ident">substitute_one</span>(<span class="ident">name</span>, <span class="ident">other_specified_value</span>, <span class="ident">specified_values_map</span>, <span class="ident">inherited</span>,
+                                   <span class="prelude-val">Some</span>(<span class="ident">partial_computed_value</span>), <span class="ident">computed_values_map</span>, <span class="ident">invalid</span>)
+                } <span class="kw">else</span> {
+                    <span class="prelude-val">Err</span>(())
                 }
             }
         );
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>last_token_type</span>) <span class='op'>=</span> <span class='ident'>result</span> {
-            <span class='ident'>partial_computed_value</span>.<span class='ident'>push_from</span>(<span class='ident'>position</span>, <span class='kw-2'>&amp;</span><span class='ident'>input</span>, <span class='ident'>last_token_type</span>);
-            <span class='ident'>partial_computed_value</span>
-        } <span class='kw'>else</span> {
-            <span class='comment'>// Invalid at computed-value time. Use the inherited value.</span>
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>inherited_value</span>) <span class='op'>=</span> <span class='ident'>inherited</span>.<span class='ident'>as_ref</span>().<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>i</span><span class='op'>|</span> <span class='ident'>i</span>.<span class='ident'>get</span>(<span class='ident'>name</span>)) {
-                <span class='ident'>inherited_value</span>.<span class='ident'>clone</span>()
-            } <span class='kw'>else</span> {
-                <span class='ident'>invalid</span>.<span class='ident'>insert</span>(<span class='ident'>name</span>.<span class='ident'>clone</span>());
-                <span class='kw'>return</span> <span class='prelude-val'>Err</span>(())
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">last_token_type</span>) <span class="op">=</span> <span class="ident">result</span> {
+            <span class="ident">partial_computed_value</span>.<span class="ident">push_from</span>(<span class="ident">position</span>, <span class="kw-2">&amp;</span><span class="ident">input</span>, <span class="ident">last_token_type</span>);
+            <span class="ident">partial_computed_value</span>
+        } <span class="kw">else</span> {
+            <span class="comment">// Invalid at computed-value time. Use the inherited value.</span>
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">inherited_value</span>) <span class="op">=</span> <span class="ident">inherited</span>.<span class="ident">as_ref</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">i</span><span class="op">|</span> <span class="ident">i</span>.<span class="ident">get</span>(<span class="ident">name</span>)) {
+                <span class="ident">inherited_value</span>.<span class="ident">clone</span>()
+            } <span class="kw">else</span> {
+                <span class="ident">invalid</span>.<span class="ident">insert</span>(<span class="ident">name</span>.<span class="ident">clone</span>());
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(())
             }
         }
-    } <span class='kw'>else</span> {
-        <span class='comment'>// The specified value contains no var() reference</span>
-        <span class='ident'>ComputedValue</span> {
-            <span class='ident'>css</span>: <span class='ident'>specified_value</span>.<span class='ident'>css</span>.<span class='ident'>to_owned</span>(),
-            <span class='ident'>first_token_type</span>: <span class='ident'>specified_value</span>.<span class='ident'>first_token_type</span>,
-            <span class='ident'>last_token_type</span>: <span class='ident'>specified_value</span>.<span class='ident'>last_token_type</span>,
+    } <span class="kw">else</span> {
+        <span class="comment">// The specified value contains no var() reference</span>
+        <span class="ident">ComputedValue</span> {
+            <span class="ident">css</span>: <span class="ident">specified_value</span>.<span class="ident">css</span>.<span class="ident">to_owned</span>(),
+            <span class="ident">first_token_type</span>: <span class="ident">specified_value</span>.<span class="ident">first_token_type</span>,
+            <span class="ident">last_token_type</span>: <span class="ident">specified_value</span>.<span class="ident">last_token_type</span>,
         }
     };
-    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>partial_computed_value</span>) <span class='op'>=</span> <span class='ident'>partial_computed_value</span> {
-        <span class='ident'>partial_computed_value</span>.<span class='ident'>push_variable</span>(<span class='kw-2'>&amp;</span><span class='ident'>computed_value</span>)
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">partial_computed_value</span>) <span class="op">=</span> <span class="ident">partial_computed_value</span> {
+        <span class="ident">partial_computed_value</span>.<span class="ident">push_variable</span>(<span class="kw-2">&amp;</span><span class="ident">computed_value</span>)
     }
-    <span class='kw'>let</span> <span class='ident'>last_token_type</span> <span class='op'>=</span> <span class='ident'>computed_value</span>.<span class='ident'>last_token_type</span>;
-    <span class='ident'>computed_values_map</span>.<span class='ident'>insert</span>(<span class='ident'>name</span>.<span class='ident'>clone</span>(), <span class='ident'>computed_value</span>);
-    <span class='prelude-val'>Ok</span>(<span class='ident'>last_token_type</span>)
+    <span class="kw">let</span> <span class="ident">last_token_type</span> <span class="op">=</span> <span class="ident">computed_value</span>.<span class="ident">last_token_type</span>;
+    <span class="ident">computed_values_map</span>.<span class="ident">insert</span>(<span class="ident">name</span>.<span class="ident">clone</span>(), <span class="ident">computed_value</span>);
+    <span class="prelude-val">Ok</span>(<span class="ident">last_token_type</span>)
 }
 
-<span class='doccomment'>/// Replace `var()` functions in an arbitrary bit of input.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// The `substitute_one` callback is called for each `var()` function in `input`.</span>
-<span class='doccomment'>/// If the variable has its initial value,</span>
-<span class='doccomment'>/// the callback should return `Err(())` and leave `partial_computed_value` unchanged.</span>
-<span class='doccomment'>/// Otherwise, it should push the value of the variable (with its own `var()` functions replaced)</span>
-<span class='doccomment'>/// to `partial_computed_value` and return `Ok(last_token_type of what was pushed)`</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Return `Err(())` if `input` is invalid at computed-value time.</span>
-<span class='doccomment'>/// or `Ok(last_token_type that was pushed to partial_computed_value)` otherwise.</span>
-<span class='kw'>fn</span> <span class='ident'>substitute_block</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>,
-                       <span class='ident'>position</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> (<span class='ident'>SourcePosition</span>, <span class='ident'>TokenSerializationType</span>),
-                       <span class='ident'>partial_computed_value</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ComputedValue</span>,
-                       <span class='ident'>substitute_one</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>F</span>)
-                       <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>TokenSerializationType</span>, ()<span class='op'>&gt;</span>
-                       <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>FnMut</span>(<span class='kw-2'>&amp;</span><span class='ident'>Name</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ComputedValue</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>TokenSerializationType</span>, ()<span class='op'>&gt;</span> {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>last_token_type</span> <span class='op'>=</span> <span class='ident'>TokenSerializationType</span>::<span class='ident'>nothing</span>();
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>set_position_at_next_iteration</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-    <span class='kw'>loop</span> {
-        <span class='kw'>let</span> <span class='ident'>before_this_token</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>position</span>();
-        <span class='kw'>let</span> <span class='ident'>next</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>next_including_whitespace_and_comments</span>();
-        <span class='kw'>if</span> <span class='ident'>set_position_at_next_iteration</span> {
-            <span class='kw-2'>*</span><span class='ident'>position</span> <span class='op'>=</span> (<span class='ident'>before_this_token</span>, <span class='kw'>match</span> <span class='ident'>next</span> {
-                <span class='prelude-val'>Ok</span>(<span class='kw-2'>ref</span> <span class='ident'>token</span>) <span class='op'>=&gt;</span> <span class='ident'>token</span>.<span class='ident'>serialization_type</span>(),
-                <span class='prelude-val'>Err</span>(()) <span class='op'>=&gt;</span> <span class='ident'>TokenSerializationType</span>::<span class='ident'>nothing</span>(),
+<span class="doccomment">/// Replace `var()` functions in an arbitrary bit of input.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The `substitute_one` callback is called for each `var()` function in `input`.</span>
+<span class="doccomment">/// If the variable has its initial value,</span>
+<span class="doccomment">/// the callback should return `Err(())` and leave `partial_computed_value` unchanged.</span>
+<span class="doccomment">/// Otherwise, it should push the value of the variable (with its own `var()` functions replaced)</span>
+<span class="doccomment">/// to `partial_computed_value` and return `Ok(last_token_type of what was pushed)`</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Return `Err(())` if `input` is invalid at computed-value time.</span>
+<span class="doccomment">/// or `Ok(last_token_type that was pushed to partial_computed_value)` otherwise.</span>
+<span class="kw">fn</span> <span class="ident">substitute_block</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>,
+                       <span class="ident">position</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> (<span class="ident">SourcePosition</span>, <span class="ident">TokenSerializationType</span>),
+                       <span class="ident">partial_computed_value</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ComputedValue</span>,
+                       <span class="ident">substitute_one</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">F</span>)
+                       <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">TokenSerializationType</span>, ()<span class="op">&gt;</span>
+                       <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">Name</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ComputedValue</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">TokenSerializationType</span>, ()<span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">last_token_type</span> <span class="op">=</span> <span class="ident">TokenSerializationType</span>::<span class="ident">nothing</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">set_position_at_next_iteration</span> <span class="op">=</span> <span class="bool-val">false</span>;
+    <span class="kw">loop</span> {
+        <span class="kw">let</span> <span class="ident">before_this_token</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">position</span>();
+        <span class="kw">let</span> <span class="ident">next</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">next_including_whitespace_and_comments</span>();
+        <span class="kw">if</span> <span class="ident">set_position_at_next_iteration</span> {
+            <span class="kw-2">*</span><span class="ident">position</span> <span class="op">=</span> (<span class="ident">before_this_token</span>, <span class="kw">match</span> <span class="ident">next</span> {
+                <span class="prelude-val">Ok</span>(<span class="kw-2">ref</span> <span class="ident">token</span>) <span class="op">=&gt;</span> <span class="ident">token</span>.<span class="ident">serialization_type</span>(),
+                <span class="prelude-val">Err</span>(()) <span class="op">=&gt;</span> <span class="ident">TokenSerializationType</span>::<span class="ident">nothing</span>(),
             });
-            <span class='ident'>set_position_at_next_iteration</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
+            <span class="ident">set_position_at_next_iteration</span> <span class="op">=</span> <span class="bool-val">false</span>;
         }
-        <span class='kw'>let</span> <span class='ident'>token</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>next</span> {
-            <span class='prelude-val'>Ok</span>(<span class='ident'>token</span>) <span class='op'>=&gt;</span> <span class='ident'>token</span>,
-            <span class='prelude-val'>Err</span>(..) <span class='op'>=&gt;</span> <span class='kw'>break</span>,
+        <span class="kw">let</span> <span class="ident">token</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">next</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">token</span>) <span class="op">=&gt;</span> <span class="ident">token</span>,
+            <span class="prelude-val">Err</span>(..) <span class="op">=&gt;</span> <span class="kw">break</span>,
         };
-        <span class='kw'>match</span> <span class='ident'>token</span> {
-            <span class='ident'>Token</span>::<span class='ident'>Function</span>(<span class='kw-2'>ref</span> <span class='ident'>name</span>) <span class='kw'>if</span> <span class='ident'>name</span>.<span class='ident'>eq_ignore_ascii_case</span>(<span class='string'>&quot;var&quot;</span>) <span class='op'>=&gt;</span> {
-                <span class='ident'>partial_computed_value</span>.<span class='ident'>push</span>(
-                    <span class='ident'>input</span>.<span class='ident'>slice</span>(<span class='ident'>position</span>.<span class='number'>0</span>..<span class='ident'>before_this_token</span>), <span class='ident'>position</span>.<span class='number'>1</span>, <span class='ident'>last_token_type</span>);
-                <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>input</span>.<span class='ident'>parse_nested_block</span>(<span class='op'>|</span><span class='ident'>input</span><span class='op'>|</span> {
-                    <span class='comment'>// parse_var_function() ensures neither .unwrap() will fail.</span>
-                    <span class='kw'>let</span> <span class='ident'>name</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>expect_ident</span>().<span class='ident'>unwrap</span>();
-                    <span class='kw'>let</span> <span class='ident'>name</span> <span class='op'>=</span> <span class='ident'>Atom</span>::<span class='ident'>from</span>(<span class='ident'>parse_name</span>(<span class='kw-2'>&amp;</span><span class='ident'>name</span>).<span class='ident'>unwrap</span>());
+        <span class="kw">match</span> <span class="ident">token</span> {
+            <span class="ident">Token</span>::<span class="ident">Function</span>(<span class="kw-2">ref</span> <span class="ident">name</span>) <span class="kw">if</span> <span class="ident">name</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="string">&quot;var&quot;</span>) <span class="op">=&gt;</span> {
+                <span class="ident">partial_computed_value</span>.<span class="ident">push</span>(
+                    <span class="ident">input</span>.<span class="ident">slice</span>(<span class="ident">position</span>.<span class="number">0</span>..<span class="ident">before_this_token</span>), <span class="ident">position</span>.<span class="number">1</span>, <span class="ident">last_token_type</span>);
+                <span class="macro">try</span><span class="macro">!</span>(<span class="ident">input</span>.<span class="ident">parse_nested_block</span>(<span class="op">|</span><span class="ident">input</span><span class="op">|</span> {
+                    <span class="comment">// parse_var_function() ensures neither .unwrap() will fail.</span>
+                    <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">expect_ident</span>().<span class="ident">unwrap</span>();
+                    <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">Atom</span>::<span class="ident">from</span>(<span class="ident">parse_name</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>).<span class="ident">unwrap</span>());
 
-                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>last</span>) <span class='op'>=</span> <span class='ident'>substitute_one</span>(<span class='kw-2'>&amp;</span><span class='ident'>name</span>, <span class='ident'>partial_computed_value</span>) {
-                        <span class='ident'>last_token_type</span> <span class='op'>=</span> <span class='ident'>last</span>;
-                        <span class='comment'>// Skip over the fallback, as `parse_nested_block` would return `Err`</span>
-                        <span class='comment'>// if we don’t consume all of `input`.</span>
-                        <span class='comment'>// FIXME: Add a specialized method to cssparser to do this with less work.</span>
-                        <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(_) <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>next</span>() {}
-                    } <span class='kw'>else</span> {
-                        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>input</span>.<span class='ident'>expect_comma</span>());
-                        <span class='kw'>let</span> <span class='ident'>position</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>position</span>();
-                        <span class='kw'>let</span> <span class='ident'>first_token_type</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>next_including_whitespace_and_comments</span>()
-                            <span class='comment'>// parse_var_function() ensures that .unwrap() will not fail.</span>
-                            .<span class='ident'>unwrap</span>()
-                            .<span class='ident'>serialization_type</span>();
-                        <span class='ident'>input</span>.<span class='ident'>reset</span>(<span class='ident'>position</span>);
-                        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>position</span> <span class='op'>=</span> (<span class='ident'>position</span>, <span class='ident'>first_token_type</span>);
-                        <span class='ident'>last_token_type</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>substitute_block</span>(
-                            <span class='ident'>input</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>position</span>, <span class='ident'>partial_computed_value</span>, <span class='ident'>substitute_one</span>));
-                        <span class='ident'>partial_computed_value</span>.<span class='ident'>push_from</span>(<span class='ident'>position</span>, <span class='ident'>input</span>, <span class='ident'>last_token_type</span>);
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">last</span>) <span class="op">=</span> <span class="ident">substitute_one</span>(<span class="kw-2">&amp;</span><span class="ident">name</span>, <span class="ident">partial_computed_value</span>) {
+                        <span class="ident">last_token_type</span> <span class="op">=</span> <span class="ident">last</span>;
+                        <span class="comment">// Skip over the fallback, as `parse_nested_block` would return `Err`</span>
+                        <span class="comment">// if we don’t consume all of `input`.</span>
+                        <span class="comment">// FIXME: Add a specialized method to cssparser to do this with less work.</span>
+                        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(_) <span class="op">=</span> <span class="ident">input</span>.<span class="ident">next</span>() {}
+                    } <span class="kw">else</span> {
+                        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">input</span>.<span class="ident">expect_comma</span>());
+                        <span class="kw">let</span> <span class="ident">position</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">position</span>();
+                        <span class="kw">let</span> <span class="ident">first_token_type</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">next_including_whitespace_and_comments</span>()
+                            <span class="comment">// parse_var_function() ensures that .unwrap() will not fail.</span>
+                            .<span class="ident">unwrap</span>()
+                            .<span class="ident">serialization_type</span>();
+                        <span class="ident">input</span>.<span class="ident">reset</span>(<span class="ident">position</span>);
+                        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">position</span> <span class="op">=</span> (<span class="ident">position</span>, <span class="ident">first_token_type</span>);
+                        <span class="ident">last_token_type</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">substitute_block</span>(
+                            <span class="ident">input</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">position</span>, <span class="ident">partial_computed_value</span>, <span class="ident">substitute_one</span>));
+                        <span class="ident">partial_computed_value</span>.<span class="ident">push_from</span>(<span class="ident">position</span>, <span class="ident">input</span>, <span class="ident">last_token_type</span>);
                     }
-                    <span class='prelude-val'>Ok</span>(())
+                    <span class="prelude-val">Ok</span>(())
                 }));
-                <span class='ident'>set_position_at_next_iteration</span> <span class='op'>=</span> <span class='bool-val'>true</span>
+                <span class="ident">set_position_at_next_iteration</span> <span class="op">=</span> <span class="bool-val">true</span>
             }
 
-            <span class='ident'>Token</span>::<span class='ident'>Function</span>(_) <span class='op'>|</span>
-            <span class='ident'>Token</span>::<span class='ident'>ParenthesisBlock</span> <span class='op'>|</span>
-            <span class='ident'>Token</span>::<span class='ident'>CurlyBracketBlock</span> <span class='op'>|</span>
-            <span class='ident'>Token</span>::<span class='ident'>SquareBracketBlock</span> <span class='op'>=&gt;</span> {
-                <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>input</span>.<span class='ident'>parse_nested_block</span>(<span class='op'>|</span><span class='ident'>input</span><span class='op'>|</span> {
-                    <span class='ident'>substitute_block</span>(<span class='ident'>input</span>, <span class='ident'>position</span>, <span class='ident'>partial_computed_value</span>, <span class='ident'>substitute_one</span>)
+            <span class="ident">Token</span>::<span class="ident">Function</span>(_) <span class="op">|</span>
+            <span class="ident">Token</span>::<span class="ident">ParenthesisBlock</span> <span class="op">|</span>
+            <span class="ident">Token</span>::<span class="ident">CurlyBracketBlock</span> <span class="op">|</span>
+            <span class="ident">Token</span>::<span class="ident">SquareBracketBlock</span> <span class="op">=&gt;</span> {
+                <span class="macro">try</span><span class="macro">!</span>(<span class="ident">input</span>.<span class="ident">parse_nested_block</span>(<span class="op">|</span><span class="ident">input</span><span class="op">|</span> {
+                    <span class="ident">substitute_block</span>(<span class="ident">input</span>, <span class="ident">position</span>, <span class="ident">partial_computed_value</span>, <span class="ident">substitute_one</span>)
                 }));
-                <span class='comment'>// It’s the same type for CloseCurlyBracket and CloseSquareBracket.</span>
-                <span class='ident'>last_token_type</span> <span class='op'>=</span> <span class='ident'>Token</span>::<span class='ident'>CloseParenthesis</span>.<span class='ident'>serialization_type</span>();
+                <span class="comment">// It’s the same type for CloseCurlyBracket and CloseSquareBracket.</span>
+                <span class="ident">last_token_type</span> <span class="op">=</span> <span class="ident">Token</span>::<span class="ident">CloseParenthesis</span>.<span class="ident">serialization_type</span>();
             }
 
-            _ <span class='op'>=&gt;</span> <span class='ident'>last_token_type</span> <span class='op'>=</span> <span class='ident'>token</span>.<span class='ident'>serialization_type</span>()
+            _ <span class="op">=&gt;</span> <span class="ident">last_token_type</span> <span class="op">=</span> <span class="ident">token</span>.<span class="ident">serialization_type</span>()
         }
     }
-    <span class='comment'>// FIXME: deal with things being implicitly closed at the end of the input. E.g.</span>
-    <span class='comment'>// ```html</span>
-    <span class='comment'>// &lt;div style=&quot;--color: rgb(0,0,0&quot;&gt;</span>
-    <span class='comment'>// &lt;p style=&quot;background: var(--color) var(--image) top left; --image: url(&#39;a.png&quot;&gt;&lt;/p&gt;</span>
-    <span class='comment'>// &lt;/div&gt;</span>
-    <span class='comment'>// ```</span>
-    <span class='prelude-val'>Ok</span>(<span class='ident'>last_token_type</span>)
+    <span class="comment">// FIXME: deal with things being implicitly closed at the end of the input. E.g.</span>
+    <span class="comment">// ```html</span>
+    <span class="comment">// &lt;div style=&quot;--color: rgb(0,0,0&quot;&gt;</span>
+    <span class="comment">// &lt;p style=&quot;background: var(--color) var(--image) top left; --image: url(&#39;a.png&quot;&gt;&lt;/p&gt;</span>
+    <span class="comment">// &lt;/div&gt;</span>
+    <span class="comment">// ```</span>
+    <span class="prelude-val">Ok</span>(<span class="ident">last_token_type</span>)
 }
 
-<span class='doccomment'>/// Replace `var()` functions for a non-custom property.</span>
-<span class='doccomment'>/// Return `Err(())` for invalid at computed time.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>substitute</span>(<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>first_token_type</span>: <span class='ident'>TokenSerializationType</span>,
-                  <span class='ident'>computed_values_map</span>: <span class='kw-2'>&amp;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>Name</span>, <span class='ident'>ComputedValue</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>)
-                  <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>String</span>, ()<span class='op'>&gt;</span> {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>substituted</span> <span class='op'>=</span> <span class='ident'>ComputedValue</span>::<span class='ident'>empty</span>();
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>input</span> <span class='op'>=</span> <span class='ident'>Parser</span>::<span class='ident'>new</span>(<span class='ident'>input</span>);
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>position</span> <span class='op'>=</span> (<span class='ident'>input</span>.<span class='ident'>position</span>(), <span class='ident'>first_token_type</span>);
-    <span class='kw'>let</span> <span class='ident'>last_token_type</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>substitute_block</span>(
-        <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>input</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>position</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>substituted</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>|</span><span class='ident'>name</span>, <span class='ident'>substituted</span><span class='op'>|</span> {
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>value</span>) <span class='op'>=</span> <span class='ident'>computed_values_map</span>.<span class='ident'>as_ref</span>().<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>map</span><span class='op'>|</span> <span class='ident'>map</span>.<span class='ident'>get</span>(<span class='ident'>name</span>)) {
-                <span class='ident'>substituted</span>.<span class='ident'>push_variable</span>(<span class='ident'>value</span>);
-                <span class='prelude-val'>Ok</span>(<span class='ident'>value</span>.<span class='ident'>last_token_type</span>)
-            } <span class='kw'>else</span> {
-                <span class='prelude-val'>Err</span>(())
+<span class="doccomment">/// Replace `var()` functions for a non-custom property.</span>
+<span class="doccomment">/// Return `Err(())` for invalid at computed time.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">substitute</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">first_token_type</span>: <span class="ident">TokenSerializationType</span>,
+                  <span class="ident">computed_values_map</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Name</span>, <span class="ident">ComputedValue</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>)
+                  <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, ()<span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">substituted</span> <span class="op">=</span> <span class="ident">ComputedValue</span>::<span class="ident">empty</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">input</span> <span class="op">=</span> <span class="ident">Parser</span>::<span class="ident">new</span>(<span class="ident">input</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">position</span> <span class="op">=</span> (<span class="ident">input</span>.<span class="ident">position</span>(), <span class="ident">first_token_type</span>);
+    <span class="kw">let</span> <span class="ident">last_token_type</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">substitute_block</span>(
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">input</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">position</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">substituted</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">|</span><span class="ident">name</span>, <span class="ident">substituted</span><span class="op">|</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="ident">computed_values_map</span>.<span class="ident">as_ref</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">map</span><span class="op">|</span> <span class="ident">map</span>.<span class="ident">get</span>(<span class="ident">name</span>)) {
+                <span class="ident">substituted</span>.<span class="ident">push_variable</span>(<span class="ident">value</span>);
+                <span class="prelude-val">Ok</span>(<span class="ident">value</span>.<span class="ident">last_token_type</span>)
+            } <span class="kw">else</span> {
+                <span class="prelude-val">Err</span>(())
             }
         }
     ));
-    <span class='ident'>substituted</span>.<span class='ident'>push_from</span>(<span class='ident'>position</span>, <span class='kw-2'>&amp;</span><span class='ident'>input</span>, <span class='ident'>last_token_type</span>);
-    <span class='prelude-val'>Ok</span>(<span class='ident'>substituted</span>.<span class='ident'>css</span>)
+    <span class="ident">substituted</span>.<span class="ident">push_from</span>(<span class="ident">position</span>, <span class="kw-2">&amp;</span><span class="ident">input</span>, <span class="ident">last_token_type</span>);
+    <span class="prelude-val">Ok</span>(<span class="ident">substituted</span>.<span class="ident">css</span>)
 }
 </pre>
 </section>

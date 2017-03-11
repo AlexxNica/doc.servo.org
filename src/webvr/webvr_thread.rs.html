@@ -420,382 +420,382 @@
 <span id="375">375</span>
 <span id="376">376</span>
 <span id="377">377</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>;
-<span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>::{<span class='ident'>IpcReceiver</span>, <span class='ident'>IpcSender</span>};
-<span class='kw'>use</span> <span class='ident'>msg</span>::<span class='ident'>constellation_msg</span>::<span class='ident'>PipelineId</span>;
-<span class='kw'>use</span> <span class='ident'>script_traits</span>::{<span class='ident'>ConstellationMsg</span>, <span class='ident'>WebVREventMsg</span>};
-<span class='kw'>use</span> <span class='ident'>servo_config</span>::<span class='ident'>prefs</span>::<span class='ident'>PREFS</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::{<span class='ident'>thread</span>, <span class='ident'>time</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::{<span class='ident'>HashMap</span>, <span class='ident'>HashSet</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::{<span class='ident'>Receiver</span>, <span class='ident'>Sender</span>};
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>;
-<span class='kw'>use</span> <span class='ident'>webvr_traits</span>::{<span class='ident'>WebVRMsg</span>, <span class='ident'>WebVRResult</span>};
-<span class='kw'>use</span> <span class='ident'>webvr_traits</span>::<span class='ident'>webvr</span>::<span class='kw-2'>*</span>;
+<span class="kw">use</span> <span class="ident">ipc_channel</span>::<span class="ident">ipc</span>;
+<span class="kw">use</span> <span class="ident">ipc_channel</span>::<span class="ident">ipc</span>::{<span class="ident">IpcReceiver</span>, <span class="ident">IpcSender</span>};
+<span class="kw">use</span> <span class="ident">msg</span>::<span class="ident">constellation_msg</span>::<span class="ident">PipelineId</span>;
+<span class="kw">use</span> <span class="ident">script_traits</span>::{<span class="ident">ConstellationMsg</span>, <span class="ident">WebVREventMsg</span>};
+<span class="kw">use</span> <span class="ident">servo_config</span>::<span class="ident">prefs</span>::<span class="ident">PREFS</span>;
+<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">thread</span>, <span class="ident">time</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::{<span class="ident">HashMap</span>, <span class="ident">HashSet</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>::{<span class="ident">Receiver</span>, <span class="ident">Sender</span>};
+<span class="kw">use</span> <span class="ident">webrender_traits</span>;
+<span class="kw">use</span> <span class="ident">webvr_traits</span>::{<span class="ident">WebVRMsg</span>, <span class="ident">WebVRResult</span>};
+<span class="kw">use</span> <span class="ident">webvr_traits</span>::<span class="ident">webvr</span>::<span class="kw-2">*</span>;
 
-<span class='doccomment'>/// WebVRThread owns native VRDisplays, handles their life cycle inside Servo and</span>
-<span class='doccomment'>/// acts a doorman for untrusted VR requests from DOM Objects. These are the key components</span>
-<span class='doccomment'>///    * WebVRThread::spawn() creates a long living thread that waits for VR Commands from DOM objects</span>
-<span class='doccomment'>///      and handles them in its trusted thread. The back and forth comunication with DOM is implemented</span>
-<span class='doccomment'>///      using IPC-channels. This thread creates the VRServiceManager instance, which handles the life cycle</span>
-<span class='doccomment'>///      of all VR Vendor SDKs and owns all the native VRDisplays. These displays are guaranteed to live while</span>
-<span class='doccomment'>///      the spawned thread is alive. The WebVRThread is unique and it&#39;s closed using the Exit message when the</span>
-<span class='doccomment'>///      whole browser is going to be closed.</span>
-<span class='doccomment'>///    * A Event Polling thread is created in order to implement WebVR Events (connected, disconnected,..).</span>
-<span class='doccomment'>///      This thread wakes up the WebVRThread from time to time by sending a PollEvents message. This thread</span>
-<span class='doccomment'>///      is only created when there is at least one live JavaScript context using the WebVR APIs and shuts down it when</span>
-<span class='doccomment'>///      the tab is closed. A single instance of the thread is used to handle multiple JavaScript contexts.</span>
-<span class='doccomment'>///      Constellation channel is used to notify events to the Script Thread.</span>
-<span class='doccomment'>///    * When the WeVR APIs are used in a tab, it&#39;s pipeline_id is registered using the RegisterContext message. When</span>
-<span class='doccomment'>///      the tab is closed, UnregisterContext message is sent. This way the WebVR thread has a list of the pipeline</span>
-<span class='doccomment'>///      ids using the WebVR APIs. These ids are used to implement privacy guidelines defined in the WebVR Spec.</span>
-<span class='doccomment'>///    * When a JavaScript thread gains access to present to a headset, WebVRThread is not used as a intermediary in</span>
-<span class='doccomment'>///      the VRDisplay.requestAnimationFrame loop in order to minimize latency. A direct communication with WebRender</span>
-<span class='doccomment'>///      is used instead. See WebVRCompositorHandler and the VRCompositorCommanda for more details.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>WebVRThread</span> {
-    <span class='ident'>receiver</span>: <span class='ident'>IpcReceiver</span><span class='op'>&lt;</span><span class='ident'>WebVRMsg</span><span class='op'>&gt;</span>,
-    <span class='ident'>sender</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>WebVRMsg</span><span class='op'>&gt;</span>,
-    <span class='ident'>service</span>: <span class='ident'>VRServiceManager</span>,
-    <span class='ident'>contexts</span>: <span class='ident'>HashSet</span><span class='op'>&lt;</span><span class='ident'>PipelineId</span><span class='op'>&gt;</span>,
-    <span class='ident'>constellation_chan</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>ConstellationMsg</span><span class='op'>&gt;</span>,
-    <span class='ident'>vr_compositor_chan</span>: <span class='ident'>WebVRCompositorSender</span>,
-    <span class='ident'>polling_events</span>: <span class='ident'>bool</span>,
-    <span class='ident'>presenting</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>u64</span>, <span class='ident'>PipelineId</span><span class='op'>&gt;</span>
+<span class="doccomment">/// WebVRThread owns native VRDisplays, handles their life cycle inside Servo and</span>
+<span class="doccomment">/// acts a doorman for untrusted VR requests from DOM Objects. These are the key components</span>
+<span class="doccomment">///    * WebVRThread::spawn() creates a long living thread that waits for VR Commands from DOM objects</span>
+<span class="doccomment">///      and handles them in its trusted thread. The back and forth comunication with DOM is implemented</span>
+<span class="doccomment">///      using IPC-channels. This thread creates the VRServiceManager instance, which handles the life cycle</span>
+<span class="doccomment">///      of all VR Vendor SDKs and owns all the native VRDisplays. These displays are guaranteed to live while</span>
+<span class="doccomment">///      the spawned thread is alive. The WebVRThread is unique and it&#39;s closed using the Exit message when the</span>
+<span class="doccomment">///      whole browser is going to be closed.</span>
+<span class="doccomment">///    * A Event Polling thread is created in order to implement WebVR Events (connected, disconnected,..).</span>
+<span class="doccomment">///      This thread wakes up the WebVRThread from time to time by sending a PollEvents message. This thread</span>
+<span class="doccomment">///      is only created when there is at least one live JavaScript context using the WebVR APIs and shuts down it when</span>
+<span class="doccomment">///      the tab is closed. A single instance of the thread is used to handle multiple JavaScript contexts.</span>
+<span class="doccomment">///      Constellation channel is used to notify events to the Script Thread.</span>
+<span class="doccomment">///    * When the WeVR APIs are used in a tab, it&#39;s pipeline_id is registered using the RegisterContext message. When</span>
+<span class="doccomment">///      the tab is closed, UnregisterContext message is sent. This way the WebVR thread has a list of the pipeline</span>
+<span class="doccomment">///      ids using the WebVR APIs. These ids are used to implement privacy guidelines defined in the WebVR Spec.</span>
+<span class="doccomment">///    * When a JavaScript thread gains access to present to a headset, WebVRThread is not used as a intermediary in</span>
+<span class="doccomment">///      the VRDisplay.requestAnimationFrame loop in order to minimize latency. A direct communication with WebRender</span>
+<span class="doccomment">///      is used instead. See WebVRCompositorHandler and the VRCompositorCommanda for more details.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">WebVRThread</span> {
+    <span class="ident">receiver</span>: <span class="ident">IpcReceiver</span><span class="op">&lt;</span><span class="ident">WebVRMsg</span><span class="op">&gt;</span>,
+    <span class="ident">sender</span>: <span class="ident">IpcSender</span><span class="op">&lt;</span><span class="ident">WebVRMsg</span><span class="op">&gt;</span>,
+    <span class="ident">service</span>: <span class="ident">VRServiceManager</span>,
+    <span class="ident">contexts</span>: <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">PipelineId</span><span class="op">&gt;</span>,
+    <span class="ident">constellation_chan</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">ConstellationMsg</span><span class="op">&gt;</span>,
+    <span class="ident">vr_compositor_chan</span>: <span class="ident">WebVRCompositorSender</span>,
+    <span class="ident">polling_events</span>: <span class="ident">bool</span>,
+    <span class="ident">presenting</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">u64</span>, <span class="ident">PipelineId</span><span class="op">&gt;</span>
 }
 
-<span class='kw'>impl</span> <span class='ident'>WebVRThread</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>receiver</span>: <span class='ident'>IpcReceiver</span><span class='op'>&lt;</span><span class='ident'>WebVRMsg</span><span class='op'>&gt;</span>,
-           <span class='ident'>sender</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>WebVRMsg</span><span class='op'>&gt;</span>,
-           <span class='ident'>constellation_chan</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>ConstellationMsg</span><span class='op'>&gt;</span>,
-           <span class='ident'>vr_compositor_chan</span>: <span class='ident'>WebVRCompositorSender</span>)
-           <span class='op'>-&gt;</span> <span class='ident'>WebVRThread</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>service</span> <span class='op'>=</span> <span class='ident'>VRServiceManager</span>::<span class='ident'>new</span>();
-        <span class='ident'>service</span>.<span class='ident'>register_defaults</span>();
-        <span class='ident'>WebVRThread</span> {
-            <span class='ident'>receiver</span>: <span class='ident'>receiver</span>,
-            <span class='ident'>sender</span>: <span class='ident'>sender</span>,
-            <span class='ident'>service</span>: <span class='ident'>service</span>,
-            <span class='ident'>contexts</span>: <span class='ident'>HashSet</span>::<span class='ident'>new</span>(),
-            <span class='ident'>constellation_chan</span>: <span class='ident'>constellation_chan</span>,
-            <span class='ident'>vr_compositor_chan</span>: <span class='ident'>vr_compositor_chan</span>,
-            <span class='ident'>polling_events</span>: <span class='bool-val'>false</span>,
-            <span class='ident'>presenting</span>: <span class='ident'>HashMap</span>::<span class='ident'>new</span>()
+<span class="kw">impl</span> <span class="ident">WebVRThread</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">receiver</span>: <span class="ident">IpcReceiver</span><span class="op">&lt;</span><span class="ident">WebVRMsg</span><span class="op">&gt;</span>,
+           <span class="ident">sender</span>: <span class="ident">IpcSender</span><span class="op">&lt;</span><span class="ident">WebVRMsg</span><span class="op">&gt;</span>,
+           <span class="ident">constellation_chan</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">ConstellationMsg</span><span class="op">&gt;</span>,
+           <span class="ident">vr_compositor_chan</span>: <span class="ident">WebVRCompositorSender</span>)
+           <span class="op">-&gt;</span> <span class="ident">WebVRThread</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">service</span> <span class="op">=</span> <span class="ident">VRServiceManager</span>::<span class="ident">new</span>();
+        <span class="ident">service</span>.<span class="ident">register_defaults</span>();
+        <span class="ident">WebVRThread</span> {
+            <span class="ident">receiver</span>: <span class="ident">receiver</span>,
+            <span class="ident">sender</span>: <span class="ident">sender</span>,
+            <span class="ident">service</span>: <span class="ident">service</span>,
+            <span class="ident">contexts</span>: <span class="ident">HashSet</span>::<span class="ident">new</span>(),
+            <span class="ident">constellation_chan</span>: <span class="ident">constellation_chan</span>,
+            <span class="ident">vr_compositor_chan</span>: <span class="ident">vr_compositor_chan</span>,
+            <span class="ident">polling_events</span>: <span class="bool-val">false</span>,
+            <span class="ident">presenting</span>: <span class="ident">HashMap</span>::<span class="ident">new</span>()
         }
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>spawn</span>(<span class='ident'>constellation_chan</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>ConstellationMsg</span><span class='op'>&gt;</span>,
-                 <span class='ident'>vr_compositor_chan</span>: <span class='ident'>WebVRCompositorSender</span>)
-                 <span class='op'>-&gt;</span> <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>WebVRMsg</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> (<span class='ident'>sender</span>, <span class='ident'>receiver</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>sender_clone</span> <span class='op'>=</span> <span class='ident'>sender</span>.<span class='ident'>clone</span>();
-        <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;WebVRThread&quot;</span>.<span class='ident'>into</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
-            <span class='ident'>WebVRThread</span>::<span class='ident'>new</span>(<span class='ident'>receiver</span>, <span class='ident'>sender_clone</span>, <span class='ident'>constellation_chan</span>, <span class='ident'>vr_compositor_chan</span>).<span class='ident'>start</span>();
-        }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
-        <span class='ident'>sender</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">spawn</span>(<span class="ident">constellation_chan</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">ConstellationMsg</span><span class="op">&gt;</span>,
+                 <span class="ident">vr_compositor_chan</span>: <span class="ident">WebVRCompositorSender</span>)
+                 <span class="op">-&gt;</span> <span class="ident">IpcSender</span><span class="op">&lt;</span><span class="ident">WebVRMsg</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> (<span class="ident">sender</span>, <span class="ident">receiver</span>) <span class="op">=</span> <span class="ident">ipc</span>::<span class="ident">channel</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">sender_clone</span> <span class="op">=</span> <span class="ident">sender</span>.<span class="ident">clone</span>();
+        <span class="ident">thread</span>::<span class="ident">Builder</span>::<span class="ident">new</span>().<span class="ident">name</span>(<span class="string">&quot;WebVRThread&quot;</span>.<span class="ident">into</span>()).<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">||</span> {
+            <span class="ident">WebVRThread</span>::<span class="ident">new</span>(<span class="ident">receiver</span>, <span class="ident">sender_clone</span>, <span class="ident">constellation_chan</span>, <span class="ident">vr_compositor_chan</span>).<span class="ident">start</span>();
+        }).<span class="ident">expect</span>(<span class="string">&quot;Thread spawning failed&quot;</span>);
+        <span class="ident">sender</span>
     }
 
-    <span class='kw'>fn</span> <span class='ident'>start</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>msg</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>receiver</span>.<span class='ident'>recv</span>() {
-            <span class='kw'>match</span> <span class='ident'>msg</span> {
-                <span class='ident'>WebVRMsg</span>::<span class='ident'>RegisterContext</span>(<span class='ident'>context</span>) <span class='op'>=&gt;</span> {
-                    <span class='self'>self</span>.<span class='ident'>handle_register_context</span>(<span class='ident'>context</span>);
-                    <span class='self'>self</span>.<span class='ident'>schedule_poll_events</span>();
+    <span class="kw">fn</span> <span class="ident">start</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">msg</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">receiver</span>.<span class="ident">recv</span>() {
+            <span class="kw">match</span> <span class="ident">msg</span> {
+                <span class="ident">WebVRMsg</span>::<span class="ident">RegisterContext</span>(<span class="ident">context</span>) <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">handle_register_context</span>(<span class="ident">context</span>);
+                    <span class="self">self</span>.<span class="ident">schedule_poll_events</span>();
                 },
-                <span class='ident'>WebVRMsg</span>::<span class='ident'>UnregisterContext</span>(<span class='ident'>context</span>) <span class='op'>=&gt;</span> {
-                    <span class='self'>self</span>.<span class='ident'>handle_unregister_context</span>(<span class='ident'>context</span>);
+                <span class="ident">WebVRMsg</span>::<span class="ident">UnregisterContext</span>(<span class="ident">context</span>) <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">handle_unregister_context</span>(<span class="ident">context</span>);
                 },
-                <span class='ident'>WebVRMsg</span>::<span class='ident'>PollEvents</span>(<span class='ident'>sender</span>) <span class='op'>=&gt;</span> {
-                    <span class='self'>self</span>.<span class='ident'>poll_events</span>(<span class='ident'>sender</span>);
+                <span class="ident">WebVRMsg</span>::<span class="ident">PollEvents</span>(<span class="ident">sender</span>) <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">poll_events</span>(<span class="ident">sender</span>);
                 },
-                <span class='ident'>WebVRMsg</span>::<span class='ident'>GetDisplays</span>(<span class='ident'>sender</span>) <span class='op'>=&gt;</span> {
-                    <span class='self'>self</span>.<span class='ident'>handle_get_displays</span>(<span class='ident'>sender</span>);
-                    <span class='self'>self</span>.<span class='ident'>schedule_poll_events</span>();
+                <span class="ident">WebVRMsg</span>::<span class="ident">GetDisplays</span>(<span class="ident">sender</span>) <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">handle_get_displays</span>(<span class="ident">sender</span>);
+                    <span class="self">self</span>.<span class="ident">schedule_poll_events</span>();
                 },
-                <span class='ident'>WebVRMsg</span>::<span class='ident'>GetFrameData</span>(<span class='ident'>pipeline_id</span>, <span class='ident'>display_id</span>, <span class='ident'>near</span>, <span class='ident'>far</span>, <span class='ident'>sender</span>) <span class='op'>=&gt;</span> {
-                    <span class='self'>self</span>.<span class='ident'>handle_framedata</span>(<span class='ident'>pipeline_id</span>, <span class='ident'>display_id</span>, <span class='ident'>near</span>, <span class='ident'>far</span>, <span class='ident'>sender</span>);
+                <span class="ident">WebVRMsg</span>::<span class="ident">GetFrameData</span>(<span class="ident">pipeline_id</span>, <span class="ident">display_id</span>, <span class="ident">near</span>, <span class="ident">far</span>, <span class="ident">sender</span>) <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">handle_framedata</span>(<span class="ident">pipeline_id</span>, <span class="ident">display_id</span>, <span class="ident">near</span>, <span class="ident">far</span>, <span class="ident">sender</span>);
                 },
-                <span class='ident'>WebVRMsg</span>::<span class='ident'>ResetPose</span>(<span class='ident'>pipeline_id</span>, <span class='ident'>display_id</span>, <span class='ident'>sender</span>) <span class='op'>=&gt;</span> {
-                    <span class='self'>self</span>.<span class='ident'>handle_reset_pose</span>(<span class='ident'>pipeline_id</span>, <span class='ident'>display_id</span>, <span class='ident'>sender</span>);
+                <span class="ident">WebVRMsg</span>::<span class="ident">ResetPose</span>(<span class="ident">pipeline_id</span>, <span class="ident">display_id</span>, <span class="ident">sender</span>) <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">handle_reset_pose</span>(<span class="ident">pipeline_id</span>, <span class="ident">display_id</span>, <span class="ident">sender</span>);
                 },
-                <span class='ident'>WebVRMsg</span>::<span class='ident'>RequestPresent</span>(<span class='ident'>pipeline_id</span>, <span class='ident'>display_id</span>, <span class='ident'>sender</span>) <span class='op'>=&gt;</span> {
-                    <span class='self'>self</span>.<span class='ident'>handle_request_present</span>(<span class='ident'>pipeline_id</span>, <span class='ident'>display_id</span>, <span class='ident'>sender</span>);
+                <span class="ident">WebVRMsg</span>::<span class="ident">RequestPresent</span>(<span class="ident">pipeline_id</span>, <span class="ident">display_id</span>, <span class="ident">sender</span>) <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">handle_request_present</span>(<span class="ident">pipeline_id</span>, <span class="ident">display_id</span>, <span class="ident">sender</span>);
                 },
-                <span class='ident'>WebVRMsg</span>::<span class='ident'>ExitPresent</span>(<span class='ident'>pipeline_id</span>, <span class='ident'>display_id</span>, <span class='ident'>sender</span>) <span class='op'>=&gt;</span> {
-                    <span class='self'>self</span>.<span class='ident'>handle_exit_present</span>(<span class='ident'>pipeline_id</span>, <span class='ident'>display_id</span>, <span class='ident'>sender</span>);
+                <span class="ident">WebVRMsg</span>::<span class="ident">ExitPresent</span>(<span class="ident">pipeline_id</span>, <span class="ident">display_id</span>, <span class="ident">sender</span>) <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">handle_exit_present</span>(<span class="ident">pipeline_id</span>, <span class="ident">display_id</span>, <span class="ident">sender</span>);
                 },
-                <span class='ident'>WebVRMsg</span>::<span class='ident'>CreateCompositor</span>(<span class='ident'>display_id</span>) <span class='op'>=&gt;</span> {
-                    <span class='self'>self</span>.<span class='ident'>handle_create_compositor</span>(<span class='ident'>display_id</span>);
+                <span class="ident">WebVRMsg</span>::<span class="ident">CreateCompositor</span>(<span class="ident">display_id</span>) <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">handle_create_compositor</span>(<span class="ident">display_id</span>);
                 },
-                <span class='ident'>WebVRMsg</span>::<span class='ident'>Exit</span> <span class='op'>=&gt;</span> {
-                    <span class='kw'>break</span>
+                <span class="ident">WebVRMsg</span>::<span class="ident">Exit</span> <span class="op">=&gt;</span> {
+                    <span class="kw">break</span>
                 },
             }
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_register_context</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>ctx</span>: <span class='ident'>PipelineId</span>) {
-        <span class='self'>self</span>.<span class='ident'>contexts</span>.<span class='ident'>insert</span>(<span class='ident'>ctx</span>);
+    <span class="kw">fn</span> <span class="ident">handle_register_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ctx</span>: <span class="ident">PipelineId</span>) {
+        <span class="self">self</span>.<span class="ident">contexts</span>.<span class="ident">insert</span>(<span class="ident">ctx</span>);
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_unregister_context</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>ctx</span>: <span class='ident'>PipelineId</span>) {
-        <span class='self'>self</span>.<span class='ident'>contexts</span>.<span class='ident'>remove</span>(<span class='kw-2'>&amp;</span><span class='ident'>ctx</span>);
+    <span class="kw">fn</span> <span class="ident">handle_unregister_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ctx</span>: <span class="ident">PipelineId</span>) {
+        <span class="self">self</span>.<span class="ident">contexts</span>.<span class="ident">remove</span>(<span class="kw-2">&amp;</span><span class="ident">ctx</span>);
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_get_displays</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>sender</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>WebVRResult</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>VRDisplayData</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>) {
-        <span class='kw'>let</span> <span class='ident'>displays</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>service</span>.<span class='ident'>get_displays</span>();
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
-        <span class='kw'>for</span> <span class='ident'>display</span> <span class='kw'>in</span> <span class='ident'>displays</span> {
-            <span class='ident'>result</span>.<span class='ident'>push</span>(<span class='ident'>display</span>.<span class='ident'>borrow</span>().<span class='ident'>data</span>());
+    <span class="kw">fn</span> <span class="ident">handle_get_displays</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">sender</span>: <span class="ident">IpcSender</span><span class="op">&lt;</span><span class="ident">WebVRResult</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">VRDisplayData</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>) {
+        <span class="kw">let</span> <span class="ident">displays</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">service</span>.<span class="ident">get_displays</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+        <span class="kw">for</span> <span class="ident">display</span> <span class="kw">in</span> <span class="ident">displays</span> {
+            <span class="ident">result</span>.<span class="ident">push</span>(<span class="ident">display</span>.<span class="ident">borrow</span>().<span class="ident">data</span>());
         }
-        <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='prelude-val'>Ok</span>(<span class='ident'>result</span>)).<span class='ident'>unwrap</span>();
+        <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Ok</span>(<span class="ident">result</span>)).<span class="ident">unwrap</span>();
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_framedata</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                        <span class='ident'>pipeline</span>: <span class='ident'>PipelineId</span>,
-                        <span class='ident'>display_id</span>: <span class='ident'>u64</span>,
-                        <span class='ident'>near</span>: <span class='ident'>f64</span>,
-                        <span class='ident'>far</span>: <span class='ident'>f64</span>,
-                        <span class='ident'>sender</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>WebVRResult</span><span class='op'>&lt;</span><span class='ident'>VRFrameData</span><span class='op'>&gt;&gt;</span>) {
-      <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>access_check</span>(<span class='ident'>pipeline</span>, <span class='ident'>display_id</span>) {
-            <span class='prelude-val'>Ok</span>(<span class='ident'>display</span>) <span class='op'>=&gt;</span> {
-                <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='prelude-val'>Ok</span>(<span class='ident'>display</span>.<span class='ident'>borrow</span>().<span class='ident'>inmediate_frame_data</span>(<span class='ident'>near</span>, <span class='ident'>far</span>))).<span class='ident'>unwrap</span>()
+    <span class="kw">fn</span> <span class="ident">handle_framedata</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+                        <span class="ident">pipeline</span>: <span class="ident">PipelineId</span>,
+                        <span class="ident">display_id</span>: <span class="ident">u64</span>,
+                        <span class="ident">near</span>: <span class="ident">f64</span>,
+                        <span class="ident">far</span>: <span class="ident">f64</span>,
+                        <span class="ident">sender</span>: <span class="ident">IpcSender</span><span class="op">&lt;</span><span class="ident">WebVRResult</span><span class="op">&lt;</span><span class="ident">VRFrameData</span><span class="op">&gt;&gt;</span>) {
+      <span class="kw">match</span> <span class="self">self</span>.<span class="ident">access_check</span>(<span class="ident">pipeline</span>, <span class="ident">display_id</span>) {
+            <span class="prelude-val">Ok</span>(<span class="ident">display</span>) <span class="op">=&gt;</span> {
+                <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Ok</span>(<span class="ident">display</span>.<span class="ident">borrow</span>().<span class="ident">inmediate_frame_data</span>(<span class="ident">near</span>, <span class="ident">far</span>))).<span class="ident">unwrap</span>()
             },
-            <span class='prelude-val'>Err</span>(<span class='ident'>msg</span>) <span class='op'>=&gt;</span> <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='prelude-val'>Err</span>(<span class='ident'>msg</span>.<span class='ident'>into</span>())).<span class='ident'>unwrap</span>()
+            <span class="prelude-val">Err</span>(<span class="ident">msg</span>) <span class="op">=&gt;</span> <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">msg</span>.<span class="ident">into</span>())).<span class="ident">unwrap</span>()
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_reset_pose</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                         <span class='ident'>pipeline</span>: <span class='ident'>PipelineId</span>,
-                         <span class='ident'>display_id</span>: <span class='ident'>u64</span>,
-                         <span class='ident'>sender</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>WebVRResult</span><span class='op'>&lt;</span><span class='ident'>VRDisplayData</span><span class='op'>&gt;&gt;</span>) {
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>access_check</span>(<span class='ident'>pipeline</span>, <span class='ident'>display_id</span>) {
-            <span class='prelude-val'>Ok</span>(<span class='ident'>display</span>) <span class='op'>=&gt;</span> {
-                <span class='ident'>display</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>reset_pose</span>();
-                <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='prelude-val'>Ok</span>(<span class='ident'>display</span>.<span class='ident'>borrow</span>().<span class='ident'>data</span>())).<span class='ident'>unwrap</span>();
+    <span class="kw">fn</span> <span class="ident">handle_reset_pose</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+                         <span class="ident">pipeline</span>: <span class="ident">PipelineId</span>,
+                         <span class="ident">display_id</span>: <span class="ident">u64</span>,
+                         <span class="ident">sender</span>: <span class="ident">IpcSender</span><span class="op">&lt;</span><span class="ident">WebVRResult</span><span class="op">&lt;</span><span class="ident">VRDisplayData</span><span class="op">&gt;&gt;</span>) {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">access_check</span>(<span class="ident">pipeline</span>, <span class="ident">display_id</span>) {
+            <span class="prelude-val">Ok</span>(<span class="ident">display</span>) <span class="op">=&gt;</span> {
+                <span class="ident">display</span>.<span class="ident">borrow_mut</span>().<span class="ident">reset_pose</span>();
+                <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Ok</span>(<span class="ident">display</span>.<span class="ident">borrow</span>().<span class="ident">data</span>())).<span class="ident">unwrap</span>();
             },
-            <span class='prelude-val'>Err</span>(<span class='ident'>msg</span>) <span class='op'>=&gt;</span> {
-                <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='prelude-val'>Err</span>(<span class='ident'>msg</span>.<span class='ident'>into</span>())).<span class='ident'>unwrap</span>()
+            <span class="prelude-val">Err</span>(<span class="ident">msg</span>) <span class="op">=&gt;</span> {
+                <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">msg</span>.<span class="ident">into</span>())).<span class="ident">unwrap</span>()
             }
         }
     }
 
-    <span class='comment'>// This method implements the privacy and security guidelines defined in the WebVR spec.</span>
-    <span class='comment'>// For example a secondary tab is not allowed to read VRDisplay data or stop a VR presentation</span>
-    <span class='comment'>// while the user is having a VR experience in the current tab.</span>
-    <span class='comment'>// These security rules also avoid multithreading race conditions between WebVRThread and</span>
-    <span class='comment'>// Webrender thread. See WebVRCompositorHandler implementation notes for more details about this.</span>
-    <span class='kw'>fn</span> <span class='ident'>access_check</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>pipeline</span>: <span class='ident'>PipelineId</span>, <span class='ident'>display_id</span>: <span class='ident'>u64</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>VRDisplayPtr</span>, <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span><span class='op'>&gt;</span> {
-        <span class='kw'>if</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>presenting</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>display_id</span>).<span class='ident'>unwrap_or</span>(<span class='kw-2'>&amp;</span><span class='ident'>pipeline</span>) <span class='op'>!=</span> <span class='ident'>pipeline</span> {
-            <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='string'>&quot;No access granted to this Display because it&#39;s presenting on other JavaScript Tab&quot;</span>);
+    <span class="comment">// This method implements the privacy and security guidelines defined in the WebVR spec.</span>
+    <span class="comment">// For example a secondary tab is not allowed to read VRDisplay data or stop a VR presentation</span>
+    <span class="comment">// while the user is having a VR experience in the current tab.</span>
+    <span class="comment">// These security rules also avoid multithreading race conditions between WebVRThread and</span>
+    <span class="comment">// Webrender thread. See WebVRCompositorHandler implementation notes for more details about this.</span>
+    <span class="kw">fn</span> <span class="ident">access_check</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">pipeline</span>: <span class="ident">PipelineId</span>, <span class="ident">display_id</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">VRDisplayPtr</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">presenting</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">display_id</span>).<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="ident">pipeline</span>) <span class="op">!=</span> <span class="ident">pipeline</span> {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="string">&quot;No access granted to this Display because it&#39;s presenting on other JavaScript Tab&quot;</span>);
         }
-        <span class='self'>self</span>.<span class='ident'>service</span>.<span class='ident'>get_display</span>(<span class='ident'>display_id</span>).<span class='ident'>ok_or</span>(<span class='string'>&quot;Device not found&quot;</span>)
+        <span class="self">self</span>.<span class="ident">service</span>.<span class="ident">get_display</span>(<span class="ident">display_id</span>).<span class="ident">ok_or</span>(<span class="string">&quot;Device not found&quot;</span>)
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_request_present</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                              <span class='ident'>pipeline</span>: <span class='ident'>PipelineId</span>,
-                              <span class='ident'>display_id</span>: <span class='ident'>u64</span>,
-                              <span class='ident'>sender</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>WebVRResult</span><span class='op'>&lt;</span>()<span class='op'>&gt;&gt;</span>) {
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>access_check</span>(<span class='ident'>pipeline</span>, <span class='ident'>display_id</span>).<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>d</span><span class='op'>|</span> <span class='ident'>d</span>.<span class='ident'>clone</span>()) {
-            <span class='prelude-val'>Ok</span>(<span class='ident'>display</span>) <span class='op'>=&gt;</span> {
-                <span class='self'>self</span>.<span class='ident'>presenting</span>.<span class='ident'>insert</span>(<span class='ident'>display_id</span>, <span class='ident'>pipeline</span>);
-                <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='ident'>display</span>.<span class='ident'>borrow</span>().<span class='ident'>data</span>();
-                <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='prelude-val'>Ok</span>(())).<span class='ident'>unwrap</span>();
-                <span class='self'>self</span>.<span class='ident'>notify_event</span>(<span class='ident'>VRDisplayEvent</span>::<span class='ident'>PresentChange</span>(<span class='ident'>data</span>, <span class='bool-val'>true</span>));
+    <span class="kw">fn</span> <span class="ident">handle_request_present</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+                              <span class="ident">pipeline</span>: <span class="ident">PipelineId</span>,
+                              <span class="ident">display_id</span>: <span class="ident">u64</span>,
+                              <span class="ident">sender</span>: <span class="ident">IpcSender</span><span class="op">&lt;</span><span class="ident">WebVRResult</span><span class="op">&lt;</span>()<span class="op">&gt;&gt;</span>) {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">access_check</span>(<span class="ident">pipeline</span>, <span class="ident">display_id</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">d</span><span class="op">|</span> <span class="ident">d</span>.<span class="ident">clone</span>()) {
+            <span class="prelude-val">Ok</span>(<span class="ident">display</span>) <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">presenting</span>.<span class="ident">insert</span>(<span class="ident">display_id</span>, <span class="ident">pipeline</span>);
+                <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">display</span>.<span class="ident">borrow</span>().<span class="ident">data</span>();
+                <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Ok</span>(())).<span class="ident">unwrap</span>();
+                <span class="self">self</span>.<span class="ident">notify_event</span>(<span class="ident">VRDisplayEvent</span>::<span class="ident">PresentChange</span>(<span class="ident">data</span>, <span class="bool-val">true</span>));
             },
-            <span class='prelude-val'>Err</span>(<span class='ident'>msg</span>) <span class='op'>=&gt;</span> {
-                <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='prelude-val'>Err</span>(<span class='ident'>msg</span>.<span class='ident'>into</span>())).<span class='ident'>unwrap</span>();
+            <span class="prelude-val">Err</span>(<span class="ident">msg</span>) <span class="op">=&gt;</span> {
+                <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">msg</span>.<span class="ident">into</span>())).<span class="ident">unwrap</span>();
             }
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_exit_present</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                         <span class='ident'>pipeline</span>: <span class='ident'>PipelineId</span>,
-                         <span class='ident'>display_id</span>: <span class='ident'>u64</span>,
-                         <span class='ident'>sender</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>WebVRResult</span><span class='op'>&lt;</span>()<span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>) {
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>access_check</span>(<span class='ident'>pipeline</span>, <span class='ident'>display_id</span>).<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>d</span><span class='op'>|</span> <span class='ident'>d</span>.<span class='ident'>clone</span>()) {
-            <span class='prelude-val'>Ok</span>(<span class='ident'>display</span>) <span class='op'>=&gt;</span> {
-                <span class='self'>self</span>.<span class='ident'>presenting</span>.<span class='ident'>remove</span>(<span class='kw-2'>&amp;</span><span class='ident'>display_id</span>);
-                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>sender</span>) <span class='op'>=</span> <span class='ident'>sender</span> {
-                    <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='prelude-val'>Ok</span>(())).<span class='ident'>unwrap</span>();
+    <span class="kw">fn</span> <span class="ident">handle_exit_present</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+                         <span class="ident">pipeline</span>: <span class="ident">PipelineId</span>,
+                         <span class="ident">display_id</span>: <span class="ident">u64</span>,
+                         <span class="ident">sender</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpcSender</span><span class="op">&lt;</span><span class="ident">WebVRResult</span><span class="op">&lt;</span>()<span class="op">&gt;&gt;</span><span class="op">&gt;</span>) {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">access_check</span>(<span class="ident">pipeline</span>, <span class="ident">display_id</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">d</span><span class="op">|</span> <span class="ident">d</span>.<span class="ident">clone</span>()) {
+            <span class="prelude-val">Ok</span>(<span class="ident">display</span>) <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">presenting</span>.<span class="ident">remove</span>(<span class="kw-2">&amp;</span><span class="ident">display_id</span>);
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sender</span>) <span class="op">=</span> <span class="ident">sender</span> {
+                    <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Ok</span>(())).<span class="ident">unwrap</span>();
                 }
-                <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='ident'>display</span>.<span class='ident'>borrow</span>().<span class='ident'>data</span>();
-                <span class='self'>self</span>.<span class='ident'>notify_event</span>(<span class='ident'>VRDisplayEvent</span>::<span class='ident'>PresentChange</span>(<span class='ident'>data</span>, <span class='bool-val'>false</span>));
+                <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">display</span>.<span class="ident">borrow</span>().<span class="ident">data</span>();
+                <span class="self">self</span>.<span class="ident">notify_event</span>(<span class="ident">VRDisplayEvent</span>::<span class="ident">PresentChange</span>(<span class="ident">data</span>, <span class="bool-val">false</span>));
             },
-            <span class='prelude-val'>Err</span>(<span class='ident'>msg</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>sender</span>) <span class='op'>=</span> <span class='ident'>sender</span> {
-                    <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='prelude-val'>Err</span>(<span class='ident'>msg</span>.<span class='ident'>into</span>())).<span class='ident'>unwrap</span>();
+            <span class="prelude-val">Err</span>(<span class="ident">msg</span>) <span class="op">=&gt;</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sender</span>) <span class="op">=</span> <span class="ident">sender</span> {
+                    <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">msg</span>.<span class="ident">into</span>())).<span class="ident">unwrap</span>();
                 }
             }
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_create_compositor</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>display_id</span>: <span class='ident'>u64</span>) {
-        <span class='kw'>let</span> <span class='ident'>compositor</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>service</span>.<span class='ident'>get_display</span>(<span class='ident'>display_id</span>).<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>d</span><span class='op'>|</span> <span class='ident'>WebVRCompositor</span>(<span class='ident'>d</span>.<span class='ident'>as_ptr</span>()));
-        <span class='self'>self</span>.<span class='ident'>vr_compositor_chan</span>.<span class='ident'>send</span>(<span class='ident'>compositor</span>).<span class='ident'>unwrap</span>();
+    <span class="kw">fn</span> <span class="ident">handle_create_compositor</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">display_id</span>: <span class="ident">u64</span>) {
+        <span class="kw">let</span> <span class="ident">compositor</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">service</span>.<span class="ident">get_display</span>(<span class="ident">display_id</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">d</span><span class="op">|</span> <span class="ident">WebVRCompositor</span>(<span class="ident">d</span>.<span class="ident">as_ptr</span>()));
+        <span class="self">self</span>.<span class="ident">vr_compositor_chan</span>.<span class="ident">send</span>(<span class="ident">compositor</span>).<span class="ident">unwrap</span>();
     }
 
-    <span class='kw'>fn</span> <span class='ident'>poll_events</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>sender</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>bool</span><span class='op'>&gt;</span>) {
-        <span class='kw'>loop</span> {
-            <span class='kw'>let</span> <span class='ident'>events</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>service</span>.<span class='ident'>poll_events</span>();
-            <span class='kw'>if</span> <span class='ident'>events</span>.<span class='ident'>is_empty</span>() {
-                <span class='kw'>break</span>;
+    <span class="kw">fn</span> <span class="ident">poll_events</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">sender</span>: <span class="ident">IpcSender</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>) {
+        <span class="kw">loop</span> {
+            <span class="kw">let</span> <span class="ident">events</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">service</span>.<span class="ident">poll_events</span>();
+            <span class="kw">if</span> <span class="ident">events</span>.<span class="ident">is_empty</span>() {
+                <span class="kw">break</span>;
             }
-            <span class='self'>self</span>.<span class='ident'>notify_events</span>(<span class='ident'>events</span>)
+            <span class="self">self</span>.<span class="ident">notify_events</span>(<span class="ident">events</span>)
         }
 
-        <span class='comment'>// Stop polling events if the callers are not using VR</span>
-        <span class='self'>self</span>.<span class='ident'>polling_events</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>contexts</span>.<span class='ident'>len</span>() <span class='op'>&gt;</span> <span class='number'>0</span>;
-        <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='self'>self</span>.<span class='ident'>polling_events</span>).<span class='ident'>unwrap</span>();
+        <span class="comment">// Stop polling events if the callers are not using VR</span>
+        <span class="self">self</span>.<span class="ident">polling_events</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">contexts</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">0</span>;
+        <span class="ident">sender</span>.<span class="ident">send</span>(<span class="self">self</span>.<span class="ident">polling_events</span>).<span class="ident">unwrap</span>();
     }
 
-    <span class='kw'>fn</span> <span class='ident'>notify_events</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>events</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>VRDisplayEvent</span><span class='op'>&gt;</span>) {
-        <span class='kw'>let</span> <span class='ident'>pipeline_ids</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>PipelineId</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>contexts</span>.<span class='ident'>iter</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>c</span><span class='op'>|</span> <span class='kw-2'>*</span><span class='ident'>c</span>).<span class='ident'>collect</span>();
-        <span class='kw'>for</span> <span class='ident'>event</span> <span class='kw'>in</span> <span class='ident'>events</span> {
-            <span class='kw'>let</span> <span class='ident'>event</span> <span class='op'>=</span> <span class='ident'>WebVREventMsg</span>::<span class='ident'>DisplayEvent</span>(<span class='ident'>event</span>);
-            <span class='self'>self</span>.<span class='ident'>constellation_chan</span>.<span class='ident'>send</span>(<span class='ident'>ConstellationMsg</span>::<span class='ident'>WebVREvent</span>(<span class='ident'>pipeline_ids</span>.<span class='ident'>clone</span>(), <span class='ident'>event</span>)).<span class='ident'>unwrap</span>();
+    <span class="kw">fn</span> <span class="ident">notify_events</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">events</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">VRDisplayEvent</span><span class="op">&gt;</span>) {
+        <span class="kw">let</span> <span class="ident">pipeline_ids</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">PipelineId</span><span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">contexts</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">c</span>).<span class="ident">collect</span>();
+        <span class="kw">for</span> <span class="ident">event</span> <span class="kw">in</span> <span class="ident">events</span> {
+            <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">WebVREventMsg</span>::<span class="ident">DisplayEvent</span>(<span class="ident">event</span>);
+            <span class="self">self</span>.<span class="ident">constellation_chan</span>.<span class="ident">send</span>(<span class="ident">ConstellationMsg</span>::<span class="ident">WebVREvent</span>(<span class="ident">pipeline_ids</span>.<span class="ident">clone</span>(), <span class="ident">event</span>)).<span class="ident">unwrap</span>();
         }
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>notify_event</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>event</span>: <span class='ident'>VRDisplayEvent</span>) {
-        <span class='self'>self</span>.<span class='ident'>notify_events</span>(<span class='macro'>vec</span><span class='macro'>!</span>[<span class='ident'>event</span>]);
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">notify_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="ident">VRDisplayEvent</span>) {
+        <span class="self">self</span>.<span class="ident">notify_events</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">event</span>]);
     }
 
-    <span class='kw'>fn</span> <span class='ident'>schedule_poll_events</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>service</span>.<span class='ident'>is_initialized</span>() <span class='op'>||</span> <span class='self'>self</span>.<span class='ident'>polling_events</span> {
-            <span class='kw'>return</span>;
+    <span class="kw">fn</span> <span class="ident">schedule_poll_events</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">service</span>.<span class="ident">is_initialized</span>() <span class="op">||</span> <span class="self">self</span>.<span class="ident">polling_events</span> {
+            <span class="kw">return</span>;
         }
-        <span class='self'>self</span>.<span class='ident'>polling_events</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
-        <span class='kw'>let</span> <span class='ident'>webvr_thread</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>sender</span>.<span class='ident'>clone</span>();
-        <span class='kw'>let</span> (<span class='ident'>sender</span>, <span class='ident'>receiver</span>) <span class='op'>=</span> <span class='ident'>ipc</span>::<span class='ident'>channel</span>().<span class='ident'>unwrap</span>();
+        <span class="self">self</span>.<span class="ident">polling_events</span> <span class="op">=</span> <span class="bool-val">true</span>;
+        <span class="kw">let</span> <span class="ident">webvr_thread</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">sender</span>.<span class="ident">clone</span>();
+        <span class="kw">let</span> (<span class="ident">sender</span>, <span class="ident">receiver</span>) <span class="op">=</span> <span class="ident">ipc</span>::<span class="ident">channel</span>().<span class="ident">unwrap</span>();
 
-        <span class='comment'>// Defines the polling interval time in ms for VR Events such as VRDisplay connected, disconnected, etc.</span>
-        <span class='kw'>let</span> <span class='ident'>polling_interval</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='ident'>PREFS</span>.<span class='ident'>get</span>(<span class='string'>&quot;dom.webvr.event_polling_interval&quot;</span>).<span class='ident'>as_u64</span>().<span class='ident'>unwrap_or</span>(<span class='number'>500</span>);
+        <span class="comment">// Defines the polling interval time in ms for VR Events such as VRDisplay connected, disconnected, etc.</span>
+        <span class="kw">let</span> <span class="ident">polling_interval</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">PREFS</span>.<span class="ident">get</span>(<span class="string">&quot;dom.webvr.event_polling_interval&quot;</span>).<span class="ident">as_u64</span>().<span class="ident">unwrap_or</span>(<span class="number">500</span>);
 
-        <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;WebVRPollEvents&quot;</span>.<span class='ident'>into</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
-            <span class='kw'>loop</span> {
-                <span class='kw'>if</span> <span class='ident'>webvr_thread</span>.<span class='ident'>send</span>(<span class='ident'>WebVRMsg</span>::<span class='ident'>PollEvents</span>(<span class='ident'>sender</span>.<span class='ident'>clone</span>())).<span class='ident'>is_err</span>() {
-                    <span class='comment'>// WebVR Thread closed</span>
-                    <span class='kw'>break</span>;
+        <span class="ident">thread</span>::<span class="ident">Builder</span>::<span class="ident">new</span>().<span class="ident">name</span>(<span class="string">&quot;WebVRPollEvents&quot;</span>.<span class="ident">into</span>()).<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">||</span> {
+            <span class="kw">loop</span> {
+                <span class="kw">if</span> <span class="ident">webvr_thread</span>.<span class="ident">send</span>(<span class="ident">WebVRMsg</span>::<span class="ident">PollEvents</span>(<span class="ident">sender</span>.<span class="ident">clone</span>())).<span class="ident">is_err</span>() {
+                    <span class="comment">// WebVR Thread closed</span>
+                    <span class="kw">break</span>;
                 }
-                <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>receiver</span>.<span class='ident'>recv</span>().<span class='ident'>unwrap_or</span>(<span class='bool-val'>false</span>) {
-                    <span class='comment'>// WebVR Thread asked to unschedule this thread</span>
-                    <span class='kw'>break</span>;
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">receiver</span>.<span class="ident">recv</span>().<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>) {
+                    <span class="comment">// WebVR Thread asked to unschedule this thread</span>
+                    <span class="kw">break</span>;
                 }
-                <span class='ident'>thread</span>::<span class='ident'>sleep</span>(<span class='ident'>time</span>::<span class='ident'>Duration</span>::<span class='ident'>from_millis</span>(<span class='ident'>polling_interval</span>));
+                <span class="ident">thread</span>::<span class="ident">sleep</span>(<span class="ident">time</span>::<span class="ident">Duration</span>::<span class="ident">from_millis</span>(<span class="ident">polling_interval</span>));
             }
-        }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
+        }).<span class="ident">expect</span>(<span class="string">&quot;Thread spawning failed&quot;</span>);
     }
 }
 
-<span class='doccomment'>/// Notes about WebVRCompositorHandler implementation:</span>
-<span class='doccomment'>/// Raw pointers are used instead of Arc&lt;Mutex&gt; as a heavy optimization for latency reasons.</span>
-<span class='doccomment'>/// This also avoids &quot;JS DDoS&quot; attacks: like a secondary JavaScript tab degrading performance</span>
-<span class='doccomment'>/// by flooding the WebVRThread with messages while the main JavaScript tab is presenting to the headset.</span>
-<span class='doccomment'>/// Multithreading won&#39;t be a problem because:</span>
-<span class='doccomment'>///    * Thanks to the security rules implemented in the WebVRThread, when a VRDisplay is in a presenting loop</span>
-<span class='doccomment'>///      no other JSContext is granted access to the VRDisplay. So really there aren’t multithreading race conditions.</span>
-<span class='doccomment'>///    * VRDisplay implementations are designed to allow calling compositor functions</span>
-<span class='doccomment'>///      in another thread by using the Send + Sync traits.</span>
-<span class='doccomment'>/// VRDisplays pointers are guaranteed to be valid memory:</span>
-<span class='doccomment'>///    * VRDisplays are owned by the VRServiceManager which lives in the WebVRThread.</span>
-<span class='doccomment'>///    * WebVRCompositorHandler is stopped automatically when a JS tab is closed or the whole browser is closed.</span>
-<span class='doccomment'>///    * WebVRThread and its VRDisplays are destroyed after all tabs are dropped and the browser is about to exit.</span>
-<span class='doccomment'>///      WebVRThread is closed using the Exit message.</span>
+<span class="doccomment">/// Notes about WebVRCompositorHandler implementation:</span>
+<span class="doccomment">/// Raw pointers are used instead of Arc&lt;Mutex&gt; as a heavy optimization for latency reasons.</span>
+<span class="doccomment">/// This also avoids &quot;JS DDoS&quot; attacks: like a secondary JavaScript tab degrading performance</span>
+<span class="doccomment">/// by flooding the WebVRThread with messages while the main JavaScript tab is presenting to the headset.</span>
+<span class="doccomment">/// Multithreading won&#39;t be a problem because:</span>
+<span class="doccomment">///    * Thanks to the security rules implemented in the WebVRThread, when a VRDisplay is in a presenting loop</span>
+<span class="doccomment">///      no other JSContext is granted access to the VRDisplay. So really there aren’t multithreading race conditions.</span>
+<span class="doccomment">///    * VRDisplay implementations are designed to allow calling compositor functions</span>
+<span class="doccomment">///      in another thread by using the Send + Sync traits.</span>
+<span class="doccomment">/// VRDisplays pointers are guaranteed to be valid memory:</span>
+<span class="doccomment">///    * VRDisplays are owned by the VRServiceManager which lives in the WebVRThread.</span>
+<span class="doccomment">///    * WebVRCompositorHandler is stopped automatically when a JS tab is closed or the whole browser is closed.</span>
+<span class="doccomment">///    * WebVRThread and its VRDisplays are destroyed after all tabs are dropped and the browser is about to exit.</span>
+<span class="doccomment">///      WebVRThread is closed using the Exit message.</span>
 
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>WebVRCompositor</span>(<span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>VRDisplay</span>);
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>WebVRCompositorHandler</span> {
-    <span class='ident'>compositors</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>webrender_traits</span>::<span class='ident'>VRCompositorId</span>, <span class='ident'>WebVRCompositor</span><span class='op'>&gt;</span>,
-    <span class='ident'>webvr_thread_receiver</span>: <span class='ident'>Receiver</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>WebVRCompositor</span><span class='op'>&gt;&gt;</span>,
-    <span class='ident'>webvr_thread_sender</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>WebVRMsg</span><span class='op'>&gt;&gt;</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">WebVRCompositor</span>(<span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">VRDisplay</span>);
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">WebVRCompositorHandler</span> {
+    <span class="ident">compositors</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">webrender_traits</span>::<span class="ident">VRCompositorId</span>, <span class="ident">WebVRCompositor</span><span class="op">&gt;</span>,
+    <span class="ident">webvr_thread_receiver</span>: <span class="ident">Receiver</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">WebVRCompositor</span><span class="op">&gt;&gt;</span>,
+    <span class="ident">webvr_thread_sender</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpcSender</span><span class="op">&lt;</span><span class="ident">WebVRMsg</span><span class="op">&gt;&gt;</span>
 }
 
-<span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unsafe_code</span>)]</span>
-<span class='kw'>unsafe</span> <span class='kw'>impl</span> <span class='ident'>Send</span> <span class='kw'>for</span> <span class='ident'>WebVRCompositor</span> {}
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unsafe_code</span>)]</span>
+<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">WebVRCompositor</span> {}
 
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>WebVRCompositorSender</span> <span class='op'>=</span> <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>WebVRCompositor</span><span class='op'>&gt;&gt;</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">WebVRCompositorSender</span> <span class="op">=</span> <span class="ident">Sender</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">WebVRCompositor</span><span class="op">&gt;&gt;</span>;
 
-<span class='kw'>impl</span> <span class='ident'>WebVRCompositorHandler</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> (<span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>WebVRCompositorHandler</span><span class='op'>&gt;</span>, <span class='ident'>WebVRCompositorSender</span>) {
-        <span class='kw'>let</span> (<span class='ident'>sender</span>, <span class='ident'>receiver</span>) <span class='op'>=</span> <span class='ident'>mpsc</span>::<span class='ident'>channel</span>();
-        <span class='kw'>let</span> <span class='ident'>instance</span> <span class='op'>=</span> <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>WebVRCompositorHandler</span> {
-            <span class='ident'>compositors</span>: <span class='ident'>HashMap</span>::<span class='ident'>new</span>(),
-            <span class='ident'>webvr_thread_receiver</span>: <span class='ident'>receiver</span>,
-            <span class='ident'>webvr_thread_sender</span>: <span class='prelude-val'>None</span>
+<span class="kw">impl</span> <span class="ident">WebVRCompositorHandler</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> (<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">WebVRCompositorHandler</span><span class="op">&gt;</span>, <span class="ident">WebVRCompositorSender</span>) {
+        <span class="kw">let</span> (<span class="ident">sender</span>, <span class="ident">receiver</span>) <span class="op">=</span> <span class="ident">mpsc</span>::<span class="ident">channel</span>();
+        <span class="kw">let</span> <span class="ident">instance</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">WebVRCompositorHandler</span> {
+            <span class="ident">compositors</span>: <span class="ident">HashMap</span>::<span class="ident">new</span>(),
+            <span class="ident">webvr_thread_receiver</span>: <span class="ident">receiver</span>,
+            <span class="ident">webvr_thread_sender</span>: <span class="prelude-val">None</span>
         });
 
-        (<span class='ident'>instance</span>, <span class='ident'>sender</span>)
+        (<span class="ident">instance</span>, <span class="ident">sender</span>)
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>webrender_traits</span>::<span class='ident'>VRCompositorHandler</span> <span class='kw'>for</span> <span class='ident'>WebVRCompositorHandler</span> {
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unsafe_code</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>handle</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>cmd</span>: <span class='ident'>webrender_traits</span>::<span class='ident'>VRCompositorCommand</span>, <span class='ident'>texture_id</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>u32</span><span class='op'>&gt;</span>) {
-        <span class='kw'>match</span> <span class='ident'>cmd</span> {
-            <span class='ident'>webrender_traits</span>::<span class='ident'>VRCompositorCommand</span>::<span class='ident'>Create</span>(<span class='ident'>compositor_id</span>) <span class='op'>=&gt;</span> {
-                <span class='self'>self</span>.<span class='ident'>create_compositor</span>(<span class='ident'>compositor_id</span>);
+<span class="kw">impl</span> <span class="ident">webrender_traits</span>::<span class="ident">VRCompositorHandler</span> <span class="kw">for</span> <span class="ident">WebVRCompositorHandler</span> {
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unsafe_code</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">cmd</span>: <span class="ident">webrender_traits</span>::<span class="ident">VRCompositorCommand</span>, <span class="ident">texture_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>) {
+        <span class="kw">match</span> <span class="ident">cmd</span> {
+            <span class="ident">webrender_traits</span>::<span class="ident">VRCompositorCommand</span>::<span class="ident">Create</span>(<span class="ident">compositor_id</span>) <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">create_compositor</span>(<span class="ident">compositor_id</span>);
             }
-            <span class='ident'>webrender_traits</span>::<span class='ident'>VRCompositorCommand</span>::<span class='ident'>SyncPoses</span>(<span class='ident'>compositor_id</span>, <span class='ident'>near</span>, <span class='ident'>far</span>, <span class='ident'>sender</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>compositor</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>compositors</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>compositor_id</span>) {
-                    <span class='kw'>let</span> <span class='ident'>pose</span> <span class='op'>=</span> <span class='kw'>unsafe</span> {
-                        (<span class='kw-2'>*</span><span class='ident'>compositor</span>.<span class='number'>0</span>).<span class='ident'>sync_poses</span>();
-                        (<span class='kw-2'>*</span><span class='ident'>compositor</span>.<span class='number'>0</span>).<span class='ident'>synced_frame_data</span>(<span class='ident'>near</span>, <span class='ident'>far</span>).<span class='ident'>to_bytes</span>()
+            <span class="ident">webrender_traits</span>::<span class="ident">VRCompositorCommand</span>::<span class="ident">SyncPoses</span>(<span class="ident">compositor_id</span>, <span class="ident">near</span>, <span class="ident">far</span>, <span class="ident">sender</span>) <span class="op">=&gt;</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">compositor</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">compositors</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">compositor_id</span>) {
+                    <span class="kw">let</span> <span class="ident">pose</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+                        (<span class="kw-2">*</span><span class="ident">compositor</span>.<span class="number">0</span>).<span class="ident">sync_poses</span>();
+                        (<span class="kw-2">*</span><span class="ident">compositor</span>.<span class="number">0</span>).<span class="ident">synced_frame_data</span>(<span class="ident">near</span>, <span class="ident">far</span>).<span class="ident">to_bytes</span>()
                     };
-                    <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='prelude-val'>Ok</span>(<span class='ident'>pose</span>));
-                } <span class='kw'>else</span> {
-                    <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='prelude-val'>Err</span>(()));
+                    <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Ok</span>(<span class="ident">pose</span>));
+                } <span class="kw">else</span> {
+                    <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Err</span>(()));
                 }
             }
-            <span class='ident'>webrender_traits</span>::<span class='ident'>VRCompositorCommand</span>::<span class='ident'>SubmitFrame</span>(<span class='ident'>compositor_id</span>, <span class='ident'>left_bounds</span>, <span class='ident'>right_bounds</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>compositor</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>compositors</span>.<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>compositor_id</span>) {
-                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>texture_id</span>) <span class='op'>=</span> <span class='ident'>texture_id</span> {
-                        <span class='kw'>let</span> <span class='ident'>layer</span> <span class='op'>=</span> <span class='ident'>VRLayer</span> {
-                            <span class='ident'>texture_id</span>: <span class='ident'>texture_id</span>,
-                            <span class='ident'>left_bounds</span>: <span class='ident'>left_bounds</span>,
-                            <span class='ident'>right_bounds</span>: <span class='ident'>right_bounds</span>
+            <span class="ident">webrender_traits</span>::<span class="ident">VRCompositorCommand</span>::<span class="ident">SubmitFrame</span>(<span class="ident">compositor_id</span>, <span class="ident">left_bounds</span>, <span class="ident">right_bounds</span>) <span class="op">=&gt;</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">compositor</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">compositors</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">compositor_id</span>) {
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">texture_id</span>) <span class="op">=</span> <span class="ident">texture_id</span> {
+                        <span class="kw">let</span> <span class="ident">layer</span> <span class="op">=</span> <span class="ident">VRLayer</span> {
+                            <span class="ident">texture_id</span>: <span class="ident">texture_id</span>,
+                            <span class="ident">left_bounds</span>: <span class="ident">left_bounds</span>,
+                            <span class="ident">right_bounds</span>: <span class="ident">right_bounds</span>
                         };
-                        <span class='kw'>unsafe</span> {
-                            (<span class='kw-2'>*</span><span class='ident'>compositor</span>.<span class='number'>0</span>).<span class='ident'>submit_frame</span>(<span class='kw-2'>&amp;</span><span class='ident'>layer</span>);
+                        <span class="kw">unsafe</span> {
+                            (<span class="kw-2">*</span><span class="ident">compositor</span>.<span class="number">0</span>).<span class="ident">submit_frame</span>(<span class="kw-2">&amp;</span><span class="ident">layer</span>);
                         }
                     }
                 }
             }
-            <span class='ident'>webrender_traits</span>::<span class='ident'>VRCompositorCommand</span>::<span class='ident'>Release</span>(<span class='ident'>compositor_id</span>) <span class='op'>=&gt;</span> {
-                <span class='self'>self</span>.<span class='ident'>compositors</span>.<span class='ident'>remove</span>(<span class='kw-2'>&amp;</span><span class='ident'>compositor_id</span>);
+            <span class="ident">webrender_traits</span>::<span class="ident">VRCompositorCommand</span>::<span class="ident">Release</span>(<span class="ident">compositor_id</span>) <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">compositors</span>.<span class="ident">remove</span>(<span class="kw-2">&amp;</span><span class="ident">compositor_id</span>);
             }
         }
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>WebVRCompositorHandler</span> {
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unsafe_code</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>create_compositor</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>display_id</span>: <span class='ident'>webrender_traits</span>::<span class='ident'>VRCompositorId</span>) {
-        <span class='kw'>let</span> <span class='ident'>sender</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>webvr_thread_sender</span> {
-            <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>s</span>) <span class='op'>=&gt;</span> <span class='ident'>s</span>,
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span>,
+<span class="kw">impl</span> <span class="ident">WebVRCompositorHandler</span> {
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unsafe_code</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">create_compositor</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">display_id</span>: <span class="ident">webrender_traits</span>::<span class="ident">VRCompositorId</span>) {
+        <span class="kw">let</span> <span class="ident">sender</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">webvr_thread_sender</span> {
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">s</span>,
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span>,
         };
 
-        <span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='ident'>WebVRMsg</span>::<span class='ident'>CreateCompositor</span>(<span class='ident'>display_id</span>)).<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>display</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>webvr_thread_receiver</span>.<span class='ident'>recv</span>().<span class='ident'>unwrap</span>();
+        <span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">WebVRMsg</span>::<span class="ident">CreateCompositor</span>(<span class="ident">display_id</span>)).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">display</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">webvr_thread_receiver</span>.<span class="ident">recv</span>().<span class="ident">unwrap</span>();
 
-        <span class='kw'>match</span> <span class='ident'>display</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>display</span>) <span class='op'>=&gt;</span> {
-                <span class='self'>self</span>.<span class='ident'>compositors</span>.<span class='ident'>insert</span>(<span class='ident'>display_id</span>, <span class='ident'>display</span>);
+        <span class="kw">match</span> <span class="ident">display</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">display</span>) <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">compositors</span>.<span class="ident">insert</span>(<span class="ident">display_id</span>, <span class="ident">display</span>);
             },
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
-                <span class='macro'>error</span><span class='macro'>!</span>(<span class='string'>&quot;VRDisplay not found when creating a new VRCompositor&quot;</span>);
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                <span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;VRDisplay not found when creating a new VRCompositor&quot;</span>);
             }
         };
     }
 
-    <span class='comment'>// This is done on only a per-platform basis on initialization.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_webvr_thread_sender</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>sender</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>WebVRMsg</span><span class='op'>&gt;</span>) {
-        <span class='self'>self</span>.<span class='ident'>webvr_thread_sender</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>sender</span>);
+    <span class="comment">// This is done on only a per-platform basis on initialization.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_webvr_thread_sender</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">sender</span>: <span class="ident">IpcSender</span><span class="op">&lt;</span><span class="ident">WebVRMsg</span><span class="op">&gt;</span>) {
+        <span class="self">self</span>.<span class="ident">webvr_thread_sender</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">sender</span>);
     }
 }
 </pre>

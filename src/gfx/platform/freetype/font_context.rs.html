@@ -182,142 +182,142 @@
 <span id="137">137</span>
 <span id="138">138</span>
 <span id="139">139</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='kw'>use</span> <span class='ident'>alloc</span>::<span class='ident'>heap</span>;
-<span class='kw'>use</span> <span class='ident'>freetype</span>::<span class='ident'>freetype</span>::<span class='ident'>FT_Add_Default_Modules</span>;
-<span class='kw'>use</span> <span class='ident'>freetype</span>::<span class='ident'>freetype</span>::<span class='ident'>FT_Done_Library</span>;
-<span class='kw'>use</span> <span class='ident'>freetype</span>::<span class='ident'>freetype</span>::<span class='ident'>FT_Library</span>;
-<span class='kw'>use</span> <span class='ident'>freetype</span>::<span class='ident'>freetype</span>::<span class='ident'>FT_Memory</span>;
-<span class='kw'>use</span> <span class='ident'>freetype</span>::<span class='ident'>freetype</span>::<span class='ident'>FT_MemoryRec_</span>;
-<span class='kw'>use</span> <span class='ident'>freetype</span>::<span class='ident'>freetype</span>::<span class='ident'>FT_New_Library</span>;
-<span class='kw'>use</span> <span class='ident'>heapsize</span>::{<span class='ident'>HeapSizeOf</span>, <span class='ident'>heap_size_of</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>os</span>::<span class='ident'>raw</span>::{<span class='ident'>c_long</span>, <span class='ident'>c_void</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ptr</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>rc</span>::<span class='ident'>Rc</span>;
+<span class="kw">use</span> <span class="ident">alloc</span>::<span class="ident">heap</span>;
+<span class="kw">use</span> <span class="ident">freetype</span>::<span class="ident">freetype</span>::<span class="ident">FT_Add_Default_Modules</span>;
+<span class="kw">use</span> <span class="ident">freetype</span>::<span class="ident">freetype</span>::<span class="ident">FT_Done_Library</span>;
+<span class="kw">use</span> <span class="ident">freetype</span>::<span class="ident">freetype</span>::<span class="ident">FT_Library</span>;
+<span class="kw">use</span> <span class="ident">freetype</span>::<span class="ident">freetype</span>::<span class="ident">FT_Memory</span>;
+<span class="kw">use</span> <span class="ident">freetype</span>::<span class="ident">freetype</span>::<span class="ident">FT_MemoryRec_</span>;
+<span class="kw">use</span> <span class="ident">freetype</span>::<span class="ident">freetype</span>::<span class="ident">FT_New_Library</span>;
+<span class="kw">use</span> <span class="ident">heapsize</span>::{<span class="ident">HeapSizeOf</span>, <span class="ident">heap_size_of</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::{<span class="ident">c_long</span>, <span class="ident">c_void</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">rc</span>::<span class="ident">Rc</span>;
 
-<span class='comment'>// We pass a |User| struct -- via an opaque |void*| -- to FreeType each time a new instance is</span>
-<span class='comment'>// created. FreeType passes it back to the ft_alloc/ft_realloc/ft_free callbacks. We use it to</span>
-<span class='comment'>// record the memory usage of each FreeType instance.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>User</span> {
-    <span class='ident'>size</span>: <span class='ident'>usize</span>,
+<span class="comment">// We pass a |User| struct -- via an opaque |void*| -- to FreeType each time a new instance is</span>
+<span class="comment">// created. FreeType passes it back to the ft_alloc/ft_realloc/ft_free callbacks. We use it to</span>
+<span class="comment">// record the memory usage of each FreeType instance.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">User</span> {
+    <span class="ident">size</span>: <span class="ident">usize</span>,
 }
 
-<span class='comment'>// FreeType doesn&#39;t require any particular alignment for allocations.</span>
-<span class='kw'>const</span> <span class='ident'>FT_ALIGNMENT</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='number'>1</span>;
+<span class="comment">// FreeType doesn&#39;t require any particular alignment for allocations.</span>
+<span class="kw">const</span> <span class="ident">FT_ALIGNMENT</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">1</span>;
 
-<span class='kw'>extern</span> <span class='kw'>fn</span> <span class='ident'>ft_alloc</span>(<span class='ident'>mem</span>: <span class='ident'>FT_Memory</span>, <span class='ident'>req_size</span>: <span class='ident'>c_long</span>) <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>c_void</span> {
-    <span class='kw'>unsafe</span> {
-        <span class='kw'>let</span> <span class='ident'>ptr</span> <span class='op'>=</span> <span class='ident'>heap</span>::<span class='ident'>allocate</span>(<span class='ident'>req_size</span> <span class='kw'>as</span> <span class='ident'>usize</span>, <span class='ident'>FT_ALIGNMENT</span>) <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>c_void</span>;
-        <span class='kw'>let</span> <span class='ident'>actual_size</span> <span class='op'>=</span> <span class='ident'>heap_size_of</span>(<span class='ident'>ptr</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> _);
+<span class="kw">extern</span> <span class="kw">fn</span> <span class="ident">ft_alloc</span>(<span class="ident">mem</span>: <span class="ident">FT_Memory</span>, <span class="ident">req_size</span>: <span class="ident">c_long</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
+    <span class="kw">unsafe</span> {
+        <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="ident">heap</span>::<span class="ident">allocate</span>(<span class="ident">req_size</span> <span class="kw">as</span> <span class="ident">usize</span>, <span class="ident">FT_ALIGNMENT</span>) <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>;
+        <span class="kw">let</span> <span class="ident">actual_size</span> <span class="op">=</span> <span class="ident">heap_size_of</span>(<span class="ident">ptr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _);
 
-        <span class='kw'>let</span> <span class='ident'>user</span> <span class='op'>=</span> (<span class='kw-2'>*</span><span class='ident'>mem</span>).<span class='ident'>user</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>User</span>;
-        (<span class='kw-2'>*</span><span class='ident'>user</span>).<span class='ident'>size</span> <span class='op'>+=</span> <span class='ident'>actual_size</span>;
+        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> (<span class="kw-2">*</span><span class="ident">mem</span>).<span class="ident">user</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">User</span>;
+        (<span class="kw-2">*</span><span class="ident">user</span>).<span class="ident">size</span> <span class="op">+=</span> <span class="ident">actual_size</span>;
 
-        <span class='ident'>ptr</span>
+        <span class="ident">ptr</span>
     }
 }
 
-<span class='kw'>extern</span> <span class='kw'>fn</span> <span class='ident'>ft_free</span>(<span class='ident'>mem</span>: <span class='ident'>FT_Memory</span>, <span class='ident'>ptr</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>c_void</span>) {
-    <span class='kw'>unsafe</span> {
-        <span class='kw'>let</span> <span class='ident'>actual_size</span> <span class='op'>=</span> <span class='ident'>heap_size_of</span>(<span class='ident'>ptr</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> _);
+<span class="kw">extern</span> <span class="kw">fn</span> <span class="ident">ft_free</span>(<span class="ident">mem</span>: <span class="ident">FT_Memory</span>, <span class="ident">ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>) {
+    <span class="kw">unsafe</span> {
+        <span class="kw">let</span> <span class="ident">actual_size</span> <span class="op">=</span> <span class="ident">heap_size_of</span>(<span class="ident">ptr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _);
 
-        <span class='kw'>let</span> <span class='ident'>user</span> <span class='op'>=</span> (<span class='kw-2'>*</span><span class='ident'>mem</span>).<span class='ident'>user</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>User</span>;
-        (<span class='kw-2'>*</span><span class='ident'>user</span>).<span class='ident'>size</span> <span class='op'>-=</span> <span class='ident'>actual_size</span>;
+        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> (<span class="kw-2">*</span><span class="ident">mem</span>).<span class="ident">user</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">User</span>;
+        (<span class="kw-2">*</span><span class="ident">user</span>).<span class="ident">size</span> <span class="op">-=</span> <span class="ident">actual_size</span>;
 
-        <span class='ident'>heap</span>::<span class='ident'>deallocate</span>(<span class='ident'>ptr</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>u8</span>, <span class='ident'>actual_size</span>, <span class='ident'>FT_ALIGNMENT</span>);
+        <span class="ident">heap</span>::<span class="ident">deallocate</span>(<span class="ident">ptr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span>, <span class="ident">actual_size</span>, <span class="ident">FT_ALIGNMENT</span>);
     }
 }
 
-<span class='kw'>extern</span> <span class='kw'>fn</span> <span class='ident'>ft_realloc</span>(<span class='ident'>mem</span>: <span class='ident'>FT_Memory</span>, <span class='ident'>_cur_size</span>: <span class='ident'>c_long</span>, <span class='ident'>new_req_size</span>: <span class='ident'>c_long</span>,
-                     <span class='ident'>old_ptr</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>c_void</span>) <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>c_void</span> {
-    <span class='kw'>unsafe</span> {
-        <span class='kw'>let</span> <span class='ident'>old_actual_size</span> <span class='op'>=</span> <span class='ident'>heap_size_of</span>(<span class='ident'>old_ptr</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> _);
-        <span class='kw'>let</span> <span class='ident'>new_ptr</span> <span class='op'>=</span> <span class='ident'>heap</span>::<span class='ident'>reallocate</span>(<span class='ident'>old_ptr</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>u8</span>, <span class='ident'>old_actual_size</span>,
-                                       <span class='ident'>new_req_size</span> <span class='kw'>as</span> <span class='ident'>usize</span>, <span class='ident'>FT_ALIGNMENT</span>) <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>c_void</span>;
-        <span class='kw'>let</span> <span class='ident'>new_actual_size</span> <span class='op'>=</span> <span class='ident'>heap_size_of</span>(<span class='ident'>new_ptr</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> _);
+<span class="kw">extern</span> <span class="kw">fn</span> <span class="ident">ft_realloc</span>(<span class="ident">mem</span>: <span class="ident">FT_Memory</span>, <span class="ident">_cur_size</span>: <span class="ident">c_long</span>, <span class="ident">new_req_size</span>: <span class="ident">c_long</span>,
+                     <span class="ident">old_ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
+    <span class="kw">unsafe</span> {
+        <span class="kw">let</span> <span class="ident">old_actual_size</span> <span class="op">=</span> <span class="ident">heap_size_of</span>(<span class="ident">old_ptr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _);
+        <span class="kw">let</span> <span class="ident">new_ptr</span> <span class="op">=</span> <span class="ident">heap</span>::<span class="ident">reallocate</span>(<span class="ident">old_ptr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span>, <span class="ident">old_actual_size</span>,
+                                       <span class="ident">new_req_size</span> <span class="kw">as</span> <span class="ident">usize</span>, <span class="ident">FT_ALIGNMENT</span>) <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>;
+        <span class="kw">let</span> <span class="ident">new_actual_size</span> <span class="op">=</span> <span class="ident">heap_size_of</span>(<span class="ident">new_ptr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _);
 
-        <span class='kw'>let</span> <span class='ident'>user</span> <span class='op'>=</span> (<span class='kw-2'>*</span><span class='ident'>mem</span>).<span class='ident'>user</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>User</span>;
-        (<span class='kw-2'>*</span><span class='ident'>user</span>).<span class='ident'>size</span> <span class='op'>+=</span> <span class='ident'>new_actual_size</span>;
-        (<span class='kw-2'>*</span><span class='ident'>user</span>).<span class='ident'>size</span> <span class='op'>-=</span> <span class='ident'>old_actual_size</span>;
+        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> (<span class="kw-2">*</span><span class="ident">mem</span>).<span class="ident">user</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">User</span>;
+        (<span class="kw-2">*</span><span class="ident">user</span>).<span class="ident">size</span> <span class="op">+=</span> <span class="ident">new_actual_size</span>;
+        (<span class="kw-2">*</span><span class="ident">user</span>).<span class="ident">size</span> <span class="op">-=</span> <span class="ident">old_actual_size</span>;
 
-        <span class='ident'>new_ptr</span>
+        <span class="ident">new_ptr</span>
     }
 }
 
-<span class='comment'>// A |*mut User| field in a struct triggers a &quot;use of `#[derive]` with a raw pointer&quot; warning from</span>
-<span class='comment'>// rustc. But using a typedef avoids this, so...</span>
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>UserPtr</span> <span class='op'>=</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>User</span>;
+<span class="comment">// A |*mut User| field in a struct triggers a &quot;use of `#[derive]` with a raw pointer&quot; warning from</span>
+<span class="comment">// rustc. But using a typedef avoids this, so...</span>
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">UserPtr</span> <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">User</span>;
 
-<span class='comment'>// WARNING: We need to be careful how we use this struct. See the comment about Rc&lt;&gt; in</span>
-<span class='comment'>// FontContextHandle.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>FreeTypeLibraryHandle</span> {
-    <span class='kw'>pub</span> <span class='ident'>ctx</span>: <span class='ident'>FT_Library</span>,
-    <span class='ident'>mem</span>: <span class='ident'>FT_Memory</span>,
-    <span class='ident'>user</span>: <span class='ident'>UserPtr</span>,
+<span class="comment">// WARNING: We need to be careful how we use this struct. See the comment about Rc&lt;&gt; in</span>
+<span class="comment">// FontContextHandle.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FreeTypeLibraryHandle</span> {
+    <span class="kw">pub</span> <span class="ident">ctx</span>: <span class="ident">FT_Library</span>,
+    <span class="ident">mem</span>: <span class="ident">FT_Memory</span>,
+    <span class="ident">user</span>: <span class="ident">UserPtr</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>Drop</span> <span class='kw'>for</span> <span class='ident'>FreeTypeLibraryHandle</span> {
-    <span class='kw'>fn</span> <span class='ident'>drop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='self'>self</span>.<span class='ident'>ctx</span>.<span class='ident'>is_null</span>());
-        <span class='kw'>unsafe</span> {
-            <span class='ident'>FT_Done_Library</span>(<span class='self'>self</span>.<span class='ident'>ctx</span>);
-            <span class='ident'>Box</span>::<span class='ident'>from_raw</span>(<span class='self'>self</span>.<span class='ident'>mem</span>);
-            <span class='ident'>Box</span>::<span class='ident'>from_raw</span>(<span class='self'>self</span>.<span class='ident'>user</span>);
+<span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">FreeTypeLibraryHandle</span> {
+    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="self">self</span>.<span class="ident">ctx</span>.<span class="ident">is_null</span>());
+        <span class="kw">unsafe</span> {
+            <span class="ident">FT_Done_Library</span>(<span class="self">self</span>.<span class="ident">ctx</span>);
+            <span class="ident">Box</span>::<span class="ident">from_raw</span>(<span class="self">self</span>.<span class="ident">mem</span>);
+            <span class="ident">Box</span>::<span class="ident">from_raw</span>(<span class="self">self</span>.<span class="ident">user</span>);
         }
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>HeapSizeOf</span> <span class='kw'>for</span> <span class='ident'>FreeTypeLibraryHandle</span> {
-    <span class='kw'>fn</span> <span class='ident'>heap_size_of_children</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-        <span class='kw'>unsafe</span> {
-            (<span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>user</span>).<span class='ident'>size</span> <span class='op'>+</span>
-                <span class='ident'>heap_size_of</span>(<span class='self'>self</span>.<span class='ident'>ctx</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> _) <span class='op'>+</span>
-                <span class='ident'>heap_size_of</span>(<span class='self'>self</span>.<span class='ident'>mem</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> _) <span class='op'>+</span>
-                <span class='ident'>heap_size_of</span>(<span class='self'>self</span>.<span class='ident'>user</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> _)
+<span class="kw">impl</span> <span class="ident">HeapSizeOf</span> <span class="kw">for</span> <span class="ident">FreeTypeLibraryHandle</span> {
+    <span class="kw">fn</span> <span class="ident">heap_size_of_children</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="kw">unsafe</span> {
+            (<span class="kw-2">*</span><span class="self">self</span>.<span class="ident">user</span>).<span class="ident">size</span> <span class="op">+</span>
+                <span class="ident">heap_size_of</span>(<span class="self">self</span>.<span class="ident">ctx</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _) <span class="op">+</span>
+                <span class="ident">heap_size_of</span>(<span class="self">self</span>.<span class="ident">mem</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _) <span class="op">+</span>
+                <span class="ident">heap_size_of</span>(<span class="self">self</span>.<span class="ident">user</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _)
         }
     }
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>FontContextHandle</span> {
-    <span class='comment'>// WARNING: FreeTypeLibraryHandle contains raw pointers, is clonable, and also implements</span>
-    <span class='comment'>// `Drop`. This field needs to be Rc&lt;&gt; to make sure that the `drop` function is only called</span>
-    <span class='comment'>// once, otherwise we&#39;ll get crashes. Yuk.</span>
-    <span class='kw'>pub</span> <span class='ident'>ctx</span>: <span class='ident'>Rc</span><span class='op'>&lt;</span><span class='ident'>FreeTypeLibraryHandle</span><span class='op'>&gt;</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FontContextHandle</span> {
+    <span class="comment">// WARNING: FreeTypeLibraryHandle contains raw pointers, is clonable, and also implements</span>
+    <span class="comment">// `Drop`. This field needs to be Rc&lt;&gt; to make sure that the `drop` function is only called</span>
+    <span class="comment">// once, otherwise we&#39;ll get crashes. Yuk.</span>
+    <span class="kw">pub</span> <span class="ident">ctx</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">FreeTypeLibraryHandle</span><span class="op">&gt;</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>HeapSizeOf</span> <span class='kw'>for</span> <span class='ident'>FontContextHandle</span> {
-    <span class='kw'>fn</span> <span class='ident'>heap_size_of_children</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-        <span class='self'>self</span>.<span class='ident'>ctx</span>.<span class='ident'>heap_size_of_children</span>()
+<span class="kw">impl</span> <span class="ident">HeapSizeOf</span> <span class="kw">for</span> <span class="ident">FontContextHandle</span> {
+    <span class="kw">fn</span> <span class="ident">heap_size_of_children</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">ctx</span>.<span class="ident">heap_size_of_children</span>()
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>FontContextHandle</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>FontContextHandle</span> {
-        <span class='kw'>let</span> <span class='ident'>user</span> <span class='op'>=</span> <span class='ident'>Box</span>::<span class='ident'>into_raw</span>(<span class='kw'>box</span> <span class='ident'>User</span> {
-            <span class='ident'>size</span>: <span class='number'>0</span>,
+<span class="kw">impl</span> <span class="ident">FontContextHandle</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">FontContextHandle</span> {
+        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">into_raw</span>(<span class="kw">box</span> <span class="ident">User</span> {
+            <span class="ident">size</span>: <span class="number">0</span>,
         });
-        <span class='kw'>let</span> <span class='ident'>mem</span> <span class='op'>=</span> <span class='ident'>Box</span>::<span class='ident'>into_raw</span>(<span class='kw'>box</span> <span class='ident'>FT_MemoryRec_</span> {
-            <span class='ident'>user</span>: <span class='ident'>user</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>c_void</span>,
-            <span class='ident'>alloc</span>: <span class='prelude-val'>Some</span>(<span class='ident'>ft_alloc</span>),
-            <span class='ident'>free</span>: <span class='prelude-val'>Some</span>(<span class='ident'>ft_free</span>),
-            <span class='ident'>realloc</span>: <span class='prelude-val'>Some</span>(<span class='ident'>ft_realloc</span>),
+        <span class="kw">let</span> <span class="ident">mem</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">into_raw</span>(<span class="kw">box</span> <span class="ident">FT_MemoryRec_</span> {
+            <span class="ident">user</span>: <span class="ident">user</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>,
+            <span class="ident">alloc</span>: <span class="prelude-val">Some</span>(<span class="ident">ft_alloc</span>),
+            <span class="ident">free</span>: <span class="prelude-val">Some</span>(<span class="ident">ft_free</span>),
+            <span class="ident">realloc</span>: <span class="prelude-val">Some</span>(<span class="ident">ft_realloc</span>),
         });
-        <span class='kw'>unsafe</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>ctx</span>: <span class='ident'>FT_Library</span> <span class='op'>=</span> <span class='ident'>ptr</span>::<span class='ident'>null_mut</span>();
+        <span class="kw">unsafe</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx</span>: <span class="ident">FT_Library</span> <span class="op">=</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>();
 
-            <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>FT_New_Library</span>(<span class='ident'>mem</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ctx</span>);
-            <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>result</span>.<span class='ident'>succeeded</span>() { <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;Unable to initialize FreeType library&quot;</span>); }
+            <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">FT_New_Library</span>(<span class="ident">mem</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>);
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">result</span>.<span class="ident">succeeded</span>() { <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Unable to initialize FreeType library&quot;</span>); }
 
-            <span class='ident'>FT_Add_Default_Modules</span>(<span class='ident'>ctx</span>);
+            <span class="ident">FT_Add_Default_Modules</span>(<span class="ident">ctx</span>);
 
-            <span class='ident'>FontContextHandle</span> {
-                <span class='ident'>ctx</span>: <span class='ident'>Rc</span>::<span class='ident'>new</span>(<span class='ident'>FreeTypeLibraryHandle</span> { <span class='ident'>ctx</span>: <span class='ident'>ctx</span>, <span class='ident'>mem</span>: <span class='ident'>mem</span>, <span class='ident'>user</span>: <span class='ident'>user</span> }),
+            <span class="ident">FontContextHandle</span> {
+                <span class="ident">ctx</span>: <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">FreeTypeLibraryHandle</span> { <span class="ident">ctx</span>: <span class="ident">ctx</span>, <span class="ident">mem</span>: <span class="ident">mem</span>, <span class="ident">user</span>: <span class="ident">user</span> }),
             }
         }
     }

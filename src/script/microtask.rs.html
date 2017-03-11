@@ -126,88 +126,88 @@
 <span id="81">81</span>
 <span id="82">82</span>
 <span id="83">83</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! Implementation of [microtasks](https://html.spec.whatwg.org/multipage/#microtask) and</span>
-<span class='doccomment'>//! microtask queues. It is up to implementations of event loops to store a queue and</span>
-<span class='doccomment'>//! perform checkpoints at appropriate times, as well as enqueue microtasks as required.</span>
+<span class="doccomment">//! Implementation of [microtasks](https://html.spec.whatwg.org/multipage/#microtask) and</span>
+<span class="doccomment">//! microtask queues. It is up to implementations of event loops to store a queue and</span>
+<span class="doccomment">//! perform checkpoints at appropriate times, as well as enqueue microtasks as required.</span>
 
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>callback</span>::<span class='ident'>ExceptionHandling</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>cell</span>::<span class='ident'>DOMRefCell</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>codegen</span>::<span class='ident'>Bindings</span>::<span class='ident'>PromiseBinding</span>::<span class='ident'>PromiseJobCallback</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>js</span>::<span class='ident'>Root</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>globalscope</span>::<span class='ident'>GlobalScope</span>;
-<span class='kw'>use</span> <span class='ident'>msg</span>::<span class='ident'>constellation_msg</span>::<span class='ident'>PipelineId</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>Cell</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>rc</span>::<span class='ident'>Rc</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">callback</span>::<span class="ident">ExceptionHandling</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">cell</span>::<span class="ident">DOMRefCell</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">codegen</span>::<span class="ident">Bindings</span>::<span class="ident">PromiseBinding</span>::<span class="ident">PromiseJobCallback</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">js</span>::<span class="ident">Root</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">globalscope</span>::<span class="ident">GlobalScope</span>;
+<span class="kw">use</span> <span class="ident">msg</span>::<span class="ident">constellation_msg</span>::<span class="ident">PipelineId</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">Cell</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">rc</span>::<span class="ident">Rc</span>;
 
-<span class='doccomment'>/// A collection of microtasks in FIFO order.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>JSTraceable</span>, <span class='ident'>HeapSizeOf</span>, <span class='ident'>Default</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>MicrotaskQueue</span> {
-    <span class='doccomment'>/// The list of enqueued microtasks that will be invoked at the next microtask checkpoint.</span>
-    <span class='ident'>microtask_queue</span>: <span class='ident'>DOMRefCell</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Microtask</span><span class='op'>&gt;&gt;</span>,
-    <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#performing-a-microtask-checkpoint</span>
-    <span class='ident'>performing_a_microtask_checkpoint</span>: <span class='ident'>Cell</span><span class='op'>&lt;</span><span class='ident'>bool</span><span class='op'>&gt;</span>,
+<span class="doccomment">/// A collection of microtasks in FIFO order.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">JSTraceable</span>, <span class="ident">HeapSizeOf</span>, <span class="ident">Default</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MicrotaskQueue</span> {
+    <span class="doccomment">/// The list of enqueued microtasks that will be invoked at the next microtask checkpoint.</span>
+    <span class="ident">microtask_queue</span>: <span class="ident">DOMRefCell</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Microtask</span><span class="op">&gt;&gt;</span>,
+    <span class="doccomment">/// https://html.spec.whatwg.org/multipage/#performing-a-microtask-checkpoint</span>
+    <span class="ident">performing_a_microtask_checkpoint</span>: <span class="ident">Cell</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>JSTraceable</span>, <span class='ident'>HeapSizeOf</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>Microtask</span> {
-    <span class='ident'>Promise</span>(<span class='ident'>EnqueuedPromiseCallback</span>),
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">JSTraceable</span>, <span class="ident">HeapSizeOf</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Microtask</span> {
+    <span class="ident">Promise</span>(<span class="ident">EnqueuedPromiseCallback</span>),
 }
 
-<span class='doccomment'>/// A promise callback scheduled to run during the next microtask checkpoint (#4283).</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>JSTraceable</span>, <span class='ident'>HeapSizeOf</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>EnqueuedPromiseCallback</span> {
-    <span class='attribute'>#[<span class='ident'>ignore_heap_size_of</span> <span class='op'>=</span> <span class='string'>&quot;Rc has unclear ownership&quot;</span>]</span>
-    <span class='kw'>pub</span> <span class='ident'>callback</span>: <span class='ident'>Rc</span><span class='op'>&lt;</span><span class='ident'>PromiseJobCallback</span><span class='op'>&gt;</span>,
-    <span class='kw'>pub</span> <span class='ident'>pipeline</span>: <span class='ident'>PipelineId</span>,
+<span class="doccomment">/// A promise callback scheduled to run during the next microtask checkpoint (#4283).</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">JSTraceable</span>, <span class="ident">HeapSizeOf</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EnqueuedPromiseCallback</span> {
+    <span class="attribute">#[<span class="ident">ignore_heap_size_of</span> <span class="op">=</span> <span class="string">&quot;Rc has unclear ownership&quot;</span>]</span>
+    <span class="kw">pub</span> <span class="ident">callback</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">PromiseJobCallback</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">pipeline</span>: <span class="ident">PipelineId</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>MicrotaskQueue</span> {
-    <span class='doccomment'>/// Add a new microtask to this queue. It will be invoked as part of the next</span>
-    <span class='doccomment'>/// microtask checkpoint.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>enqueue</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>job</span>: <span class='ident'>Microtask</span>) {
-        <span class='self'>self</span>.<span class='ident'>microtask_queue</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>push</span>(<span class='ident'>job</span>);
+<span class="kw">impl</span> <span class="ident">MicrotaskQueue</span> {
+    <span class="doccomment">/// Add a new microtask to this queue. It will be invoked as part of the next</span>
+    <span class="doccomment">/// microtask checkpoint.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enqueue</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">job</span>: <span class="ident">Microtask</span>) {
+        <span class="self">self</span>.<span class="ident">microtask_queue</span>.<span class="ident">borrow_mut</span>().<span class="ident">push</span>(<span class="ident">job</span>);
     }
 
-    <span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#perform-a-microtask-checkpoint</span>
-    <span class='doccomment'>/// Perform a microtask checkpoint, executing all queued microtasks until the queue is empty.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>checkpoint</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>target_provider</span>: <span class='ident'>F</span>)
-        <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Fn</span>(<span class='ident'>PipelineId</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>GlobalScope</span><span class='op'>&gt;&gt;</span>
+    <span class="doccomment">/// https://html.spec.whatwg.org/multipage/#perform-a-microtask-checkpoint</span>
+    <span class="doccomment">/// Perform a microtask checkpoint, executing all queued microtasks until the queue is empty.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">checkpoint</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">target_provider</span>: <span class="ident">F</span>)
+        <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">Fn</span>(<span class="ident">PipelineId</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Root</span><span class="op">&lt;</span><span class="ident">GlobalScope</span><span class="op">&gt;&gt;</span>
     {
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>performing_a_microtask_checkpoint</span>.<span class='ident'>get</span>() {
-            <span class='kw'>return</span>;
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">performing_a_microtask_checkpoint</span>.<span class="ident">get</span>() {
+            <span class="kw">return</span>;
         }
 
-        <span class='comment'>// Step 1</span>
-        <span class='self'>self</span>.<span class='ident'>performing_a_microtask_checkpoint</span>.<span class='ident'>set</span>(<span class='bool-val'>true</span>);
+        <span class="comment">// Step 1</span>
+        <span class="self">self</span>.<span class="ident">performing_a_microtask_checkpoint</span>.<span class="ident">set</span>(<span class="bool-val">true</span>);
 
-        <span class='comment'>// Steps 2-7</span>
-        <span class='kw'>while</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>microtask_queue</span>.<span class='ident'>borrow</span>().<span class='ident'>is_empty</span>() {
-            <span class='macro'>rooted_vec</span><span class='macro'>!</span>(<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>pending_queue</span>);
-            <span class='ident'>mem</span>::<span class='ident'>swap</span>(
-                <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='ident'>pending_queue</span>,
-                <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>microtask_queue</span>.<span class='ident'>borrow_mut</span>());
+        <span class="comment">// Steps 2-7</span>
+        <span class="kw">while</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">microtask_queue</span>.<span class="ident">borrow</span>().<span class="ident">is_empty</span>() {
+            <span class="macro">rooted_vec</span><span class="macro">!</span>(<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pending_queue</span>);
+            <span class="ident">mem</span>::<span class="ident">swap</span>(
+                <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="ident">pending_queue</span>,
+                <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">microtask_queue</span>.<span class="ident">borrow_mut</span>());
 
-            <span class='kw'>for</span> <span class='ident'>job</span> <span class='kw'>in</span> <span class='ident'>pending_queue</span>.<span class='ident'>iter</span>() {
-                <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>job</span> {
-                    <span class='ident'>Microtask</span>::<span class='ident'>Promise</span>(<span class='kw-2'>ref</span> <span class='ident'>job</span>) <span class='op'>=&gt;</span> {
-                        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>target</span>) <span class='op'>=</span> <span class='ident'>target_provider</span>(<span class='ident'>job</span>.<span class='ident'>pipeline</span>) {
-                            <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>job</span>.<span class='ident'>callback</span>.<span class='ident'>Call_</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>target</span>, <span class='ident'>ExceptionHandling</span>::<span class='ident'>Report</span>);
+            <span class="kw">for</span> <span class="ident">job</span> <span class="kw">in</span> <span class="ident">pending_queue</span>.<span class="ident">iter</span>() {
+                <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">job</span> {
+                    <span class="ident">Microtask</span>::<span class="ident">Promise</span>(<span class="kw-2">ref</span> <span class="ident">job</span>) <span class="op">=&gt;</span> {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">target</span>) <span class="op">=</span> <span class="ident">target_provider</span>(<span class="ident">job</span>.<span class="ident">pipeline</span>) {
+                            <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">job</span>.<span class="ident">callback</span>.<span class="ident">Call_</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">target</span>, <span class="ident">ExceptionHandling</span>::<span class="ident">Report</span>);
                         }
                     }
                 }
             }
         }
 
-        <span class='comment'>//TODO: Step 8 - notify about rejected promises</span>
+        <span class="comment">//TODO: Step 8 - notify about rejected promises</span>
 
-        <span class='comment'>// Step 9</span>
-        <span class='self'>self</span>.<span class='ident'>performing_a_microtask_checkpoint</span>.<span class='ident'>set</span>(<span class='bool-val'>false</span>);
+        <span class="comment">// Step 9</span>
+        <span class="self">self</span>.<span class="ident">performing_a_microtask_checkpoint</span>.<span class="ident">set</span>(<span class="bool-val">false</span>);
     }
 }
 </pre>

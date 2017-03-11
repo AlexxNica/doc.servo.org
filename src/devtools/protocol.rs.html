@@ -132,92 +132,92 @@
 <span id="87">87</span>
 <span id="88">88</span>
 <span id="89">89</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! Low-level wire protocol implementation. Currently only supports</span>
-<span class='doccomment'>//! [JSON packets]</span>
-<span class='doccomment'>//! (https://wiki.mozilla.org/Remote_Debugging_Protocol_Stream_Transport#JSON_Packets).</span>
+<span class="doccomment">//! Low-level wire protocol implementation. Currently only supports</span>
+<span class="doccomment">//! [JSON packets]</span>
+<span class="doccomment">//! (https://wiki.mozilla.org/Remote_Debugging_Protocol_Stream_Transport#JSON_Packets).</span>
 
-<span class='kw'>use</span> <span class='ident'>serde</span>::<span class='ident'>Serialize</span>;
-<span class='kw'>use</span> <span class='ident'>serde_json</span>::{<span class='self'>self</span>, <span class='ident'>Value</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>error</span>::<span class='ident'>Error</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::{<span class='ident'>Read</span>, <span class='ident'>Write</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>net</span>::<span class='ident'>TcpStream</span>;
+<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">Serialize</span>;
+<span class="kw">use</span> <span class="ident">serde_json</span>::{<span class="self">self</span>, <span class="ident">Value</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">error</span>::<span class="ident">Error</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">Read</span>, <span class="ident">Write</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">net</span>::<span class="ident">TcpStream</span>;
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Serialize</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ActorDescription</span> {
-    <span class='kw'>pub</span> <span class='ident'>category</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>,
-    <span class='kw'>pub</span> <span class='ident'>typeName</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>,
-    <span class='kw'>pub</span> <span class='ident'>methods</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Method</span><span class='op'>&gt;</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ActorDescription</span> {
+    <span class="kw">pub</span> <span class="ident">category</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+    <span class="kw">pub</span> <span class="ident">typeName</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+    <span class="kw">pub</span> <span class="ident">methods</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Method</span><span class="op">&gt;</span>,
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Serialize</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Method</span> {
-    <span class='kw'>pub</span> <span class='ident'>name</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>,
-    <span class='kw'>pub</span> <span class='ident'>request</span>: <span class='ident'>Value</span>,
-    <span class='kw'>pub</span> <span class='ident'>response</span>: <span class='ident'>Value</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Method</span> {
+    <span class="kw">pub</span> <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+    <span class="kw">pub</span> <span class="ident">request</span>: <span class="ident">Value</span>,
+    <span class="kw">pub</span> <span class="ident">response</span>: <span class="ident">Value</span>,
 }
 
-<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>JsonPacketStream</span> {
-    <span class='kw'>fn</span> <span class='ident'>write_json_packet</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Serialize</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>obj</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>);
-    <span class='kw'>fn</span> <span class='ident'>write_merged_json_packet</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Serialize</span>, <span class='ident'>U</span>: <span class='ident'>Serialize</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>base</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>, <span class='ident'>extra</span>: <span class='kw-2'>&amp;</span><span class='ident'>U</span>);
-    <span class='kw'>fn</span> <span class='ident'>read_json_packet</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Value</span><span class='op'>&gt;</span>, <span class='ident'>String</span><span class='op'>&gt;</span>;
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">JsonPacketStream</span> {
+    <span class="kw">fn</span> <span class="ident">write_json_packet</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Serialize</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">obj</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>);
+    <span class="kw">fn</span> <span class="ident">write_merged_json_packet</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Serialize</span>, <span class="ident">U</span>: <span class="ident">Serialize</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">base</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">extra</span>: <span class="kw-2">&amp;</span><span class="ident">U</span>);
+    <span class="kw">fn</span> <span class="ident">read_json_packet</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>, <span class="ident">String</span><span class="op">&gt;</span>;
 }
 
-<span class='kw'>impl</span> <span class='ident'>JsonPacketStream</span> <span class='kw'>for</span> <span class='ident'>TcpStream</span> {
-    <span class='kw'>fn</span> <span class='ident'>write_json_packet</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Serialize</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>obj</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>) {
-        <span class='kw'>let</span> <span class='ident'>s</span> <span class='op'>=</span> <span class='ident'>serde_json</span>::<span class='ident'>to_string</span>(<span class='ident'>obj</span>).<span class='ident'>unwrap</span>();
-        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;&lt;- {}&quot;</span>, <span class='ident'>s</span>);
-        <span class='macro'>write</span><span class='macro'>!</span>(<span class='self'>self</span>, <span class='string'>&quot;{}:{}&quot;</span>, <span class='ident'>s</span>.<span class='ident'>len</span>(), <span class='ident'>s</span>).<span class='ident'>unwrap</span>();
+<span class="kw">impl</span> <span class="ident">JsonPacketStream</span> <span class="kw">for</span> <span class="ident">TcpStream</span> {
+    <span class="kw">fn</span> <span class="ident">write_json_packet</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Serialize</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">obj</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) {
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">to_string</span>(<span class="ident">obj</span>).<span class="ident">unwrap</span>();
+        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;&lt;- {}&quot;</span>, <span class="ident">s</span>);
+        <span class="macro">write</span><span class="macro">!</span>(<span class="self">self</span>, <span class="string">&quot;{}:{}&quot;</span>, <span class="ident">s</span>.<span class="ident">len</span>(), <span class="ident">s</span>).<span class="ident">unwrap</span>();
     }
 
-    <span class='kw'>fn</span> <span class='ident'>write_merged_json_packet</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Serialize</span>, <span class='ident'>U</span>: <span class='ident'>Serialize</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>base</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>, <span class='ident'>extra</span>: <span class='kw-2'>&amp;</span><span class='ident'>U</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>obj</span> <span class='op'>=</span> <span class='ident'>serde_json</span>::<span class='ident'>to_value</span>(<span class='ident'>base</span>).<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>obj</span> <span class='op'>=</span> <span class='ident'>obj</span>.<span class='ident'>as_object_mut</span>().<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>extra</span> <span class='op'>=</span> <span class='ident'>serde_json</span>::<span class='ident'>to_value</span>(<span class='ident'>extra</span>).<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>extra</span> <span class='op'>=</span> <span class='ident'>extra</span>.<span class='ident'>as_object</span>().<span class='ident'>unwrap</span>();
+    <span class="kw">fn</span> <span class="ident">write_merged_json_packet</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Serialize</span>, <span class="ident">U</span>: <span class="ident">Serialize</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">base</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">extra</span>: <span class="kw-2">&amp;</span><span class="ident">U</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">obj</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">to_value</span>(<span class="ident">base</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">obj</span> <span class="op">=</span> <span class="ident">obj</span>.<span class="ident">as_object_mut</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">extra</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">to_value</span>(<span class="ident">extra</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">extra</span> <span class="op">=</span> <span class="ident">extra</span>.<span class="ident">as_object</span>().<span class="ident">unwrap</span>();
 
-        <span class='kw'>for</span> (<span class='ident'>key</span>, <span class='ident'>value</span>) <span class='kw'>in</span> <span class='ident'>extra</span> {
-            <span class='ident'>obj</span>.<span class='ident'>insert</span>(<span class='ident'>key</span>.<span class='ident'>to_owned</span>(), <span class='ident'>value</span>.<span class='ident'>to_owned</span>());
+        <span class="kw">for</span> (<span class="ident">key</span>, <span class="ident">value</span>) <span class="kw">in</span> <span class="ident">extra</span> {
+            <span class="ident">obj</span>.<span class="ident">insert</span>(<span class="ident">key</span>.<span class="ident">to_owned</span>(), <span class="ident">value</span>.<span class="ident">to_owned</span>());
         }
 
-        <span class='self'>self</span>.<span class='ident'>write_json_packet</span>(<span class='ident'>obj</span>);
+        <span class="self">self</span>.<span class="ident">write_json_packet</span>(<span class="ident">obj</span>);
     }
 
-    <span class='kw'>fn</span> <span class='ident'>read_json_packet</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Value</span><span class='op'>&gt;</span>, <span class='ident'>String</span><span class='op'>&gt;</span> {
-        <span class='comment'>// https://wiki.mozilla.org/Remote_Debugging_Protocol_Stream_Transport</span>
-        <span class='comment'>// In short, each JSON packet is [ascii length]:[JSON data of given length]</span>
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>buffer</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>();
-        <span class='kw'>loop</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>buf</span> <span class='op'>=</span> [<span class='number'>0</span>];
-            <span class='kw'>let</span> <span class='ident'>byte</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>read</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buf</span>) {
-                <span class='prelude-val'>Ok</span>(<span class='number'>0</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='prelude-val'>None</span>),  <span class='comment'>// EOF</span>
-                <span class='prelude-val'>Ok</span>(<span class='number'>1</span>) <span class='op'>=&gt;</span> <span class='ident'>buf</span>[<span class='number'>0</span>],
-                <span class='prelude-val'>Ok</span>(_) <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(),
-                <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>e</span>.<span class='ident'>description</span>().<span class='ident'>to_owned</span>()),
+    <span class="kw">fn</span> <span class="ident">read_json_packet</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>, <span class="ident">String</span><span class="op">&gt;</span> {
+        <span class="comment">// https://wiki.mozilla.org/Remote_Debugging_Protocol_Stream_Transport</span>
+        <span class="comment">// In short, each JSON packet is [ascii length]:[JSON data of given length]</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>();
+        <span class="kw">loop</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> <span class="op">=</span> [<span class="number">0</span>];
+            <span class="kw">let</span> <span class="ident">byte</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>) {
+                <span class="prelude-val">Ok</span>(<span class="number">0</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),  <span class="comment">// EOF</span>
+                <span class="prelude-val">Ok</span>(<span class="number">1</span>) <span class="op">=&gt;</span> <span class="ident">buf</span>[<span class="number">0</span>],
+                <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+                <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>.<span class="ident">description</span>().<span class="ident">to_owned</span>()),
             };
-            <span class='kw'>match</span> <span class='ident'>byte</span> {
-                <span class='string'>b&#39;:&#39;</span> <span class='op'>=&gt;</span> {
-                    <span class='kw'>let</span> <span class='ident'>packet_len_str</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>String</span>::<span class='ident'>from_utf8</span>(<span class='ident'>buffer</span>) {
-                        <span class='prelude-val'>Ok</span>(<span class='ident'>packet_len</span>) <span class='op'>=&gt;</span> <span class='ident'>packet_len</span>,
-                        <span class='prelude-val'>Err</span>(_) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='string'>&quot;nonvalid UTF8 in packet length&quot;</span>.<span class='ident'>to_owned</span>()),
+            <span class="kw">match</span> <span class="ident">byte</span> {
+                <span class="string">b&#39;:&#39;</span> <span class="op">=&gt;</span> {
+                    <span class="kw">let</span> <span class="ident">packet_len_str</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">String</span>::<span class="ident">from_utf8</span>(<span class="ident">buffer</span>) {
+                        <span class="prelude-val">Ok</span>(<span class="ident">packet_len</span>) <span class="op">=&gt;</span> <span class="ident">packet_len</span>,
+                        <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="string">&quot;nonvalid UTF8 in packet length&quot;</span>.<span class="ident">to_owned</span>()),
                     };
-                    <span class='kw'>let</span> <span class='ident'>packet_len</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>u64</span>::<span class='ident'>from_str_radix</span>(<span class='kw-2'>&amp;</span><span class='ident'>packet_len_str</span>, <span class='number'>10</span>) {
-                        <span class='prelude-val'>Ok</span>(<span class='ident'>packet_len</span>) <span class='op'>=&gt;</span> <span class='ident'>packet_len</span>,
-                        <span class='prelude-val'>Err</span>(_) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='string'>&quot;packet length missing / not parsable&quot;</span>.<span class='ident'>to_owned</span>()),
+                    <span class="kw">let</span> <span class="ident">packet_len</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">u64</span>::<span class="ident">from_str_radix</span>(<span class="kw-2">&amp;</span><span class="ident">packet_len_str</span>, <span class="number">10</span>) {
+                        <span class="prelude-val">Ok</span>(<span class="ident">packet_len</span>) <span class="op">=&gt;</span> <span class="ident">packet_len</span>,
+                        <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="string">&quot;packet length missing / not parsable&quot;</span>.<span class="ident">to_owned</span>()),
                     };
-                    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>packet</span> <span class='op'>=</span> <span class='ident'>String</span>::<span class='ident'>new</span>();
-                    <span class='self'>self</span>.<span class='ident'>take</span>(<span class='ident'>packet_len</span>).<span class='ident'>read_to_string</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>packet</span>).<span class='ident'>unwrap</span>();
-                    <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;{}&quot;</span>, <span class='ident'>packet</span>);
-                    <span class='kw'>return</span> <span class='kw'>match</span> <span class='ident'>serde_json</span>::<span class='ident'>from_str</span>(<span class='kw-2'>&amp;</span><span class='ident'>packet</span>) {
-                        <span class='prelude-val'>Ok</span>(<span class='ident'>json</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='prelude-val'>Some</span>(<span class='ident'>json</span>)),
-                        <span class='prelude-val'>Err</span>(<span class='ident'>err</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(<span class='ident'>err</span>.<span class='ident'>description</span>().<span class='ident'>to_owned</span>()),
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">packet</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">new</span>();
+                    <span class="self">self</span>.<span class="ident">take</span>(<span class="ident">packet_len</span>).<span class="ident">read_to_string</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">packet</span>).<span class="ident">unwrap</span>();
+                    <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">packet</span>);
+                    <span class="kw">return</span> <span class="kw">match</span> <span class="ident">serde_json</span>::<span class="ident">from_str</span>(<span class="kw-2">&amp;</span><span class="ident">packet</span>) {
+                        <span class="prelude-val">Ok</span>(<span class="ident">json</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">json</span>)),
+                        <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>.<span class="ident">description</span>().<span class="ident">to_owned</span>()),
                     };
                 },
-                <span class='ident'>c</span> <span class='op'>=&gt;</span> <span class='ident'>buffer</span>.<span class='ident'>push</span>(<span class='ident'>c</span>),
+                <span class="ident">c</span> <span class="op">=&gt;</span> <span class="ident">buffer</span>.<span class="ident">push</span>(<span class="ident">c</span>),
             }
         }
     }

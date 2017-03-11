@@ -529,490 +529,490 @@
 <span id="484">484</span>
 <span id="485">485</span>
 <span id="486">486</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
 
-<span class='kw'>use</span> <span class='ident'>jsapi</span>::{<span class='ident'>JSObject</span>, <span class='ident'>JSString</span>, <span class='ident'>TraceKind</span>};
-<span class='kw'>use</span> <span class='ident'>jsapi</span>::<span class='ident'>Value</span>;
-<span class='kw'>use</span> <span class='ident'>jsapi</span>::<span class='ident'>jsval_layout</span>;
-<span class='kw'>use</span> <span class='ident'>jsapi</span>::<span class='ident'>JSValueType</span>;
+<span class="kw">use</span> <span class="ident">jsapi</span>::{<span class="ident">JSObject</span>, <span class="ident">JSString</span>, <span class="ident">TraceKind</span>};
+<span class="kw">use</span> <span class="ident">jsapi</span>::<span class="ident">Value</span>;
+<span class="kw">use</span> <span class="ident">jsapi</span>::<span class="ident">jsval_layout</span>;
+<span class="kw">use</span> <span class="ident">jsapi</span>::<span class="ident">JSValueType</span>;
 
-<span class='kw'>use</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>default</span>::<span class='ident'>Default</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
+<span class="kw">use</span> <span class="ident">libc</span>::<span class="ident">c_void</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">default</span>::<span class="ident">Default</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>JSVal</span> <span class='op'>=</span> <span class='ident'>Value</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">JSVal</span> <span class="op">=</span> <span class="ident">Value</span>;
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-<span class='kw'>const</span> <span class='ident'>JSVAL_TAG_SHIFT</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='number'>47</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+<span class="kw">const</span> <span class="ident">JSVAL_TAG_SHIFT</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">47</span>;
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-<span class='kw'>const</span> <span class='ident'>JSVAL_TAG_MAX_DOUBLE</span>: <span class='ident'>u32</span> <span class='op'>=</span> <span class='number'>0x1FFF0u32</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+<span class="kw">const</span> <span class="ident">JSVAL_TAG_MAX_DOUBLE</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0x1FFF0u32</span>;
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-<span class='kw'>const</span> <span class='ident'>JSVAL_TAG_CLEAR</span>: <span class='ident'>u32</span> <span class='op'>=</span> <span class='number'>0xFFFFFF80</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+<span class="kw">const</span> <span class="ident">JSVAL_TAG_CLEAR</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0xFFFFFF80</span>;
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-<span class='attribute'>#[<span class='ident'>repr</span>(<span class='ident'>u32</span>)]</span>
-<span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>)]</span>
-<span class='kw'>enum</span> <span class='ident'>ValueTag</span> {
-    <span class='ident'>INT32</span>     <span class='op'>=</span> <span class='ident'>JSVAL_TAG_MAX_DOUBLE</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_INT32</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
-    <span class='ident'>UNDEFINED</span> <span class='op'>=</span> <span class='ident'>JSVAL_TAG_MAX_DOUBLE</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_UNDEFINED</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
-    <span class='ident'>STRING</span>    <span class='op'>=</span> <span class='ident'>JSVAL_TAG_MAX_DOUBLE</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_STRING</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
-    <span class='ident'>SYMBOL</span>    <span class='op'>=</span> <span class='ident'>JSVAL_TAG_MAX_DOUBLE</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_SYMBOL</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
-    <span class='ident'>BOOLEAN</span>   <span class='op'>=</span> <span class='ident'>JSVAL_TAG_MAX_DOUBLE</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_BOOLEAN</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
-    <span class='ident'>MAGIC</span>     <span class='op'>=</span> <span class='ident'>JSVAL_TAG_MAX_DOUBLE</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_MAGIC</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
-    <span class='ident'>NULL</span>      <span class='op'>=</span> <span class='ident'>JSVAL_TAG_MAX_DOUBLE</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_NULL</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
-    <span class='ident'>OBJECT</span>    <span class='op'>=</span> <span class='ident'>JSVAL_TAG_MAX_DOUBLE</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_OBJECT</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">u32</span>)]</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+<span class="kw">enum</span> <span class="ident">ValueTag</span> {
+    <span class="ident">INT32</span>     <span class="op">=</span> <span class="ident">JSVAL_TAG_MAX_DOUBLE</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_INT32</span> <span class="kw">as</span> <span class="ident">u32</span>),
+    <span class="ident">UNDEFINED</span> <span class="op">=</span> <span class="ident">JSVAL_TAG_MAX_DOUBLE</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_UNDEFINED</span> <span class="kw">as</span> <span class="ident">u32</span>),
+    <span class="ident">STRING</span>    <span class="op">=</span> <span class="ident">JSVAL_TAG_MAX_DOUBLE</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_STRING</span> <span class="kw">as</span> <span class="ident">u32</span>),
+    <span class="ident">SYMBOL</span>    <span class="op">=</span> <span class="ident">JSVAL_TAG_MAX_DOUBLE</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_SYMBOL</span> <span class="kw">as</span> <span class="ident">u32</span>),
+    <span class="ident">BOOLEAN</span>   <span class="op">=</span> <span class="ident">JSVAL_TAG_MAX_DOUBLE</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_BOOLEAN</span> <span class="kw">as</span> <span class="ident">u32</span>),
+    <span class="ident">MAGIC</span>     <span class="op">=</span> <span class="ident">JSVAL_TAG_MAX_DOUBLE</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_MAGIC</span> <span class="kw">as</span> <span class="ident">u32</span>),
+    <span class="ident">NULL</span>      <span class="op">=</span> <span class="ident">JSVAL_TAG_MAX_DOUBLE</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_NULL</span> <span class="kw">as</span> <span class="ident">u32</span>),
+    <span class="ident">OBJECT</span>    <span class="op">=</span> <span class="ident">JSVAL_TAG_MAX_DOUBLE</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_OBJECT</span> <span class="kw">as</span> <span class="ident">u32</span>),
 }
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-<span class='attribute'>#[<span class='ident'>repr</span>(<span class='ident'>u32</span>)]</span>
-<span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>)]</span>
-<span class='kw'>enum</span> <span class='ident'>ValueTag</span> {
-    <span class='ident'>PRIVATE</span>   <span class='op'>=</span> <span class='number'>0</span>,
-    <span class='ident'>INT32</span>     <span class='op'>=</span> <span class='ident'>JSVAL_TAG_CLEAR</span> <span class='kw'>as</span> <span class='ident'>u32</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_INT32</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
-    <span class='ident'>UNDEFINED</span> <span class='op'>=</span> <span class='ident'>JSVAL_TAG_CLEAR</span> <span class='kw'>as</span> <span class='ident'>u32</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_UNDEFINED</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
-    <span class='ident'>STRING</span>    <span class='op'>=</span> <span class='ident'>JSVAL_TAG_CLEAR</span> <span class='kw'>as</span> <span class='ident'>u32</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_STRING</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
-    <span class='ident'>SYMBOL</span>    <span class='op'>=</span> <span class='ident'>JSVAL_TAG_CLEAR</span> <span class='kw'>as</span> <span class='ident'>u32</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_SYMBOL</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
-    <span class='ident'>BOOLEAN</span>   <span class='op'>=</span> <span class='ident'>JSVAL_TAG_CLEAR</span> <span class='kw'>as</span> <span class='ident'>u32</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_BOOLEAN</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
-    <span class='ident'>MAGIC</span>     <span class='op'>=</span> <span class='ident'>JSVAL_TAG_CLEAR</span> <span class='kw'>as</span> <span class='ident'>u32</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_MAGIC</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
-    <span class='ident'>NULL</span>      <span class='op'>=</span> <span class='ident'>JSVAL_TAG_CLEAR</span> <span class='kw'>as</span> <span class='ident'>u32</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_NULL</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
-    <span class='ident'>OBJECT</span>    <span class='op'>=</span> <span class='ident'>JSVAL_TAG_CLEAR</span> <span class='kw'>as</span> <span class='ident'>u32</span> <span class='op'>|</span> (<span class='ident'>JSValueType</span>::<span class='ident'>JSVAL_TYPE_OBJECT</span> <span class='kw'>as</span> <span class='ident'>u32</span>),
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">u32</span>)]</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+<span class="kw">enum</span> <span class="ident">ValueTag</span> {
+    <span class="ident">PRIVATE</span>   <span class="op">=</span> <span class="number">0</span>,
+    <span class="ident">INT32</span>     <span class="op">=</span> <span class="ident">JSVAL_TAG_CLEAR</span> <span class="kw">as</span> <span class="ident">u32</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_INT32</span> <span class="kw">as</span> <span class="ident">u32</span>),
+    <span class="ident">UNDEFINED</span> <span class="op">=</span> <span class="ident">JSVAL_TAG_CLEAR</span> <span class="kw">as</span> <span class="ident">u32</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_UNDEFINED</span> <span class="kw">as</span> <span class="ident">u32</span>),
+    <span class="ident">STRING</span>    <span class="op">=</span> <span class="ident">JSVAL_TAG_CLEAR</span> <span class="kw">as</span> <span class="ident">u32</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_STRING</span> <span class="kw">as</span> <span class="ident">u32</span>),
+    <span class="ident">SYMBOL</span>    <span class="op">=</span> <span class="ident">JSVAL_TAG_CLEAR</span> <span class="kw">as</span> <span class="ident">u32</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_SYMBOL</span> <span class="kw">as</span> <span class="ident">u32</span>),
+    <span class="ident">BOOLEAN</span>   <span class="op">=</span> <span class="ident">JSVAL_TAG_CLEAR</span> <span class="kw">as</span> <span class="ident">u32</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_BOOLEAN</span> <span class="kw">as</span> <span class="ident">u32</span>),
+    <span class="ident">MAGIC</span>     <span class="op">=</span> <span class="ident">JSVAL_TAG_CLEAR</span> <span class="kw">as</span> <span class="ident">u32</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_MAGIC</span> <span class="kw">as</span> <span class="ident">u32</span>),
+    <span class="ident">NULL</span>      <span class="op">=</span> <span class="ident">JSVAL_TAG_CLEAR</span> <span class="kw">as</span> <span class="ident">u32</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_NULL</span> <span class="kw">as</span> <span class="ident">u32</span>),
+    <span class="ident">OBJECT</span>    <span class="op">=</span> <span class="ident">JSVAL_TAG_CLEAR</span> <span class="kw">as</span> <span class="ident">u32</span> <span class="op">|</span> (<span class="ident">JSValueType</span>::<span class="ident">JSVAL_TYPE_OBJECT</span> <span class="kw">as</span> <span class="ident">u32</span>),
 }
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-<span class='attribute'>#[<span class='ident'>repr</span>(<span class='ident'>u64</span>)]</span>
-<span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>)]</span>
-<span class='kw'>enum</span> <span class='ident'>ValueShiftedTag</span> {
-    <span class='ident'>MAX_DOUBLE</span> <span class='op'>=</span> (((<span class='ident'>JSVAL_TAG_MAX_DOUBLE</span> <span class='kw'>as</span> <span class='ident'>u64</span>) <span class='op'>&lt;&lt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>) <span class='op'>|</span> <span class='number'>0xFFFFFFFFu64</span>),
-    <span class='ident'>INT32</span>      <span class='op'>=</span> ((<span class='ident'>ValueTag</span>::<span class='ident'>INT32</span> <span class='kw'>as</span> <span class='ident'>u64</span>)      <span class='op'>&lt;&lt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>),
-    <span class='ident'>UNDEFINED</span>  <span class='op'>=</span> ((<span class='ident'>ValueTag</span>::<span class='ident'>UNDEFINED</span> <span class='kw'>as</span> <span class='ident'>u64</span>)  <span class='op'>&lt;&lt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>),
-    <span class='ident'>STRING</span>     <span class='op'>=</span> ((<span class='ident'>ValueTag</span>::<span class='ident'>STRING</span> <span class='kw'>as</span> <span class='ident'>u64</span>)     <span class='op'>&lt;&lt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>),
-    <span class='ident'>SYMBOL</span>     <span class='op'>=</span> ((<span class='ident'>ValueTag</span>::<span class='ident'>SYMBOL</span> <span class='kw'>as</span> <span class='ident'>u64</span>)     <span class='op'>&lt;&lt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>),
-    <span class='ident'>BOOLEAN</span>    <span class='op'>=</span> ((<span class='ident'>ValueTag</span>::<span class='ident'>BOOLEAN</span> <span class='kw'>as</span> <span class='ident'>u64</span>)    <span class='op'>&lt;&lt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>),
-    <span class='ident'>MAGIC</span>      <span class='op'>=</span> ((<span class='ident'>ValueTag</span>::<span class='ident'>MAGIC</span> <span class='kw'>as</span> <span class='ident'>u64</span>)      <span class='op'>&lt;&lt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>),
-    <span class='ident'>NULL</span>       <span class='op'>=</span> ((<span class='ident'>ValueTag</span>::<span class='ident'>NULL</span> <span class='kw'>as</span> <span class='ident'>u64</span>)       <span class='op'>&lt;&lt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>),
-    <span class='ident'>OBJECT</span>     <span class='op'>=</span> ((<span class='ident'>ValueTag</span>::<span class='ident'>OBJECT</span> <span class='kw'>as</span> <span class='ident'>u64</span>)     <span class='op'>&lt;&lt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>),
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">u64</span>)]</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+<span class="kw">enum</span> <span class="ident">ValueShiftedTag</span> {
+    <span class="ident">MAX_DOUBLE</span> <span class="op">=</span> (((<span class="ident">JSVAL_TAG_MAX_DOUBLE</span> <span class="kw">as</span> <span class="ident">u64</span>) <span class="op">&lt;&lt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>) <span class="op">|</span> <span class="number">0xFFFFFFFFu64</span>),
+    <span class="ident">INT32</span>      <span class="op">=</span> ((<span class="ident">ValueTag</span>::<span class="ident">INT32</span> <span class="kw">as</span> <span class="ident">u64</span>)      <span class="op">&lt;&lt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>),
+    <span class="ident">UNDEFINED</span>  <span class="op">=</span> ((<span class="ident">ValueTag</span>::<span class="ident">UNDEFINED</span> <span class="kw">as</span> <span class="ident">u64</span>)  <span class="op">&lt;&lt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>),
+    <span class="ident">STRING</span>     <span class="op">=</span> ((<span class="ident">ValueTag</span>::<span class="ident">STRING</span> <span class="kw">as</span> <span class="ident">u64</span>)     <span class="op">&lt;&lt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>),
+    <span class="ident">SYMBOL</span>     <span class="op">=</span> ((<span class="ident">ValueTag</span>::<span class="ident">SYMBOL</span> <span class="kw">as</span> <span class="ident">u64</span>)     <span class="op">&lt;&lt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>),
+    <span class="ident">BOOLEAN</span>    <span class="op">=</span> ((<span class="ident">ValueTag</span>::<span class="ident">BOOLEAN</span> <span class="kw">as</span> <span class="ident">u64</span>)    <span class="op">&lt;&lt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>),
+    <span class="ident">MAGIC</span>      <span class="op">=</span> ((<span class="ident">ValueTag</span>::<span class="ident">MAGIC</span> <span class="kw">as</span> <span class="ident">u64</span>)      <span class="op">&lt;&lt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>),
+    <span class="ident">NULL</span>       <span class="op">=</span> ((<span class="ident">ValueTag</span>::<span class="ident">NULL</span> <span class="kw">as</span> <span class="ident">u64</span>)       <span class="op">&lt;&lt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>),
+    <span class="ident">OBJECT</span>     <span class="op">=</span> ((<span class="ident">ValueTag</span>::<span class="ident">OBJECT</span> <span class="kw">as</span> <span class="ident">u64</span>)     <span class="op">&lt;&lt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>),
 }
 
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-<span class='kw'>const</span> <span class='ident'>JSVAL_PAYLOAD_MASK</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='number'>0x00007FFFFFFFFFFF</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+<span class="kw">const</span> <span class="ident">JSVAL_PAYLOAD_MASK</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">0x00007FFFFFFFFFFF</span>;
 
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>fn</span> <span class='ident'>AsJSVal</span>(<span class='ident'>val</span>: <span class='ident'>u64</span>) <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='ident'>JSVal</span> {
-        <span class='ident'>data</span>: <span class='ident'>jsval_layout</span> {
-            <span class='ident'>asBits</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
-            <span class='ident'>s</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
-            <span class='ident'>asDouble</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
-            <span class='ident'>asPtr</span>: <span class='ident'>Default</span>::<span class='ident'>default</span>(),
-            <span class='ident'>_bindgen_data_</span>: <span class='ident'>val</span>,
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">fn</span> <span class="ident">AsJSVal</span>(<span class="ident">val</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="ident">JSVal</span> {
+        <span class="ident">data</span>: <span class="ident">jsval_layout</span> {
+            <span class="ident">asBits</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
+            <span class="ident">s</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
+            <span class="ident">asDouble</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
+            <span class="ident">asPtr</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
+            <span class="ident">_bindgen_data_</span>: <span class="ident">val</span>,
         }
     }
 }
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>fn</span> <span class='ident'>BuildJSVal</span>(<span class='ident'>tag</span>: <span class='ident'>ValueTag</span>, <span class='ident'>payload</span>: <span class='ident'>u64</span>) <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='ident'>AsJSVal</span>(((<span class='ident'>tag</span> <span class='kw'>as</span> <span class='ident'>u32</span> <span class='kw'>as</span> <span class='ident'>u64</span>) <span class='op'>&lt;&lt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>) <span class='op'>|</span> <span class='ident'>payload</span>)
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">fn</span> <span class="ident">BuildJSVal</span>(<span class="ident">tag</span>: <span class="ident">ValueTag</span>, <span class="ident">payload</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="ident">AsJSVal</span>(((<span class="ident">tag</span> <span class="kw">as</span> <span class="ident">u32</span> <span class="kw">as</span> <span class="ident">u64</span>) <span class="op">&lt;&lt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>) <span class="op">|</span> <span class="ident">payload</span>)
 }
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>fn</span> <span class='ident'>BuildJSVal</span>(<span class='ident'>tag</span>: <span class='ident'>ValueTag</span>, <span class='ident'>payload</span>: <span class='ident'>u64</span>) <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='ident'>AsJSVal</span>(((<span class='ident'>tag</span> <span class='kw'>as</span> <span class='ident'>u32</span> <span class='kw'>as</span> <span class='ident'>u64</span>) <span class='op'>&lt;&lt;</span> <span class='number'>32</span>) <span class='op'>|</span> <span class='ident'>payload</span>)
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">fn</span> <span class="ident">BuildJSVal</span>(<span class="ident">tag</span>: <span class="ident">ValueTag</span>, <span class="ident">payload</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="ident">AsJSVal</span>(((<span class="ident">tag</span> <span class="kw">as</span> <span class="ident">u32</span> <span class="kw">as</span> <span class="ident">u64</span>) <span class="op">&lt;&lt;</span> <span class="number">32</span>) <span class="op">|</span> <span class="ident">payload</span>)
 }
 
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>NullValue</span>() <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='ident'>BuildJSVal</span>(<span class='ident'>ValueTag</span>::<span class='ident'>NULL</span>, <span class='number'>0</span>)
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">NullValue</span>() <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="ident">BuildJSVal</span>(<span class="ident">ValueTag</span>::<span class="ident">NULL</span>, <span class="number">0</span>)
 }
 
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>UndefinedValue</span>() <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='ident'>BuildJSVal</span>(<span class='ident'>ValueTag</span>::<span class='ident'>UNDEFINED</span>, <span class='number'>0</span>)
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">UndefinedValue</span>() <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="ident">BuildJSVal</span>(<span class="ident">ValueTag</span>::<span class="ident">UNDEFINED</span>, <span class="number">0</span>)
 }
 
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>Int32Value</span>(<span class='ident'>i</span>: <span class='ident'>i32</span>) <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='ident'>BuildJSVal</span>(<span class='ident'>ValueTag</span>::<span class='ident'>INT32</span>, <span class='ident'>i</span> <span class='kw'>as</span> <span class='ident'>u32</span> <span class='kw'>as</span> <span class='ident'>u64</span>)
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">Int32Value</span>(<span class="ident">i</span>: <span class="ident">i32</span>) <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="ident">BuildJSVal</span>(<span class="ident">ValueTag</span>::<span class="ident">INT32</span>, <span class="ident">i</span> <span class="kw">as</span> <span class="ident">u32</span> <span class="kw">as</span> <span class="ident">u64</span>)
 }
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>DoubleValue</span>(<span class='ident'>f</span>: <span class='ident'>f64</span>) <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='kw'>let</span> <span class='ident'>bits</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>mem</span>::<span class='ident'>transmute</span>(<span class='ident'>f</span>) };
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>bits</span> <span class='op'>&lt;=</span> <span class='ident'>ValueShiftedTag</span>::<span class='ident'>MAX_DOUBLE</span> <span class='kw'>as</span> <span class='ident'>u64</span>);
-    <span class='ident'>AsJSVal</span>(<span class='ident'>bits</span>)
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">DoubleValue</span>(<span class="ident">f</span>: <span class="ident">f64</span>) <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="kw">let</span> <span class="ident">bits</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">f</span>) };
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">bits</span> <span class="op">&lt;=</span> <span class="ident">ValueShiftedTag</span>::<span class="ident">MAX_DOUBLE</span> <span class="kw">as</span> <span class="ident">u64</span>);
+    <span class="ident">AsJSVal</span>(<span class="ident">bits</span>)
 }
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>DoubleValue</span>(<span class='ident'>f</span>: <span class='ident'>f64</span>) <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='kw'>let</span> <span class='ident'>bits</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>mem</span>::<span class='ident'>transmute</span>(<span class='ident'>f</span>) };
-    <span class='kw'>let</span> <span class='ident'>val</span> <span class='op'>=</span> <span class='ident'>AsJSVal</span>(<span class='ident'>bits</span>);
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>val</span>.<span class='ident'>is_double</span>());
-    <span class='ident'>val</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">DoubleValue</span>(<span class="ident">f</span>: <span class="ident">f64</span>) <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="kw">let</span> <span class="ident">bits</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">f</span>) };
+    <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="ident">AsJSVal</span>(<span class="ident">bits</span>);
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">val</span>.<span class="ident">is_double</span>());
+    <span class="ident">val</span>
 }
 
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>UInt32Value</span>(<span class='ident'>ui</span>: <span class='ident'>u32</span>) <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='kw'>if</span> <span class='ident'>ui</span> <span class='op'>&gt;</span> <span class='number'>0x7fffffff</span> {
-        <span class='ident'>DoubleValue</span>(<span class='ident'>ui</span> <span class='kw'>as</span> <span class='ident'>f64</span>)
-    } <span class='kw'>else</span> {
-        <span class='ident'>Int32Value</span>(<span class='ident'>ui</span> <span class='kw'>as</span> <span class='ident'>i32</span>)
-    }
-}
-
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>StringValue</span>(<span class='ident'>s</span>: <span class='kw-2'>&amp;</span><span class='ident'>JSString</span>) <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='kw'>let</span> <span class='ident'>bits</span> <span class='op'>=</span> <span class='ident'>s</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>JSString</span> <span class='kw'>as</span> <span class='ident'>usize</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
-    <span class='macro'>assert</span><span class='macro'>!</span>((<span class='ident'>bits</span> <span class='op'>&gt;&gt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>) <span class='op'>==</span> <span class='number'>0</span>);
-    <span class='ident'>BuildJSVal</span>(<span class='ident'>ValueTag</span>::<span class='ident'>STRING</span>, <span class='ident'>bits</span>)
-}
-
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>StringValue</span>(<span class='ident'>s</span>: <span class='kw-2'>&amp;</span><span class='ident'>JSString</span>) <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='kw'>let</span> <span class='ident'>bits</span> <span class='op'>=</span> <span class='ident'>s</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>JSString</span> <span class='kw'>as</span> <span class='ident'>usize</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
-    <span class='ident'>BuildJSVal</span>(<span class='ident'>ValueTag</span>::<span class='ident'>STRING</span>, <span class='ident'>bits</span>)
-}
-
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>BooleanValue</span>(<span class='ident'>b</span>: <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='ident'>BuildJSVal</span>(<span class='ident'>ValueTag</span>::<span class='ident'>BOOLEAN</span>, <span class='ident'>b</span> <span class='kw'>as</span> <span class='ident'>u64</span>)
-}
-
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ObjectValue</span>(<span class='ident'>o</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSObject</span>) <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='kw'>let</span> <span class='ident'>bits</span> <span class='op'>=</span> <span class='ident'>o</span> <span class='kw'>as</span> <span class='ident'>usize</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
-    <span class='macro'>assert</span><span class='macro'>!</span>((<span class='ident'>bits</span> <span class='op'>&gt;&gt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>) <span class='op'>==</span> <span class='number'>0</span>);
-    <span class='ident'>BuildJSVal</span>(<span class='ident'>ValueTag</span>::<span class='ident'>OBJECT</span>, <span class='ident'>bits</span>)
-}
-
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ObjectValue</span>(<span class='ident'>o</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSObject</span>) <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='kw'>let</span> <span class='ident'>bits</span> <span class='op'>=</span> <span class='ident'>o</span> <span class='kw'>as</span> <span class='ident'>usize</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
-    <span class='ident'>BuildJSVal</span>(<span class='ident'>ValueTag</span>::<span class='ident'>OBJECT</span>, <span class='ident'>bits</span>)
-}
-
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ObjectOrNullValue</span>(<span class='ident'>o</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSObject</span>) <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='kw'>if</span> <span class='ident'>o</span>.<span class='ident'>is_null</span>() {
-        <span class='ident'>NullValue</span>()
-    } <span class='kw'>else</span> {
-        <span class='ident'>ObjectValue</span>(<span class='ident'>o</span>)
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">UInt32Value</span>(<span class="ident">ui</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="kw">if</span> <span class="ident">ui</span> <span class="op">&gt;</span> <span class="number">0x7fffffff</span> {
+        <span class="ident">DoubleValue</span>(<span class="ident">ui</span> <span class="kw">as</span> <span class="ident">f64</span>)
+    } <span class="kw">else</span> {
+        <span class="ident">Int32Value</span>(<span class="ident">ui</span> <span class="kw">as</span> <span class="ident">i32</span>)
     }
 }
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>PrivateValue</span>(<span class='ident'>o</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>c_void</span>) <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='kw'>let</span> <span class='ident'>ptrBits</span> <span class='op'>=</span> <span class='ident'>o</span> <span class='kw'>as</span> <span class='ident'>usize</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
-    <span class='macro'>assert</span><span class='macro'>!</span>((<span class='ident'>ptrBits</span> <span class='op'>&amp;</span> <span class='number'>1</span>) <span class='op'>==</span> <span class='number'>0</span>);
-    <span class='ident'>AsJSVal</span>(<span class='ident'>ptrBits</span> <span class='op'>&gt;&gt;</span> <span class='number'>1</span>)
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">StringValue</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">JSString</span>) <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="kw">let</span> <span class="ident">bits</span> <span class="op">=</span> <span class="ident">s</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">JSString</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="kw">as</span> <span class="ident">u64</span>;
+    <span class="macro">assert</span><span class="macro">!</span>((<span class="ident">bits</span> <span class="op">&gt;&gt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>) <span class="op">==</span> <span class="number">0</span>);
+    <span class="ident">BuildJSVal</span>(<span class="ident">ValueTag</span>::<span class="ident">STRING</span>, <span class="ident">bits</span>)
 }
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-<span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>PrivateValue</span>(<span class='ident'>o</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>c_void</span>) <span class='op'>-&gt;</span> <span class='ident'>JSVal</span> {
-    <span class='kw'>let</span> <span class='ident'>ptrBits</span> <span class='op'>=</span> <span class='ident'>o</span> <span class='kw'>as</span> <span class='ident'>usize</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
-    <span class='macro'>assert</span><span class='macro'>!</span>((<span class='ident'>ptrBits</span> <span class='op'>&amp;</span> <span class='number'>1</span>) <span class='op'>==</span> <span class='number'>0</span>);
-    <span class='ident'>BuildJSVal</span>(<span class='ident'>ValueTag</span>::<span class='ident'>PRIVATE</span>, <span class='ident'>ptrBits</span>)
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">StringValue</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">JSString</span>) <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="kw">let</span> <span class="ident">bits</span> <span class="op">=</span> <span class="ident">s</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">JSString</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="kw">as</span> <span class="ident">u64</span>;
+    <span class="ident">BuildJSVal</span>(<span class="ident">ValueTag</span>::<span class="ident">STRING</span>, <span class="ident">bits</span>)
 }
 
-<span class='kw'>impl</span> <span class='ident'>JSVal</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>asBits</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>u64</span> {
-        <span class='self'>self</span>.<span class='ident'>data</span>.<span class='ident'>_bindgen_data_</span>
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">BooleanValue</span>(<span class="ident">b</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="ident">BuildJSVal</span>(<span class="ident">ValueTag</span>::<span class="ident">BOOLEAN</span>, <span class="ident">b</span> <span class="kw">as</span> <span class="ident">u64</span>)
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ObjectValue</span>(<span class="ident">o</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSObject</span>) <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="kw">let</span> <span class="ident">bits</span> <span class="op">=</span> <span class="ident">o</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="kw">as</span> <span class="ident">u64</span>;
+    <span class="macro">assert</span><span class="macro">!</span>((<span class="ident">bits</span> <span class="op">&gt;&gt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>) <span class="op">==</span> <span class="number">0</span>);
+    <span class="ident">BuildJSVal</span>(<span class="ident">ValueTag</span>::<span class="ident">OBJECT</span>, <span class="ident">bits</span>)
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ObjectValue</span>(<span class="ident">o</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSObject</span>) <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="kw">let</span> <span class="ident">bits</span> <span class="op">=</span> <span class="ident">o</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="kw">as</span> <span class="ident">u64</span>;
+    <span class="ident">BuildJSVal</span>(<span class="ident">ValueTag</span>::<span class="ident">OBJECT</span>, <span class="ident">bits</span>)
+}
+
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ObjectOrNullValue</span>(<span class="ident">o</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSObject</span>) <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="kw">if</span> <span class="ident">o</span>.<span class="ident">is_null</span>() {
+        <span class="ident">NullValue</span>()
+    } <span class="kw">else</span> {
+        <span class="ident">ObjectValue</span>(<span class="ident">o</span>)
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">PrivateValue</span>(<span class="ident">o</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span>) <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="kw">let</span> <span class="ident">ptrBits</span> <span class="op">=</span> <span class="ident">o</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="kw">as</span> <span class="ident">u64</span>;
+    <span class="macro">assert</span><span class="macro">!</span>((<span class="ident">ptrBits</span> <span class="op">&amp;</span> <span class="number">1</span>) <span class="op">==</span> <span class="number">0</span>);
+    <span class="ident">AsJSVal</span>(<span class="ident">ptrBits</span> <span class="op">&gt;&gt;</span> <span class="number">1</span>)
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">PrivateValue</span>(<span class="ident">o</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span>) <span class="op">-&gt;</span> <span class="ident">JSVal</span> {
+    <span class="kw">let</span> <span class="ident">ptrBits</span> <span class="op">=</span> <span class="ident">o</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="kw">as</span> <span class="ident">u64</span>;
+    <span class="macro">assert</span><span class="macro">!</span>((<span class="ident">ptrBits</span> <span class="op">&amp;</span> <span class="number">1</span>) <span class="op">==</span> <span class="number">0</span>);
+    <span class="ident">BuildJSVal</span>(<span class="ident">ValueTag</span>::<span class="ident">PRIVATE</span>, <span class="ident">ptrBits</span>)
+}
+
+<span class="kw">impl</span> <span class="ident">JSVal</span> {
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">asBits</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
+        <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">_bindgen_data_</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_undefined</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>==</span> <span class='ident'>ValueShiftedTag</span>::<span class='ident'>UNDEFINED</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_undefined</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">==</span> <span class="ident">ValueShiftedTag</span>::<span class="ident">UNDEFINED</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_undefined</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='number'>32</span>) <span class='op'>==</span> <span class='ident'>ValueTag</span>::<span class='ident'>UNDEFINED</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_undefined</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="number">32</span>) <span class="op">==</span> <span class="ident">ValueTag</span>::<span class="ident">UNDEFINED</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_null</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>==</span> <span class='ident'>ValueShiftedTag</span>::<span class='ident'>NULL</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_null</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">==</span> <span class="ident">ValueShiftedTag</span>::<span class="ident">NULL</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_null</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='number'>32</span>) <span class='op'>==</span> <span class='ident'>ValueTag</span>::<span class='ident'>NULL</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_null</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="number">32</span>) <span class="op">==</span> <span class="ident">ValueTag</span>::<span class="ident">NULL</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_null_or_undefined</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>is_null</span>() <span class='op'>||</span> <span class='self'>self</span>.<span class='ident'>is_undefined</span>()
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_null_or_undefined</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">is_null</span>() <span class="op">||</span> <span class="self">self</span>.<span class="ident">is_undefined</span>()
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_boolean</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>) <span class='op'>==</span> <span class='ident'>ValueTag</span>::<span class='ident'>BOOLEAN</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_boolean</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>) <span class="op">==</span> <span class="ident">ValueTag</span>::<span class="ident">BOOLEAN</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_boolean</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='number'>32</span>) <span class='op'>==</span> <span class='ident'>ValueTag</span>::<span class='ident'>BOOLEAN</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_boolean</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="number">32</span>) <span class="op">==</span> <span class="ident">ValueTag</span>::<span class="ident">BOOLEAN</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_int32</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>) <span class='op'>==</span> <span class='ident'>ValueTag</span>::<span class='ident'>INT32</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_int32</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>) <span class="op">==</span> <span class="ident">ValueTag</span>::<span class="ident">INT32</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_int32</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='number'>32</span>) <span class='op'>==</span> <span class='ident'>ValueTag</span>::<span class='ident'>INT32</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_int32</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="number">32</span>) <span class="op">==</span> <span class="ident">ValueTag</span>::<span class="ident">INT32</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_double</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&lt;=</span> <span class='ident'>ValueShiftedTag</span>::<span class='ident'>MAX_DOUBLE</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_double</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&lt;=</span> <span class="ident">ValueShiftedTag</span>::<span class="ident">MAX_DOUBLE</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_double</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='number'>32</span>) <span class='op'>&lt;=</span> <span class='ident'>JSVAL_TAG_CLEAR</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_double</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="number">32</span>) <span class="op">&lt;=</span> <span class="ident">JSVAL_TAG_CLEAR</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_number</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>const</span> <span class='ident'>JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_NUMBER_SET</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='ident'>ValueShiftedTag</span>::<span class='ident'>UNDEFINED</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
-        <span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&lt;</span> <span class='ident'>JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_NUMBER_SET</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_number</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">const</span> <span class="ident">JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_NUMBER_SET</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">ValueShiftedTag</span>::<span class="ident">UNDEFINED</span> <span class="kw">as</span> <span class="ident">u64</span>;
+        <span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&lt;</span> <span class="ident">JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_NUMBER_SET</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_number</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>const</span> <span class='ident'>JSVAL_UPPER_INCL_TAG_OF_NUMBER_SET</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='ident'>ValueTag</span>::<span class='ident'>INT32</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='number'>32</span>) <span class='op'>&lt;=</span> <span class='ident'>JSVAL_UPPER_INCL_TAG_OF_NUMBER_SET</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_number</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">const</span> <span class="ident">JSVAL_UPPER_INCL_TAG_OF_NUMBER_SET</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">ValueTag</span>::<span class="ident">INT32</span> <span class="kw">as</span> <span class="ident">u64</span>;
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="number">32</span>) <span class="op">&lt;=</span> <span class="ident">JSVAL_UPPER_INCL_TAG_OF_NUMBER_SET</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_primitive</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>const</span> <span class='ident'>JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_PRIMITIVE_SET</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='ident'>ValueShiftedTag</span>::<span class='ident'>OBJECT</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
-        <span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&lt;</span> <span class='ident'>JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_PRIMITIVE_SET</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_primitive</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">const</span> <span class="ident">JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_PRIMITIVE_SET</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">ValueShiftedTag</span>::<span class="ident">OBJECT</span> <span class="kw">as</span> <span class="ident">u64</span>;
+        <span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&lt;</span> <span class="ident">JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_PRIMITIVE_SET</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_primitive</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>const</span> <span class='ident'>JSVAL_UPPER_EXCL_TAG_OF_PRIMITIVE_SET</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='ident'>ValueTag</span>::<span class='ident'>OBJECT</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='number'>32</span>) <span class='op'>&lt;</span> <span class='ident'>JSVAL_UPPER_EXCL_TAG_OF_PRIMITIVE_SET</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_primitive</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">const</span> <span class="ident">JSVAL_UPPER_EXCL_TAG_OF_PRIMITIVE_SET</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">ValueTag</span>::<span class="ident">OBJECT</span> <span class="kw">as</span> <span class="ident">u64</span>;
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="number">32</span>) <span class="op">&lt;</span> <span class="ident">JSVAL_UPPER_EXCL_TAG_OF_PRIMITIVE_SET</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_string</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>) <span class='op'>==</span> <span class='ident'>ValueTag</span>::<span class='ident'>STRING</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_string</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>) <span class="op">==</span> <span class="ident">ValueTag</span>::<span class="ident">STRING</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_string</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='number'>32</span>) <span class='op'>==</span> <span class='ident'>ValueTag</span>::<span class='ident'>STRING</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_string</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="number">32</span>) <span class="op">==</span> <span class="ident">ValueTag</span>::<span class="ident">STRING</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_object</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>((<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>) <span class='op'>&lt;=</span> <span class='ident'>ValueTag</span>::<span class='ident'>OBJECT</span> <span class='kw'>as</span> <span class='ident'>u64</span>);
-        <span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;=</span> <span class='ident'>ValueShiftedTag</span>::<span class='ident'>OBJECT</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_object</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="macro">assert</span><span class="macro">!</span>((<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>) <span class="op">&lt;=</span> <span class="ident">ValueTag</span>::<span class="ident">OBJECT</span> <span class="kw">as</span> <span class="ident">u64</span>);
+        <span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;=</span> <span class="ident">ValueShiftedTag</span>::<span class="ident">OBJECT</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_object</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='number'>32</span>) <span class='op'>==</span> <span class='ident'>ValueTag</span>::<span class='ident'>OBJECT</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_object</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="number">32</span>) <span class="op">==</span> <span class="ident">ValueTag</span>::<span class="ident">OBJECT</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_symbol</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>==</span> <span class='ident'>ValueShiftedTag</span>::<span class='ident'>SYMBOL</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_symbol</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">==</span> <span class="ident">ValueShiftedTag</span>::<span class="ident">SYMBOL</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_symbol</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='number'>32</span>) <span class='op'>==</span> <span class='ident'>ValueTag</span>::<span class='ident'>SYMBOL</span> <span class='kw'>as</span> <span class='ident'>u64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_symbol</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="number">32</span>) <span class="op">==</span> <span class="ident">ValueTag</span>::<span class="ident">SYMBOL</span> <span class="kw">as</span> <span class="ident">u64</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>to_boolean</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>is_boolean</span>());
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&amp;</span> <span class='ident'>JSVAL_PAYLOAD_MASK</span>) <span class='op'>!=</span> <span class='number'>0</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_boolean</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">is_boolean</span>());
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&amp;</span> <span class="ident">JSVAL_PAYLOAD_MASK</span>) <span class="op">!=</span> <span class="number">0</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>to_boolean</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&amp;</span> <span class='number'>0x00000000FFFFFFFF</span>) <span class='op'>!=</span> <span class='number'>0</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_boolean</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&amp;</span> <span class="number">0x00000000FFFFFFFF</span>) <span class="op">!=</span> <span class="number">0</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>to_int32</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>i32</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>is_int32</span>());
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&amp;</span> <span class='number'>0x00000000FFFFFFFF</span>) <span class='kw'>as</span> <span class='ident'>i32</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_int32</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">i32</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">is_int32</span>());
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&amp;</span> <span class="number">0x00000000FFFFFFFF</span>) <span class="kw">as</span> <span class="ident">i32</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>to_double</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>f64</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>is_double</span>());
-        <span class='kw'>unsafe</span> { <span class='ident'>mem</span>::<span class='ident'>transmute</span>(<span class='self'>self</span>.<span class='ident'>asBits</span>()) }
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_double</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">is_double</span>());
+        <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="self">self</span>.<span class="ident">asBits</span>()) }
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>to_number</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>f64</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>is_number</span>());
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>is_double</span>() {
-            <span class='self'>self</span>.<span class='ident'>to_double</span>()
-        } <span class='kw'>else</span> {
-            <span class='self'>self</span>.<span class='ident'>to_int32</span>() <span class='kw'>as</span> <span class='ident'>f64</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_number</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">is_number</span>());
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_double</span>() {
+            <span class="self">self</span>.<span class="ident">to_double</span>()
+        } <span class="kw">else</span> {
+            <span class="self">self</span>.<span class="ident">to_int32</span>() <span class="kw">as</span> <span class="ident">f64</span>
         }
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>to_object</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSObject</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>is_object</span>());
-        <span class='self'>self</span>.<span class='ident'>to_object_or_null</span>()
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_object</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSObject</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">is_object</span>());
+        <span class="self">self</span>.<span class="ident">to_object_or_null</span>()
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>to_string</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSString</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>is_string</span>());
-        <span class='kw'>let</span> <span class='ident'>ptrBits</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&amp;</span> <span class='ident'>JSVAL_PAYLOAD_MASK</span>;
-        <span class='ident'>ptrBits</span> <span class='kw'>as</span> <span class='ident'>usize</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSString</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_string</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSString</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">is_string</span>());
+        <span class="kw">let</span> <span class="ident">ptrBits</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&amp;</span> <span class="ident">JSVAL_PAYLOAD_MASK</span>;
+        <span class="ident">ptrBits</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSString</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>to_string</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSString</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>is_string</span>());
-        <span class='kw'>let</span> <span class='ident'>ptrBits</span>: <span class='ident'>u32</span> <span class='op'>=</span> (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&amp;</span> <span class='number'>0x00000000FFFFFFFF</span>) <span class='kw'>as</span> <span class='ident'>u32</span>;
-        <span class='ident'>ptrBits</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSString</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_string</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSString</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">is_string</span>());
+        <span class="kw">let</span> <span class="ident">ptrBits</span>: <span class="ident">u32</span> <span class="op">=</span> (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&amp;</span> <span class="number">0x00000000FFFFFFFF</span>) <span class="kw">as</span> <span class="ident">u32</span>;
+        <span class="ident">ptrBits</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSString</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_object_or_null</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>const</span> <span class='ident'>JSVAL_LOWER_INCL_SHIFTED_TAG_OF_OBJ_OR_NULL_SET</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='ident'>ValueShiftedTag</span>::<span class='ident'>NULL</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
-        <span class='macro'>assert</span><span class='macro'>!</span>((<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='ident'>JSVAL_TAG_SHIFT</span>) <span class='op'>&lt;=</span> <span class='ident'>ValueTag</span>::<span class='ident'>OBJECT</span> <span class='kw'>as</span> <span class='ident'>u64</span>);
-        <span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;=</span> <span class='ident'>JSVAL_LOWER_INCL_SHIFTED_TAG_OF_OBJ_OR_NULL_SET</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_object_or_null</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">const</span> <span class="ident">JSVAL_LOWER_INCL_SHIFTED_TAG_OF_OBJ_OR_NULL_SET</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">ValueShiftedTag</span>::<span class="ident">NULL</span> <span class="kw">as</span> <span class="ident">u64</span>;
+        <span class="macro">assert</span><span class="macro">!</span>((<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="ident">JSVAL_TAG_SHIFT</span>) <span class="op">&lt;=</span> <span class="ident">ValueTag</span>::<span class="ident">OBJECT</span> <span class="kw">as</span> <span class="ident">u64</span>);
+        <span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;=</span> <span class="ident">JSVAL_LOWER_INCL_SHIFTED_TAG_OF_OBJ_OR_NULL_SET</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_object_or_null</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>const</span> <span class='ident'>JSVAL_LOWER_INCL_TAG_OF_OBJ_OR_NULL_SET</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='ident'>ValueTag</span>::<span class='ident'>NULL</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
-        <span class='macro'>assert</span><span class='macro'>!</span>((<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='number'>32</span>) <span class='op'>&lt;=</span> <span class='ident'>ValueTag</span>::<span class='ident'>OBJECT</span> <span class='kw'>as</span> <span class='ident'>u64</span>);
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='number'>32</span>) <span class='op'>&gt;=</span> <span class='ident'>JSVAL_LOWER_INCL_TAG_OF_OBJ_OR_NULL_SET</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_object_or_null</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">const</span> <span class="ident">JSVAL_LOWER_INCL_TAG_OF_OBJ_OR_NULL_SET</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">ValueTag</span>::<span class="ident">NULL</span> <span class="kw">as</span> <span class="ident">u64</span>;
+        <span class="macro">assert</span><span class="macro">!</span>((<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="number">32</span>) <span class="op">&lt;=</span> <span class="ident">ValueTag</span>::<span class="ident">OBJECT</span> <span class="kw">as</span> <span class="ident">u64</span>);
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="number">32</span>) <span class="op">&gt;=</span> <span class="ident">JSVAL_LOWER_INCL_TAG_OF_OBJ_OR_NULL_SET</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>to_object_or_null</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSObject</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>is_object_or_null</span>());
-        <span class='kw'>let</span> <span class='ident'>ptrBits</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&amp;</span> <span class='ident'>JSVAL_PAYLOAD_MASK</span>;
-        <span class='macro'>assert</span><span class='macro'>!</span>((<span class='ident'>ptrBits</span> <span class='op'>&amp;</span> <span class='number'>0x7</span>) <span class='op'>==</span> <span class='number'>0</span>);
-        <span class='ident'>ptrBits</span> <span class='kw'>as</span> <span class='ident'>usize</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSObject</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_object_or_null</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSObject</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">is_object_or_null</span>());
+        <span class="kw">let</span> <span class="ident">ptrBits</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&amp;</span> <span class="ident">JSVAL_PAYLOAD_MASK</span>;
+        <span class="macro">assert</span><span class="macro">!</span>((<span class="ident">ptrBits</span> <span class="op">&amp;</span> <span class="number">0x7</span>) <span class="op">==</span> <span class="number">0</span>);
+        <span class="ident">ptrBits</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSObject</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>to_object_or_null</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSObject</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>is_object_or_null</span>());
-        <span class='kw'>let</span> <span class='ident'>ptrBits</span>: <span class='ident'>u32</span> <span class='op'>=</span> (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&amp;</span> <span class='number'>0x00000000FFFFFFFF</span>) <span class='kw'>as</span> <span class='ident'>u32</span>;
-        <span class='ident'>ptrBits</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSObject</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_object_or_null</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSObject</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">is_object_or_null</span>());
+        <span class="kw">let</span> <span class="ident">ptrBits</span>: <span class="ident">u32</span> <span class="op">=</span> (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&amp;</span> <span class="number">0x00000000FFFFFFFF</span>) <span class="kw">as</span> <span class="ident">u32</span>;
+        <span class="ident">ptrBits</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSObject</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>to_private</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>c_void</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>is_double</span>());
-        <span class='macro'>assert</span><span class='macro'>!</span>((<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&amp;</span> <span class='number'>0x8000000000000000u64</span>) <span class='op'>==</span> <span class='number'>0</span>);
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&lt;&lt;</span> <span class='number'>1</span>) <span class='kw'>as</span> <span class='ident'>usize</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>c_void</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_private</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">is_double</span>());
+        <span class="macro">assert</span><span class="macro">!</span>((<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&amp;</span> <span class="number">0x8000000000000000u64</span>) <span class="op">==</span> <span class="number">0</span>);
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&lt;&lt;</span> <span class="number">1</span>) <span class="kw">as</span> <span class="ident">usize</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>to_private</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>c_void</span> {
-        <span class='kw'>let</span> <span class='ident'>ptrBits</span>: <span class='ident'>u32</span> <span class='op'>=</span> (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&amp;</span> <span class='number'>0x00000000FFFFFFFF</span>) <span class='kw'>as</span> <span class='ident'>u32</span>;
-        <span class='ident'>ptrBits</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>c_void</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_private</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span> {
+        <span class="kw">let</span> <span class="ident">ptrBits</span>: <span class="ident">u32</span> <span class="op">=</span> (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&amp;</span> <span class="number">0x00000000FFFFFFFF</span>) <span class="kw">as</span> <span class="ident">u32</span>;
+        <span class="ident">ptrBits</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_gcthing</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>const</span> <span class='ident'>JSVAL_LOWER_INCL_SHIFTED_TAG_OF_GCTHING_SET</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='ident'>ValueShiftedTag</span>::<span class='ident'>STRING</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
-        <span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;=</span> <span class='ident'>JSVAL_LOWER_INCL_SHIFTED_TAG_OF_GCTHING_SET</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_gcthing</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">const</span> <span class="ident">JSVAL_LOWER_INCL_SHIFTED_TAG_OF_GCTHING_SET</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">ValueShiftedTag</span>::<span class="ident">STRING</span> <span class="kw">as</span> <span class="ident">u64</span>;
+        <span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;=</span> <span class="ident">JSVAL_LOWER_INCL_SHIFTED_TAG_OF_GCTHING_SET</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_gcthing</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>const</span> <span class='ident'>JSVAL_LOWER_INCL_TAG_OF_GCTHING_SET</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='ident'>ValueTag</span>::<span class='ident'>STRING</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
-        (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&gt;&gt;</span> <span class='number'>32</span>) <span class='op'>&gt;=</span> <span class='ident'>JSVAL_LOWER_INCL_TAG_OF_GCTHING_SET</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_gcthing</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">const</span> <span class="ident">JSVAL_LOWER_INCL_TAG_OF_GCTHING_SET</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">ValueTag</span>::<span class="ident">STRING</span> <span class="kw">as</span> <span class="ident">u64</span>;
+        (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&gt;&gt;</span> <span class="number">32</span>) <span class="op">&gt;=</span> <span class="ident">JSVAL_LOWER_INCL_TAG_OF_GCTHING_SET</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;64&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>to_gcthing</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>c_void</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>is_gcthing</span>());
-        <span class='kw'>let</span> <span class='ident'>ptrBits</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&amp;</span> <span class='ident'>JSVAL_PAYLOAD_MASK</span>;
-        <span class='macro'>assert</span><span class='macro'>!</span>((<span class='ident'>ptrBits</span> <span class='op'>&amp;</span> <span class='number'>0x7</span>) <span class='op'>==</span> <span class='number'>0</span>);
-        <span class='ident'>ptrBits</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>c_void</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_gcthing</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">is_gcthing</span>());
+        <span class="kw">let</span> <span class="ident">ptrBits</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&amp;</span> <span class="ident">JSVAL_PAYLOAD_MASK</span>;
+        <span class="macro">assert</span><span class="macro">!</span>((<span class="ident">ptrBits</span> <span class="op">&amp;</span> <span class="number">0x7</span>) <span class="op">==</span> <span class="number">0</span>);
+        <span class="ident">ptrBits</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_pointer_width</span> <span class='op'>=</span> <span class='string'>&quot;32&quot;</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>to_gcthing</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>c_void</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>is_gcthing</span>());
-        <span class='kw'>let</span> <span class='ident'>ptrBits</span>: <span class='ident'>u32</span> <span class='op'>=</span> (<span class='self'>self</span>.<span class='ident'>asBits</span>() <span class='op'>&amp;</span> <span class='number'>0x00000000FFFFFFFF</span>) <span class='kw'>as</span> <span class='ident'>u32</span>;
-        <span class='ident'>ptrBits</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>c_void</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_gcthing</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">is_gcthing</span>());
+        <span class="kw">let</span> <span class="ident">ptrBits</span>: <span class="ident">u32</span> <span class="op">=</span> (<span class="self">self</span>.<span class="ident">asBits</span>() <span class="op">&amp;</span> <span class="number">0x00000000FFFFFFFF</span>) <span class="kw">as</span> <span class="ident">u32</span>;
+        <span class="ident">ptrBits</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_markable</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>is_gcthing</span>() <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>is_null</span>()
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_markable</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">is_gcthing</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_null</span>()
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>trace_kind</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>TraceKind</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>is_markable</span>());
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>is_object</span>() {
-            <span class='ident'>TraceKind</span>::<span class='ident'>Object</span>
-        } <span class='kw'>else</span> {
-            <span class='ident'>TraceKind</span>::<span class='ident'>String</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">trace_kind</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">TraceKind</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">is_markable</span>());
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_object</span>() {
+            <span class="ident">TraceKind</span>::<span class="ident">Object</span>
+        } <span class="kw">else</span> {
+            <span class="ident">TraceKind</span>::<span class="ident">String</span>
         }
     }
 }

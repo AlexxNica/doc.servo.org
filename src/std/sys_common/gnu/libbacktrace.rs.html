@@ -236,199 +236,235 @@
 <span id="191">191</span>
 <span id="192">192</span>
 <span id="193">193</span>
-</pre><pre class='rust '>
-<span class='comment'>// Copyright 2014-2015 The Rust Project Developers. See the COPYRIGHT</span>
-<span class='comment'>// file at the top-level directory of this distribution and at</span>
-<span class='comment'>// http://rust-lang.org/COPYRIGHT.</span>
-<span class='comment'>//</span>
-<span class='comment'>// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
-<span class='comment'>// http://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
-<span class='comment'>// &lt;LICENSE-MIT or http://opensource.org/licenses/MIT&gt;, at your</span>
-<span class='comment'>// option. This file may not be copied, modified, or distributed</span>
-<span class='comment'>// except according to those terms.</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+</pre><pre class="rust ">
+<span class="comment">// Copyright 2014-2015 The Rust Project Developers. See the COPYRIGHT</span>
+<span class="comment">// file at the top-level directory of this distribution and at</span>
+<span class="comment">// http://rust-lang.org/COPYRIGHT.</span>
+<span class="comment">//</span>
+<span class="comment">// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
+<span class="comment">// http://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
+<span class="comment">// &lt;LICENSE-MIT or http://opensource.org/licenses/MIT&gt;, at your</span>
+<span class="comment">// option. This file may not be copied, modified, or distributed</span>
+<span class="comment">// except according to those terms.</span>
 
-<span class='kw'>use</span> <span class='ident'>io</span>;
-<span class='kw'>use</span> <span class='ident'>io</span>::<span class='ident'>prelude</span>::<span class='kw-2'>*</span>;
-<span class='kw'>use</span> <span class='ident'>libc</span>;
-<span class='kw'>use</span> <span class='ident'>sys_common</span>::<span class='ident'>backtrace</span>::{<span class='ident'>output</span>, <span class='ident'>output_fileline</span>};
+<span class="kw">use</span> <span class="ident">libc</span>;
 
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>print</span>(<span class='ident'>w</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Write</span>, <span class='ident'>idx</span>: <span class='ident'>isize</span>, <span class='ident'>addr</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>,
-             <span class='ident'>symaddr</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-    <span class='kw'>use</span> <span class='ident'>ffi</span>::<span class='ident'>CStr</span>;
-    <span class='kw'>use</span> <span class='ident'>mem</span>;
-    <span class='kw'>use</span> <span class='ident'>ptr</span>;
+<span class="kw">use</span> <span class="ident">ffi</span>::<span class="ident">CStr</span>;
+<span class="kw">use</span> <span class="ident">io</span>;
+<span class="kw">use</span> <span class="ident">mem</span>;
+<span class="kw">use</span> <span class="ident">ptr</span>;
+<span class="kw">use</span> <span class="ident">sys</span>::<span class="ident">backtrace</span>::<span class="ident">BacktraceContext</span>;
+<span class="kw">use</span> <span class="ident">sys_common</span>::<span class="ident">backtrace</span>::<span class="ident">Frame</span>;
 
-    <span class='comment'>////////////////////////////////////////////////////////////////////////</span>
-    <span class='comment'>// libbacktrace.h API</span>
-    <span class='comment'>////////////////////////////////////////////////////////////////////////</span>
-    <span class='kw'>type</span> <span class='ident'>backtrace_syminfo_callback</span> <span class='op'>=</span>
-        <span class='kw'>extern</span> <span class='string'>&quot;C&quot;</span> <span class='kw'>fn</span>(<span class='ident'>data</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>,
-                      <span class='ident'>pc</span>: <span class='ident'>libc</span>::<span class='ident'>uintptr_t</span>,
-                      <span class='ident'>symname</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>,
-                      <span class='ident'>symval</span>: <span class='ident'>libc</span>::<span class='ident'>uintptr_t</span>,
-                      <span class='ident'>symsize</span>: <span class='ident'>libc</span>::<span class='ident'>uintptr_t</span>);
-    <span class='kw'>type</span> <span class='ident'>backtrace_full_callback</span> <span class='op'>=</span>
-        <span class='kw'>extern</span> <span class='string'>&quot;C&quot;</span> <span class='kw'>fn</span>(<span class='ident'>data</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>,
-                      <span class='ident'>pc</span>: <span class='ident'>libc</span>::<span class='ident'>uintptr_t</span>,
-                      <span class='ident'>filename</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>,
-                      <span class='ident'>lineno</span>: <span class='ident'>libc</span>::<span class='ident'>c_int</span>,
-                      <span class='ident'>function</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>) <span class='op'>-&gt;</span> <span class='ident'>libc</span>::<span class='ident'>c_int</span>;
-    <span class='kw'>type</span> <span class='ident'>backtrace_error_callback</span> <span class='op'>=</span>
-        <span class='kw'>extern</span> <span class='string'>&quot;C&quot;</span> <span class='kw'>fn</span>(<span class='ident'>data</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>,
-                      <span class='ident'>msg</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>,
-                      <span class='ident'>errnum</span>: <span class='ident'>libc</span>::<span class='ident'>c_int</span>);
-    <span class='kw'>enum</span> <span class='ident'>backtrace_state</span> {}
-
-    <span class='kw'>extern</span> {
-        <span class='kw'>fn</span> <span class='ident'>backtrace_create_state</span>(<span class='ident'>filename</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>,
-                                  <span class='ident'>threaded</span>: <span class='ident'>libc</span>::<span class='ident'>c_int</span>,
-                                  <span class='ident'>error</span>: <span class='ident'>backtrace_error_callback</span>,
-                                  <span class='ident'>data</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>)
-                                  <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>backtrace_state</span>;
-        <span class='kw'>fn</span> <span class='ident'>backtrace_syminfo</span>(<span class='ident'>state</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>backtrace_state</span>,
-                             <span class='ident'>addr</span>: <span class='ident'>libc</span>::<span class='ident'>uintptr_t</span>,
-                             <span class='ident'>cb</span>: <span class='ident'>backtrace_syminfo_callback</span>,
-                             <span class='ident'>error</span>: <span class='ident'>backtrace_error_callback</span>,
-                             <span class='ident'>data</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>) <span class='op'>-&gt;</span> <span class='ident'>libc</span>::<span class='ident'>c_int</span>;
-        <span class='kw'>fn</span> <span class='ident'>backtrace_pcinfo</span>(<span class='ident'>state</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>backtrace_state</span>,
-                            <span class='ident'>addr</span>: <span class='ident'>libc</span>::<span class='ident'>uintptr_t</span>,
-                            <span class='ident'>cb</span>: <span class='ident'>backtrace_full_callback</span>,
-                            <span class='ident'>error</span>: <span class='ident'>backtrace_error_callback</span>,
-                            <span class='ident'>data</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>) <span class='op'>-&gt;</span> <span class='ident'>libc</span>::<span class='ident'>c_int</span>;
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">foreach_symbol_fileline</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">frame</span>: <span class="ident">Frame</span>,
+                                  <span class="kw-2">mut</span> <span class="ident">f</span>: <span class="ident">F</span>,
+                                  _: <span class="kw-2">&amp;</span><span class="ident">BacktraceContext</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>
+<span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">libc</span>::<span class="ident">c_int</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>
+{
+    <span class="comment">// pcinfo may return an arbitrary number of file:line pairs,</span>
+    <span class="comment">// in the order of stack trace (i.e. inlined calls first).</span>
+    <span class="comment">// in order to avoid allocation, we stack-allocate a fixed size of entries.</span>
+    <span class="kw">const</span> <span class="ident">FILELINE_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">32</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fileline_buf</span> <span class="op">=</span> [(<span class="ident">ptr</span>::<span class="ident">null</span>(), <span class="op">-</span><span class="number">1</span>); <span class="ident">FILELINE_SIZE</span>];
+    <span class="kw">let</span> <span class="ident">ret</span>;
+    <span class="kw">let</span> <span class="ident">fileline_count</span> <span class="op">=</span> {
+        <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">init_state</span>() };
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fileline_win</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">FileLine</span>] <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fileline_buf</span>;
+        <span class="kw">let</span> <span class="ident">fileline_addr</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fileline_win</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">FileLine</span>];
+        <span class="ident">ret</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">backtrace_pcinfo</span>(<span class="ident">state</span>,
+                             <span class="ident">frame</span>.<span class="ident">exact_position</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">uintptr_t</span>,
+                             <span class="ident">pcinfo_cb</span>,
+                             <span class="ident">error_cb</span>,
+                             <span class="ident">fileline_addr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>)
+        };
+        <span class="ident">FILELINE_SIZE</span> <span class="op">-</span> <span class="ident">fileline_win</span>.<span class="ident">len</span>()
+    };
+    <span class="kw">if</span> <span class="ident">ret</span> <span class="op">==</span> <span class="number">0</span> {
+        <span class="kw">for</span> <span class="kw-2">&amp;</span>(<span class="ident">file</span>, <span class="ident">line</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">fileline_buf</span>[..<span class="ident">fileline_count</span>] {
+            <span class="kw">if</span> <span class="ident">file</span>.<span class="ident">is_null</span>() { <span class="kw">continue</span>; } <span class="comment">// just to be sure</span>
+            <span class="kw">let</span> <span class="ident">file</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">CStr</span>::<span class="ident">from_ptr</span>(<span class="ident">file</span>).<span class="ident">to_bytes</span>() };
+            <span class="ident">f</span>(<span class="ident">file</span>, <span class="ident">line</span>)<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(<span class="ident">fileline_count</span> <span class="op">==</span> <span class="ident">FILELINE_SIZE</span>)
+    } <span class="kw">else</span> {
+        <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>)
     }
+}
 
-    <span class='comment'>////////////////////////////////////////////////////////////////////////</span>
-    <span class='comment'>// helper callbacks</span>
-    <span class='comment'>////////////////////////////////////////////////////////////////////////</span>
-
-    <span class='kw'>type</span> <span class='ident'>FileLine</span> <span class='op'>=</span> (<span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>, <span class='ident'>libc</span>::<span class='ident'>c_int</span>);
-
-    <span class='kw'>extern</span> <span class='kw'>fn</span> <span class='ident'>error_cb</span>(<span class='ident'>_data</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>, <span class='ident'>_msg</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>,
-                       <span class='ident'>_errnum</span>: <span class='ident'>libc</span>::<span class='ident'>c_int</span>) {
-        <span class='comment'>// do nothing for now</span>
-    }
-    <span class='kw'>extern</span> <span class='kw'>fn</span> <span class='ident'>syminfo_cb</span>(<span class='ident'>data</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>,
-                         <span class='ident'>_pc</span>: <span class='ident'>libc</span>::<span class='ident'>uintptr_t</span>,
-                         <span class='ident'>symname</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>,
-                         <span class='ident'>_symval</span>: <span class='ident'>libc</span>::<span class='ident'>uintptr_t</span>,
-                         <span class='ident'>_symsize</span>: <span class='ident'>libc</span>::<span class='ident'>uintptr_t</span>) {
-        <span class='kw'>let</span> <span class='ident'>slot</span> <span class='op'>=</span> <span class='ident'>data</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>;
-        <span class='kw'>unsafe</span> { <span class='kw-2'>*</span><span class='ident'>slot</span> <span class='op'>=</span> <span class='ident'>symname</span>; }
-    }
-    <span class='kw'>extern</span> <span class='kw'>fn</span> <span class='ident'>pcinfo_cb</span>(<span class='ident'>data</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>,
-                        <span class='ident'>_pc</span>: <span class='ident'>libc</span>::<span class='ident'>uintptr_t</span>,
-                        <span class='ident'>filename</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>,
-                        <span class='ident'>lineno</span>: <span class='ident'>libc</span>::<span class='ident'>c_int</span>,
-                        <span class='ident'>_function</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>) <span class='op'>-&gt;</span> <span class='ident'>libc</span>::<span class='ident'>c_int</span> {
-        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>filename</span>.<span class='ident'>is_null</span>() {
-            <span class='kw'>let</span> <span class='ident'>slot</span> <span class='op'>=</span> <span class='ident'>data</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> [<span class='ident'>FileLine</span>];
-            <span class='kw'>let</span> <span class='ident'>buffer</span> <span class='op'>=</span> <span class='kw'>unsafe</span> {<span class='ident'>ptr</span>::<span class='ident'>read</span>(<span class='ident'>slot</span>)};
-
-            <span class='comment'>// if the buffer is not full, add file:line to the buffer</span>
-            <span class='comment'>// and adjust the buffer for next possible calls to pcinfo_cb.</span>
-            <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>buffer</span>.<span class='ident'>is_empty</span>() {
-                <span class='ident'>buffer</span>[<span class='number'>0</span>] <span class='op'>=</span> (<span class='ident'>filename</span>, <span class='ident'>lineno</span>);
-                <span class='kw'>unsafe</span> { <span class='ident'>ptr</span>::<span class='ident'>write</span>(<span class='ident'>slot</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buffer</span>[<span class='number'>1</span>..]); }
+<span class="doccomment">/// Converts a pointer to symbol to its string value.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">resolve_symname</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">frame</span>: <span class="ident">Frame</span>,
+                          <span class="ident">callback</span>: <span class="ident">F</span>,
+                          _: <span class="kw-2">&amp;</span><span class="ident">BacktraceContext</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>
+{
+    <span class="kw">let</span> <span class="ident">symname</span> <span class="op">=</span> {
+        <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">init_state</span>() };
+        <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">is_null</span>() {
+            <span class="prelude-val">None</span>
+        } <span class="kw">else</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">ptr</span>::<span class="ident">null</span>();
+            <span class="kw">let</span> <span class="ident">data_addr</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>;
+            <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+                <span class="ident">backtrace_syminfo</span>(<span class="ident">state</span>,
+                                  <span class="ident">frame</span>.<span class="ident">symbol_addr</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">uintptr_t</span>,
+                                  <span class="ident">syminfo_cb</span>,
+                                  <span class="ident">error_cb</span>,
+                                  <span class="ident">data_addr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>)
+            };
+            <span class="kw">if</span> <span class="ident">ret</span> <span class="op">==</span> <span class="number">0</span> <span class="op">||</span> <span class="ident">data</span>.<span class="ident">is_null</span>() {
+                <span class="prelude-val">None</span>
+            } <span class="kw">else</span> {
+                <span class="kw">unsafe</span> {
+                    <span class="ident">CStr</span>::<span class="ident">from_ptr</span>(<span class="ident">data</span>).<span class="ident">to_str</span>().<span class="ident">ok</span>()
+                }
             }
         }
-
-        <span class='number'>0</span>
-    }
-
-    <span class='comment'>// The libbacktrace API supports creating a state, but it does not</span>
-    <span class='comment'>// support destroying a state. I personally take this to mean that a</span>
-    <span class='comment'>// state is meant to be created and then live forever.</span>
-    <span class='comment'>//</span>
-    <span class='comment'>// I would love to register an at_exit() handler which cleans up this</span>
-    <span class='comment'>// state, but libbacktrace provides no way to do so.</span>
-    <span class='comment'>//</span>
-    <span class='comment'>// With these constraints, this function has a statically cached state</span>
-    <span class='comment'>// that is calculated the first time this is requested. Remember that</span>
-    <span class='comment'>// backtracing all happens serially (one global lock).</span>
-    <span class='comment'>//</span>
-    <span class='comment'>// Things don&#39;t work so well on not-Linux since libbacktrace can&#39;t track</span>
-    <span class='comment'>// down that executable this is. We at one point used env::current_exe but</span>
-    <span class='comment'>// it turns out that there are some serious security issues with that</span>
-    <span class='comment'>// approach.</span>
-    <span class='comment'>//</span>
-    <span class='comment'>// Specifically, on certain platforms like BSDs, a malicious actor can cause</span>
-    <span class='comment'>// an arbitrary file to be placed at the path returned by current_exe.</span>
-    <span class='comment'>// libbacktrace does not behave defensively in the presence of ill-formed</span>
-    <span class='comment'>// DWARF information, and has been demonstrated to segfault in at least one</span>
-    <span class='comment'>// case. There is no evidence at the moment to suggest that a more carefully</span>
-    <span class='comment'>// constructed file can&#39;t cause arbitrary code execution. As a result of all</span>
-    <span class='comment'>// of this, we don&#39;t hint libbacktrace with the path to the current process.</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>init_state</span>() <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>backtrace_state</span> {
-        <span class='kw'>static</span> <span class='kw-2'>mut</span> <span class='ident'>STATE</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>backtrace_state</span> <span class='op'>=</span> <span class='ident'>ptr</span>::<span class='ident'>null_mut</span>();
-        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>STATE</span>.<span class='ident'>is_null</span>() { <span class='kw'>return</span> <span class='ident'>STATE</span> }
-
-        <span class='kw'>let</span> <span class='ident'>filename</span> <span class='op'>=</span> <span class='kw'>match</span> ::<span class='ident'>sys</span>::<span class='ident'>backtrace</span>::<span class='ident'>gnu</span>::<span class='ident'>get_executable_filename</span>() {
-            <span class='prelude-val'>Ok</span>((<span class='ident'>filename</span>, <span class='ident'>file</span>)) <span class='op'>=&gt;</span> {
-                <span class='comment'>// filename is purposely leaked here since libbacktrace requires</span>
-                <span class='comment'>// it to stay allocated permanently, file is also leaked so that</span>
-                <span class='comment'>// the file stays locked</span>
-                <span class='kw'>let</span> <span class='ident'>filename_ptr</span> <span class='op'>=</span> <span class='ident'>filename</span>.<span class='ident'>as_ptr</span>();
-                <span class='ident'>mem</span>::<span class='ident'>forget</span>(<span class='ident'>filename</span>);
-                <span class='ident'>mem</span>::<span class='ident'>forget</span>(<span class='ident'>file</span>);
-                <span class='ident'>filename_ptr</span>
-            },
-            <span class='prelude-val'>Err</span>(_) <span class='op'>=&gt;</span> <span class='ident'>ptr</span>::<span class='ident'>null</span>(),
-        };
-
-        <span class='ident'>STATE</span> <span class='op'>=</span> <span class='ident'>backtrace_create_state</span>(<span class='ident'>filename</span>, <span class='number'>0</span>, <span class='ident'>error_cb</span>,
-                                       <span class='ident'>ptr</span>::<span class='ident'>null_mut</span>());
-        <span class='ident'>STATE</span>
-    }
-
-    <span class='comment'>////////////////////////////////////////////////////////////////////////</span>
-    <span class='comment'>// translation</span>
-    <span class='comment'>////////////////////////////////////////////////////////////////////////</span>
-
-    <span class='comment'>// backtrace errors are currently swept under the rug, only I/O</span>
-    <span class='comment'>// errors are reported</span>
-    <span class='kw'>let</span> <span class='ident'>state</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>init_state</span>() };
-    <span class='kw'>if</span> <span class='ident'>state</span>.<span class='ident'>is_null</span>() {
-        <span class='kw'>return</span> <span class='ident'>output</span>(<span class='ident'>w</span>, <span class='ident'>idx</span>, <span class='ident'>addr</span>, <span class='prelude-val'>None</span>)
-    }
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='ident'>ptr</span>::<span class='ident'>null</span>();
-    <span class='kw'>let</span> <span class='ident'>data_addr</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>;
-    <span class='kw'>let</span> <span class='ident'>ret</span> <span class='op'>=</span> <span class='kw'>unsafe</span> {
-        <span class='ident'>backtrace_syminfo</span>(<span class='ident'>state</span>, <span class='ident'>symaddr</span> <span class='kw'>as</span> <span class='ident'>libc</span>::<span class='ident'>uintptr_t</span>,
-                          <span class='ident'>syminfo_cb</span>, <span class='ident'>error_cb</span>,
-                          <span class='ident'>data_addr</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>)
     };
-    <span class='kw'>if</span> <span class='ident'>ret</span> <span class='op'>==</span> <span class='number'>0</span> <span class='op'>||</span> <span class='ident'>data</span>.<span class='ident'>is_null</span>() {
-        <span class='ident'>output</span>(<span class='ident'>w</span>, <span class='ident'>idx</span>, <span class='ident'>addr</span>, <span class='prelude-val'>None</span>)<span class='question-mark'>?</span>;
-    } <span class='kw'>else</span> {
-        <span class='ident'>output</span>(<span class='ident'>w</span>, <span class='ident'>idx</span>, <span class='ident'>addr</span>, <span class='prelude-val'>Some</span>(<span class='kw'>unsafe</span> { <span class='ident'>CStr</span>::<span class='ident'>from_ptr</span>(<span class='ident'>data</span>).<span class='ident'>to_bytes</span>() }))<span class='question-mark'>?</span>;
-    }
+    <span class="ident">callback</span>(<span class="ident">symname</span>)
+}
 
-    <span class='comment'>// pcinfo may return an arbitrary number of file:line pairs,</span>
-    <span class='comment'>// in the order of stack trace (i.e. inlined calls first).</span>
-    <span class='comment'>// in order to avoid allocation, we stack-allocate a fixed size of entries.</span>
-    <span class='kw'>const</span> <span class='ident'>FILELINE_SIZE</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='number'>32</span>;
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fileline_buf</span> <span class='op'>=</span> [(<span class='ident'>ptr</span>::<span class='ident'>null</span>(), <span class='op'>-</span><span class='number'>1</span>); <span class='ident'>FILELINE_SIZE</span>];
-    <span class='kw'>let</span> <span class='ident'>ret</span>;
-    <span class='kw'>let</span> <span class='ident'>fileline_count</span>;
-    {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fileline_win</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> [<span class='ident'>FileLine</span>] <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fileline_buf</span>;
-        <span class='kw'>let</span> <span class='ident'>fileline_addr</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fileline_win</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> [<span class='ident'>FileLine</span>];
-        <span class='ident'>ret</span> <span class='op'>=</span> <span class='kw'>unsafe</span> {
-            <span class='ident'>backtrace_pcinfo</span>(<span class='ident'>state</span>, <span class='ident'>addr</span> <span class='kw'>as</span> <span class='ident'>libc</span>::<span class='ident'>uintptr_t</span>,
-                             <span class='ident'>pcinfo_cb</span>, <span class='ident'>error_cb</span>,
-                             <span class='ident'>fileline_addr</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>)
-        };
-        <span class='ident'>fileline_count</span> <span class='op'>=</span> <span class='ident'>FILELINE_SIZE</span> <span class='op'>-</span> <span class='ident'>fileline_win</span>.<span class='ident'>len</span>();
-    }
-    <span class='kw'>if</span> <span class='ident'>ret</span> <span class='op'>==</span> <span class='number'>0</span> {
-        <span class='kw'>for</span> (<span class='ident'>i</span>, <span class='kw-2'>&amp;</span>(<span class='ident'>file</span>, <span class='ident'>line</span>)) <span class='kw'>in</span> <span class='ident'>fileline_buf</span>[..<span class='ident'>fileline_count</span>].<span class='ident'>iter</span>().<span class='ident'>enumerate</span>() {
-            <span class='kw'>if</span> <span class='ident'>file</span>.<span class='ident'>is_null</span>() { <span class='kw'>continue</span>; } <span class='comment'>// just to be sure</span>
-            <span class='kw'>let</span> <span class='ident'>file</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>CStr</span>::<span class='ident'>from_ptr</span>(<span class='ident'>file</span>).<span class='ident'>to_bytes</span>() };
-            <span class='ident'>output_fileline</span>(<span class='ident'>w</span>, <span class='ident'>file</span>, <span class='ident'>line</span>, <span class='ident'>i</span> <span class='op'>==</span> <span class='ident'>FILELINE_SIZE</span> <span class='op'>-</span> <span class='number'>1</span>)<span class='question-mark'>?</span>;
+<span class="comment">////////////////////////////////////////////////////////////////////////</span>
+<span class="comment">// libbacktrace.h API</span>
+<span class="comment">////////////////////////////////////////////////////////////////////////</span>
+<span class="kw">type</span> <span class="ident">backtrace_syminfo_callback</span> <span class="op">=</span>
+<span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span>(<span class="ident">data</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>,
+              <span class="ident">pc</span>: <span class="ident">libc</span>::<span class="ident">uintptr_t</span>,
+              <span class="ident">symname</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>,
+              <span class="ident">symval</span>: <span class="ident">libc</span>::<span class="ident">uintptr_t</span>,
+              <span class="ident">symsize</span>: <span class="ident">libc</span>::<span class="ident">uintptr_t</span>);
+<span class="kw">type</span> <span class="ident">backtrace_full_callback</span> <span class="op">=</span>
+<span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span>(<span class="ident">data</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>,
+              <span class="ident">pc</span>: <span class="ident">libc</span>::<span class="ident">uintptr_t</span>,
+              <span class="ident">filename</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>,
+              <span class="ident">lineno</span>: <span class="ident">libc</span>::<span class="ident">c_int</span>,
+              <span class="ident">function</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>) <span class="op">-&gt;</span> <span class="ident">libc</span>::<span class="ident">c_int</span>;
+<span class="kw">type</span> <span class="ident">backtrace_error_callback</span> <span class="op">=</span>
+<span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span>(<span class="ident">data</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>,
+              <span class="ident">msg</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>,
+              <span class="ident">errnum</span>: <span class="ident">libc</span>::<span class="ident">c_int</span>);
+<span class="kw">enum</span> <span class="ident">backtrace_state</span> {}
+<span class="attribute">#[<span class="ident">link</span>(<span class="ident">name</span> <span class="op">=</span> <span class="string">&quot;backtrace&quot;</span>, <span class="ident">kind</span> <span class="op">=</span> <span class="string">&quot;static&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">not</span>(<span class="ident">test</span>), <span class="ident">not</span>(<span class="ident">cargobuild</span>)))]</span>
+<span class="kw">extern</span> {}
+
+<span class="kw">extern</span> {
+    <span class="kw">fn</span> <span class="ident">backtrace_create_state</span>(<span class="ident">filename</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>,
+                              <span class="ident">threaded</span>: <span class="ident">libc</span>::<span class="ident">c_int</span>,
+                              <span class="ident">error</span>: <span class="ident">backtrace_error_callback</span>,
+                              <span class="ident">data</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>)
+        <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">backtrace_state</span>;
+    <span class="kw">fn</span> <span class="ident">backtrace_syminfo</span>(<span class="ident">state</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">backtrace_state</span>,
+                         <span class="ident">addr</span>: <span class="ident">libc</span>::<span class="ident">uintptr_t</span>,
+                         <span class="ident">cb</span>: <span class="ident">backtrace_syminfo_callback</span>,
+                         <span class="ident">error</span>: <span class="ident">backtrace_error_callback</span>,
+                         <span class="ident">data</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>) <span class="op">-&gt;</span> <span class="ident">libc</span>::<span class="ident">c_int</span>;
+    <span class="kw">fn</span> <span class="ident">backtrace_pcinfo</span>(<span class="ident">state</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">backtrace_state</span>,
+                        <span class="ident">addr</span>: <span class="ident">libc</span>::<span class="ident">uintptr_t</span>,
+                        <span class="ident">cb</span>: <span class="ident">backtrace_full_callback</span>,
+                        <span class="ident">error</span>: <span class="ident">backtrace_error_callback</span>,
+                        <span class="ident">data</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>) <span class="op">-&gt;</span> <span class="ident">libc</span>::<span class="ident">c_int</span>;
+}
+
+<span class="comment">////////////////////////////////////////////////////////////////////////</span>
+<span class="comment">// helper callbacks</span>
+<span class="comment">////////////////////////////////////////////////////////////////////////</span>
+
+<span class="kw">type</span> <span class="ident">FileLine</span> <span class="op">=</span> (<span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>, <span class="ident">libc</span>::<span class="ident">c_int</span>);
+
+<span class="kw">extern</span> <span class="kw">fn</span> <span class="ident">error_cb</span>(<span class="ident">_data</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>, <span class="ident">_msg</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>,
+                   <span class="ident">_errnum</span>: <span class="ident">libc</span>::<span class="ident">c_int</span>) {
+    <span class="comment">// do nothing for now</span>
+}
+<span class="kw">extern</span> <span class="kw">fn</span> <span class="ident">syminfo_cb</span>(<span class="ident">data</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>,
+                     <span class="ident">_pc</span>: <span class="ident">libc</span>::<span class="ident">uintptr_t</span>,
+                     <span class="ident">symname</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>,
+                     <span class="ident">_symval</span>: <span class="ident">libc</span>::<span class="ident">uintptr_t</span>,
+                     <span class="ident">_symsize</span>: <span class="ident">libc</span>::<span class="ident">uintptr_t</span>) {
+    <span class="kw">let</span> <span class="ident">slot</span> <span class="op">=</span> <span class="ident">data</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>;
+    <span class="kw">unsafe</span> { <span class="kw-2">*</span><span class="ident">slot</span> <span class="op">=</span> <span class="ident">symname</span>; }
+}
+<span class="kw">extern</span> <span class="kw">fn</span> <span class="ident">pcinfo_cb</span>(<span class="ident">data</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>,
+                    <span class="ident">_pc</span>: <span class="ident">libc</span>::<span class="ident">uintptr_t</span>,
+                    <span class="ident">filename</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>,
+                    <span class="ident">lineno</span>: <span class="ident">libc</span>::<span class="ident">c_int</span>,
+                    <span class="ident">_function</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>) <span class="op">-&gt;</span> <span class="ident">libc</span>::<span class="ident">c_int</span> {
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">filename</span>.<span class="ident">is_null</span>() {
+        <span class="kw">let</span> <span class="ident">slot</span> <span class="op">=</span> <span class="ident">data</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">FileLine</span>];
+        <span class="kw">let</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="kw">unsafe</span> {<span class="ident">ptr</span>::<span class="ident">read</span>(<span class="ident">slot</span>)};
+
+        <span class="comment">// if the buffer is not full, add file:line to the buffer</span>
+        <span class="comment">// and adjust the buffer for next possible calls to pcinfo_cb.</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">buffer</span>.<span class="ident">is_empty</span>() {
+            <span class="ident">buffer</span>[<span class="number">0</span>] <span class="op">=</span> (<span class="ident">filename</span>, <span class="ident">lineno</span>);
+            <span class="kw">unsafe</span> { <span class="ident">ptr</span>::<span class="ident">write</span>(<span class="ident">slot</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[<span class="number">1</span>..]); }
         }
     }
 
-    <span class='prelude-val'>Ok</span>(())
+    <span class="number">0</span>
+}
+
+<span class="comment">// The libbacktrace API supports creating a state, but it does not</span>
+<span class="comment">// support destroying a state. I personally take this to mean that a</span>
+<span class="comment">// state is meant to be created and then live forever.</span>
+<span class="comment">//</span>
+<span class="comment">// I would love to register an at_exit() handler which cleans up this</span>
+<span class="comment">// state, but libbacktrace provides no way to do so.</span>
+<span class="comment">//</span>
+<span class="comment">// With these constraints, this function has a statically cached state</span>
+<span class="comment">// that is calculated the first time this is requested. Remember that</span>
+<span class="comment">// backtracing all happens serially (one global lock).</span>
+<span class="comment">//</span>
+<span class="comment">// Things don&#39;t work so well on not-Linux since libbacktrace can&#39;t track</span>
+<span class="comment">// down that executable this is. We at one point used env::current_exe but</span>
+<span class="comment">// it turns out that there are some serious security issues with that</span>
+<span class="comment">// approach.</span>
+<span class="comment">//</span>
+<span class="comment">// Specifically, on certain platforms like BSDs, a malicious actor can cause</span>
+<span class="comment">// an arbitrary file to be placed at the path returned by current_exe.</span>
+<span class="comment">// libbacktrace does not behave defensively in the presence of ill-formed</span>
+<span class="comment">// DWARF information, and has been demonstrated to segfault in at least one</span>
+<span class="comment">// case. There is no evidence at the moment to suggest that a more carefully</span>
+<span class="comment">// constructed file can&#39;t cause arbitrary code execution. As a result of all</span>
+<span class="comment">// of this, we don&#39;t hint libbacktrace with the path to the current process.</span>
+<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">init_state</span>() <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">backtrace_state</span> {
+    <span class="kw">static</span> <span class="kw-2">mut</span> <span class="ident">STATE</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">backtrace_state</span> <span class="op">=</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>();
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">STATE</span>.<span class="ident">is_null</span>() { <span class="kw">return</span> <span class="ident">STATE</span>  }
+
+    <span class="kw">let</span> <span class="ident">filename</span> <span class="op">=</span> <span class="kw">match</span> ::<span class="ident">sys</span>::<span class="ident">backtrace</span>::<span class="ident">gnu</span>::<span class="ident">get_executable_filename</span>() {
+        <span class="prelude-val">Ok</span>((<span class="ident">filename</span>, <span class="ident">file</span>)) <span class="op">=&gt;</span> {
+            <span class="comment">// filename is purposely leaked here since libbacktrace requires</span>
+            <span class="comment">// it to stay allocated permanently, file is also leaked so that</span>
+            <span class="comment">// the file stays locked</span>
+            <span class="kw">let</span> <span class="ident">filename_ptr</span> <span class="op">=</span> <span class="ident">filename</span>.<span class="ident">as_ptr</span>();
+            <span class="ident">mem</span>::<span class="ident">forget</span>(<span class="ident">filename</span>);
+            <span class="ident">mem</span>::<span class="ident">forget</span>(<span class="ident">file</span>);
+            <span class="ident">filename_ptr</span>
+        },
+        <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="ident">ptr</span>::<span class="ident">null</span>(),
+    };
+
+    <span class="ident">STATE</span> <span class="op">=</span> <span class="ident">backtrace_create_state</span>(<span class="ident">filename</span>, <span class="number">0</span>, <span class="ident">error_cb</span>,
+                                   <span class="ident">ptr</span>::<span class="ident">null_mut</span>());
+    <span class="ident">STATE</span>
 }
 </pre>
 </section>

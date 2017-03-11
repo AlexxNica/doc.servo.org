@@ -3,7 +3,6 @@ implementors["gfx"] = [];
 implementors["ipc_channel"] = [];
 implementors["layout_thread"] = [];
 implementors["mio"] = [];
-implementors["net"] = [];
 implementors["net2"] = [];
 implementors["net_traits"] = [];
 implementors["script"] = [];

@@ -230,192 +230,192 @@
 <span id="185">185</span>
 <span id="186">186</span>
 <span id="187">187</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! The code to expose the DOM to JavaScript through IDL bindings.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Exposing a DOM object to JavaScript</span>
-<span class='doccomment'>//! ===================================</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! As [explained earlier](../index.html#a-dom-object-and-its-reflector), the</span>
-<span class='doccomment'>//! implementation of an interface `Foo` involves two objects: the DOM object</span>
-<span class='doccomment'>//! (implemented in Rust) and the reflector (a `JSObject`).</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! In order to expose the interface&#39;s members to the web, properties</span>
-<span class='doccomment'>//! corresponding to the operations and attributes are defined on an object in</span>
-<span class='doccomment'>//! the reflector&#39;s prototype chain or on the reflector itself.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Typically, these properties are either value properties whose value is a</span>
-<span class='doccomment'>//! function (for operations) or accessor properties that have a getter and</span>
-<span class='doccomment'>//! optionally a setter function (for attributes, depending on whether they are</span>
-<span class='doccomment'>//! marked `readonly`).</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! All these JavaScript functions are set up such that, when they&#39;re called,</span>
-<span class='doccomment'>//! they call a Rust function in the generated glue code. This glue code does</span>
-<span class='doccomment'>//! some sanity checks and [argument conversions](conversions/index.html), and</span>
-<span class='doccomment'>//! calls into API implementation for the DOM object.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Rust reflections of WebIDL constructs</span>
-<span class='doccomment'>//! =====================================</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! WebIDL members are turned into methods on the DOM object (static methods</span>
-<span class='doccomment'>//! for a static members and instance methods for regular members).</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! The instance methods for an interface `Foo` are defined on a</span>
-<span class='doccomment'>//! `dom::bindings::codegen::Bindings::FooBindings::FooMethods` trait. This</span>
-<span class='doccomment'>//! trait is then implemented for `Foo`. (All methods take an `&amp;self`</span>
-<span class='doccomment'>//! parameter, as pointers to DOM objects can be freely aliased.)</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! The return type and argument types are determined [as described below]</span>
-<span class='doccomment'>//! (#rust-reflections-of-webidl-types).</span>
-<span class='doccomment'>//! In addition to those, all methods that are [allowed to throw]</span>
-<span class='doccomment'>//! (#throwing-exceptions) will have the return value wrapped in</span>
-<span class='doccomment'>//! [`Fallible&lt;T&gt;`](error/type.Fallible.html).</span>
-<span class='doccomment'>//! Methods that use certain WebIDL types like `any` or `object` will get a</span>
-<span class='doccomment'>//! `*mut JSContext` argument prepended to the argument list. Static methods</span>
-<span class='doccomment'>//! will be passed a [`&amp;GlobalScope`](../globalscope/struct.GlobalScope.html)</span>
-<span class='doccomment'>//! for the relevant global. This argument comes before the `*mut JSContext`</span>
-<span class='doccomment'>//! argument, if any.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Rust reflections of WebIDL operations (methods)</span>
-<span class='doccomment'>//! -----------------------------------------------</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! A WebIDL operation is turned into one method for every overload.</span>
-<span class='doccomment'>//! The first overload gets the base name, and consecutive overloads have an</span>
-<span class='doccomment'>//! underscore appended to the name.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! The base name of the Rust method is simply the name of the WebIDL operation</span>
-<span class='doccomment'>//! with the first letter converted to uppercase.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Rust reflections of WebIDL attributes</span>
-<span class='doccomment'>//! -------------------------------------</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! A WebIDL attribute is turned into a pair of methods: one for the getter and</span>
-<span class='doccomment'>//! one for the setter. A readonly attribute only has a getter and no setter.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! The getter&#39;s name is the name of the attribute with the first letter</span>
-<span class='doccomment'>//! converted to uppercase. It has `Get` prepended to it if the type of the</span>
-<span class='doccomment'>//! attribute is nullable or if the getter can throw.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! The method signature for the getter looks just like an operation with no</span>
-<span class='doccomment'>//! arguments and the attribute&#39;s type as the return type.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! The setter&#39;s name is `Set` followed by the name of the attribute with the</span>
-<span class='doccomment'>//! first letter converted to uppercase. The method signature looks just like</span>
-<span class='doccomment'>//! an operation with a void return value and a single argument whose type is</span>
-<span class='doccomment'>//! the attribute&#39;s type.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Rust reflections of WebIDL constructors</span>
-<span class='doccomment'>//! ---------------------------------------</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! A WebIDL constructor is turned into a static class method named</span>
-<span class='doccomment'>//! `Constructor`. The arguments of this method will be the arguments of the</span>
-<span class='doccomment'>//! WebIDL constructor, with a `&amp;GlobalScope` for the relevant global prepended.</span>
-<span class='doccomment'>//! The return value of the constructor for MyInterface is exactly the same as</span>
-<span class='doccomment'>//! that of a method returning an instance of MyInterface. Constructors are</span>
-<span class='doccomment'>//! always [allowed to throw](#throwing-exceptions).</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Rust reflections of WebIDL types</span>
-<span class='doccomment'>//! --------------------------------</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! The exact Rust representation for WebIDL types can depend on the precise</span>
-<span class='doccomment'>//! way that they&#39;re being used (e.g., return values and arguments might have</span>
-<span class='doccomment'>//! different representations).</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Optional arguments which do not have a default value are represented by</span>
-<span class='doccomment'>//! wrapping `Option&lt;T&gt;` around the representation of the argument type.</span>
-<span class='doccomment'>//! Optional arguments which do have a default value are represented by the</span>
-<span class='doccomment'>//! argument type itself, set to the default value if the argument was not in</span>
-<span class='doccomment'>//! fact passed in.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Variadic WebIDL arguments are represented by wrapping a `Vec&lt;T&gt;` around the</span>
-<span class='doccomment'>//! representation of the argument type.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! See [the type mapping for particular types](conversions/index.html).</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Rust reflections of stringifiers</span>
-<span class='doccomment'>//! --------------------------------</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! *To be written.*</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Rust reflections of legacy callers</span>
-<span class='doccomment'>//! ---------------------------------</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Legacy callers are not yet implemented.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Throwing exceptions</span>
-<span class='doccomment'>//! ===================</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! WebIDL methods, getters, and setters that need to throw exceptions need to</span>
-<span class='doccomment'>//! be explicitly marked as such with the `[Throws]`, `[GetterThrows]` and</span>
-<span class='doccomment'>//! `[SetterThrows]` custom attributes.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! `[Throws]` applies to both methods and attributes; for attributes it means</span>
-<span class='doccomment'>//! both the getter and the setter (if any) can throw. `[GetterThrows]` applies</span>
-<span class='doccomment'>//! only to attributes. `[SetterThrows]` applies only to writable attributes.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! The corresponding Rust methods will have the return value wrapped in</span>
-<span class='doccomment'>//! [`Fallible&lt;T&gt;`](error/type.Fallible.html). To throw an exception, simply</span>
-<span class='doccomment'>//! return `Err()` from the method with the appropriate [error value]</span>
-<span class='doccomment'>//! (error/enum.Error.html).</span>
+<span class="doccomment">//! The code to expose the DOM to JavaScript through IDL bindings.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Exposing a DOM object to JavaScript</span>
+<span class="doccomment">//! ===================================</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! As [explained earlier](../index.html#a-dom-object-and-its-reflector), the</span>
+<span class="doccomment">//! implementation of an interface `Foo` involves two objects: the DOM object</span>
+<span class="doccomment">//! (implemented in Rust) and the reflector (a `JSObject`).</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! In order to expose the interface&#39;s members to the web, properties</span>
+<span class="doccomment">//! corresponding to the operations and attributes are defined on an object in</span>
+<span class="doccomment">//! the reflector&#39;s prototype chain or on the reflector itself.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Typically, these properties are either value properties whose value is a</span>
+<span class="doccomment">//! function (for operations) or accessor properties that have a getter and</span>
+<span class="doccomment">//! optionally a setter function (for attributes, depending on whether they are</span>
+<span class="doccomment">//! marked `readonly`).</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! All these JavaScript functions are set up such that, when they&#39;re called,</span>
+<span class="doccomment">//! they call a Rust function in the generated glue code. This glue code does</span>
+<span class="doccomment">//! some sanity checks and [argument conversions](conversions/index.html), and</span>
+<span class="doccomment">//! calls into API implementation for the DOM object.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Rust reflections of WebIDL constructs</span>
+<span class="doccomment">//! =====================================</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! WebIDL members are turned into methods on the DOM object (static methods</span>
+<span class="doccomment">//! for a static members and instance methods for regular members).</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The instance methods for an interface `Foo` are defined on a</span>
+<span class="doccomment">//! `dom::bindings::codegen::Bindings::FooBindings::FooMethods` trait. This</span>
+<span class="doccomment">//! trait is then implemented for `Foo`. (All methods take an `&amp;self`</span>
+<span class="doccomment">//! parameter, as pointers to DOM objects can be freely aliased.)</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The return type and argument types are determined [as described below]</span>
+<span class="doccomment">//! (#rust-reflections-of-webidl-types).</span>
+<span class="doccomment">//! In addition to those, all methods that are [allowed to throw]</span>
+<span class="doccomment">//! (#throwing-exceptions) will have the return value wrapped in</span>
+<span class="doccomment">//! [`Fallible&lt;T&gt;`](error/type.Fallible.html).</span>
+<span class="doccomment">//! Methods that use certain WebIDL types like `any` or `object` will get a</span>
+<span class="doccomment">//! `*mut JSContext` argument prepended to the argument list. Static methods</span>
+<span class="doccomment">//! will be passed a [`&amp;GlobalScope`](../globalscope/struct.GlobalScope.html)</span>
+<span class="doccomment">//! for the relevant global. This argument comes before the `*mut JSContext`</span>
+<span class="doccomment">//! argument, if any.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Rust reflections of WebIDL operations (methods)</span>
+<span class="doccomment">//! -----------------------------------------------</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! A WebIDL operation is turned into one method for every overload.</span>
+<span class="doccomment">//! The first overload gets the base name, and consecutive overloads have an</span>
+<span class="doccomment">//! underscore appended to the name.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The base name of the Rust method is simply the name of the WebIDL operation</span>
+<span class="doccomment">//! with the first letter converted to uppercase.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Rust reflections of WebIDL attributes</span>
+<span class="doccomment">//! -------------------------------------</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! A WebIDL attribute is turned into a pair of methods: one for the getter and</span>
+<span class="doccomment">//! one for the setter. A readonly attribute only has a getter and no setter.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The getter&#39;s name is the name of the attribute with the first letter</span>
+<span class="doccomment">//! converted to uppercase. It has `Get` prepended to it if the type of the</span>
+<span class="doccomment">//! attribute is nullable or if the getter can throw.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The method signature for the getter looks just like an operation with no</span>
+<span class="doccomment">//! arguments and the attribute&#39;s type as the return type.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The setter&#39;s name is `Set` followed by the name of the attribute with the</span>
+<span class="doccomment">//! first letter converted to uppercase. The method signature looks just like</span>
+<span class="doccomment">//! an operation with a void return value and a single argument whose type is</span>
+<span class="doccomment">//! the attribute&#39;s type.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Rust reflections of WebIDL constructors</span>
+<span class="doccomment">//! ---------------------------------------</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! A WebIDL constructor is turned into a static class method named</span>
+<span class="doccomment">//! `Constructor`. The arguments of this method will be the arguments of the</span>
+<span class="doccomment">//! WebIDL constructor, with a `&amp;GlobalScope` for the relevant global prepended.</span>
+<span class="doccomment">//! The return value of the constructor for MyInterface is exactly the same as</span>
+<span class="doccomment">//! that of a method returning an instance of MyInterface. Constructors are</span>
+<span class="doccomment">//! always [allowed to throw](#throwing-exceptions).</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Rust reflections of WebIDL types</span>
+<span class="doccomment">//! --------------------------------</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The exact Rust representation for WebIDL types can depend on the precise</span>
+<span class="doccomment">//! way that they&#39;re being used (e.g., return values and arguments might have</span>
+<span class="doccomment">//! different representations).</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Optional arguments which do not have a default value are represented by</span>
+<span class="doccomment">//! wrapping `Option&lt;T&gt;` around the representation of the argument type.</span>
+<span class="doccomment">//! Optional arguments which do have a default value are represented by the</span>
+<span class="doccomment">//! argument type itself, set to the default value if the argument was not in</span>
+<span class="doccomment">//! fact passed in.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Variadic WebIDL arguments are represented by wrapping a `Vec&lt;T&gt;` around the</span>
+<span class="doccomment">//! representation of the argument type.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! See [the type mapping for particular types](conversions/index.html).</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Rust reflections of stringifiers</span>
+<span class="doccomment">//! --------------------------------</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! *To be written.*</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Rust reflections of legacy callers</span>
+<span class="doccomment">//! ---------------------------------</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Legacy callers are not yet implemented.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Throwing exceptions</span>
+<span class="doccomment">//! ===================</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! WebIDL methods, getters, and setters that need to throw exceptions need to</span>
+<span class="doccomment">//! be explicitly marked as such with the `[Throws]`, `[GetterThrows]` and</span>
+<span class="doccomment">//! `[SetterThrows]` custom attributes.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! `[Throws]` applies to both methods and attributes; for attributes it means</span>
+<span class="doccomment">//! both the getter and the setter (if any) can throw. `[GetterThrows]` applies</span>
+<span class="doccomment">//! only to attributes. `[SetterThrows]` applies only to writable attributes.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The corresponding Rust methods will have the return value wrapped in</span>
+<span class="doccomment">//! [`Fallible&lt;T&gt;`](error/type.Fallible.html). To throw an exception, simply</span>
+<span class="doccomment">//! return `Err()` from the method with the appropriate [error value]</span>
+<span class="doccomment">//! (error/enum.Error.html).</span>
 
-<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>allow</span>(<span class='ident'>unsafe_code</span>)]</span>
-<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>deny</span>(<span class='ident'>missing_docs</span>)]</span>
-<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>deny</span>(<span class='ident'>non_snake_case</span>)]</span>
+<span class="attribute">#<span class="op">!</span>[<span class="ident">allow</span>(<span class="ident">unsafe_code</span>)]</span>
+<span class="attribute">#<span class="op">!</span>[<span class="ident">deny</span>(<span class="ident">missing_docs</span>)]</span>
+<span class="attribute">#<span class="op">!</span>[<span class="ident">deny</span>(<span class="ident">non_snake_case</span>)]</span>
 
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>callback</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>cell</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>constant</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>conversions</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>error</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>guard</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>inheritance</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>interface</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>iterable</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>js</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>mozmap</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>namespace</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>num</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>proxyhandler</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>refcounted</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>reflector</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>settings_stack</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>str</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>structuredclone</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>trace</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>utils</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>weakref</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>xmlname</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">callback</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cell</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">constant</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">conversions</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">error</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">guard</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">inheritance</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">interface</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">iterable</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">js</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">mozmap</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">namespace</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">num</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">proxyhandler</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">refcounted</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">reflector</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">settings_stack</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">str</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">structuredclone</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">trace</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">utils</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">weakref</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">xmlname</span>;
 
-<span class='doccomment'>/// Generated JS-Rust bindings.</span>
-<span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>missing_docs</span>, <span class='ident'>non_snake_case</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>codegen</span> {
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>, <span class='ident'>unrooted_must_root</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>Bindings</span> {
-        <span class='macro'>include</span><span class='macro'>!</span>(<span class='macro'>concat</span><span class='macro'>!</span>(<span class='macro'>env</span><span class='macro'>!</span>(<span class='string'>&quot;OUT_DIR&quot;</span>), <span class='string'>&quot;/Bindings/mod.rs&quot;</span>));
+<span class="doccomment">/// Generated JS-Rust bindings.</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">missing_docs</span>, <span class="ident">non_snake_case</span>)]</span>
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">codegen</span> {
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>, <span class="ident">unrooted_must_root</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">Bindings</span> {
+        <span class="macro">include</span><span class="macro">!</span>(<span class="macro">concat</span><span class="macro">!</span>(<span class="macro">env</span><span class="macro">!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/Bindings/mod.rs&quot;</span>));
     }
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>InterfaceObjectMap</span> {
-        <span class='macro'>include</span><span class='macro'>!</span>(<span class='macro'>concat</span><span class='macro'>!</span>(<span class='macro'>env</span><span class='macro'>!</span>(<span class='string'>&quot;OUT_DIR&quot;</span>), <span class='string'>&quot;/InterfaceObjectMap.rs&quot;</span>));
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">InterfaceObjectMap</span> {
+        <span class="macro">include</span><span class="macro">!</span>(<span class="macro">concat</span><span class="macro">!</span>(<span class="macro">env</span><span class="macro">!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/InterfaceObjectMap.rs&quot;</span>));
     }
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>InterfaceTypes</span> {
-        <span class='macro'>include</span><span class='macro'>!</span>(<span class='macro'>concat</span><span class='macro'>!</span>(<span class='macro'>env</span><span class='macro'>!</span>(<span class='string'>&quot;OUT_DIR&quot;</span>), <span class='string'>&quot;/InterfaceTypes.rs&quot;</span>));
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">InterfaceTypes</span> {
+        <span class="macro">include</span><span class="macro">!</span>(<span class="macro">concat</span><span class="macro">!</span>(<span class="macro">env</span><span class="macro">!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/InterfaceTypes.rs&quot;</span>));
     }
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>, <span class='ident'>unused_imports</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>InheritTypes</span> {
-        <span class='macro'>include</span><span class='macro'>!</span>(<span class='macro'>concat</span><span class='macro'>!</span>(<span class='macro'>env</span><span class='macro'>!</span>(<span class='string'>&quot;OUT_DIR&quot;</span>), <span class='string'>&quot;/InheritTypes.rs&quot;</span>));
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>, <span class="ident">unused_imports</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">InheritTypes</span> {
+        <span class="macro">include</span><span class="macro">!</span>(<span class="macro">concat</span><span class="macro">!</span>(<span class="macro">env</span><span class="macro">!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/InheritTypes.rs&quot;</span>));
     }
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>PrototypeList</span> {
-        <span class='macro'>include</span><span class='macro'>!</span>(<span class='macro'>concat</span><span class='macro'>!</span>(<span class='macro'>env</span><span class='macro'>!</span>(<span class='string'>&quot;OUT_DIR&quot;</span>), <span class='string'>&quot;/PrototypeList.rs&quot;</span>));
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">PrototypeList</span> {
+        <span class="macro">include</span><span class="macro">!</span>(<span class="macro">concat</span><span class="macro">!</span>(<span class="macro">env</span><span class="macro">!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/PrototypeList.rs&quot;</span>));
     }
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>RegisterBindings</span> {
-        <span class='macro'>include</span><span class='macro'>!</span>(<span class='macro'>concat</span><span class='macro'>!</span>(<span class='macro'>env</span><span class='macro'>!</span>(<span class='string'>&quot;OUT_DIR&quot;</span>), <span class='string'>&quot;/RegisterBindings.rs&quot;</span>));
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">RegisterBindings</span> {
+        <span class="macro">include</span><span class="macro">!</span>(<span class="macro">concat</span><span class="macro">!</span>(<span class="macro">env</span><span class="macro">!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/RegisterBindings.rs&quot;</span>));
     }
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>non_camel_case_types</span>, <span class='ident'>unused_imports</span>, <span class='ident'>unused_variables</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>UnionTypes</span> {
-        <span class='macro'>include</span><span class='macro'>!</span>(<span class='macro'>concat</span><span class='macro'>!</span>(<span class='macro'>env</span><span class='macro'>!</span>(<span class='string'>&quot;OUT_DIR&quot;</span>), <span class='string'>&quot;/UnionTypes.rs&quot;</span>));
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_camel_case_types</span>, <span class="ident">unused_imports</span>, <span class="ident">unused_variables</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">UnionTypes</span> {
+        <span class="macro">include</span><span class="macro">!</span>(<span class="macro">concat</span><span class="macro">!</span>(<span class="macro">env</span><span class="macro">!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/UnionTypes.rs&quot;</span>));
     }
 }
 </pre>

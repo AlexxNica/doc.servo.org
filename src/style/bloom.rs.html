@@ -298,260 +298,260 @@
 <span id="253">253</span>
 <span id="254">254</span>
 <span id="255">255</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! The style bloom filter is used as an optimization when matching deep</span>
-<span class='doccomment'>//! descendant selectors.</span>
+<span class="doccomment">//! The style bloom filter is used as an optimization when matching deep</span>
+<span class="doccomment">//! descendant selectors.</span>
 
-<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>deny</span>(<span class='ident'>missing_docs</span>)]</span>
+<span class="attribute">#<span class="op">!</span>[<span class="ident">deny</span>(<span class="ident">missing_docs</span>)]</span>
 
-<span class='kw'>use</span> <span class='ident'>dom</span>::{<span class='ident'>SendElement</span>, <span class='ident'>TElement</span>};
-<span class='kw'>use</span> <span class='ident'>matching</span>::<span class='ident'>MatchMethods</span>;
-<span class='kw'>use</span> <span class='ident'>selectors</span>::<span class='ident'>bloom</span>::<span class='ident'>BloomFilter</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::{<span class="ident">SendElement</span>, <span class="ident">TElement</span>};
+<span class="kw">use</span> <span class="ident">matching</span>::<span class="ident">MatchMethods</span>;
+<span class="kw">use</span> <span class="ident">selectors</span>::<span class="ident">bloom</span>::<span class="ident">BloomFilter</span>;
 
-<span class='doccomment'>/// A struct that allows us to fast-reject deep descendant selectors avoiding</span>
-<span class='doccomment'>/// selector-matching.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// This is implemented using a counting bloom filter, and it&#39;s a standard</span>
-<span class='doccomment'>/// optimization. See Gecko&#39;s `AncestorFilter`, and Blink&#39;s and WebKit&#39;s</span>
-<span class='doccomment'>/// `SelectorFilter`.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// The constraints for Servo&#39;s style system are a bit different compared to</span>
-<span class='doccomment'>/// traditional style systems given Servo does a parallel breadth-first</span>
-<span class='doccomment'>/// traversal instead of a sequential depth-first traversal.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// This implies that we need to track a bit more state than other browsers to</span>
-<span class='doccomment'>/// ensure we&#39;re doing the correct thing during the traversal, and being able to</span>
-<span class='doccomment'>/// apply this optimization effectively.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Concretely, we have a bloom filter instance per worker thread, and we track</span>
-<span class='doccomment'>/// the current DOM depth in order to find a common ancestor when it doesn&#39;t</span>
-<span class='doccomment'>/// match the previous element we&#39;ve styled.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// This is usually a pretty fast operation (we use to be one level deeper than</span>
-<span class='doccomment'>/// the previous one), but in the case of work-stealing, we may needed to push</span>
-<span class='doccomment'>/// and pop multiple elements.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// See the `insert_parents_recovering`, where most of the magic happens.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Regarding thread-safety, this struct is safe because:</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>///  * We clear this after a restyle.</span>
-<span class='doccomment'>///  * The DOM shape and attributes (and every other thing we access here) are</span>
-<span class='doccomment'>///    immutable during a restyle.</span>
-<span class='doccomment'>///</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>StyleBloom</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// The bloom filter per se.</span>
-    <span class='ident'>filter</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>BloomFilter</span><span class='op'>&gt;</span>,
+<span class="doccomment">/// A struct that allows us to fast-reject deep descendant selectors avoiding</span>
+<span class="doccomment">/// selector-matching.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This is implemented using a counting bloom filter, and it&#39;s a standard</span>
+<span class="doccomment">/// optimization. See Gecko&#39;s `AncestorFilter`, and Blink&#39;s and WebKit&#39;s</span>
+<span class="doccomment">/// `SelectorFilter`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The constraints for Servo&#39;s style system are a bit different compared to</span>
+<span class="doccomment">/// traditional style systems given Servo does a parallel breadth-first</span>
+<span class="doccomment">/// traversal instead of a sequential depth-first traversal.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This implies that we need to track a bit more state than other browsers to</span>
+<span class="doccomment">/// ensure we&#39;re doing the correct thing during the traversal, and being able to</span>
+<span class="doccomment">/// apply this optimization effectively.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Concretely, we have a bloom filter instance per worker thread, and we track</span>
+<span class="doccomment">/// the current DOM depth in order to find a common ancestor when it doesn&#39;t</span>
+<span class="doccomment">/// match the previous element we&#39;ve styled.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This is usually a pretty fast operation (we use to be one level deeper than</span>
+<span class="doccomment">/// the previous one), but in the case of work-stealing, we may needed to push</span>
+<span class="doccomment">/// and pop multiple elements.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// See the `insert_parents_recovering`, where most of the magic happens.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Regarding thread-safety, this struct is safe because:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">///  * We clear this after a restyle.</span>
+<span class="doccomment">///  * The DOM shape and attributes (and every other thing we access here) are</span>
+<span class="doccomment">///    immutable during a restyle.</span>
+<span class="doccomment">///</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">StyleBloom</span><span class="op">&lt;</span><span class="ident">E</span>: <span class="ident">TElement</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// The bloom filter per se.</span>
+    <span class="ident">filter</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">BloomFilter</span><span class="op">&gt;</span>,
 
-    <span class='doccomment'>/// The stack of elements that this bloom filter contains.</span>
-    <span class='ident'>elements</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>SendElement</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;&gt;</span>,
+    <span class="doccomment">/// The stack of elements that this bloom filter contains.</span>
+    <span class="ident">elements</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SendElement</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;&gt;</span>,
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> <span class='ident'>StyleBloom</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Create an empty `StyleBloom`.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='ident'>StyleBloom</span> {
-            <span class='ident'>filter</span>: <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>BloomFilter</span>::<span class='ident'>new</span>()),
-            <span class='ident'>elements</span>: <span class='macro'>vec</span><span class='macro'>!</span>[],
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">E</span>: <span class="ident">TElement</span><span class="op">&gt;</span> <span class="ident">StyleBloom</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Create an empty `StyleBloom`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">StyleBloom</span> {
+            <span class="ident">filter</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">BloomFilter</span>::<span class="ident">new</span>()),
+            <span class="ident">elements</span>: <span class="macro">vec</span><span class="macro">!</span>[],
         }
     }
 
-    <span class='doccomment'>/// Return the bloom filter used properly by the `selectors` crate.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>filter</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>BloomFilter</span> {
-        <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>filter</span>
+    <span class="doccomment">/// Return the bloom filter used properly by the `selectors` crate.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">filter</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">BloomFilter</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">filter</span>
     }
 
-    <span class='doccomment'>/// Push an element to the bloom filter, knowing that it&#39;s a child of the</span>
-    <span class='doccomment'>/// last element parent.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>element</span>: <span class='ident'>E</span>) {
-        <span class='kw'>if</span> <span class='macro'>cfg</span><span class='macro'>!</span>(<span class='ident'>debug_assertions</span>) {
-            <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>is_empty</span>() {
-                <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>element</span>.<span class='ident'>parent_element</span>().<span class='ident'>is_none</span>());
+    <span class="doccomment">/// Push an element to the bloom filter, knowing that it&#39;s a child of the</span>
+    <span class="doccomment">/// last element parent.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">push</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">element</span>: <span class="ident">E</span>) {
+        <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">debug_assertions</span>) {
+            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">is_empty</span>() {
+                <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">element</span>.<span class="ident">parent_element</span>().<span class="ident">is_none</span>());
             }
         }
-        <span class='ident'>element</span>.<span class='ident'>insert_into_bloom_filter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>filter</span>);
-        <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>push</span>(<span class='kw'>unsafe</span> { <span class='ident'>SendElement</span>::<span class='ident'>new</span>(<span class='ident'>element</span>) });
+        <span class="ident">element</span>.<span class="ident">insert_into_bloom_filter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">filter</span>);
+        <span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">push</span>(<span class="kw">unsafe</span> { <span class="ident">SendElement</span>::<span class="ident">new</span>(<span class="ident">element</span>) });
     }
 
-    <span class='doccomment'>/// Pop the last element in the bloom filter and return it.</span>
-    <span class='kw'>fn</span> <span class='ident'>pop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>popped</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>pop</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>el</span><span class='op'>|</span> <span class='kw-2'>*</span><span class='ident'>el</span>);
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>popped</span>) <span class='op'>=</span> <span class='ident'>popped</span> {
-            <span class='ident'>popped</span>.<span class='ident'>remove_from_bloom_filter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>filter</span>);
+    <span class="doccomment">/// Pop the last element in the bloom filter and return it.</span>
+    <span class="kw">fn</span> <span class="ident">pop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">popped</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">pop</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">el</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">el</span>);
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">popped</span>) <span class="op">=</span> <span class="ident">popped</span> {
+            <span class="ident">popped</span>.<span class="ident">remove_from_bloom_filter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">filter</span>);
         }
 
-        <span class='ident'>popped</span>
+        <span class="ident">popped</span>
     }
 
-    <span class='doccomment'>/// Returns true if the bloom filter is empty.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_empty</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>is_empty</span>()
+    <span class="doccomment">/// Returns true if the bloom filter is empty.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">is_empty</span>()
     }
 
 
-    <span class='doccomment'>/// Clears the bloom filter.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>clear</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>filter</span>.<span class='ident'>clear</span>();
-        <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>clear</span>();
+    <span class="doccomment">/// Clears the bloom filter.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">clear</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">filter</span>.<span class="ident">clear</span>();
+        <span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">clear</span>();
     }
 
-    <span class='doccomment'>/// Rebuilds the bloom filter up to the parent of the given element.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>rebuild</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>element</span>: <span class='ident'>E</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-        <span class='self'>self</span>.<span class='ident'>clear</span>();
+    <span class="doccomment">/// Rebuilds the bloom filter up to the parent of the given element.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">rebuild</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">element</span>: <span class="ident">E</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">clear</span>();
 
-        <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>) <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>parent_element</span>() {
-            <span class='ident'>parent</span>.<span class='ident'>insert_into_bloom_filter</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>filter</span>);
-            <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>push</span>(<span class='kw'>unsafe</span> { <span class='ident'>SendElement</span>::<span class='ident'>new</span>(<span class='ident'>parent</span>) });
-            <span class='ident'>element</span> <span class='op'>=</span> <span class='ident'>parent</span>;
+        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">parent</span>) <span class="op">=</span> <span class="ident">element</span>.<span class="ident">parent_element</span>() {
+            <span class="ident">parent</span>.<span class="ident">insert_into_bloom_filter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">filter</span>);
+            <span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">push</span>(<span class="kw">unsafe</span> { <span class="ident">SendElement</span>::<span class="ident">new</span>(<span class="ident">parent</span>) });
+            <span class="ident">element</span> <span class="op">=</span> <span class="ident">parent</span>;
         }
 
-        <span class='comment'>// Put them in the order we expect, from root to `element`&#39;s parent.</span>
-        <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>reverse</span>();
-        <span class='kw'>return</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>len</span>();
+        <span class="comment">// Put them in the order we expect, from root to `element`&#39;s parent.</span>
+        <span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">reverse</span>();
+        <span class="kw">return</span> <span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">len</span>();
     }
 
-    <span class='doccomment'>/// In debug builds, asserts that all the parents of `element` are in the</span>
-    <span class='doccomment'>/// bloom filter.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Goes away in release builds.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>assert_complete</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>element</span>: <span class='ident'>E</span>) {
-        <span class='kw'>if</span> <span class='macro'>cfg</span><span class='macro'>!</span>(<span class='ident'>debug_assertions</span>) {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>checked</span> <span class='op'>=</span> <span class='number'>0</span>;
-            <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>) <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>parent_element</span>() {
-                <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>parent</span>, <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>elements</span>[<span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>len</span>() <span class='op'>-</span> <span class='number'>1</span> <span class='op'>-</span> <span class='ident'>checked</span>]);
-                <span class='ident'>element</span> <span class='op'>=</span> <span class='ident'>parent</span>;
-                <span class='ident'>checked</span> <span class='op'>+=</span> <span class='number'>1</span>;
+    <span class="doccomment">/// In debug builds, asserts that all the parents of `element` are in the</span>
+    <span class="doccomment">/// bloom filter.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Goes away in release builds.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">assert_complete</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">element</span>: <span class="ident">E</span>) {
+        <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">debug_assertions</span>) {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">checked</span> <span class="op">=</span> <span class="number">0</span>;
+            <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">parent</span>) <span class="op">=</span> <span class="ident">element</span>.<span class="ident">parent_element</span>() {
+                <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">parent</span>, <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">elements</span>[<span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span> <span class="op">-</span> <span class="ident">checked</span>]);
+                <span class="ident">element</span> <span class="op">=</span> <span class="ident">parent</span>;
+                <span class="ident">checked</span> <span class="op">+=</span> <span class="number">1</span>;
             }
-            <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>checked</span>, <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>len</span>());
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">checked</span>, <span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">len</span>());
         }
     }
 
-    <span class='doccomment'>/// Insert the parents of an element in the bloom filter, trying to recover</span>
-    <span class='doccomment'>/// the filter if the last element inserted doesn&#39;t match.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Gets the element depth in the dom, to make it efficient, or if not</span>
-    <span class='doccomment'>/// provided always rebuilds the filter from scratch.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Returns the new bloom filter depth, that the traversal code is</span>
-    <span class='doccomment'>/// responsible to keep around if it wants to get an effective filter.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>insert_parents_recovering</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                                     <span class='ident'>element</span>: <span class='ident'>E</span>,
-                                     <span class='ident'>element_depth</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span>)
-                                     <span class='op'>-&gt;</span> <span class='ident'>usize</span>
+    <span class="doccomment">/// Insert the parents of an element in the bloom filter, trying to recover</span>
+    <span class="doccomment">/// the filter if the last element inserted doesn&#39;t match.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Gets the element depth in the dom, to make it efficient, or if not</span>
+    <span class="doccomment">/// provided always rebuilds the filter from scratch.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Returns the new bloom filter depth, that the traversal code is</span>
+    <span class="doccomment">/// responsible to keep around if it wants to get an effective filter.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert_parents_recovering</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+                                     <span class="ident">element</span>: <span class="ident">E</span>,
+                                     <span class="ident">element_depth</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>)
+                                     <span class="op">-&gt;</span> <span class="ident">usize</span>
     {
-        <span class='comment'>// Easy case, we&#39;re in a different restyle, or we&#39;re empty.</span>
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>is_empty</span>() {
-            <span class='kw'>return</span> <span class='self'>self</span>.<span class='ident'>rebuild</span>(<span class='ident'>element</span>);
+        <span class="comment">// Easy case, we&#39;re in a different restyle, or we&#39;re empty.</span>
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">is_empty</span>() {
+            <span class="kw">return</span> <span class="self">self</span>.<span class="ident">rebuild</span>(<span class="ident">element</span>);
         }
 
-        <span class='kw'>let</span> <span class='ident'>parent_element</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>element</span>.<span class='ident'>parent_element</span>() {
-            <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>) <span class='op'>=&gt;</span> <span class='ident'>parent</span>,
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
-                <span class='comment'>// Yay, another easy case.</span>
-                <span class='self'>self</span>.<span class='ident'>clear</span>();
-                <span class='kw'>return</span> <span class='number'>0</span>;
+        <span class="kw">let</span> <span class="ident">parent_element</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">element</span>.<span class="ident">parent_element</span>() {
+            <span class="prelude-val">Some</span>(<span class="ident">parent</span>) <span class="op">=&gt;</span> <span class="ident">parent</span>,
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                <span class="comment">// Yay, another easy case.</span>
+                <span class="self">self</span>.<span class="ident">clear</span>();
+                <span class="kw">return</span> <span class="number">0</span>;
             }
         };
 
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>last</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>el</span><span class='op'>|</span> <span class='kw-2'>*</span><span class='kw-2'>*</span><span class='ident'>el</span>) <span class='op'>==</span> <span class='prelude-val'>Some</span>(<span class='ident'>parent_element</span>) {
-            <span class='comment'>// Ta da, cache hit, we&#39;re all done.</span>
-            <span class='kw'>return</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>len</span>();
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">last</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">el</span><span class="op">|</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">el</span>) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">parent_element</span>) {
+            <span class="comment">// Ta da, cache hit, we&#39;re all done.</span>
+            <span class="kw">return</span> <span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">len</span>();
         }
 
-        <span class='kw'>let</span> <span class='ident'>element_depth</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>element_depth</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>depth</span>) <span class='op'>=&gt;</span> <span class='ident'>depth</span>,
-            <span class='comment'>// If we don&#39;t know the depth of `element`, we&#39;d rather don&#39;t try</span>
-            <span class='comment'>// fixing up the bloom filter, since it&#39;s quadratic.</span>
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
-                <span class='kw'>return</span> <span class='self'>self</span>.<span class='ident'>rebuild</span>(<span class='ident'>element</span>);
+        <span class="kw">let</span> <span class="ident">element_depth</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">element_depth</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">depth</span>) <span class="op">=&gt;</span> <span class="ident">depth</span>,
+            <span class="comment">// If we don&#39;t know the depth of `element`, we&#39;d rather don&#39;t try</span>
+            <span class="comment">// fixing up the bloom filter, since it&#39;s quadratic.</span>
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                <span class="kw">return</span> <span class="self">self</span>.<span class="ident">rebuild</span>(<span class="ident">element</span>);
             }
         };
 
-        <span class='comment'>// We should&#39;ve early exited above.</span>
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>element_depth</span> <span class='op'>!=</span> <span class='number'>0</span>,
-                      <span class='string'>&quot;We should have already cleared the bloom filter&quot;</span>);
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>is_empty</span>(),
-                      <span class='string'>&quot;How! We should&#39;ve just rebuilt!&quot;</span>);
+        <span class="comment">// We should&#39;ve early exited above.</span>
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">element_depth</span> <span class="op">!=</span> <span class="number">0</span>,
+                      <span class="string">&quot;We should have already cleared the bloom filter&quot;</span>);
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="op">!</span><span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">is_empty</span>(),
+                      <span class="string">&quot;How! We should&#39;ve just rebuilt!&quot;</span>);
 
-        <span class='comment'>// Now the fun begins: We have the depth of the dom and the depth of the</span>
-        <span class='comment'>// last element inserted in the filter, let&#39;s try to find a common</span>
-        <span class='comment'>// parent.</span>
-        <span class='comment'>//</span>
-        <span class='comment'>// The current depth, that is, the depth of the last element inserted in</span>
-        <span class='comment'>// the bloom filter, is the number of elements _minus one_, that is: if</span>
-        <span class='comment'>// there&#39;s one element, it must be the root -&gt; depth zero.</span>
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>current_depth</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>len</span>() <span class='op'>-</span> <span class='number'>1</span>;
+        <span class="comment">// Now the fun begins: We have the depth of the dom and the depth of the</span>
+        <span class="comment">// last element inserted in the filter, let&#39;s try to find a common</span>
+        <span class="comment">// parent.</span>
+        <span class="comment">//</span>
+        <span class="comment">// The current depth, that is, the depth of the last element inserted in</span>
+        <span class="comment">// the bloom filter, is the number of elements _minus one_, that is: if</span>
+        <span class="comment">// there&#39;s one element, it must be the root -&gt; depth zero.</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">current_depth</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>;
 
-        <span class='comment'>// If the filter represents an element too deep in the dom, we need to</span>
-        <span class='comment'>// pop ancestors.</span>
-        <span class='kw'>while</span> <span class='ident'>current_depth</span> <span class='op'>&gt;</span> <span class='ident'>element_depth</span> <span class='op'>-</span> <span class='number'>1</span> {
-            <span class='self'>self</span>.<span class='ident'>pop</span>().<span class='ident'>expect</span>(<span class='string'>&quot;Emilio is bad at math&quot;</span>);
-            <span class='ident'>current_depth</span> <span class='op'>-=</span> <span class='number'>1</span>;
+        <span class="comment">// If the filter represents an element too deep in the dom, we need to</span>
+        <span class="comment">// pop ancestors.</span>
+        <span class="kw">while</span> <span class="ident">current_depth</span> <span class="op">&gt;</span> <span class="ident">element_depth</span> <span class="op">-</span> <span class="number">1</span> {
+            <span class="self">self</span>.<span class="ident">pop</span>().<span class="ident">expect</span>(<span class="string">&quot;Emilio is bad at math&quot;</span>);
+            <span class="ident">current_depth</span> <span class="op">-=</span> <span class="number">1</span>;
         }
 
-        <span class='comment'>// Now let&#39;s try to find a common parent in the bloom filter chain,</span>
-        <span class='comment'>// starting with parent_element.</span>
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>common_parent</span> <span class='op'>=</span> <span class='ident'>parent_element</span>;
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>common_parent_depth</span> <span class='op'>=</span> <span class='ident'>element_depth</span> <span class='op'>-</span> <span class='number'>1</span>;
+        <span class="comment">// Now let&#39;s try to find a common parent in the bloom filter chain,</span>
+        <span class="comment">// starting with parent_element.</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">common_parent</span> <span class="op">=</span> <span class="ident">parent_element</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">common_parent_depth</span> <span class="op">=</span> <span class="ident">element_depth</span> <span class="op">-</span> <span class="number">1</span>;
 
-        <span class='comment'>// Let&#39;s collect the parents we are going to need to insert once we&#39;ve</span>
-        <span class='comment'>// found the common one.</span>
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>parents_to_insert</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
+        <span class="comment">// Let&#39;s collect the parents we are going to need to insert once we&#39;ve</span>
+        <span class="comment">// found the common one.</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">parents_to_insert</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
 
-        <span class='comment'>// If the bloom filter still doesn&#39;t have enough elements, the common</span>
-        <span class='comment'>// parent is up in the dom.</span>
-        <span class='kw'>while</span> <span class='ident'>common_parent_depth</span> <span class='op'>&gt;</span> <span class='ident'>current_depth</span> {
-            <span class='comment'>// TODO(emilio): Seems like we could insert parents here, then</span>
-            <span class='comment'>// reverse the slice.</span>
-            <span class='ident'>parents_to_insert</span>.<span class='ident'>push</span>(<span class='ident'>common_parent</span>);
-            <span class='ident'>common_parent</span> <span class='op'>=</span>
-                <span class='ident'>common_parent</span>.<span class='ident'>parent_element</span>().<span class='ident'>expect</span>(<span class='string'>&quot;We were lied&quot;</span>);
-            <span class='ident'>common_parent_depth</span> <span class='op'>-=</span> <span class='number'>1</span>;
+        <span class="comment">// If the bloom filter still doesn&#39;t have enough elements, the common</span>
+        <span class="comment">// parent is up in the dom.</span>
+        <span class="kw">while</span> <span class="ident">common_parent_depth</span> <span class="op">&gt;</span> <span class="ident">current_depth</span> {
+            <span class="comment">// TODO(emilio): Seems like we could insert parents here, then</span>
+            <span class="comment">// reverse the slice.</span>
+            <span class="ident">parents_to_insert</span>.<span class="ident">push</span>(<span class="ident">common_parent</span>);
+            <span class="ident">common_parent</span> <span class="op">=</span>
+                <span class="ident">common_parent</span>.<span class="ident">parent_element</span>().<span class="ident">expect</span>(<span class="string">&quot;We were lied&quot;</span>);
+            <span class="ident">common_parent_depth</span> <span class="op">-=</span> <span class="number">1</span>;
         }
 
-        <span class='comment'>// Now the two depths are the same.</span>
-        <span class='macro'>debug_assert_eq</span><span class='macro'>!</span>(<span class='ident'>common_parent_depth</span>, <span class='ident'>current_depth</span>);
+        <span class="comment">// Now the two depths are the same.</span>
+        <span class="macro">debug_assert_eq</span><span class="macro">!</span>(<span class="ident">common_parent_depth</span>, <span class="ident">current_depth</span>);
 
-        <span class='comment'>// Happy case: The parents match, we only need to push the ancestors</span>
-        <span class='comment'>// we&#39;ve collected and we&#39;ll never enter in this loop.</span>
-        <span class='comment'>//</span>
-        <span class='comment'>// Not-so-happy case: Parent&#39;s don&#39;t match, so we need to keep going up</span>
-        <span class='comment'>// until we find a common ancestor.</span>
-        <span class='comment'>//</span>
-        <span class='comment'>// Gecko currently models native anonymous content that conceptually hangs</span>
-        <span class='comment'>// off the document (such as scrollbars) as a separate subtree from the</span>
-        <span class='comment'>// document root.  Thus it&#39;s possible with Gecko that we do not find any</span>
-        <span class='comment'>// common ancestor.</span>
-        <span class='kw'>while</span> <span class='kw-2'>*</span><span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>() <span class='op'>!=</span> <span class='ident'>common_parent</span> {
-            <span class='ident'>parents_to_insert</span>.<span class='ident'>push</span>(<span class='ident'>common_parent</span>);
-            <span class='self'>self</span>.<span class='ident'>pop</span>().<span class='ident'>unwrap</span>();
-            <span class='ident'>common_parent</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>common_parent</span>.<span class='ident'>parent_element</span>() {
-                <span class='prelude-val'>Some</span>(<span class='ident'>parent</span>) <span class='op'>=&gt;</span> <span class='ident'>parent</span>,
-                <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
-                    <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>is_empty</span>());
-                    <span class='kw'>if</span> <span class='macro'>cfg</span><span class='macro'>!</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;gecko&quot;</span>) {
-                        <span class='kw'>break</span>;
-                    } <span class='kw'>else</span> {
-                        <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;should have found a common ancestor&quot;</span>);
+        <span class="comment">// Happy case: The parents match, we only need to push the ancestors</span>
+        <span class="comment">// we&#39;ve collected and we&#39;ll never enter in this loop.</span>
+        <span class="comment">//</span>
+        <span class="comment">// Not-so-happy case: Parent&#39;s don&#39;t match, so we need to keep going up</span>
+        <span class="comment">// until we find a common ancestor.</span>
+        <span class="comment">//</span>
+        <span class="comment">// Gecko currently models native anonymous content that conceptually hangs</span>
+        <span class="comment">// off the document (such as scrollbars) as a separate subtree from the</span>
+        <span class="comment">// document root.  Thus it&#39;s possible with Gecko that we do not find any</span>
+        <span class="comment">// common ancestor.</span>
+        <span class="kw">while</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>() <span class="op">!=</span> <span class="ident">common_parent</span> {
+            <span class="ident">parents_to_insert</span>.<span class="ident">push</span>(<span class="ident">common_parent</span>);
+            <span class="self">self</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>();
+            <span class="ident">common_parent</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">common_parent</span>.<span class="ident">parent_element</span>() {
+                <span class="prelude-val">Some</span>(<span class="ident">parent</span>) <span class="op">=&gt;</span> <span class="ident">parent</span>,
+                <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                    <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">is_empty</span>());
+                    <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;gecko&quot;</span>) {
+                        <span class="kw">break</span>;
+                    } <span class="kw">else</span> {
+                        <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;should have found a common ancestor&quot;</span>);
                     }
                 }
             }
         }
 
-        <span class='comment'>// Now the parents match, so insert the stack of elements we have been</span>
-        <span class='comment'>// collecting so far.</span>
-        <span class='kw'>for</span> <span class='ident'>parent</span> <span class='kw'>in</span> <span class='ident'>parents_to_insert</span>.<span class='ident'>into_iter</span>().<span class='ident'>rev</span>() {
-            <span class='self'>self</span>.<span class='ident'>push</span>(<span class='ident'>parent</span>);
+        <span class="comment">// Now the parents match, so insert the stack of elements we have been</span>
+        <span class="comment">// collecting so far.</span>
+        <span class="kw">for</span> <span class="ident">parent</span> <span class="kw">in</span> <span class="ident">parents_to_insert</span>.<span class="ident">into_iter</span>().<span class="ident">rev</span>() {
+            <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">parent</span>);
         }
 
-        <span class='macro'>debug_assert_eq</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>len</span>(), <span class='ident'>element_depth</span>);
+        <span class="macro">debug_assert_eq</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">len</span>(), <span class="ident">element_depth</span>);
 
-        <span class='comment'>// We&#39;re done! Easy.</span>
-        <span class='kw'>return</span> <span class='self'>self</span>.<span class='ident'>elements</span>.<span class='ident'>len</span>();
+        <span class="comment">// We&#39;re done! Easy.</span>
+        <span class="kw">return</span> <span class="self">self</span>.<span class="ident">elements</span>.<span class="ident">len</span>();
     }
 }
 </pre>

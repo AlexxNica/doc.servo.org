@@ -1,6 +1,5 @@
 (function() {var implementors = {};
 implementors["arrayvec"] = [];
-implementors["net"] = [];
 implementors["servo"] = [];
 
             if (window.register_implementors) {

@@ -588,550 +588,550 @@
 <span id="543">543</span>
 <span id="544">544</span>
 <span id="545">545</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! An actor-based remote devtools server implementation. Only tested with</span>
-<span class='doccomment'>//! nightly Firefox versions at time of writing. Largely based on</span>
-<span class='doccomment'>//! reverse-engineering of Firefox chrome devtool logs and reading of</span>
-<span class='doccomment'>//! [code](http://mxr.mozilla.org/mozilla-central/source/toolkit/devtools/server/).</span>
+<span class="doccomment">//! An actor-based remote devtools server implementation. Only tested with</span>
+<span class="doccomment">//! nightly Firefox versions at time of writing. Largely based on</span>
+<span class="doccomment">//! reverse-engineering of Firefox chrome devtool logs and reading of</span>
+<span class="doccomment">//! [code](http://mxr.mozilla.org/mozilla-central/source/toolkit/devtools/server/).</span>
 
-<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>crate_name</span> <span class='op'>=</span> <span class='string'>&quot;devtools&quot;</span>]</span>
-<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>crate_type</span> <span class='op'>=</span> <span class='string'>&quot;rlib&quot;</span>]</span>
+<span class="attribute">#<span class="op">!</span>[<span class="ident">crate_name</span> <span class="op">=</span> <span class="string">&quot;devtools&quot;</span>]</span>
+<span class="attribute">#<span class="op">!</span>[<span class="ident">crate_type</span> <span class="op">=</span> <span class="string">&quot;rlib&quot;</span>]</span>
 
-<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>allow</span>(<span class='ident'>non_snake_case</span>)]</span>
-<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>deny</span>(<span class='ident'>unsafe_code</span>)]</span>
-<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>feature</span>(<span class='ident'>box_syntax</span>)]</span>
+<span class="attribute">#<span class="op">!</span>[<span class="ident">allow</span>(<span class="ident">non_snake_case</span>)]</span>
+<span class="attribute">#<span class="op">!</span>[<span class="ident">deny</span>(<span class="ident">unsafe_code</span>)]</span>
+<span class="attribute">#<span class="op">!</span>[<span class="ident">feature</span>(<span class="ident">box_syntax</span>)]</span>
 
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>devtools_traits</span>;
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>encoding</span>;
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>hyper</span>;
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>ipc_channel</span>;
-<span class='attribute'>#[<span class='ident'>macro_use</span>]</span>
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>log</span>;
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>msg</span>;
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>serde</span>;
-<span class='attribute'>#[<span class='ident'>macro_use</span>]</span>
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>serde_derive</span>;
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>serde_json</span>;
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>time</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">devtools_traits</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">encoding</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">hyper</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">ipc_channel</span>;
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">log</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">msg</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde</span>;
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde_derive</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde_json</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">time</span>;
 
-<span class='kw'>use</span> <span class='ident'>actor</span>::{<span class='ident'>Actor</span>, <span class='ident'>ActorRegistry</span>};
-<span class='kw'>use</span> <span class='ident'>actors</span>::<span class='ident'>console</span>::<span class='ident'>ConsoleActor</span>;
-<span class='kw'>use</span> <span class='ident'>actors</span>::<span class='ident'>framerate</span>::<span class='ident'>FramerateActor</span>;
-<span class='kw'>use</span> <span class='ident'>actors</span>::<span class='ident'>inspector</span>::<span class='ident'>InspectorActor</span>;
-<span class='kw'>use</span> <span class='ident'>actors</span>::<span class='ident'>network_event</span>::{<span class='ident'>EventActor</span>, <span class='ident'>NetworkEventActor</span>, <span class='ident'>ResponseStartMsg</span>};
-<span class='kw'>use</span> <span class='ident'>actors</span>::<span class='ident'>performance</span>::<span class='ident'>PerformanceActor</span>;
-<span class='kw'>use</span> <span class='ident'>actors</span>::<span class='ident'>profiler</span>::<span class='ident'>ProfilerActor</span>;
-<span class='kw'>use</span> <span class='ident'>actors</span>::<span class='ident'>root</span>::<span class='ident'>RootActor</span>;
-<span class='kw'>use</span> <span class='ident'>actors</span>::<span class='ident'>tab</span>::<span class='ident'>TabActor</span>;
-<span class='kw'>use</span> <span class='ident'>actors</span>::<span class='ident'>thread</span>::<span class='ident'>ThreadActor</span>;
-<span class='kw'>use</span> <span class='ident'>actors</span>::<span class='ident'>timeline</span>::<span class='ident'>TimelineActor</span>;
-<span class='kw'>use</span> <span class='ident'>actors</span>::<span class='ident'>worker</span>::<span class='ident'>WorkerActor</span>;
-<span class='kw'>use</span> <span class='ident'>devtools_traits</span>::{<span class='ident'>ChromeToDevtoolsControlMsg</span>, <span class='ident'>ConsoleMessage</span>, <span class='ident'>DevtoolsControlMsg</span>};
-<span class='kw'>use</span> <span class='ident'>devtools_traits</span>::{<span class='ident'>DevtoolScriptControlMsg</span>, <span class='ident'>DevtoolsPageInfo</span>, <span class='ident'>LogLevel</span>, <span class='ident'>NetworkEvent</span>};
-<span class='kw'>use</span> <span class='ident'>devtools_traits</span>::{<span class='ident'>ScriptToDevtoolsControlMsg</span>, <span class='ident'>WorkerId</span>};
-<span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>::<span class='ident'>IpcSender</span>;
-<span class='kw'>use</span> <span class='ident'>msg</span>::<span class='ident'>constellation_msg</span>::<span class='ident'>PipelineId</span>;
-<span class='kw'>use</span> <span class='ident'>protocol</span>::<span class='ident'>JsonPacketStream</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>ToOwned</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>RefCell</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>HashMap</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>hash_map</span>::<span class='ident'>Entry</span>::{<span class='ident'>Occupied</span>, <span class='ident'>Vacant</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>net</span>::{<span class='ident'>Shutdown</span>, <span class='ident'>TcpListener</span>, <span class='ident'>TcpStream</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::{<span class='ident'>Arc</span>, <span class='ident'>Mutex</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::{<span class='ident'>Receiver</span>, <span class='ident'>Sender</span>, <span class='ident'>channel</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>thread</span>;
-<span class='kw'>use</span> <span class='ident'>time</span>::<span class='ident'>precise_time_ns</span>;
+<span class="kw">use</span> <span class="ident">actor</span>::{<span class="ident">Actor</span>, <span class="ident">ActorRegistry</span>};
+<span class="kw">use</span> <span class="ident">actors</span>::<span class="ident">console</span>::<span class="ident">ConsoleActor</span>;
+<span class="kw">use</span> <span class="ident">actors</span>::<span class="ident">framerate</span>::<span class="ident">FramerateActor</span>;
+<span class="kw">use</span> <span class="ident">actors</span>::<span class="ident">inspector</span>::<span class="ident">InspectorActor</span>;
+<span class="kw">use</span> <span class="ident">actors</span>::<span class="ident">network_event</span>::{<span class="ident">EventActor</span>, <span class="ident">NetworkEventActor</span>, <span class="ident">ResponseStartMsg</span>};
+<span class="kw">use</span> <span class="ident">actors</span>::<span class="ident">performance</span>::<span class="ident">PerformanceActor</span>;
+<span class="kw">use</span> <span class="ident">actors</span>::<span class="ident">profiler</span>::<span class="ident">ProfilerActor</span>;
+<span class="kw">use</span> <span class="ident">actors</span>::<span class="ident">root</span>::<span class="ident">RootActor</span>;
+<span class="kw">use</span> <span class="ident">actors</span>::<span class="ident">tab</span>::<span class="ident">TabActor</span>;
+<span class="kw">use</span> <span class="ident">actors</span>::<span class="ident">thread</span>::<span class="ident">ThreadActor</span>;
+<span class="kw">use</span> <span class="ident">actors</span>::<span class="ident">timeline</span>::<span class="ident">TimelineActor</span>;
+<span class="kw">use</span> <span class="ident">actors</span>::<span class="ident">worker</span>::<span class="ident">WorkerActor</span>;
+<span class="kw">use</span> <span class="ident">devtools_traits</span>::{<span class="ident">ChromeToDevtoolsControlMsg</span>, <span class="ident">ConsoleMessage</span>, <span class="ident">DevtoolsControlMsg</span>};
+<span class="kw">use</span> <span class="ident">devtools_traits</span>::{<span class="ident">DevtoolScriptControlMsg</span>, <span class="ident">DevtoolsPageInfo</span>, <span class="ident">LogLevel</span>, <span class="ident">NetworkEvent</span>};
+<span class="kw">use</span> <span class="ident">devtools_traits</span>::{<span class="ident">ScriptToDevtoolsControlMsg</span>, <span class="ident">WorkerId</span>};
+<span class="kw">use</span> <span class="ident">ipc_channel</span>::<span class="ident">ipc</span>::<span class="ident">IpcSender</span>;
+<span class="kw">use</span> <span class="ident">msg</span>::<span class="ident">constellation_msg</span>::<span class="ident">PipelineId</span>;
+<span class="kw">use</span> <span class="ident">protocol</span>::<span class="ident">JsonPacketStream</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">ToOwned</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">hash_map</span>::<span class="ident">Entry</span>::{<span class="ident">Occupied</span>, <span class="ident">Vacant</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">net</span>::{<span class="ident">Shutdown</span>, <span class="ident">TcpListener</span>, <span class="ident">TcpStream</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::{<span class="ident">Arc</span>, <span class="ident">Mutex</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>::{<span class="ident">Receiver</span>, <span class="ident">Sender</span>, <span class="ident">channel</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>;
+<span class="kw">use</span> <span class="ident">time</span>::<span class="ident">precise_time_ns</span>;
 
-<span class='kw'>mod</span> <span class='ident'>actor</span>;
-<span class='doccomment'>/// Corresponds to http://mxr.mozilla.org/mozilla-central/source/toolkit/devtools/server/actors/</span>
-<span class='kw'>mod</span> <span class='ident'>actors</span> {
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>console</span>;
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>framerate</span>;
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>inspector</span>;
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>memory</span>;
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>network_event</span>;
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>object</span>;
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>performance</span>;
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>profiler</span>;
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>root</span>;
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>tab</span>;
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>thread</span>;
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>timeline</span>;
-    <span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>worker</span>;
+<span class="kw">mod</span> <span class="ident">actor</span>;
+<span class="doccomment">/// Corresponds to http://mxr.mozilla.org/mozilla-central/source/toolkit/devtools/server/actors/</span>
+<span class="kw">mod</span> <span class="ident">actors</span> {
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">console</span>;
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">framerate</span>;
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">inspector</span>;
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">memory</span>;
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">network_event</span>;
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">object</span>;
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">performance</span>;
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">profiler</span>;
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">root</span>;
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">tab</span>;
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">thread</span>;
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">timeline</span>;
+    <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">worker</span>;
 }
-<span class='kw'>mod</span> <span class='ident'>protocol</span>;
+<span class="kw">mod</span> <span class="ident">protocol</span>;
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Serialize</span>)]</span>
-<span class='kw'>struct</span> <span class='ident'>ConsoleAPICall</span> {
-    <span class='ident'>from</span>: <span class='ident'>String</span>,
-    <span class='attribute'>#[<span class='ident'>serde</span>(<span class='ident'>rename</span> <span class='op'>=</span> <span class='string'>&quot;type&quot;</span>)]</span>
-    <span class='ident'>type_</span>: <span class='ident'>String</span>,
-    <span class='ident'>message</span>: <span class='ident'>ConsoleMsg</span>,
-}
-
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Serialize</span>)]</span>
-<span class='kw'>struct</span> <span class='ident'>ConsoleMsg</span> {
-    <span class='ident'>level</span>: <span class='ident'>String</span>,
-    <span class='ident'>timeStamp</span>: <span class='ident'>u64</span>,
-    <span class='ident'>arguments</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>,
-    <span class='ident'>filename</span>: <span class='ident'>String</span>,
-    <span class='ident'>lineNumber</span>: <span class='ident'>usize</span>,
-    <span class='ident'>columnNumber</span>: <span class='ident'>usize</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>)]</span>
+<span class="kw">struct</span> <span class="ident">ConsoleAPICall</span> {
+    <span class="ident">from</span>: <span class="ident">String</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>)]</span>
+    <span class="ident">type_</span>: <span class="ident">String</span>,
+    <span class="ident">message</span>: <span class="ident">ConsoleMsg</span>,
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Serialize</span>)]</span>
-<span class='kw'>struct</span> <span class='ident'>NetworkEventMsg</span> {
-    <span class='ident'>from</span>: <span class='ident'>String</span>,
-    <span class='attribute'>#[<span class='ident'>serde</span>(<span class='ident'>rename</span> <span class='op'>=</span> <span class='string'>&quot;type&quot;</span>)]</span>
-    <span class='ident'>type_</span>: <span class='ident'>String</span>,
-    <span class='ident'>eventActor</span>: <span class='ident'>EventActor</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>)]</span>
+<span class="kw">struct</span> <span class="ident">ConsoleMsg</span> {
+    <span class="ident">level</span>: <span class="ident">String</span>,
+    <span class="ident">timeStamp</span>: <span class="ident">u64</span>,
+    <span class="ident">arguments</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="ident">filename</span>: <span class="ident">String</span>,
+    <span class="ident">lineNumber</span>: <span class="ident">usize</span>,
+    <span class="ident">columnNumber</span>: <span class="ident">usize</span>,
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Serialize</span>)]</span>
-<span class='kw'>struct</span> <span class='ident'>NetworkEventUpdateMsg</span> {
-    <span class='ident'>from</span>: <span class='ident'>String</span>,
-    <span class='attribute'>#[<span class='ident'>serde</span>(<span class='ident'>rename</span> <span class='op'>=</span> <span class='string'>&quot;type&quot;</span>)]</span>
-    <span class='ident'>type_</span>: <span class='ident'>String</span>,
-    <span class='ident'>updateType</span>: <span class='ident'>String</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>)]</span>
+<span class="kw">struct</span> <span class="ident">NetworkEventMsg</span> {
+    <span class="ident">from</span>: <span class="ident">String</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>)]</span>
+    <span class="ident">type_</span>: <span class="ident">String</span>,
+    <span class="ident">eventActor</span>: <span class="ident">EventActor</span>,
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Serialize</span>)]</span>
-<span class='kw'>struct</span> <span class='ident'>EventTimingsUpdateMsg</span> {
-    <span class='ident'>totalTime</span>: <span class='ident'>u64</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>)]</span>
+<span class="kw">struct</span> <span class="ident">NetworkEventUpdateMsg</span> {
+    <span class="ident">from</span>: <span class="ident">String</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>)]</span>
+    <span class="ident">type_</span>: <span class="ident">String</span>,
+    <span class="ident">updateType</span>: <span class="ident">String</span>,
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Serialize</span>)]</span>
-<span class='kw'>struct</span> <span class='ident'>SecurityInfoUpdateMsg</span> {
-    <span class='ident'>state</span>: <span class='ident'>String</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>)]</span>
+<span class="kw">struct</span> <span class="ident">EventTimingsUpdateMsg</span> {
+    <span class="ident">totalTime</span>: <span class="ident">u64</span>,
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Serialize</span>)]</span>
-<span class='kw'>struct</span> <span class='ident'>ResponseStartUpdateMsg</span> {
-    <span class='ident'>from</span>: <span class='ident'>String</span>,
-    <span class='attribute'>#[<span class='ident'>serde</span>(<span class='ident'>rename</span> <span class='op'>=</span> <span class='string'>&quot;type&quot;</span>)]</span>
-    <span class='ident'>type_</span>: <span class='ident'>String</span>,
-    <span class='ident'>updateType</span>: <span class='ident'>String</span>,
-    <span class='ident'>response</span>: <span class='ident'>ResponseStartMsg</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>)]</span>
+<span class="kw">struct</span> <span class="ident">SecurityInfoUpdateMsg</span> {
+    <span class="ident">state</span>: <span class="ident">String</span>,
 }
 
-<span class='doccomment'>/// Spin up a devtools server that listens for connections on the specified port.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>start_server</span>(<span class='ident'>port</span>: <span class='ident'>u16</span>) <span class='op'>-&gt;</span> <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>DevtoolsControlMsg</span><span class='op'>&gt;</span> {
-    <span class='kw'>let</span> (<span class='ident'>sender</span>, <span class='ident'>receiver</span>) <span class='op'>=</span> <span class='ident'>channel</span>();
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>)]</span>
+<span class="kw">struct</span> <span class="ident">ResponseStartUpdateMsg</span> {
+    <span class="ident">from</span>: <span class="ident">String</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>)]</span>
+    <span class="ident">type_</span>: <span class="ident">String</span>,
+    <span class="ident">updateType</span>: <span class="ident">String</span>,
+    <span class="ident">response</span>: <span class="ident">ResponseStartMsg</span>,
+}
+
+<span class="doccomment">/// Spin up a devtools server that listens for connections on the specified port.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start_server</span>(<span class="ident">port</span>: <span class="ident">u16</span>) <span class="op">-&gt;</span> <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">DevtoolsControlMsg</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> (<span class="ident">sender</span>, <span class="ident">receiver</span>) <span class="op">=</span> <span class="ident">channel</span>();
     {
-        <span class='kw'>let</span> <span class='ident'>sender</span> <span class='op'>=</span> <span class='ident'>sender</span>.<span class='ident'>clone</span>();
-        <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;Devtools&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
-            <span class='ident'>run_server</span>(<span class='ident'>sender</span>, <span class='ident'>receiver</span>, <span class='ident'>port</span>)
-        }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
+        <span class="kw">let</span> <span class="ident">sender</span> <span class="op">=</span> <span class="ident">sender</span>.<span class="ident">clone</span>();
+        <span class="ident">thread</span>::<span class="ident">Builder</span>::<span class="ident">new</span>().<span class="ident">name</span>(<span class="string">&quot;Devtools&quot;</span>.<span class="ident">to_owned</span>()).<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">||</span> {
+            <span class="ident">run_server</span>(<span class="ident">sender</span>, <span class="ident">receiver</span>, <span class="ident">port</span>)
+        }).<span class="ident">expect</span>(<span class="string">&quot;Thread spawning failed&quot;</span>);
     }
-    <span class='ident'>sender</span>
+    <span class="ident">sender</span>
 }
 
-<span class='kw'>fn</span> <span class='ident'>run_server</span>(<span class='ident'>sender</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>DevtoolsControlMsg</span><span class='op'>&gt;</span>,
-              <span class='ident'>receiver</span>: <span class='ident'>Receiver</span><span class='op'>&lt;</span><span class='ident'>DevtoolsControlMsg</span><span class='op'>&gt;</span>,
-              <span class='ident'>port</span>: <span class='ident'>u16</span>) {
-    <span class='kw'>let</span> <span class='ident'>listener</span> <span class='op'>=</span> <span class='ident'>TcpListener</span>::<span class='ident'>bind</span>(<span class='kw-2'>&amp;</span>(<span class='string'>&quot;127.0.0.1&quot;</span>, <span class='ident'>port</span>)).<span class='ident'>unwrap</span>();
+<span class="kw">fn</span> <span class="ident">run_server</span>(<span class="ident">sender</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">DevtoolsControlMsg</span><span class="op">&gt;</span>,
+              <span class="ident">receiver</span>: <span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">DevtoolsControlMsg</span><span class="op">&gt;</span>,
+              <span class="ident">port</span>: <span class="ident">u16</span>) {
+    <span class="kw">let</span> <span class="ident">listener</span> <span class="op">=</span> <span class="ident">TcpListener</span>::<span class="ident">bind</span>(<span class="kw-2">&amp;</span>(<span class="string">&quot;127.0.0.1&quot;</span>, <span class="ident">port</span>)).<span class="ident">unwrap</span>();
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>registry</span> <span class='op'>=</span> <span class='ident'>ActorRegistry</span>::<span class='ident'>new</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">registry</span> <span class="op">=</span> <span class="ident">ActorRegistry</span>::<span class="ident">new</span>();
 
-    <span class='kw'>let</span> <span class='ident'>root</span> <span class='op'>=</span> <span class='kw'>box</span> <span class='ident'>RootActor</span> {
-        <span class='ident'>tabs</span>: <span class='macro'>vec</span><span class='macro'>!</span>(),
+    <span class="kw">let</span> <span class="ident">root</span> <span class="op">=</span> <span class="kw">box</span> <span class="ident">RootActor</span> {
+        <span class="ident">tabs</span>: <span class="macro">vec</span><span class="macro">!</span>(),
     };
 
-    <span class='ident'>registry</span>.<span class='ident'>register</span>(<span class='ident'>root</span>);
-    <span class='ident'>registry</span>.<span class='ident'>find</span>::<span class='op'>&lt;</span><span class='ident'>RootActor</span><span class='op'>&gt;</span>(<span class='string'>&quot;root&quot;</span>);
+    <span class="ident">registry</span>.<span class="ident">register</span>(<span class="ident">root</span>);
+    <span class="ident">registry</span>.<span class="ident">find</span>::<span class="op">&lt;</span><span class="ident">RootActor</span><span class="op">&gt;</span>(<span class="string">&quot;root&quot;</span>);
 
-    <span class='kw'>let</span> <span class='ident'>actors</span> <span class='op'>=</span> <span class='ident'>registry</span>.<span class='ident'>create_shareable</span>();
+    <span class="kw">let</span> <span class="ident">actors</span> <span class="op">=</span> <span class="ident">registry</span>.<span class="ident">create_shareable</span>();
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>accepted_connections</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>TcpStream</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">accepted_connections</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TcpStream</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>actor_pipelines</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>PipelineId</span>, <span class='ident'>String</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>HashMap</span>::<span class='ident'>new</span>();
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>actor_requests</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>String</span>, <span class='ident'>String</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>HashMap</span>::<span class='ident'>new</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">actor_pipelines</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">PipelineId</span>, <span class="ident">String</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">actor_requests</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>actor_workers</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span>(<span class='ident'>PipelineId</span>, <span class='ident'>WorkerId</span>), <span class='ident'>String</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>HashMap</span>::<span class='ident'>new</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">actor_workers</span>: <span class="ident">HashMap</span><span class="op">&lt;</span>(<span class="ident">PipelineId</span>, <span class="ident">WorkerId</span>), <span class="ident">String</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
 
 
-    <span class='doccomment'>/// Process the input from a single devtools client until EOF.</span>
-    <span class='kw'>fn</span> <span class='ident'>handle_client</span>(<span class='ident'>actors</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>ActorRegistry</span><span class='op'>&gt;&gt;</span>, <span class='kw-2'>mut</span> <span class='ident'>stream</span>: <span class='ident'>TcpStream</span>) {
-        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;connection established to {}&quot;</span>, <span class='ident'>stream</span>.<span class='ident'>peer_addr</span>().<span class='ident'>unwrap</span>());
+    <span class="doccomment">/// Process the input from a single devtools client until EOF.</span>
+    <span class="kw">fn</span> <span class="ident">handle_client</span>(<span class="ident">actors</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span><span class="ident">ActorRegistry</span><span class="op">&gt;&gt;</span>, <span class="kw-2">mut</span> <span class="ident">stream</span>: <span class="ident">TcpStream</span>) {
+        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;connection established to {}&quot;</span>, <span class="ident">stream</span>.<span class="ident">peer_addr</span>().<span class="ident">unwrap</span>());
         {
-            <span class='kw'>let</span> <span class='ident'>actors</span> <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>();
-            <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>find</span>::<span class='op'>&lt;</span><span class='ident'>RootActor</span><span class='op'>&gt;</span>(<span class='string'>&quot;root&quot;</span>).<span class='ident'>encodable</span>();
-            <span class='ident'>stream</span>.<span class='ident'>write_json_packet</span>(<span class='kw-2'>&amp;</span><span class='ident'>msg</span>);
+            <span class="kw">let</span> <span class="ident">actors</span> <span class="op">=</span> <span class="ident">actors</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="ident">actors</span>.<span class="ident">find</span>::<span class="op">&lt;</span><span class="ident">RootActor</span><span class="op">&gt;</span>(<span class="string">&quot;root&quot;</span>).<span class="ident">encodable</span>();
+            <span class="ident">stream</span>.<span class="ident">write_json_packet</span>(<span class="kw-2">&amp;</span><span class="ident">msg</span>);
         }
 
-        <span class='lifetime'>&#39;outer</span>: <span class='kw'>loop</span> {
-            <span class='kw'>match</span> <span class='ident'>stream</span>.<span class='ident'>read_json_packet</span>() {
-                <span class='prelude-val'>Ok</span>(<span class='prelude-val'>Some</span>(<span class='ident'>json_packet</span>)) <span class='op'>=&gt;</span> {
-                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Err</span>(()) <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>().<span class='ident'>handle_message</span>(<span class='ident'>json_packet</span>.<span class='ident'>as_object</span>().<span class='ident'>unwrap</span>(),
-                                                                           <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>stream</span>) {
-                        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;error: devtools actor stopped responding&quot;</span>);
-                        <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>stream</span>.<span class='ident'>shutdown</span>(<span class='ident'>Shutdown</span>::<span class='ident'>Both</span>);
-                        <span class='kw'>break</span> <span class='lifetime'>&#39;outer</span>
+        <span class="lifetime">&#39;outer</span>: <span class="kw">loop</span> {
+            <span class="kw">match</span> <span class="ident">stream</span>.<span class="ident">read_json_packet</span>() {
+                <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">json_packet</span>)) <span class="op">=&gt;</span> {
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(()) <span class="op">=</span> <span class="ident">actors</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>().<span class="ident">handle_message</span>(<span class="ident">json_packet</span>.<span class="ident">as_object</span>().<span class="ident">unwrap</span>(),
+                                                                           <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">stream</span>) {
+                        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;error: devtools actor stopped responding&quot;</span>);
+                        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">stream</span>.<span class="ident">shutdown</span>(<span class="ident">Shutdown</span>::<span class="ident">Both</span>);
+                        <span class="kw">break</span> <span class="lifetime">&#39;outer</span>
                     }
                 }
-                <span class='prelude-val'>Ok</span>(<span class='prelude-val'>None</span>) <span class='op'>=&gt;</span> {
-                    <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;error: EOF&quot;</span>);
-                    <span class='kw'>break</span> <span class='lifetime'>&#39;outer</span>
+                <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) <span class="op">=&gt;</span> {
+                    <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;error: EOF&quot;</span>);
+                    <span class="kw">break</span> <span class="lifetime">&#39;outer</span>
                 }
-                <span class='prelude-val'>Err</span>(<span class='ident'>err_msg</span>) <span class='op'>=&gt;</span> {
-                    <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;error: {}&quot;</span>, <span class='ident'>err_msg</span>);
-                    <span class='kw'>break</span> <span class='lifetime'>&#39;outer</span>
+                <span class="prelude-val">Err</span>(<span class="ident">err_msg</span>) <span class="op">=&gt;</span> {
+                    <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;error: {}&quot;</span>, <span class="ident">err_msg</span>);
+                    <span class="kw">break</span> <span class="lifetime">&#39;outer</span>
                 }
             }
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_framerate_tick</span>(<span class='ident'>actors</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>ActorRegistry</span><span class='op'>&gt;&gt;</span>, <span class='ident'>actor_name</span>: <span class='ident'>String</span>, <span class='ident'>tick</span>: <span class='ident'>f64</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>actors</span> <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>framerate_actor</span> <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>find_mut</span>::<span class='op'>&lt;</span><span class='ident'>FramerateActor</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='ident'>actor_name</span>);
-        <span class='ident'>framerate_actor</span>.<span class='ident'>add_tick</span>(<span class='ident'>tick</span>);
+    <span class="kw">fn</span> <span class="ident">handle_framerate_tick</span>(<span class="ident">actors</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span><span class="ident">ActorRegistry</span><span class="op">&gt;&gt;</span>, <span class="ident">actor_name</span>: <span class="ident">String</span>, <span class="ident">tick</span>: <span class="ident">f64</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">actors</span> <span class="op">=</span> <span class="ident">actors</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">framerate_actor</span> <span class="op">=</span> <span class="ident">actors</span>.<span class="ident">find_mut</span>::<span class="op">&lt;</span><span class="ident">FramerateActor</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">actor_name</span>);
+        <span class="ident">framerate_actor</span>.<span class="ident">add_tick</span>(<span class="ident">tick</span>);
     }
 
-    <span class='comment'>// We need separate actor representations for each script global that exists;</span>
-    <span class='comment'>// clients can theoretically connect to multiple globals simultaneously.</span>
-    <span class='comment'>// TODO: move this into the root or tab modules?</span>
-    <span class='kw'>fn</span> <span class='ident'>handle_new_global</span>(<span class='ident'>actors</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>ActorRegistry</span><span class='op'>&gt;&gt;</span>,
-                         <span class='ident'>ids</span>: (<span class='ident'>PipelineId</span>, <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>WorkerId</span><span class='op'>&gt;</span>),
-                         <span class='ident'>script_sender</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>DevtoolScriptControlMsg</span><span class='op'>&gt;</span>,
-                         <span class='ident'>actor_pipelines</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>PipelineId</span>, <span class='ident'>String</span><span class='op'>&gt;</span>,
-                         <span class='ident'>actor_workers</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>HashMap</span><span class='op'>&lt;</span>(<span class='ident'>PipelineId</span>, <span class='ident'>WorkerId</span>), <span class='ident'>String</span><span class='op'>&gt;</span>,
-                         <span class='ident'>page_info</span>: <span class='ident'>DevtoolsPageInfo</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>actors</span> <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>();
+    <span class="comment">// We need separate actor representations for each script global that exists;</span>
+    <span class="comment">// clients can theoretically connect to multiple globals simultaneously.</span>
+    <span class="comment">// TODO: move this into the root or tab modules?</span>
+    <span class="kw">fn</span> <span class="ident">handle_new_global</span>(<span class="ident">actors</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span><span class="ident">ActorRegistry</span><span class="op">&gt;&gt;</span>,
+                         <span class="ident">ids</span>: (<span class="ident">PipelineId</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">WorkerId</span><span class="op">&gt;</span>),
+                         <span class="ident">script_sender</span>: <span class="ident">IpcSender</span><span class="op">&lt;</span><span class="ident">DevtoolScriptControlMsg</span><span class="op">&gt;</span>,
+                         <span class="ident">actor_pipelines</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">PipelineId</span>, <span class="ident">String</span><span class="op">&gt;</span>,
+                         <span class="ident">actor_workers</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">HashMap</span><span class="op">&lt;</span>(<span class="ident">PipelineId</span>, <span class="ident">WorkerId</span>), <span class="ident">String</span><span class="op">&gt;</span>,
+                         <span class="ident">page_info</span>: <span class="ident">DevtoolsPageInfo</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">actors</span> <span class="op">=</span> <span class="ident">actors</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>();
 
-        <span class='kw'>let</span> (<span class='ident'>pipeline</span>, <span class='ident'>worker_id</span>) <span class='op'>=</span> <span class='ident'>ids</span>;
+        <span class="kw">let</span> (<span class="ident">pipeline</span>, <span class="ident">worker_id</span>) <span class="op">=</span> <span class="ident">ids</span>;
 
-        <span class='comment'>//TODO: move all this actor creation into a constructor method on TabActor</span>
-        <span class='kw'>let</span> (<span class='ident'>tab</span>, <span class='ident'>console</span>, <span class='ident'>inspector</span>, <span class='ident'>timeline</span>, <span class='ident'>profiler</span>, <span class='ident'>performance</span>, <span class='ident'>thread</span>) <span class='op'>=</span> {
-            <span class='kw'>let</span> <span class='ident'>console</span> <span class='op'>=</span> <span class='ident'>ConsoleActor</span> {
-                <span class='ident'>name</span>: <span class='ident'>actors</span>.<span class='ident'>new_name</span>(<span class='string'>&quot;console&quot;</span>),
-                <span class='ident'>script_chan</span>: <span class='ident'>script_sender</span>.<span class='ident'>clone</span>(),
-                <span class='ident'>pipeline</span>: <span class='ident'>pipeline</span>,
-                <span class='ident'>streams</span>: <span class='ident'>RefCell</span>::<span class='ident'>new</span>(<span class='ident'>Vec</span>::<span class='ident'>new</span>()),
+        <span class="comment">//TODO: move all this actor creation into a constructor method on TabActor</span>
+        <span class="kw">let</span> (<span class="ident">tab</span>, <span class="ident">console</span>, <span class="ident">inspector</span>, <span class="ident">timeline</span>, <span class="ident">profiler</span>, <span class="ident">performance</span>, <span class="ident">thread</span>) <span class="op">=</span> {
+            <span class="kw">let</span> <span class="ident">console</span> <span class="op">=</span> <span class="ident">ConsoleActor</span> {
+                <span class="ident">name</span>: <span class="ident">actors</span>.<span class="ident">new_name</span>(<span class="string">&quot;console&quot;</span>),
+                <span class="ident">script_chan</span>: <span class="ident">script_sender</span>.<span class="ident">clone</span>(),
+                <span class="ident">pipeline</span>: <span class="ident">pipeline</span>,
+                <span class="ident">streams</span>: <span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="ident">Vec</span>::<span class="ident">new</span>()),
             };
-            <span class='kw'>let</span> <span class='ident'>inspector</span> <span class='op'>=</span> <span class='ident'>InspectorActor</span> {
-                <span class='ident'>name</span>: <span class='ident'>actors</span>.<span class='ident'>new_name</span>(<span class='string'>&quot;inspector&quot;</span>),
-                <span class='ident'>walker</span>: <span class='ident'>RefCell</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
-                <span class='ident'>pageStyle</span>: <span class='ident'>RefCell</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
-                <span class='ident'>highlighter</span>: <span class='ident'>RefCell</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
-                <span class='ident'>script_chan</span>: <span class='ident'>script_sender</span>.<span class='ident'>clone</span>(),
-                <span class='ident'>pipeline</span>: <span class='ident'>pipeline</span>,
-            };
-
-            <span class='kw'>let</span> <span class='ident'>timeline</span> <span class='op'>=</span> <span class='ident'>TimelineActor</span>::<span class='ident'>new</span>(<span class='ident'>actors</span>.<span class='ident'>new_name</span>(<span class='string'>&quot;timeline&quot;</span>),
-                                              <span class='ident'>pipeline</span>,
-                                              <span class='ident'>script_sender</span>);
-
-            <span class='kw'>let</span> <span class='ident'>profiler</span> <span class='op'>=</span> <span class='ident'>ProfilerActor</span>::<span class='ident'>new</span>(<span class='ident'>actors</span>.<span class='ident'>new_name</span>(<span class='string'>&quot;profiler&quot;</span>));
-            <span class='kw'>let</span> <span class='ident'>performance</span> <span class='op'>=</span> <span class='ident'>PerformanceActor</span>::<span class='ident'>new</span>(<span class='ident'>actors</span>.<span class='ident'>new_name</span>(<span class='string'>&quot;performance&quot;</span>));
-
-            <span class='kw'>let</span> <span class='ident'>thread</span> <span class='op'>=</span> <span class='ident'>ThreadActor</span>::<span class='ident'>new</span>(<span class='ident'>actors</span>.<span class='ident'>new_name</span>(<span class='string'>&quot;context&quot;</span>));
-
-            <span class='kw'>let</span> <span class='ident'>DevtoolsPageInfo</span> { <span class='ident'>title</span>, <span class='ident'>url</span> } <span class='op'>=</span> <span class='ident'>page_info</span>;
-            <span class='kw'>let</span> <span class='ident'>tab</span> <span class='op'>=</span> <span class='ident'>TabActor</span> {
-                <span class='ident'>name</span>: <span class='ident'>actors</span>.<span class='ident'>new_name</span>(<span class='string'>&quot;tab&quot;</span>),
-                <span class='ident'>title</span>: <span class='ident'>String</span>::<span class='ident'>from</span>(<span class='ident'>title</span>),
-                <span class='ident'>url</span>: <span class='ident'>url</span>.<span class='ident'>into_string</span>(),
-                <span class='ident'>console</span>: <span class='ident'>console</span>.<span class='ident'>name</span>(),
-                <span class='ident'>inspector</span>: <span class='ident'>inspector</span>.<span class='ident'>name</span>(),
-                <span class='ident'>timeline</span>: <span class='ident'>timeline</span>.<span class='ident'>name</span>(),
-                <span class='ident'>profiler</span>: <span class='ident'>profiler</span>.<span class='ident'>name</span>(),
-                <span class='ident'>performance</span>: <span class='ident'>performance</span>.<span class='ident'>name</span>(),
-                <span class='ident'>thread</span>: <span class='ident'>thread</span>.<span class='ident'>name</span>(),
+            <span class="kw">let</span> <span class="ident">inspector</span> <span class="op">=</span> <span class="ident">InspectorActor</span> {
+                <span class="ident">name</span>: <span class="ident">actors</span>.<span class="ident">new_name</span>(<span class="string">&quot;inspector&quot;</span>),
+                <span class="ident">walker</span>: <span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="prelude-val">None</span>),
+                <span class="ident">pageStyle</span>: <span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="prelude-val">None</span>),
+                <span class="ident">highlighter</span>: <span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="prelude-val">None</span>),
+                <span class="ident">script_chan</span>: <span class="ident">script_sender</span>.<span class="ident">clone</span>(),
+                <span class="ident">pipeline</span>: <span class="ident">pipeline</span>,
             };
 
-            <span class='kw'>let</span> <span class='ident'>root</span> <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>find_mut</span>::<span class='op'>&lt;</span><span class='ident'>RootActor</span><span class='op'>&gt;</span>(<span class='string'>&quot;root&quot;</span>);
-            <span class='ident'>root</span>.<span class='ident'>tabs</span>.<span class='ident'>push</span>(<span class='ident'>tab</span>.<span class='ident'>name</span>.<span class='ident'>clone</span>());
+            <span class="kw">let</span> <span class="ident">timeline</span> <span class="op">=</span> <span class="ident">TimelineActor</span>::<span class="ident">new</span>(<span class="ident">actors</span>.<span class="ident">new_name</span>(<span class="string">&quot;timeline&quot;</span>),
+                                              <span class="ident">pipeline</span>,
+                                              <span class="ident">script_sender</span>);
 
-            (<span class='ident'>tab</span>, <span class='ident'>console</span>, <span class='ident'>inspector</span>, <span class='ident'>timeline</span>, <span class='ident'>profiler</span>, <span class='ident'>performance</span>, <span class='ident'>thread</span>)
+            <span class="kw">let</span> <span class="ident">profiler</span> <span class="op">=</span> <span class="ident">ProfilerActor</span>::<span class="ident">new</span>(<span class="ident">actors</span>.<span class="ident">new_name</span>(<span class="string">&quot;profiler&quot;</span>));
+            <span class="kw">let</span> <span class="ident">performance</span> <span class="op">=</span> <span class="ident">PerformanceActor</span>::<span class="ident">new</span>(<span class="ident">actors</span>.<span class="ident">new_name</span>(<span class="string">&quot;performance&quot;</span>));
+
+            <span class="kw">let</span> <span class="ident">thread</span> <span class="op">=</span> <span class="ident">ThreadActor</span>::<span class="ident">new</span>(<span class="ident">actors</span>.<span class="ident">new_name</span>(<span class="string">&quot;context&quot;</span>));
+
+            <span class="kw">let</span> <span class="ident">DevtoolsPageInfo</span> { <span class="ident">title</span>, <span class="ident">url</span> } <span class="op">=</span> <span class="ident">page_info</span>;
+            <span class="kw">let</span> <span class="ident">tab</span> <span class="op">=</span> <span class="ident">TabActor</span> {
+                <span class="ident">name</span>: <span class="ident">actors</span>.<span class="ident">new_name</span>(<span class="string">&quot;tab&quot;</span>),
+                <span class="ident">title</span>: <span class="ident">String</span>::<span class="ident">from</span>(<span class="ident">title</span>),
+                <span class="ident">url</span>: <span class="ident">url</span>.<span class="ident">into_string</span>(),
+                <span class="ident">console</span>: <span class="ident">console</span>.<span class="ident">name</span>(),
+                <span class="ident">inspector</span>: <span class="ident">inspector</span>.<span class="ident">name</span>(),
+                <span class="ident">timeline</span>: <span class="ident">timeline</span>.<span class="ident">name</span>(),
+                <span class="ident">profiler</span>: <span class="ident">profiler</span>.<span class="ident">name</span>(),
+                <span class="ident">performance</span>: <span class="ident">performance</span>.<span class="ident">name</span>(),
+                <span class="ident">thread</span>: <span class="ident">thread</span>.<span class="ident">name</span>(),
+            };
+
+            <span class="kw">let</span> <span class="ident">root</span> <span class="op">=</span> <span class="ident">actors</span>.<span class="ident">find_mut</span>::<span class="op">&lt;</span><span class="ident">RootActor</span><span class="op">&gt;</span>(<span class="string">&quot;root&quot;</span>);
+            <span class="ident">root</span>.<span class="ident">tabs</span>.<span class="ident">push</span>(<span class="ident">tab</span>.<span class="ident">name</span>.<span class="ident">clone</span>());
+
+            (<span class="ident">tab</span>, <span class="ident">console</span>, <span class="ident">inspector</span>, <span class="ident">timeline</span>, <span class="ident">profiler</span>, <span class="ident">performance</span>, <span class="ident">thread</span>)
         };
 
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>id</span>) <span class='op'>=</span> <span class='ident'>worker_id</span> {
-            <span class='kw'>let</span> <span class='ident'>worker</span> <span class='op'>=</span> <span class='ident'>WorkerActor</span> {
-                <span class='ident'>name</span>: <span class='ident'>actors</span>.<span class='ident'>new_name</span>(<span class='string'>&quot;worker&quot;</span>),
-                <span class='ident'>console</span>: <span class='ident'>console</span>.<span class='ident'>name</span>(),
-                <span class='ident'>id</span>: <span class='ident'>id</span>,
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">id</span>) <span class="op">=</span> <span class="ident">worker_id</span> {
+            <span class="kw">let</span> <span class="ident">worker</span> <span class="op">=</span> <span class="ident">WorkerActor</span> {
+                <span class="ident">name</span>: <span class="ident">actors</span>.<span class="ident">new_name</span>(<span class="string">&quot;worker&quot;</span>),
+                <span class="ident">console</span>: <span class="ident">console</span>.<span class="ident">name</span>(),
+                <span class="ident">id</span>: <span class="ident">id</span>,
             };
-            <span class='ident'>actor_workers</span>.<span class='ident'>insert</span>((<span class='ident'>pipeline</span>, <span class='ident'>id</span>), <span class='ident'>worker</span>.<span class='ident'>name</span>.<span class='ident'>clone</span>());
-            <span class='ident'>actors</span>.<span class='ident'>register</span>(<span class='kw'>box</span> <span class='ident'>worker</span>);
+            <span class="ident">actor_workers</span>.<span class="ident">insert</span>((<span class="ident">pipeline</span>, <span class="ident">id</span>), <span class="ident">worker</span>.<span class="ident">name</span>.<span class="ident">clone</span>());
+            <span class="ident">actors</span>.<span class="ident">register</span>(<span class="kw">box</span> <span class="ident">worker</span>);
         }
 
-        <span class='ident'>actor_pipelines</span>.<span class='ident'>insert</span>(<span class='ident'>pipeline</span>, <span class='ident'>tab</span>.<span class='ident'>name</span>.<span class='ident'>clone</span>());
-        <span class='ident'>actors</span>.<span class='ident'>register</span>(<span class='kw'>box</span> <span class='ident'>tab</span>);
-        <span class='ident'>actors</span>.<span class='ident'>register</span>(<span class='kw'>box</span> <span class='ident'>console</span>);
-        <span class='ident'>actors</span>.<span class='ident'>register</span>(<span class='kw'>box</span> <span class='ident'>inspector</span>);
-        <span class='ident'>actors</span>.<span class='ident'>register</span>(<span class='kw'>box</span> <span class='ident'>timeline</span>);
-        <span class='ident'>actors</span>.<span class='ident'>register</span>(<span class='kw'>box</span> <span class='ident'>profiler</span>);
-        <span class='ident'>actors</span>.<span class='ident'>register</span>(<span class='kw'>box</span> <span class='ident'>performance</span>);
-        <span class='ident'>actors</span>.<span class='ident'>register</span>(<span class='kw'>box</span> <span class='ident'>thread</span>);
+        <span class="ident">actor_pipelines</span>.<span class="ident">insert</span>(<span class="ident">pipeline</span>, <span class="ident">tab</span>.<span class="ident">name</span>.<span class="ident">clone</span>());
+        <span class="ident">actors</span>.<span class="ident">register</span>(<span class="kw">box</span> <span class="ident">tab</span>);
+        <span class="ident">actors</span>.<span class="ident">register</span>(<span class="kw">box</span> <span class="ident">console</span>);
+        <span class="ident">actors</span>.<span class="ident">register</span>(<span class="kw">box</span> <span class="ident">inspector</span>);
+        <span class="ident">actors</span>.<span class="ident">register</span>(<span class="kw">box</span> <span class="ident">timeline</span>);
+        <span class="ident">actors</span>.<span class="ident">register</span>(<span class="kw">box</span> <span class="ident">profiler</span>);
+        <span class="ident">actors</span>.<span class="ident">register</span>(<span class="kw">box</span> <span class="ident">performance</span>);
+        <span class="ident">actors</span>.<span class="ident">register</span>(<span class="kw">box</span> <span class="ident">thread</span>);
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_console_message</span>(<span class='ident'>actors</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>ActorRegistry</span><span class='op'>&gt;&gt;</span>,
-                              <span class='ident'>id</span>: <span class='ident'>PipelineId</span>,
-                              <span class='ident'>worker_id</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>WorkerId</span><span class='op'>&gt;</span>,
-                              <span class='ident'>console_message</span>: <span class='ident'>ConsoleMessage</span>,
-                              <span class='ident'>actor_pipelines</span>: <span class='kw-2'>&amp;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>PipelineId</span>, <span class='ident'>String</span><span class='op'>&gt;</span>,
-                              <span class='ident'>actor_workers</span>: <span class='kw-2'>&amp;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span>(<span class='ident'>PipelineId</span>, <span class='ident'>WorkerId</span>), <span class='ident'>String</span><span class='op'>&gt;</span>) {
-        <span class='kw'>let</span> <span class='ident'>console_actor_name</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>find_console_actor</span>(<span class='ident'>actors</span>.<span class='ident'>clone</span>(), <span class='ident'>id</span>, <span class='ident'>worker_id</span>, <span class='ident'>actor_workers</span>,
-                                                          <span class='ident'>actor_pipelines</span>) {
-            <span class='prelude-val'>Some</span>(<span class='ident'>name</span>) <span class='op'>=&gt;</span> <span class='ident'>name</span>,
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span>,
+    <span class="kw">fn</span> <span class="ident">handle_console_message</span>(<span class="ident">actors</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span><span class="ident">ActorRegistry</span><span class="op">&gt;&gt;</span>,
+                              <span class="ident">id</span>: <span class="ident">PipelineId</span>,
+                              <span class="ident">worker_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">WorkerId</span><span class="op">&gt;</span>,
+                              <span class="ident">console_message</span>: <span class="ident">ConsoleMessage</span>,
+                              <span class="ident">actor_pipelines</span>: <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">PipelineId</span>, <span class="ident">String</span><span class="op">&gt;</span>,
+                              <span class="ident">actor_workers</span>: <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span>(<span class="ident">PipelineId</span>, <span class="ident">WorkerId</span>), <span class="ident">String</span><span class="op">&gt;</span>) {
+        <span class="kw">let</span> <span class="ident">console_actor_name</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">find_console_actor</span>(<span class="ident">actors</span>.<span class="ident">clone</span>(), <span class="ident">id</span>, <span class="ident">worker_id</span>, <span class="ident">actor_workers</span>,
+                                                          <span class="ident">actor_pipelines</span>) {
+            <span class="prelude-val">Some</span>(<span class="ident">name</span>) <span class="op">=&gt;</span> <span class="ident">name</span>,
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span>,
         };
-        <span class='kw'>let</span> <span class='ident'>actors</span> <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>console_actor</span> <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>find</span>::<span class='op'>&lt;</span><span class='ident'>ConsoleActor</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='ident'>console_actor_name</span>);
-        <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ConsoleAPICall</span> {
-            <span class='ident'>from</span>: <span class='ident'>console_actor</span>.<span class='ident'>name</span>.<span class='ident'>clone</span>(),
-            <span class='ident'>type_</span>: <span class='string'>&quot;consoleAPICall&quot;</span>.<span class='ident'>to_owned</span>(),
-            <span class='ident'>message</span>: <span class='ident'>ConsoleMsg</span> {
-                <span class='ident'>level</span>: <span class='kw'>match</span> <span class='ident'>console_message</span>.<span class='ident'>logLevel</span> {
-                    <span class='ident'>LogLevel</span>::<span class='ident'>Debug</span> <span class='op'>=&gt;</span> <span class='string'>&quot;debug&quot;</span>,
-                    <span class='ident'>LogLevel</span>::<span class='ident'>Info</span> <span class='op'>=&gt;</span> <span class='string'>&quot;info&quot;</span>,
-                    <span class='ident'>LogLevel</span>::<span class='ident'>Warn</span> <span class='op'>=&gt;</span> <span class='string'>&quot;warn&quot;</span>,
-                    <span class='ident'>LogLevel</span>::<span class='ident'>Error</span> <span class='op'>=&gt;</span> <span class='string'>&quot;error&quot;</span>,
-                    _ <span class='op'>=&gt;</span> <span class='string'>&quot;log&quot;</span>
-                }.<span class='ident'>to_owned</span>(),
-                <span class='ident'>timeStamp</span>: <span class='ident'>precise_time_ns</span>(),
-                <span class='ident'>arguments</span>: <span class='macro'>vec</span><span class='macro'>!</span>(<span class='ident'>console_message</span>.<span class='ident'>message</span>),
-                <span class='ident'>filename</span>: <span class='ident'>console_message</span>.<span class='ident'>filename</span>,
-                <span class='ident'>lineNumber</span>: <span class='ident'>console_message</span>.<span class='ident'>lineNumber</span>,
-                <span class='ident'>columnNumber</span>: <span class='ident'>console_message</span>.<span class='ident'>columnNumber</span>,
+        <span class="kw">let</span> <span class="ident">actors</span> <span class="op">=</span> <span class="ident">actors</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">console_actor</span> <span class="op">=</span> <span class="ident">actors</span>.<span class="ident">find</span>::<span class="op">&lt;</span><span class="ident">ConsoleActor</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">console_actor_name</span>);
+        <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="ident">ConsoleAPICall</span> {
+            <span class="ident">from</span>: <span class="ident">console_actor</span>.<span class="ident">name</span>.<span class="ident">clone</span>(),
+            <span class="ident">type_</span>: <span class="string">&quot;consoleAPICall&quot;</span>.<span class="ident">to_owned</span>(),
+            <span class="ident">message</span>: <span class="ident">ConsoleMsg</span> {
+                <span class="ident">level</span>: <span class="kw">match</span> <span class="ident">console_message</span>.<span class="ident">logLevel</span> {
+                    <span class="ident">LogLevel</span>::<span class="ident">Debug</span> <span class="op">=&gt;</span> <span class="string">&quot;debug&quot;</span>,
+                    <span class="ident">LogLevel</span>::<span class="ident">Info</span> <span class="op">=&gt;</span> <span class="string">&quot;info&quot;</span>,
+                    <span class="ident">LogLevel</span>::<span class="ident">Warn</span> <span class="op">=&gt;</span> <span class="string">&quot;warn&quot;</span>,
+                    <span class="ident">LogLevel</span>::<span class="ident">Error</span> <span class="op">=&gt;</span> <span class="string">&quot;error&quot;</span>,
+                    _ <span class="op">=&gt;</span> <span class="string">&quot;log&quot;</span>
+                }.<span class="ident">to_owned</span>(),
+                <span class="ident">timeStamp</span>: <span class="ident">precise_time_ns</span>(),
+                <span class="ident">arguments</span>: <span class="macro">vec</span><span class="macro">!</span>(<span class="ident">console_message</span>.<span class="ident">message</span>),
+                <span class="ident">filename</span>: <span class="ident">console_message</span>.<span class="ident">filename</span>,
+                <span class="ident">lineNumber</span>: <span class="ident">console_message</span>.<span class="ident">lineNumber</span>,
+                <span class="ident">columnNumber</span>: <span class="ident">console_message</span>.<span class="ident">columnNumber</span>,
             },
         };
-        <span class='kw'>for</span> <span class='kw-2'>mut</span> <span class='ident'>stream</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='ident'>console_actor</span>.<span class='ident'>streams</span>.<span class='ident'>borrow_mut</span>() {
-            <span class='ident'>stream</span>.<span class='ident'>write_json_packet</span>(<span class='kw-2'>&amp;</span><span class='ident'>msg</span>);
+        <span class="kw">for</span> <span class="kw-2">mut</span> <span class="ident">stream</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="ident">console_actor</span>.<span class="ident">streams</span>.<span class="ident">borrow_mut</span>() {
+            <span class="ident">stream</span>.<span class="ident">write_json_packet</span>(<span class="kw-2">&amp;</span><span class="ident">msg</span>);
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>find_console_actor</span>(<span class='ident'>actors</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>ActorRegistry</span><span class='op'>&gt;&gt;</span>,
-                          <span class='ident'>id</span>: <span class='ident'>PipelineId</span>,
-                          <span class='ident'>worker_id</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>WorkerId</span><span class='op'>&gt;</span>,
-                          <span class='ident'>actor_workers</span>: <span class='kw-2'>&amp;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span>(<span class='ident'>PipelineId</span>, <span class='ident'>WorkerId</span>), <span class='ident'>String</span><span class='op'>&gt;</span>,
-                          <span class='ident'>actor_pipelines</span>: <span class='kw-2'>&amp;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>PipelineId</span>, <span class='ident'>String</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>actors</span> <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>();
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>worker_id</span>) <span class='op'>=</span> <span class='ident'>worker_id</span> {
-            <span class='kw'>let</span> <span class='ident'>actor_name</span> <span class='op'>=</span> <span class='kw'>match</span> (<span class='kw-2'>*</span><span class='ident'>actor_workers</span>).<span class='ident'>get</span>(<span class='kw-2'>&amp;</span>(<span class='ident'>id</span>, <span class='ident'>worker_id</span>)) {
-                <span class='prelude-val'>Some</span>(<span class='ident'>name</span>) <span class='op'>=&gt;</span> <span class='ident'>name</span>,
-                <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>None</span>,
+    <span class="kw">fn</span> <span class="ident">find_console_actor</span>(<span class="ident">actors</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span><span class="ident">ActorRegistry</span><span class="op">&gt;&gt;</span>,
+                          <span class="ident">id</span>: <span class="ident">PipelineId</span>,
+                          <span class="ident">worker_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">WorkerId</span><span class="op">&gt;</span>,
+                          <span class="ident">actor_workers</span>: <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span>(<span class="ident">PipelineId</span>, <span class="ident">WorkerId</span>), <span class="ident">String</span><span class="op">&gt;</span>,
+                          <span class="ident">actor_pipelines</span>: <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">PipelineId</span>, <span class="ident">String</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">actors</span> <span class="op">=</span> <span class="ident">actors</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>();
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">worker_id</span>) <span class="op">=</span> <span class="ident">worker_id</span> {
+            <span class="kw">let</span> <span class="ident">actor_name</span> <span class="op">=</span> <span class="kw">match</span> (<span class="kw-2">*</span><span class="ident">actor_workers</span>).<span class="ident">get</span>(<span class="kw-2">&amp;</span>(<span class="ident">id</span>, <span class="ident">worker_id</span>)) {
+                <span class="prelude-val">Some</span>(<span class="ident">name</span>) <span class="op">=&gt;</span> <span class="ident">name</span>,
+                <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
             };
-            <span class='prelude-val'>Some</span>(<span class='ident'>actors</span>.<span class='ident'>find</span>::<span class='op'>&lt;</span><span class='ident'>WorkerActor</span><span class='op'>&gt;</span>(<span class='ident'>actor_name</span>).<span class='ident'>console</span>.<span class='ident'>clone</span>())
-        } <span class='kw'>else</span> {
-            <span class='kw'>let</span> <span class='ident'>actor_name</span> <span class='op'>=</span> <span class='kw'>match</span> (<span class='kw-2'>*</span><span class='ident'>actor_pipelines</span>).<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='ident'>id</span>) {
-                <span class='prelude-val'>Some</span>(<span class='ident'>name</span>) <span class='op'>=&gt;</span> <span class='ident'>name</span>,
-                <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>None</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">actors</span>.<span class="ident">find</span>::<span class="op">&lt;</span><span class="ident">WorkerActor</span><span class="op">&gt;</span>(<span class="ident">actor_name</span>).<span class="ident">console</span>.<span class="ident">clone</span>())
+        } <span class="kw">else</span> {
+            <span class="kw">let</span> <span class="ident">actor_name</span> <span class="op">=</span> <span class="kw">match</span> (<span class="kw-2">*</span><span class="ident">actor_pipelines</span>).<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">id</span>) {
+                <span class="prelude-val">Some</span>(<span class="ident">name</span>) <span class="op">=&gt;</span> <span class="ident">name</span>,
+                <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
             };
-            <span class='prelude-val'>Some</span>(<span class='ident'>actors</span>.<span class='ident'>find</span>::<span class='op'>&lt;</span><span class='ident'>TabActor</span><span class='op'>&gt;</span>(<span class='ident'>actor_name</span>).<span class='ident'>console</span>.<span class='ident'>clone</span>())
+            <span class="prelude-val">Some</span>(<span class="ident">actors</span>.<span class="ident">find</span>::<span class="op">&lt;</span><span class="ident">TabActor</span><span class="op">&gt;</span>(<span class="ident">actor_name</span>).<span class="ident">console</span>.<span class="ident">clone</span>())
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>handle_network_event</span>(<span class='ident'>actors</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>ActorRegistry</span><span class='op'>&gt;&gt;</span>,
-                            <span class='kw-2'>mut</span> <span class='ident'>connections</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>TcpStream</span><span class='op'>&gt;</span>,
-                            <span class='ident'>actor_pipelines</span>: <span class='kw-2'>&amp;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>PipelineId</span>, <span class='ident'>String</span><span class='op'>&gt;</span>,
-                            <span class='ident'>actor_requests</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>String</span>, <span class='ident'>String</span><span class='op'>&gt;</span>,
-                            <span class='ident'>actor_workers</span>: <span class='kw-2'>&amp;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span>(<span class='ident'>PipelineId</span>, <span class='ident'>WorkerId</span>), <span class='ident'>String</span><span class='op'>&gt;</span>,
-                            <span class='ident'>pipeline_id</span>: <span class='ident'>PipelineId</span>,
-                            <span class='ident'>request_id</span>: <span class='ident'>String</span>,
-                            <span class='ident'>network_event</span>: <span class='ident'>NetworkEvent</span>) {
-        <span class='kw'>let</span> <span class='ident'>console_actor_name</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>find_console_actor</span>(<span class='ident'>actors</span>.<span class='ident'>clone</span>(), <span class='ident'>pipeline_id</span>, <span class='prelude-val'>None</span>,
-                                                          <span class='ident'>actor_workers</span>, <span class='ident'>actor_pipelines</span>) {
-            <span class='prelude-val'>Some</span>(<span class='ident'>name</span>) <span class='op'>=&gt;</span> <span class='ident'>name</span>,
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span>,
+    <span class="kw">fn</span> <span class="ident">handle_network_event</span>(<span class="ident">actors</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span><span class="ident">ActorRegistry</span><span class="op">&gt;&gt;</span>,
+                            <span class="kw-2">mut</span> <span class="ident">connections</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TcpStream</span><span class="op">&gt;</span>,
+                            <span class="ident">actor_pipelines</span>: <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">PipelineId</span>, <span class="ident">String</span><span class="op">&gt;</span>,
+                            <span class="ident">actor_requests</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
+                            <span class="ident">actor_workers</span>: <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span>(<span class="ident">PipelineId</span>, <span class="ident">WorkerId</span>), <span class="ident">String</span><span class="op">&gt;</span>,
+                            <span class="ident">pipeline_id</span>: <span class="ident">PipelineId</span>,
+                            <span class="ident">request_id</span>: <span class="ident">String</span>,
+                            <span class="ident">network_event</span>: <span class="ident">NetworkEvent</span>) {
+        <span class="kw">let</span> <span class="ident">console_actor_name</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">find_console_actor</span>(<span class="ident">actors</span>.<span class="ident">clone</span>(), <span class="ident">pipeline_id</span>, <span class="prelude-val">None</span>,
+                                                          <span class="ident">actor_workers</span>, <span class="ident">actor_pipelines</span>) {
+            <span class="prelude-val">Some</span>(<span class="ident">name</span>) <span class="op">=&gt;</span> <span class="ident">name</span>,
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span>,
         };
-        <span class='kw'>let</span> <span class='ident'>netevent_actor_name</span> <span class='op'>=</span> <span class='ident'>find_network_event_actor</span>(<span class='ident'>actors</span>.<span class='ident'>clone</span>(), <span class='ident'>actor_requests</span>, <span class='ident'>request_id</span>.<span class='ident'>clone</span>());
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>actors</span> <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>actor</span> <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>find_mut</span>::<span class='op'>&lt;</span><span class='ident'>NetworkEventActor</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='ident'>netevent_actor_name</span>);
+        <span class="kw">let</span> <span class="ident">netevent_actor_name</span> <span class="op">=</span> <span class="ident">find_network_event_actor</span>(<span class="ident">actors</span>.<span class="ident">clone</span>(), <span class="ident">actor_requests</span>, <span class="ident">request_id</span>.<span class="ident">clone</span>());
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">actors</span> <span class="op">=</span> <span class="ident">actors</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">actor</span> <span class="op">=</span> <span class="ident">actors</span>.<span class="ident">find_mut</span>::<span class="op">&lt;</span><span class="ident">NetworkEventActor</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">netevent_actor_name</span>);
 
-        <span class='kw'>match</span> <span class='ident'>network_event</span> {
-            <span class='ident'>NetworkEvent</span>::<span class='ident'>HttpRequest</span>(<span class='ident'>httprequest</span>) <span class='op'>=&gt;</span> {
-                <span class='comment'>//Store the request information in the actor</span>
-                <span class='ident'>actor</span>.<span class='ident'>add_request</span>(<span class='ident'>httprequest</span>);
+        <span class="kw">match</span> <span class="ident">network_event</span> {
+            <span class="ident">NetworkEvent</span>::<span class="ident">HttpRequest</span>(<span class="ident">httprequest</span>) <span class="op">=&gt;</span> {
+                <span class="comment">//Store the request information in the actor</span>
+                <span class="ident">actor</span>.<span class="ident">add_request</span>(<span class="ident">httprequest</span>);
 
-                <span class='comment'>//Send a networkEvent message to the client</span>
-                <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>NetworkEventMsg</span> {
-                    <span class='ident'>from</span>: <span class='ident'>console_actor_name</span>,
-                    <span class='ident'>type_</span>: <span class='string'>&quot;networkEvent&quot;</span>.<span class='ident'>to_owned</span>(),
-                    <span class='ident'>eventActor</span>: <span class='ident'>actor</span>.<span class='ident'>event_actor</span>(),
+                <span class="comment">//Send a networkEvent message to the client</span>
+                <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="ident">NetworkEventMsg</span> {
+                    <span class="ident">from</span>: <span class="ident">console_actor_name</span>,
+                    <span class="ident">type_</span>: <span class="string">&quot;networkEvent&quot;</span>.<span class="ident">to_owned</span>(),
+                    <span class="ident">eventActor</span>: <span class="ident">actor</span>.<span class="ident">event_actor</span>(),
                 };
-                <span class='kw'>for</span> <span class='ident'>stream</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>connections</span> {
-                    <span class='ident'>stream</span>.<span class='ident'>write_json_packet</span>(<span class='kw-2'>&amp;</span><span class='ident'>msg</span>);
+                <span class="kw">for</span> <span class="ident">stream</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">connections</span> {
+                    <span class="ident">stream</span>.<span class="ident">write_json_packet</span>(<span class="kw-2">&amp;</span><span class="ident">msg</span>);
                 }
 
             }
-            <span class='ident'>NetworkEvent</span>::<span class='ident'>HttpResponse</span>(<span class='ident'>httpresponse</span>) <span class='op'>=&gt;</span> {
-                <span class='comment'>//Store the response information in the actor</span>
-                <span class='ident'>actor</span>.<span class='ident'>add_response</span>(<span class='ident'>httpresponse</span>);
+            <span class="ident">NetworkEvent</span>::<span class="ident">HttpResponse</span>(<span class="ident">httpresponse</span>) <span class="op">=&gt;</span> {
+                <span class="comment">//Store the response information in the actor</span>
+                <span class="ident">actor</span>.<span class="ident">add_response</span>(<span class="ident">httpresponse</span>);
 
-                <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>NetworkEventUpdateMsg</span> {
-                    <span class='ident'>from</span>: <span class='ident'>netevent_actor_name</span>.<span class='ident'>clone</span>(),
-                    <span class='ident'>type_</span>: <span class='string'>&quot;networkEventUpdate&quot;</span>.<span class='ident'>to_owned</span>(),
-                    <span class='ident'>updateType</span>: <span class='string'>&quot;requestHeaders&quot;</span>.<span class='ident'>to_owned</span>(),
+                <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="ident">NetworkEventUpdateMsg</span> {
+                    <span class="ident">from</span>: <span class="ident">netevent_actor_name</span>.<span class="ident">clone</span>(),
+                    <span class="ident">type_</span>: <span class="string">&quot;networkEventUpdate&quot;</span>.<span class="ident">to_owned</span>(),
+                    <span class="ident">updateType</span>: <span class="string">&quot;requestHeaders&quot;</span>.<span class="ident">to_owned</span>(),
                 };
-                <span class='kw'>for</span> <span class='ident'>stream</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>connections</span> {
-                    <span class='ident'>stream</span>.<span class='ident'>write_merged_json_packet</span>(<span class='kw-2'>&amp;</span><span class='ident'>msg</span>, <span class='kw-2'>&amp;</span><span class='ident'>actor</span>.<span class='ident'>request_headers</span>());
+                <span class="kw">for</span> <span class="ident">stream</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">connections</span> {
+                    <span class="ident">stream</span>.<span class="ident">write_merged_json_packet</span>(<span class="kw-2">&amp;</span><span class="ident">msg</span>, <span class="kw-2">&amp;</span><span class="ident">actor</span>.<span class="ident">request_headers</span>());
                 }
 
-                <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>NetworkEventUpdateMsg</span> {
-                    <span class='ident'>from</span>: <span class='ident'>netevent_actor_name</span>.<span class='ident'>clone</span>(),
-                    <span class='ident'>type_</span>: <span class='string'>&quot;networkEventUpdate&quot;</span>.<span class='ident'>to_owned</span>(),
-                    <span class='ident'>updateType</span>: <span class='string'>&quot;requestCookies&quot;</span>.<span class='ident'>to_owned</span>(),
+                <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="ident">NetworkEventUpdateMsg</span> {
+                    <span class="ident">from</span>: <span class="ident">netevent_actor_name</span>.<span class="ident">clone</span>(),
+                    <span class="ident">type_</span>: <span class="string">&quot;networkEventUpdate&quot;</span>.<span class="ident">to_owned</span>(),
+                    <span class="ident">updateType</span>: <span class="string">&quot;requestCookies&quot;</span>.<span class="ident">to_owned</span>(),
                 };
-                <span class='kw'>for</span> <span class='ident'>stream</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>connections</span> {
-                    <span class='ident'>stream</span>.<span class='ident'>write_merged_json_packet</span>(<span class='kw-2'>&amp;</span><span class='ident'>msg</span>, <span class='kw-2'>&amp;</span><span class='ident'>actor</span>.<span class='ident'>request_cookies</span>());
+                <span class="kw">for</span> <span class="ident">stream</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">connections</span> {
+                    <span class="ident">stream</span>.<span class="ident">write_merged_json_packet</span>(<span class="kw-2">&amp;</span><span class="ident">msg</span>, <span class="kw-2">&amp;</span><span class="ident">actor</span>.<span class="ident">request_cookies</span>());
                 }
 
-                <span class='comment'>//Send a networkEventUpdate (responseStart) to the client</span>
-                <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>ResponseStartUpdateMsg</span> {
-                    <span class='ident'>from</span>: <span class='ident'>netevent_actor_name</span>.<span class='ident'>clone</span>(),
-                    <span class='ident'>type_</span>: <span class='string'>&quot;networkEventUpdate&quot;</span>.<span class='ident'>to_owned</span>(),
-                    <span class='ident'>updateType</span>: <span class='string'>&quot;responseStart&quot;</span>.<span class='ident'>to_owned</span>(),
-                    <span class='ident'>response</span>: <span class='ident'>actor</span>.<span class='ident'>response_start</span>()
+                <span class="comment">//Send a networkEventUpdate (responseStart) to the client</span>
+                <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="ident">ResponseStartUpdateMsg</span> {
+                    <span class="ident">from</span>: <span class="ident">netevent_actor_name</span>.<span class="ident">clone</span>(),
+                    <span class="ident">type_</span>: <span class="string">&quot;networkEventUpdate&quot;</span>.<span class="ident">to_owned</span>(),
+                    <span class="ident">updateType</span>: <span class="string">&quot;responseStart&quot;</span>.<span class="ident">to_owned</span>(),
+                    <span class="ident">response</span>: <span class="ident">actor</span>.<span class="ident">response_start</span>()
                 };
 
-                <span class='kw'>for</span> <span class='ident'>stream</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>connections</span> {
-                    <span class='ident'>stream</span>.<span class='ident'>write_json_packet</span>(<span class='kw-2'>&amp;</span><span class='ident'>msg</span>);
+                <span class="kw">for</span> <span class="ident">stream</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">connections</span> {
+                    <span class="ident">stream</span>.<span class="ident">write_json_packet</span>(<span class="kw-2">&amp;</span><span class="ident">msg</span>);
                 }
-                <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>NetworkEventUpdateMsg</span> {
-                    <span class='ident'>from</span>: <span class='ident'>netevent_actor_name</span>.<span class='ident'>clone</span>(),
-                    <span class='ident'>type_</span>: <span class='string'>&quot;networkEventUpdate&quot;</span>.<span class='ident'>to_owned</span>(),
-                    <span class='ident'>updateType</span>: <span class='string'>&quot;eventTimings&quot;</span>.<span class='ident'>to_owned</span>(),
+                <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="ident">NetworkEventUpdateMsg</span> {
+                    <span class="ident">from</span>: <span class="ident">netevent_actor_name</span>.<span class="ident">clone</span>(),
+                    <span class="ident">type_</span>: <span class="string">&quot;networkEventUpdate&quot;</span>.<span class="ident">to_owned</span>(),
+                    <span class="ident">updateType</span>: <span class="string">&quot;eventTimings&quot;</span>.<span class="ident">to_owned</span>(),
                 };
-                <span class='kw'>let</span> <span class='ident'>extra</span> <span class='op'>=</span> <span class='ident'>EventTimingsUpdateMsg</span> {
-                    <span class='ident'>totalTime</span>: <span class='ident'>actor</span>.<span class='ident'>total_time</span>(),
+                <span class="kw">let</span> <span class="ident">extra</span> <span class="op">=</span> <span class="ident">EventTimingsUpdateMsg</span> {
+                    <span class="ident">totalTime</span>: <span class="ident">actor</span>.<span class="ident">total_time</span>(),
                 };
-                <span class='kw'>for</span> <span class='ident'>stream</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>connections</span> {
-                    <span class='ident'>stream</span>.<span class='ident'>write_merged_json_packet</span>(<span class='kw-2'>&amp;</span><span class='ident'>msg</span>, <span class='kw-2'>&amp;</span><span class='ident'>extra</span>);
-                }
-
-                <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>NetworkEventUpdateMsg</span> {
-                    <span class='ident'>from</span>: <span class='ident'>netevent_actor_name</span>.<span class='ident'>clone</span>(),
-                    <span class='ident'>type_</span>: <span class='string'>&quot;networkEventUpdate&quot;</span>.<span class='ident'>to_owned</span>(),
-                    <span class='ident'>updateType</span>: <span class='string'>&quot;securityInfo&quot;</span>.<span class='ident'>to_owned</span>(),
-                };
-                <span class='kw'>let</span> <span class='ident'>extra</span> <span class='op'>=</span> <span class='ident'>SecurityInfoUpdateMsg</span> {
-                    <span class='ident'>state</span>: <span class='string'>&quot;insecure&quot;</span>.<span class='ident'>to_owned</span>(),
-                };
-                <span class='kw'>for</span> <span class='ident'>stream</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>connections</span> {
-                    <span class='ident'>stream</span>.<span class='ident'>write_merged_json_packet</span>(<span class='kw-2'>&amp;</span><span class='ident'>msg</span>, <span class='kw-2'>&amp;</span><span class='ident'>extra</span>);
+                <span class="kw">for</span> <span class="ident">stream</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">connections</span> {
+                    <span class="ident">stream</span>.<span class="ident">write_merged_json_packet</span>(<span class="kw-2">&amp;</span><span class="ident">msg</span>, <span class="kw-2">&amp;</span><span class="ident">extra</span>);
                 }
 
-                <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>NetworkEventUpdateMsg</span> {
-                    <span class='ident'>from</span>: <span class='ident'>netevent_actor_name</span>.<span class='ident'>clone</span>(),
-                    <span class='ident'>type_</span>: <span class='string'>&quot;networkEventUpdate&quot;</span>.<span class='ident'>to_owned</span>(),
-                    <span class='ident'>updateType</span>: <span class='string'>&quot;responseContent&quot;</span>.<span class='ident'>to_owned</span>(),
+                <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="ident">NetworkEventUpdateMsg</span> {
+                    <span class="ident">from</span>: <span class="ident">netevent_actor_name</span>.<span class="ident">clone</span>(),
+                    <span class="ident">type_</span>: <span class="string">&quot;networkEventUpdate&quot;</span>.<span class="ident">to_owned</span>(),
+                    <span class="ident">updateType</span>: <span class="string">&quot;securityInfo&quot;</span>.<span class="ident">to_owned</span>(),
                 };
-                <span class='kw'>for</span> <span class='ident'>stream</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>connections</span> {
-                    <span class='ident'>stream</span>.<span class='ident'>write_merged_json_packet</span>(<span class='kw-2'>&amp;</span><span class='ident'>msg</span>, <span class='kw-2'>&amp;</span><span class='ident'>actor</span>.<span class='ident'>response_content</span>());
+                <span class="kw">let</span> <span class="ident">extra</span> <span class="op">=</span> <span class="ident">SecurityInfoUpdateMsg</span> {
+                    <span class="ident">state</span>: <span class="string">&quot;insecure&quot;</span>.<span class="ident">to_owned</span>(),
+                };
+                <span class="kw">for</span> <span class="ident">stream</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">connections</span> {
+                    <span class="ident">stream</span>.<span class="ident">write_merged_json_packet</span>(<span class="kw-2">&amp;</span><span class="ident">msg</span>, <span class="kw-2">&amp;</span><span class="ident">extra</span>);
                 }
 
-                <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>NetworkEventUpdateMsg</span> {
-                    <span class='ident'>from</span>: <span class='ident'>netevent_actor_name</span>.<span class='ident'>clone</span>(),
-                    <span class='ident'>type_</span>: <span class='string'>&quot;networkEventUpdate&quot;</span>.<span class='ident'>to_owned</span>(),
-                    <span class='ident'>updateType</span>: <span class='string'>&quot;responseCookies&quot;</span>.<span class='ident'>to_owned</span>(),
+                <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="ident">NetworkEventUpdateMsg</span> {
+                    <span class="ident">from</span>: <span class="ident">netevent_actor_name</span>.<span class="ident">clone</span>(),
+                    <span class="ident">type_</span>: <span class="string">&quot;networkEventUpdate&quot;</span>.<span class="ident">to_owned</span>(),
+                    <span class="ident">updateType</span>: <span class="string">&quot;responseContent&quot;</span>.<span class="ident">to_owned</span>(),
                 };
-                <span class='kw'>for</span> <span class='ident'>stream</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>connections</span> {
-                    <span class='ident'>stream</span>.<span class='ident'>write_merged_json_packet</span>(<span class='kw-2'>&amp;</span><span class='ident'>msg</span>, <span class='kw-2'>&amp;</span><span class='ident'>actor</span>.<span class='ident'>response_cookies</span>());
+                <span class="kw">for</span> <span class="ident">stream</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">connections</span> {
+                    <span class="ident">stream</span>.<span class="ident">write_merged_json_packet</span>(<span class="kw-2">&amp;</span><span class="ident">msg</span>, <span class="kw-2">&amp;</span><span class="ident">actor</span>.<span class="ident">response_content</span>());
                 }
 
-                <span class='kw'>let</span> <span class='ident'>msg</span> <span class='op'>=</span> <span class='ident'>NetworkEventUpdateMsg</span> {
-                    <span class='ident'>from</span>: <span class='ident'>netevent_actor_name</span>.<span class='ident'>clone</span>(),
-                    <span class='ident'>type_</span>: <span class='string'>&quot;networkEventUpdate&quot;</span>.<span class='ident'>to_owned</span>(),
-                    <span class='ident'>updateType</span>: <span class='string'>&quot;responseHeaders&quot;</span>.<span class='ident'>to_owned</span>(),
+                <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="ident">NetworkEventUpdateMsg</span> {
+                    <span class="ident">from</span>: <span class="ident">netevent_actor_name</span>.<span class="ident">clone</span>(),
+                    <span class="ident">type_</span>: <span class="string">&quot;networkEventUpdate&quot;</span>.<span class="ident">to_owned</span>(),
+                    <span class="ident">updateType</span>: <span class="string">&quot;responseCookies&quot;</span>.<span class="ident">to_owned</span>(),
                 };
-                <span class='kw'>for</span> <span class='ident'>stream</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>connections</span> {
-                    <span class='ident'>stream</span>.<span class='ident'>write_merged_json_packet</span>(<span class='kw-2'>&amp;</span><span class='ident'>msg</span>, <span class='kw-2'>&amp;</span><span class='ident'>actor</span>.<span class='ident'>response_headers</span>());
+                <span class="kw">for</span> <span class="ident">stream</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">connections</span> {
+                    <span class="ident">stream</span>.<span class="ident">write_merged_json_packet</span>(<span class="kw-2">&amp;</span><span class="ident">msg</span>, <span class="kw-2">&amp;</span><span class="ident">actor</span>.<span class="ident">response_cookies</span>());
                 }
-            }
-        }
-    }
 
-    <span class='comment'>// Find the name of NetworkEventActor corresponding to request_id</span>
-    <span class='comment'>// Create a new one if it does not exist, add it to the actor_requests hashmap</span>
-    <span class='kw'>fn</span> <span class='ident'>find_network_event_actor</span>(<span class='ident'>actors</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>Mutex</span><span class='op'>&lt;</span><span class='ident'>ActorRegistry</span><span class='op'>&gt;&gt;</span>,
-                                <span class='ident'>actor_requests</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>String</span>, <span class='ident'>String</span><span class='op'>&gt;</span>,
-                                <span class='ident'>request_id</span>: <span class='ident'>String</span>) <span class='op'>-&gt;</span> <span class='ident'>String</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>actors</span> <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>();
-        <span class='kw'>match</span> (<span class='kw-2'>*</span><span class='ident'>actor_requests</span>).<span class='ident'>entry</span>(<span class='ident'>request_id</span>) {
-            <span class='ident'>Occupied</span>(<span class='ident'>name</span>) <span class='op'>=&gt;</span> {
-                <span class='comment'>//TODO: Delete from map like Firefox does?</span>
-                <span class='ident'>name</span>.<span class='ident'>into_mut</span>().<span class='ident'>clone</span>()
-            }
-            <span class='ident'>Vacant</span>(<span class='ident'>entry</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>actor_name</span> <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>new_name</span>(<span class='string'>&quot;netevent&quot;</span>);
-                <span class='kw'>let</span> <span class='ident'>actor</span> <span class='op'>=</span> <span class='ident'>NetworkEventActor</span>::<span class='ident'>new</span>(<span class='ident'>actor_name</span>.<span class='ident'>clone</span>());
-                <span class='ident'>entry</span>.<span class='ident'>insert</span>(<span class='ident'>actor_name</span>.<span class='ident'>clone</span>());
-                <span class='ident'>actors</span>.<span class='ident'>register</span>(<span class='kw'>box</span> <span class='ident'>actor</span>);
-                <span class='ident'>actor_name</span>
+                <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="ident">NetworkEventUpdateMsg</span> {
+                    <span class="ident">from</span>: <span class="ident">netevent_actor_name</span>.<span class="ident">clone</span>(),
+                    <span class="ident">type_</span>: <span class="string">&quot;networkEventUpdate&quot;</span>.<span class="ident">to_owned</span>(),
+                    <span class="ident">updateType</span>: <span class="string">&quot;responseHeaders&quot;</span>.<span class="ident">to_owned</span>(),
+                };
+                <span class="kw">for</span> <span class="ident">stream</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">connections</span> {
+                    <span class="ident">stream</span>.<span class="ident">write_merged_json_packet</span>(<span class="kw-2">&amp;</span><span class="ident">msg</span>, <span class="kw-2">&amp;</span><span class="ident">actor</span>.<span class="ident">response_headers</span>());
+                }
             }
         }
     }
 
-    <span class='kw'>let</span> <span class='ident'>sender_clone</span> <span class='op'>=</span> <span class='ident'>sender</span>.<span class='ident'>clone</span>();
-    <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;DevtoolsClientAcceptor&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
-        <span class='comment'>// accept connections and process them, spawning a new thread for each one</span>
-        <span class='kw'>for</span> <span class='ident'>stream</span> <span class='kw'>in</span> <span class='ident'>listener</span>.<span class='ident'>incoming</span>() {
-            <span class='comment'>// connection succeeded</span>
-            <span class='ident'>sender_clone</span>.<span class='ident'>send</span>(<span class='ident'>DevtoolsControlMsg</span>::<span class='ident'>FromChrome</span>(
-                    <span class='ident'>ChromeToDevtoolsControlMsg</span>::<span class='ident'>AddClient</span>(<span class='ident'>stream</span>.<span class='ident'>unwrap</span>()))).<span class='ident'>unwrap</span>();
-        }
-    }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
-
-    <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>msg</span>) <span class='op'>=</span> <span class='ident'>receiver</span>.<span class='ident'>recv</span>() {
-        <span class='kw'>match</span> <span class='ident'>msg</span> {
-            <span class='ident'>DevtoolsControlMsg</span>::<span class='ident'>FromChrome</span>(<span class='ident'>ChromeToDevtoolsControlMsg</span>::<span class='ident'>AddClient</span>(<span class='ident'>stream</span>)) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>actors</span> <span class='op'>=</span> <span class='ident'>actors</span>.<span class='ident'>clone</span>();
-                <span class='ident'>accepted_connections</span>.<span class='ident'>push</span>(<span class='ident'>stream</span>.<span class='ident'>try_clone</span>().<span class='ident'>unwrap</span>());
-                <span class='ident'>thread</span>::<span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>name</span>(<span class='string'>&quot;DevtoolsClientHandler&quot;</span>.<span class='ident'>to_owned</span>()).<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
-                    <span class='ident'>handle_client</span>(<span class='ident'>actors</span>, <span class='ident'>stream</span>.<span class='ident'>try_clone</span>().<span class='ident'>unwrap</span>())
-                }).<span class='ident'>expect</span>(<span class='string'>&quot;Thread spawning failed&quot;</span>);
+    <span class="comment">// Find the name of NetworkEventActor corresponding to request_id</span>
+    <span class="comment">// Create a new one if it does not exist, add it to the actor_requests hashmap</span>
+    <span class="kw">fn</span> <span class="ident">find_network_event_actor</span>(<span class="ident">actors</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span><span class="ident">ActorRegistry</span><span class="op">&gt;&gt;</span>,
+                                <span class="ident">actor_requests</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
+                                <span class="ident">request_id</span>: <span class="ident">String</span>) <span class="op">-&gt;</span> <span class="ident">String</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">actors</span> <span class="op">=</span> <span class="ident">actors</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>();
+        <span class="kw">match</span> (<span class="kw-2">*</span><span class="ident">actor_requests</span>).<span class="ident">entry</span>(<span class="ident">request_id</span>) {
+            <span class="ident">Occupied</span>(<span class="ident">name</span>) <span class="op">=&gt;</span> {
+                <span class="comment">//TODO: Delete from map like Firefox does?</span>
+                <span class="ident">name</span>.<span class="ident">into_mut</span>().<span class="ident">clone</span>()
             }
-            <span class='ident'>DevtoolsControlMsg</span>::<span class='ident'>FromScript</span>(<span class='ident'>ScriptToDevtoolsControlMsg</span>::<span class='ident'>FramerateTick</span>(
-                        <span class='ident'>actor_name</span>, <span class='ident'>tick</span>)) <span class='op'>=&gt;</span>
-                <span class='ident'>handle_framerate_tick</span>(<span class='ident'>actors</span>.<span class='ident'>clone</span>(), <span class='ident'>actor_name</span>, <span class='ident'>tick</span>),
-            <span class='ident'>DevtoolsControlMsg</span>::<span class='ident'>FromScript</span>(<span class='ident'>ScriptToDevtoolsControlMsg</span>::<span class='ident'>NewGlobal</span>(
-                        <span class='ident'>ids</span>, <span class='ident'>script_sender</span>, <span class='ident'>pageinfo</span>)) <span class='op'>=&gt;</span>
-                <span class='ident'>handle_new_global</span>(<span class='ident'>actors</span>.<span class='ident'>clone</span>(), <span class='ident'>ids</span>, <span class='ident'>script_sender</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>actor_pipelines</span>,
-                                  <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>actor_workers</span>, <span class='ident'>pageinfo</span>),
-            <span class='ident'>DevtoolsControlMsg</span>::<span class='ident'>FromScript</span>(<span class='ident'>ScriptToDevtoolsControlMsg</span>::<span class='ident'>ConsoleAPI</span>(
-                        <span class='ident'>id</span>,
-                        <span class='ident'>console_message</span>,
-                        <span class='ident'>worker_id</span>)) <span class='op'>=&gt;</span>
-                <span class='ident'>handle_console_message</span>(<span class='ident'>actors</span>.<span class='ident'>clone</span>(), <span class='ident'>id</span>, <span class='ident'>worker_id</span>, <span class='ident'>console_message</span>,
-                                       <span class='kw-2'>&amp;</span><span class='ident'>actor_pipelines</span>, <span class='kw-2'>&amp;</span><span class='ident'>actor_workers</span>),
-            <span class='ident'>DevtoolsControlMsg</span>::<span class='ident'>FromScript</span>(<span class='ident'>ScriptToDevtoolsControlMsg</span>::<span class='ident'>ReportCSSError</span>(
-                        <span class='ident'>id</span>,
-                        <span class='ident'>css_error</span>)) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>console_message</span> <span class='op'>=</span>  <span class='ident'>ConsoleMessage</span> {
-                    <span class='ident'>message</span>: <span class='ident'>css_error</span>.<span class='ident'>msg</span>,
-                    <span class='ident'>logLevel</span>: <span class='ident'>LogLevel</span>::<span class='ident'>Warn</span>,
-                    <span class='ident'>filename</span>: <span class='ident'>css_error</span>.<span class='ident'>filename</span>,
-                    <span class='ident'>lineNumber</span>: <span class='ident'>css_error</span>.<span class='ident'>line</span>,
-                    <span class='ident'>columnNumber</span>: <span class='ident'>css_error</span>.<span class='ident'>column</span>,
+            <span class="ident">Vacant</span>(<span class="ident">entry</span>) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">actor_name</span> <span class="op">=</span> <span class="ident">actors</span>.<span class="ident">new_name</span>(<span class="string">&quot;netevent&quot;</span>);
+                <span class="kw">let</span> <span class="ident">actor</span> <span class="op">=</span> <span class="ident">NetworkEventActor</span>::<span class="ident">new</span>(<span class="ident">actor_name</span>.<span class="ident">clone</span>());
+                <span class="ident">entry</span>.<span class="ident">insert</span>(<span class="ident">actor_name</span>.<span class="ident">clone</span>());
+                <span class="ident">actors</span>.<span class="ident">register</span>(<span class="kw">box</span> <span class="ident">actor</span>);
+                <span class="ident">actor_name</span>
+            }
+        }
+    }
+
+    <span class="kw">let</span> <span class="ident">sender_clone</span> <span class="op">=</span> <span class="ident">sender</span>.<span class="ident">clone</span>();
+    <span class="ident">thread</span>::<span class="ident">Builder</span>::<span class="ident">new</span>().<span class="ident">name</span>(<span class="string">&quot;DevtoolsClientAcceptor&quot;</span>.<span class="ident">to_owned</span>()).<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">||</span> {
+        <span class="comment">// accept connections and process them, spawning a new thread for each one</span>
+        <span class="kw">for</span> <span class="ident">stream</span> <span class="kw">in</span> <span class="ident">listener</span>.<span class="ident">incoming</span>() {
+            <span class="comment">// connection succeeded</span>
+            <span class="ident">sender_clone</span>.<span class="ident">send</span>(<span class="ident">DevtoolsControlMsg</span>::<span class="ident">FromChrome</span>(
+                    <span class="ident">ChromeToDevtoolsControlMsg</span>::<span class="ident">AddClient</span>(<span class="ident">stream</span>.<span class="ident">unwrap</span>()))).<span class="ident">unwrap</span>();
+        }
+    }).<span class="ident">expect</span>(<span class="string">&quot;Thread spawning failed&quot;</span>);
+
+    <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">msg</span>) <span class="op">=</span> <span class="ident">receiver</span>.<span class="ident">recv</span>() {
+        <span class="kw">match</span> <span class="ident">msg</span> {
+            <span class="ident">DevtoolsControlMsg</span>::<span class="ident">FromChrome</span>(<span class="ident">ChromeToDevtoolsControlMsg</span>::<span class="ident">AddClient</span>(<span class="ident">stream</span>)) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">actors</span> <span class="op">=</span> <span class="ident">actors</span>.<span class="ident">clone</span>();
+                <span class="ident">accepted_connections</span>.<span class="ident">push</span>(<span class="ident">stream</span>.<span class="ident">try_clone</span>().<span class="ident">unwrap</span>());
+                <span class="ident">thread</span>::<span class="ident">Builder</span>::<span class="ident">new</span>().<span class="ident">name</span>(<span class="string">&quot;DevtoolsClientHandler&quot;</span>.<span class="ident">to_owned</span>()).<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">||</span> {
+                    <span class="ident">handle_client</span>(<span class="ident">actors</span>, <span class="ident">stream</span>.<span class="ident">try_clone</span>().<span class="ident">unwrap</span>())
+                }).<span class="ident">expect</span>(<span class="string">&quot;Thread spawning failed&quot;</span>);
+            }
+            <span class="ident">DevtoolsControlMsg</span>::<span class="ident">FromScript</span>(<span class="ident">ScriptToDevtoolsControlMsg</span>::<span class="ident">FramerateTick</span>(
+                        <span class="ident">actor_name</span>, <span class="ident">tick</span>)) <span class="op">=&gt;</span>
+                <span class="ident">handle_framerate_tick</span>(<span class="ident">actors</span>.<span class="ident">clone</span>(), <span class="ident">actor_name</span>, <span class="ident">tick</span>),
+            <span class="ident">DevtoolsControlMsg</span>::<span class="ident">FromScript</span>(<span class="ident">ScriptToDevtoolsControlMsg</span>::<span class="ident">NewGlobal</span>(
+                        <span class="ident">ids</span>, <span class="ident">script_sender</span>, <span class="ident">pageinfo</span>)) <span class="op">=&gt;</span>
+                <span class="ident">handle_new_global</span>(<span class="ident">actors</span>.<span class="ident">clone</span>(), <span class="ident">ids</span>, <span class="ident">script_sender</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">actor_pipelines</span>,
+                                  <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">actor_workers</span>, <span class="ident">pageinfo</span>),
+            <span class="ident">DevtoolsControlMsg</span>::<span class="ident">FromScript</span>(<span class="ident">ScriptToDevtoolsControlMsg</span>::<span class="ident">ConsoleAPI</span>(
+                        <span class="ident">id</span>,
+                        <span class="ident">console_message</span>,
+                        <span class="ident">worker_id</span>)) <span class="op">=&gt;</span>
+                <span class="ident">handle_console_message</span>(<span class="ident">actors</span>.<span class="ident">clone</span>(), <span class="ident">id</span>, <span class="ident">worker_id</span>, <span class="ident">console_message</span>,
+                                       <span class="kw-2">&amp;</span><span class="ident">actor_pipelines</span>, <span class="kw-2">&amp;</span><span class="ident">actor_workers</span>),
+            <span class="ident">DevtoolsControlMsg</span>::<span class="ident">FromScript</span>(<span class="ident">ScriptToDevtoolsControlMsg</span>::<span class="ident">ReportCSSError</span>(
+                        <span class="ident">id</span>,
+                        <span class="ident">css_error</span>)) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">console_message</span> <span class="op">=</span>  <span class="ident">ConsoleMessage</span> {
+                    <span class="ident">message</span>: <span class="ident">css_error</span>.<span class="ident">msg</span>,
+                    <span class="ident">logLevel</span>: <span class="ident">LogLevel</span>::<span class="ident">Warn</span>,
+                    <span class="ident">filename</span>: <span class="ident">css_error</span>.<span class="ident">filename</span>,
+                    <span class="ident">lineNumber</span>: <span class="ident">css_error</span>.<span class="ident">line</span>,
+                    <span class="ident">columnNumber</span>: <span class="ident">css_error</span>.<span class="ident">column</span>,
                 };
-                <span class='ident'>handle_console_message</span>(<span class='ident'>actors</span>.<span class='ident'>clone</span>(), <span class='ident'>id</span>, <span class='prelude-val'>None</span>, <span class='ident'>console_message</span>,
-                                       <span class='kw-2'>&amp;</span><span class='ident'>actor_pipelines</span>, <span class='kw-2'>&amp;</span><span class='ident'>actor_workers</span>)
+                <span class="ident">handle_console_message</span>(<span class="ident">actors</span>.<span class="ident">clone</span>(), <span class="ident">id</span>, <span class="prelude-val">None</span>, <span class="ident">console_message</span>,
+                                       <span class="kw-2">&amp;</span><span class="ident">actor_pipelines</span>, <span class="kw-2">&amp;</span><span class="ident">actor_workers</span>)
             },
-            <span class='ident'>DevtoolsControlMsg</span>::<span class='ident'>FromChrome</span>(<span class='ident'>ChromeToDevtoolsControlMsg</span>::<span class='ident'>NetworkEvent</span>(
-                        <span class='ident'>request_id</span>, <span class='ident'>network_event</span>)) <span class='op'>=&gt;</span> {
-                <span class='comment'>// copy the accepted_connections vector</span>
-                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>connections</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='op'>&lt;</span><span class='ident'>TcpStream</span><span class='op'>&gt;</span>::<span class='ident'>new</span>();
-                <span class='kw'>for</span> <span class='ident'>stream</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>accepted_connections</span> {
-                    <span class='ident'>connections</span>.<span class='ident'>push</span>(<span class='ident'>stream</span>.<span class='ident'>try_clone</span>().<span class='ident'>unwrap</span>());
+            <span class="ident">DevtoolsControlMsg</span>::<span class="ident">FromChrome</span>(<span class="ident">ChromeToDevtoolsControlMsg</span>::<span class="ident">NetworkEvent</span>(
+                        <span class="ident">request_id</span>, <span class="ident">network_event</span>)) <span class="op">=&gt;</span> {
+                <span class="comment">// copy the accepted_connections vector</span>
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">connections</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="op">&lt;</span><span class="ident">TcpStream</span><span class="op">&gt;</span>::<span class="ident">new</span>();
+                <span class="kw">for</span> <span class="ident">stream</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">accepted_connections</span> {
+                    <span class="ident">connections</span>.<span class="ident">push</span>(<span class="ident">stream</span>.<span class="ident">try_clone</span>().<span class="ident">unwrap</span>());
                 }
 
-                <span class='kw'>let</span> <span class='ident'>pipeline_id</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>network_event</span> {
-                    <span class='ident'>NetworkEvent</span>::<span class='ident'>HttpResponse</span>(<span class='kw-2'>ref</span> <span class='ident'>response</span>) <span class='op'>=&gt;</span> <span class='ident'>response</span>.<span class='ident'>pipeline_id</span>,
-                    <span class='ident'>NetworkEvent</span>::<span class='ident'>HttpRequest</span>(<span class='kw-2'>ref</span> <span class='ident'>request</span>) <span class='op'>=&gt;</span> <span class='ident'>request</span>.<span class='ident'>pipeline_id</span>,
+                <span class="kw">let</span> <span class="ident">pipeline_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">network_event</span> {
+                    <span class="ident">NetworkEvent</span>::<span class="ident">HttpResponse</span>(<span class="kw-2">ref</span> <span class="ident">response</span>) <span class="op">=&gt;</span> <span class="ident">response</span>.<span class="ident">pipeline_id</span>,
+                    <span class="ident">NetworkEvent</span>::<span class="ident">HttpRequest</span>(<span class="kw-2">ref</span> <span class="ident">request</span>) <span class="op">=&gt;</span> <span class="ident">request</span>.<span class="ident">pipeline_id</span>,
                 };
-                <span class='ident'>handle_network_event</span>(<span class='ident'>actors</span>.<span class='ident'>clone</span>(), <span class='ident'>connections</span>, <span class='kw-2'>&amp;</span><span class='ident'>actor_pipelines</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>actor_requests</span>,
-                                     <span class='kw-2'>&amp;</span><span class='ident'>actor_workers</span>, <span class='ident'>pipeline_id</span>, <span class='ident'>request_id</span>, <span class='ident'>network_event</span>);
+                <span class="ident">handle_network_event</span>(<span class="ident">actors</span>.<span class="ident">clone</span>(), <span class="ident">connections</span>, <span class="kw-2">&amp;</span><span class="ident">actor_pipelines</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">actor_requests</span>,
+                                     <span class="kw-2">&amp;</span><span class="ident">actor_workers</span>, <span class="ident">pipeline_id</span>, <span class="ident">request_id</span>, <span class="ident">network_event</span>);
             },
-            <span class='ident'>DevtoolsControlMsg</span>::<span class='ident'>FromChrome</span>(<span class='ident'>ChromeToDevtoolsControlMsg</span>::<span class='ident'>ServerExitMsg</span>) <span class='op'>=&gt;</span> <span class='kw'>break</span>
+            <span class="ident">DevtoolsControlMsg</span>::<span class="ident">FromChrome</span>(<span class="ident">ChromeToDevtoolsControlMsg</span>::<span class="ident">ServerExitMsg</span>) <span class="op">=&gt;</span> <span class="kw">break</span>
         }
     }
-    <span class='kw'>for</span> <span class='ident'>connection</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>accepted_connections</span> {
-        <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>connection</span>.<span class='ident'>shutdown</span>(<span class='ident'>Shutdown</span>::<span class='ident'>Both</span>);
+    <span class="kw">for</span> <span class="ident">connection</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">accepted_connections</span> {
+        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">connection</span>.<span class="ident">shutdown</span>(<span class="ident">Shutdown</span>::<span class="ident">Both</span>);
     }
 }
 </pre>

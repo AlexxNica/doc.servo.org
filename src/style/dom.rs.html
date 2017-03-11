@@ -428,390 +428,390 @@
 <span id="383">383</span>
 <span id="384">384</span>
 <span id="385">385</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! Types and traits used to access the DOM from style calculation.</span>
+<span class="doccomment">//! Types and traits used to access the DOM from style calculation.</span>
 
-<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>allow</span>(<span class='ident'>unsafe_code</span>)]</span>
-<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>deny</span>(<span class='ident'>missing_docs</span>)]</span>
+<span class="attribute">#<span class="op">!</span>[<span class="ident">allow</span>(<span class="ident">unsafe_code</span>)]</span>
+<span class="attribute">#<span class="op">!</span>[<span class="ident">deny</span>(<span class="ident">missing_docs</span>)]</span>
 
-<span class='kw'>use</span> {<span class='ident'>Atom</span>, <span class='ident'>Namespace</span>, <span class='ident'>LocalName</span>};
-<span class='kw'>use</span> <span class='ident'>atomic_refcell</span>::{<span class='ident'>AtomicRef</span>, <span class='ident'>AtomicRefCell</span>, <span class='ident'>AtomicRefMut</span>};
-<span class='kw'>use</span> <span class='ident'>data</span>::<span class='ident'>ElementData</span>;
-<span class='kw'>use</span> <span class='ident'>element_state</span>::<span class='ident'>ElementState</span>;
-<span class='kw'>use</span> <span class='ident'>parking_lot</span>::<span class='ident'>RwLock</span>;
-<span class='kw'>use</span> <span class='ident'>properties</span>::{<span class='ident'>ComputedValues</span>, <span class='ident'>PropertyDeclarationBlock</span>};
-<span class='kw'>use</span> <span class='ident'>selector_parser</span>::{<span class='ident'>ElementExt</span>, <span class='ident'>PreExistingComputedValues</span>, <span class='ident'>PseudoElement</span>};
-<span class='kw'>use</span> <span class='ident'>selectors</span>::<span class='ident'>matching</span>::<span class='ident'>ElementSelectorFlags</span>;
-<span class='kw'>use</span> <span class='ident'>sink</span>::<span class='ident'>Push</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fmt</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fmt</span>::<span class='ident'>Debug</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ops</span>::<span class='ident'>Deref</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>Arc</span>;
-<span class='kw'>use</span> <span class='ident'>stylist</span>::<span class='ident'>ApplicableDeclarationBlock</span>;
+<span class="kw">use</span> {<span class="ident">Atom</span>, <span class="ident">Namespace</span>, <span class="ident">LocalName</span>};
+<span class="kw">use</span> <span class="ident">atomic_refcell</span>::{<span class="ident">AtomicRef</span>, <span class="ident">AtomicRefCell</span>, <span class="ident">AtomicRefMut</span>};
+<span class="kw">use</span> <span class="ident">data</span>::<span class="ident">ElementData</span>;
+<span class="kw">use</span> <span class="ident">element_state</span>::<span class="ident">ElementState</span>;
+<span class="kw">use</span> <span class="ident">parking_lot</span>::<span class="ident">RwLock</span>;
+<span class="kw">use</span> <span class="ident">properties</span>::{<span class="ident">ComputedValues</span>, <span class="ident">PropertyDeclarationBlock</span>};
+<span class="kw">use</span> <span class="ident">selector_parser</span>::{<span class="ident">ElementExt</span>, <span class="ident">PreExistingComputedValues</span>, <span class="ident">PseudoElement</span>};
+<span class="kw">use</span> <span class="ident">selectors</span>::<span class="ident">matching</span>::<span class="ident">ElementSelectorFlags</span>;
+<span class="kw">use</span> <span class="ident">sink</span>::<span class="ident">Push</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Debug</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Deref</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
+<span class="kw">use</span> <span class="ident">stylist</span>::<span class="ident">ApplicableDeclarationBlock</span>;
 
-<span class='kw'>pub</span> <span class='kw'>use</span> <span class='ident'>style_traits</span>::<span class='ident'>UnsafeNode</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">style_traits</span>::<span class="ident">UnsafeNode</span>;
 
-<span class='doccomment'>/// An opaque handle to a node, which, unlike UnsafeNode, cannot be transformed</span>
-<span class='doccomment'>/// back into a non-opaque representation. The only safe operation that can be</span>
-<span class='doccomment'>/// performed on this node is to compare it to another opaque handle or to another</span>
-<span class='doccomment'>/// OpaqueNode.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Layout and Graphics use this to safely represent nodes for comparison purposes.</span>
-<span class='doccomment'>/// Because the script task&#39;s GC does not trace layout, node data cannot be safely stored in layout</span>
-<span class='doccomment'>/// data structures. Also, layout code tends to be faster when the DOM is not being accessed, for</span>
-<span class='doccomment'>/// locality reasons. Using `OpaqueNode` enforces this invariant.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Copy</span>, <span class='ident'>Debug</span>, <span class='ident'>Hash</span>, <span class='ident'>Eq</span>)]</span>
-<span class='attribute'>#[<span class='ident'>cfg_attr</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>, <span class='ident'>derive</span>(<span class='ident'>HeapSizeOf</span>, <span class='ident'>Deserialize</span>, <span class='ident'>Serialize</span>))]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>OpaqueNode</span>(<span class='kw'>pub</span> <span class='ident'>usize</span>);
+<span class="doccomment">/// An opaque handle to a node, which, unlike UnsafeNode, cannot be transformed</span>
+<span class="doccomment">/// back into a non-opaque representation. The only safe operation that can be</span>
+<span class="doccomment">/// performed on this node is to compare it to another opaque handle or to another</span>
+<span class="doccomment">/// OpaqueNode.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Layout and Graphics use this to safely represent nodes for comparison purposes.</span>
+<span class="doccomment">/// Because the script task&#39;s GC does not trace layout, node data cannot be safely stored in layout</span>
+<span class="doccomment">/// data structures. Also, layout code tends to be faster when the DOM is not being accessed, for</span>
+<span class="doccomment">/// locality reasons. Using `OpaqueNode` enforces this invariant.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Hash</span>, <span class="ident">Eq</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>, <span class="ident">derive</span>(<span class="ident">HeapSizeOf</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>))]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">OpaqueNode</span>(<span class="kw">pub</span> <span class="ident">usize</span>);
 
-<span class='kw'>impl</span> <span class='ident'>OpaqueNode</span> {
-    <span class='doccomment'>/// Returns the address of this node, for debugging purposes.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>id</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-        <span class='self'>self</span>.<span class='number'>0</span>
+<span class="kw">impl</span> <span class="ident">OpaqueNode</span> {
+    <span class="doccomment">/// Returns the address of this node, for debugging purposes.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="number">0</span>
     }
 }
 
-<span class='doccomment'>/// Simple trait to provide basic information about the type of an element.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// We avoid exposing the full type id, since computing it in the general case</span>
-<span class='doccomment'>/// would be difficult for Gecko nodes.</span>
-<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>NodeInfo</span> {
-    <span class='doccomment'>/// Whether this node is an element.</span>
-    <span class='kw'>fn</span> <span class='ident'>is_element</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
-    <span class='doccomment'>/// Whether this node is a text node.</span>
-    <span class='kw'>fn</span> <span class='ident'>is_text_node</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
+<span class="doccomment">/// Simple trait to provide basic information about the type of an element.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// We avoid exposing the full type id, since computing it in the general case</span>
+<span class="doccomment">/// would be difficult for Gecko nodes.</span>
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">NodeInfo</span> {
+    <span class="doccomment">/// Whether this node is an element.</span>
+    <span class="kw">fn</span> <span class="ident">is_element</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>;
+    <span class="doccomment">/// Whether this node is a text node.</span>
+    <span class="kw">fn</span> <span class="ident">is_text_node</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>;
 
-    <span class='doccomment'>/// Whether this node needs layout.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Comments, doctypes, etc are ignored by layout algorithms.</span>
-    <span class='kw'>fn</span> <span class='ident'>needs_layout</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> { <span class='self'>self</span>.<span class='ident'>is_element</span>() <span class='op'>||</span> <span class='self'>self</span>.<span class='ident'>is_text_node</span>() }
+    <span class="doccomment">/// Whether this node needs layout.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Comments, doctypes, etc are ignored by layout algorithms.</span>
+    <span class="kw">fn</span> <span class="ident">needs_layout</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="self">self</span>.<span class="ident">is_element</span>() <span class="op">||</span> <span class="self">self</span>.<span class="ident">is_text_node</span>() }
 }
 
-<span class='doccomment'>/// A node iterator that only returns node that don&#39;t need layout.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>LayoutIterator</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(<span class='kw'>pub</span> <span class='ident'>T</span>);
+<span class="doccomment">/// A node iterator that only returns node that don&#39;t need layout.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LayoutIterator</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw">pub</span> <span class="ident">T</span>);
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>, <span class='ident'>I</span><span class='op'>&gt;</span> <span class='ident'>Iterator</span> <span class='kw'>for</span> <span class='ident'>LayoutIterator</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span><span class='op'>=</span><span class='ident'>I</span><span class='op'>&gt;</span>,
-          <span class='ident'>I</span>: <span class='ident'>NodeInfo</span>,
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">I</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">LayoutIterator</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Iterator</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">=</span><span class="ident">I</span><span class="op">&gt;</span>,
+          <span class="ident">I</span>: <span class="ident">NodeInfo</span>,
 {
-    <span class='kw'>type</span> <span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>I</span>;
-    <span class='kw'>fn</span> <span class='ident'>next</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>I</span><span class='op'>&gt;</span> {
-        <span class='kw'>loop</span> {
-            <span class='comment'>// Filter out nodes that layout should ignore.</span>
-            <span class='kw'>let</span> <span class='ident'>n</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>next</span>();
-            <span class='kw'>if</span> <span class='ident'>n</span>.<span class='ident'>is_none</span>() <span class='op'>||</span> <span class='ident'>n</span>.<span class='ident'>as_ref</span>().<span class='ident'>unwrap</span>().<span class='ident'>needs_layout</span>() {
-                <span class='kw'>return</span> <span class='ident'>n</span>
+    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">I</span>;
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> {
+        <span class="kw">loop</span> {
+            <span class="comment">// Filter out nodes that layout should ignore.</span>
+            <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">next</span>();
+            <span class="kw">if</span> <span class="ident">n</span>.<span class="ident">is_none</span>() <span class="op">||</span> <span class="ident">n</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>().<span class="ident">needs_layout</span>() {
+                <span class="kw">return</span> <span class="ident">n</span>
             }
         }
     }
 }
 
-<span class='doccomment'>/// The `TNode` trait. This is the main generic trait over which the style</span>
-<span class='doccomment'>/// system can be implemented.</span>
-<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>TNode</span> : <span class='ident'>Sized</span> <span class='op'>+</span> <span class='ident'>Copy</span> <span class='op'>+</span> <span class='ident'>Clone</span> <span class='op'>+</span> <span class='ident'>Debug</span> <span class='op'>+</span> <span class='ident'>NodeInfo</span> {
-    <span class='doccomment'>/// The concrete `TElement` type.</span>
-    <span class='kw'>type</span> <span class='ident'>ConcreteElement</span>: <span class='ident'>TElement</span><span class='op'>&lt;</span><span class='ident'>ConcreteNode</span> <span class='op'>=</span> <span class='self'>Self</span><span class='op'>&gt;</span>;
+<span class="doccomment">/// The `TNode` trait. This is the main generic trait over which the style</span>
+<span class="doccomment">/// system can be implemented.</span>
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">TNode</span> : <span class="ident">Sized</span> <span class="op">+</span> <span class="ident">Copy</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Debug</span> <span class="op">+</span> <span class="ident">NodeInfo</span> {
+    <span class="doccomment">/// The concrete `TElement` type.</span>
+    <span class="kw">type</span> <span class="ident">ConcreteElement</span>: <span class="ident">TElement</span><span class="op">&lt;</span><span class="ident">ConcreteNode</span> <span class="op">=</span> <span class="self">Self</span><span class="op">&gt;</span>;
 
-    <span class='doccomment'>/// A concrete children iterator type in order to iterate over the `Node`s.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// TODO(emilio): We should eventually replace this with the `impl Trait`</span>
-    <span class='doccomment'>/// syntax.</span>
-    <span class='kw'>type</span> <span class='ident'>ConcreteChildrenIterator</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>Item</span> <span class='op'>=</span> <span class='self'>Self</span><span class='op'>&gt;</span>;
+    <span class="doccomment">/// A concrete children iterator type in order to iterate over the `Node`s.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// TODO(emilio): We should eventually replace this with the `impl Trait`</span>
+    <span class="doccomment">/// syntax.</span>
+    <span class="kw">type</span> <span class="ident">ConcreteChildrenIterator</span>: <span class="ident">Iterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="self">Self</span><span class="op">&gt;</span>;
 
-    <span class='doccomment'>/// Convert this node in an `UnsafeNode`.</span>
-    <span class='kw'>fn</span> <span class='ident'>to_unsafe</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>UnsafeNode</span>;
+    <span class="doccomment">/// Convert this node in an `UnsafeNode`.</span>
+    <span class="kw">fn</span> <span class="ident">to_unsafe</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">UnsafeNode</span>;
 
-    <span class='doccomment'>/// Get a node back from an `UnsafeNode`.</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_unsafe</span>(<span class='ident'>n</span>: <span class='kw-2'>&amp;</span><span class='ident'>UnsafeNode</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span>;
+    <span class="doccomment">/// Get a node back from an `UnsafeNode`.</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_unsafe</span>(<span class="ident">n</span>: <span class="kw-2">&amp;</span><span class="ident">UnsafeNode</span>) <span class="op">-&gt;</span> <span class="self">Self</span>;
 
-    <span class='doccomment'>/// Returns an iterator over this node&#39;s children.</span>
-    <span class='kw'>fn</span> <span class='ident'>children</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>LayoutIterator</span><span class='op'>&lt;</span><span class='self'>Self</span>::<span class='ident'>ConcreteChildrenIterator</span><span class='op'>&gt;</span>;
+    <span class="doccomment">/// Returns an iterator over this node&#39;s children.</span>
+    <span class="kw">fn</span> <span class="ident">children</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">LayoutIterator</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">ConcreteChildrenIterator</span><span class="op">&gt;</span>;
 
-    <span class='doccomment'>/// Converts self into an `OpaqueNode`.</span>
-    <span class='kw'>fn</span> <span class='ident'>opaque</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>OpaqueNode</span>;
+    <span class="doccomment">/// Converts self into an `OpaqueNode`.</span>
+    <span class="kw">fn</span> <span class="ident">opaque</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">OpaqueNode</span>;
 
-    <span class='doccomment'>/// Get this node&#39;s parent element if present.</span>
-    <span class='kw'>fn</span> <span class='ident'>parent_element</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='self'>Self</span>::<span class='ident'>ConcreteElement</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>parent_node</span>().<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>n</span><span class='op'>|</span> <span class='ident'>n</span>.<span class='ident'>as_element</span>())
+    <span class="doccomment">/// Get this node&#39;s parent element if present.</span>
+    <span class="kw">fn</span> <span class="ident">parent_element</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">ConcreteElement</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">parent_node</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span>.<span class="ident">as_element</span>())
     }
 
-    <span class='doccomment'>/// A debug id, only useful, mm... for debugging.</span>
-    <span class='kw'>fn</span> <span class='ident'>debug_id</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span>;
+    <span class="doccomment">/// A debug id, only useful, mm... for debugging.</span>
+    <span class="kw">fn</span> <span class="ident">debug_id</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span>;
 
-    <span class='doccomment'>/// Get this node as an element, if it&#39;s one.</span>
-    <span class='kw'>fn</span> <span class='ident'>as_element</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='self'>Self</span>::<span class='ident'>ConcreteElement</span><span class='op'>&gt;</span>;
+    <span class="doccomment">/// Get this node as an element, if it&#39;s one.</span>
+    <span class="kw">fn</span> <span class="ident">as_element</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">ConcreteElement</span><span class="op">&gt;</span>;
 
-    <span class='doccomment'>/// Whether this node needs to be laid out on viewport size change.</span>
-    <span class='kw'>fn</span> <span class='ident'>needs_dirty_on_viewport_size_changed</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
+    <span class="doccomment">/// Whether this node needs to be laid out on viewport size change.</span>
+    <span class="kw">fn</span> <span class="ident">needs_dirty_on_viewport_size_changed</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>;
 
-    <span class='doccomment'>/// Mark this node as needing layout on viewport size change.</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>set_dirty_on_viewport_size_changed</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>);
+    <span class="doccomment">/// Mark this node as needing layout on viewport size change.</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">set_dirty_on_viewport_size_changed</span>(<span class="kw-2">&amp;</span><span class="self">self</span>);
 
-    <span class='doccomment'>/// Whether this node can be fragmented. This is used for multicol, and only</span>
-    <span class='doccomment'>/// for Servo.</span>
-    <span class='kw'>fn</span> <span class='ident'>can_be_fragmented</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
+    <span class="doccomment">/// Whether this node can be fragmented. This is used for multicol, and only</span>
+    <span class="doccomment">/// for Servo.</span>
+    <span class="kw">fn</span> <span class="ident">can_be_fragmented</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>;
 
-    <span class='doccomment'>/// Set whether this node can be fragmented.</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>set_can_be_fragmented</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>value</span>: <span class='ident'>bool</span>);
+    <span class="doccomment">/// Set whether this node can be fragmented.</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">set_can_be_fragmented</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value</span>: <span class="ident">bool</span>);
 
-    <span class='doccomment'>/// Get this node&#39;s parent node.</span>
-    <span class='kw'>fn</span> <span class='ident'>parent_node</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='self'>Self</span><span class='op'>&gt;</span>;
+    <span class="doccomment">/// Get this node&#39;s parent node.</span>
+    <span class="kw">fn</span> <span class="ident">parent_node</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
 
-    <span class='doccomment'>/// Whether this node is in the document right now needed to clear the</span>
-    <span class='doccomment'>/// restyle data appropriately on some forced restyles.</span>
-    <span class='kw'>fn</span> <span class='ident'>is_in_doc</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
+    <span class="doccomment">/// Whether this node is in the document right now needed to clear the</span>
+    <span class="doccomment">/// restyle data appropriately on some forced restyles.</span>
+    <span class="kw">fn</span> <span class="ident">is_in_doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>;
 }
 
-<span class='doccomment'>/// Wrapper to output the ElementData along with the node when formatting for</span>
-<span class='doccomment'>/// Debug.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ShowData</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span>(<span class='kw'>pub</span> <span class='ident'>N</span>);
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span> <span class='ident'>Debug</span> <span class='kw'>for</span> <span class='ident'>ShowData</span><span class='op'>&lt;</span><span class='ident'>N</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>f</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fmt</span>::<span class='ident'>Formatter</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
-        <span class='ident'>fmt_with_data</span>(<span class='ident'>f</span>, <span class='self'>self</span>.<span class='number'>0</span>)
-    }
-}
-
-<span class='doccomment'>/// Wrapper to output the primary computed values along with the node when</span>
-<span class='doccomment'>/// formatting for Debug. This is very verbose.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ShowDataAndPrimaryValues</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span>(<span class='kw'>pub</span> <span class='ident'>N</span>);
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span> <span class='ident'>Debug</span> <span class='kw'>for</span> <span class='ident'>ShowDataAndPrimaryValues</span><span class='op'>&lt;</span><span class='ident'>N</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>f</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fmt</span>::<span class='ident'>Formatter</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
-        <span class='ident'>fmt_with_data_and_primary_values</span>(<span class='ident'>f</span>, <span class='self'>self</span>.<span class='number'>0</span>)
+<span class="doccomment">/// Wrapper to output the ElementData along with the node when formatting for</span>
+<span class="doccomment">/// Debug.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ShowData</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span>(<span class="kw">pub</span> <span class="ident">N</span>);
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span> <span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">ShowData</span><span class="op">&lt;</span><span class="ident">N</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="ident">fmt_with_data</span>(<span class="ident">f</span>, <span class="self">self</span>.<span class="number">0</span>)
     }
 }
 
-<span class='doccomment'>/// Wrapper to output the subtree rather than the single node when formatting</span>
-<span class='doccomment'>/// for Debug.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ShowSubtree</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span>(<span class='kw'>pub</span> <span class='ident'>N</span>);
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span> <span class='ident'>Debug</span> <span class='kw'>for</span> <span class='ident'>ShowSubtree</span><span class='op'>&lt;</span><span class='ident'>N</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>f</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fmt</span>::<span class='ident'>Formatter</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='macro'>writeln</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;DOM Subtree:&quot;</span>));
-        <span class='ident'>fmt_subtree</span>(<span class='ident'>f</span>, <span class='kw-2'>&amp;</span><span class='op'>|</span><span class='ident'>f</span>, <span class='ident'>n</span><span class='op'>|</span> <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;{:?}&quot;</span>, <span class='ident'>n</span>), <span class='self'>self</span>.<span class='number'>0</span>, <span class='number'>1</span>)
+<span class="doccomment">/// Wrapper to output the primary computed values along with the node when</span>
+<span class="doccomment">/// formatting for Debug. This is very verbose.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ShowDataAndPrimaryValues</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span>(<span class="kw">pub</span> <span class="ident">N</span>);
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span> <span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">ShowDataAndPrimaryValues</span><span class="op">&lt;</span><span class="ident">N</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="ident">fmt_with_data_and_primary_values</span>(<span class="ident">f</span>, <span class="self">self</span>.<span class="number">0</span>)
     }
 }
 
-<span class='doccomment'>/// Wrapper to output the subtree along with the ElementData when formatting</span>
-<span class='doccomment'>/// for Debug.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ShowSubtreeData</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span>(<span class='kw'>pub</span> <span class='ident'>N</span>);
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span> <span class='ident'>Debug</span> <span class='kw'>for</span> <span class='ident'>ShowSubtreeData</span><span class='op'>&lt;</span><span class='ident'>N</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>f</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fmt</span>::<span class='ident'>Formatter</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='macro'>writeln</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;DOM Subtree:&quot;</span>));
-        <span class='ident'>fmt_subtree</span>(<span class='ident'>f</span>, <span class='kw-2'>&amp;</span><span class='op'>|</span><span class='ident'>f</span>, <span class='ident'>n</span><span class='op'>|</span> <span class='ident'>fmt_with_data</span>(<span class='ident'>f</span>, <span class='ident'>n</span>), <span class='self'>self</span>.<span class='number'>0</span>, <span class='number'>1</span>)
+<span class="doccomment">/// Wrapper to output the subtree rather than the single node when formatting</span>
+<span class="doccomment">/// for Debug.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ShowSubtree</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span>(<span class="kw">pub</span> <span class="ident">N</span>);
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span> <span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">ShowSubtree</span><span class="op">&lt;</span><span class="ident">N</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="macro">try</span><span class="macro">!</span>(<span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;DOM Subtree:&quot;</span>));
+        <span class="ident">fmt_subtree</span>(<span class="ident">f</span>, <span class="kw-2">&amp;</span><span class="op">|</span><span class="ident">f</span>, <span class="ident">n</span><span class="op">|</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{:?}&quot;</span>, <span class="ident">n</span>), <span class="self">self</span>.<span class="number">0</span>, <span class="number">1</span>)
     }
 }
 
-<span class='doccomment'>/// Wrapper to output the subtree along with the ElementData and primary</span>
-<span class='doccomment'>/// ComputedValues when formatting for Debug. This is extremely verbose.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ShowSubtreeDataAndPrimaryValues</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span>(<span class='kw'>pub</span> <span class='ident'>N</span>);
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span> <span class='ident'>Debug</span> <span class='kw'>for</span> <span class='ident'>ShowSubtreeDataAndPrimaryValues</span><span class='op'>&lt;</span><span class='ident'>N</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>f</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fmt</span>::<span class='ident'>Formatter</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='macro'>writeln</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;DOM Subtree:&quot;</span>));
-        <span class='ident'>fmt_subtree</span>(<span class='ident'>f</span>, <span class='kw-2'>&amp;</span><span class='op'>|</span><span class='ident'>f</span>, <span class='ident'>n</span><span class='op'>|</span> <span class='ident'>fmt_with_data_and_primary_values</span>(<span class='ident'>f</span>, <span class='ident'>n</span>), <span class='self'>self</span>.<span class='number'>0</span>, <span class='number'>1</span>)
+<span class="doccomment">/// Wrapper to output the subtree along with the ElementData when formatting</span>
+<span class="doccomment">/// for Debug.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ShowSubtreeData</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span>(<span class="kw">pub</span> <span class="ident">N</span>);
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span> <span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">ShowSubtreeData</span><span class="op">&lt;</span><span class="ident">N</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="macro">try</span><span class="macro">!</span>(<span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;DOM Subtree:&quot;</span>));
+        <span class="ident">fmt_subtree</span>(<span class="ident">f</span>, <span class="kw-2">&amp;</span><span class="op">|</span><span class="ident">f</span>, <span class="ident">n</span><span class="op">|</span> <span class="ident">fmt_with_data</span>(<span class="ident">f</span>, <span class="ident">n</span>), <span class="self">self</span>.<span class="number">0</span>, <span class="number">1</span>)
     }
 }
 
-<span class='kw'>fn</span> <span class='ident'>fmt_with_data</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span>(<span class='ident'>f</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fmt</span>::<span class='ident'>Formatter</span>, <span class='ident'>n</span>: <span class='ident'>N</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
-    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>el</span>) <span class='op'>=</span> <span class='ident'>n</span>.<span class='ident'>as_element</span>() {
-        <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;{:?} dd={} data={:?}&quot;</span>, <span class='ident'>el</span>, <span class='ident'>el</span>.<span class='ident'>has_dirty_descendants</span>(), <span class='ident'>el</span>.<span class='ident'>borrow_data</span>())
-    } <span class='kw'>else</span> {
-        <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;{:?}&quot;</span>, <span class='ident'>n</span>)
+<span class="doccomment">/// Wrapper to output the subtree along with the ElementData and primary</span>
+<span class="doccomment">/// ComputedValues when formatting for Debug. This is extremely verbose.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ShowSubtreeDataAndPrimaryValues</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span>(<span class="kw">pub</span> <span class="ident">N</span>);
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span> <span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">ShowSubtreeDataAndPrimaryValues</span><span class="op">&lt;</span><span class="ident">N</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="macro">try</span><span class="macro">!</span>(<span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;DOM Subtree:&quot;</span>));
+        <span class="ident">fmt_subtree</span>(<span class="ident">f</span>, <span class="kw-2">&amp;</span><span class="op">|</span><span class="ident">f</span>, <span class="ident">n</span><span class="op">|</span> <span class="ident">fmt_with_data_and_primary_values</span>(<span class="ident">f</span>, <span class="ident">n</span>), <span class="self">self</span>.<span class="number">0</span>, <span class="number">1</span>)
     }
 }
 
-<span class='kw'>fn</span> <span class='ident'>fmt_with_data_and_primary_values</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span>(<span class='ident'>f</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fmt</span>::<span class='ident'>Formatter</span>, <span class='ident'>n</span>: <span class='ident'>N</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
-    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>el</span>) <span class='op'>=</span> <span class='ident'>n</span>.<span class='ident'>as_element</span>() {
-        <span class='kw'>let</span> <span class='ident'>dd</span> <span class='op'>=</span> <span class='ident'>el</span>.<span class='ident'>has_dirty_descendants</span>();
-        <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='ident'>el</span>.<span class='ident'>borrow_data</span>();
-        <span class='kw'>let</span> <span class='ident'>styles</span> <span class='op'>=</span> <span class='ident'>data</span>.<span class='ident'>as_ref</span>().<span class='ident'>and_then</span>(<span class='op'>|</span><span class='ident'>d</span><span class='op'>|</span> <span class='ident'>d</span>.<span class='ident'>get_styles</span>());
-        <span class='kw'>let</span> <span class='ident'>values</span> <span class='op'>=</span> <span class='ident'>styles</span>.<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> <span class='ident'>s</span>.<span class='ident'>primary</span>.<span class='ident'>values</span>());
-        <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;{:?} dd={} data={:?} values={:?}&quot;</span>, <span class='ident'>el</span>, <span class='ident'>dd</span>, <span class='kw-2'>&amp;</span><span class='ident'>data</span>, <span class='ident'>values</span>)
-    } <span class='kw'>else</span> {
-        <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;{:?}&quot;</span>, <span class='ident'>n</span>)
+<span class="kw">fn</span> <span class="ident">fmt_with_data</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span>(<span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>, <span class="ident">n</span>: <span class="ident">N</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">el</span>) <span class="op">=</span> <span class="ident">n</span>.<span class="ident">as_element</span>() {
+        <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{:?} dd={} data={:?}&quot;</span>, <span class="ident">el</span>, <span class="ident">el</span>.<span class="ident">has_dirty_descendants</span>(), <span class="ident">el</span>.<span class="ident">borrow_data</span>())
+    } <span class="kw">else</span> {
+        <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{:?}&quot;</span>, <span class="ident">n</span>)
     }
 }
 
-<span class='kw'>fn</span> <span class='ident'>fmt_subtree</span><span class='op'>&lt;</span><span class='ident'>F</span>, <span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span>(<span class='ident'>f</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fmt</span>::<span class='ident'>Formatter</span>, <span class='ident'>stringify</span>: <span class='kw-2'>&amp;</span><span class='ident'>F</span>, <span class='ident'>n</span>: <span class='ident'>N</span>, <span class='ident'>indent</span>: <span class='ident'>u32</span>)
-                            <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span>
-    <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Fn</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fmt</span>::<span class='ident'>Formatter</span>, <span class='ident'>N</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span>
+<span class="kw">fn</span> <span class="ident">fmt_with_data_and_primary_values</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span>(<span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>, <span class="ident">n</span>: <span class="ident">N</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">el</span>) <span class="op">=</span> <span class="ident">n</span>.<span class="ident">as_element</span>() {
+        <span class="kw">let</span> <span class="ident">dd</span> <span class="op">=</span> <span class="ident">el</span>.<span class="ident">has_dirty_descendants</span>();
+        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">el</span>.<span class="ident">borrow_data</span>();
+        <span class="kw">let</span> <span class="ident">styles</span> <span class="op">=</span> <span class="ident">data</span>.<span class="ident">as_ref</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">d</span><span class="op">|</span> <span class="ident">d</span>.<span class="ident">get_styles</span>());
+        <span class="kw">let</span> <span class="ident">values</span> <span class="op">=</span> <span class="ident">styles</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">primary</span>.<span class="ident">values</span>());
+        <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{:?} dd={} data={:?} values={:?}&quot;</span>, <span class="ident">el</span>, <span class="ident">dd</span>, <span class="kw-2">&amp;</span><span class="ident">data</span>, <span class="ident">values</span>)
+    } <span class="kw">else</span> {
+        <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{:?}&quot;</span>, <span class="ident">n</span>)
+    }
+}
+
+<span class="kw">fn</span> <span class="ident">fmt_subtree</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span>(<span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>, <span class="ident">stringify</span>: <span class="kw-2">&amp;</span><span class="ident">F</span>, <span class="ident">n</span>: <span class="ident">N</span>, <span class="ident">indent</span>: <span class="ident">u32</span>)
+                            <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span>
+    <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">Fn</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>, <span class="ident">N</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span>
 {
-    <span class='kw'>for</span> _ <span class='kw'>in</span> <span class='number'>0</span>..<span class='ident'>indent</span> {
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;  &quot;</span>));
+    <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">indent</span> {
+        <span class="macro">try</span><span class="macro">!</span>(<span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;  &quot;</span>));
     }
-    <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>stringify</span>(<span class='ident'>f</span>, <span class='ident'>n</span>));
-    <span class='kw'>for</span> <span class='ident'>kid</span> <span class='kw'>in</span> <span class='ident'>n</span>.<span class='ident'>children</span>() {
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='macro'>writeln</span><span class='macro'>!</span>(<span class='ident'>f</span>, <span class='string'>&quot;&quot;</span>));
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>fmt_subtree</span>(<span class='ident'>f</span>, <span class='ident'>stringify</span>, <span class='ident'>kid</span>, <span class='ident'>indent</span> <span class='op'>+</span> <span class='number'>1</span>));
+    <span class="macro">try</span><span class="macro">!</span>(<span class="ident">stringify</span>(<span class="ident">f</span>, <span class="ident">n</span>));
+    <span class="kw">for</span> <span class="ident">kid</span> <span class="kw">in</span> <span class="ident">n</span>.<span class="ident">children</span>() {
+        <span class="macro">try</span><span class="macro">!</span>(<span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;&quot;</span>));
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">fmt_subtree</span>(<span class="ident">f</span>, <span class="ident">stringify</span>, <span class="ident">kid</span>, <span class="ident">indent</span> <span class="op">+</span> <span class="number">1</span>));
     }
 
-    <span class='prelude-val'>Ok</span>(())
+    <span class="prelude-val">Ok</span>(())
 }
 
-<span class='doccomment'>/// A trait used to synthesize presentational hints for HTML element attributes.</span>
-<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>PresentationalHintsSynthetizer</span> {
-    <span class='doccomment'>/// Generate the proper applicable declarations due to presentational hints,</span>
-    <span class='doccomment'>/// and insert them into `hints`.</span>
-    <span class='kw'>fn</span> <span class='ident'>synthesize_presentational_hints_for_legacy_attributes</span><span class='op'>&lt;</span><span class='ident'>V</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>hints</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>V</span>)
-        <span class='kw'>where</span> <span class='ident'>V</span>: <span class='ident'>Push</span><span class='op'>&lt;</span><span class='ident'>ApplicableDeclarationBlock</span><span class='op'>&gt;</span>;
+<span class="doccomment">/// A trait used to synthesize presentational hints for HTML element attributes.</span>
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">PresentationalHintsSynthetizer</span> {
+    <span class="doccomment">/// Generate the proper applicable declarations due to presentational hints,</span>
+    <span class="doccomment">/// and insert them into `hints`.</span>
+    <span class="kw">fn</span> <span class="ident">synthesize_presentational_hints_for_legacy_attributes</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">hints</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">V</span>)
+        <span class="kw">where</span> <span class="ident">V</span>: <span class="ident">Push</span><span class="op">&lt;</span><span class="ident">ApplicableDeclarationBlock</span><span class="op">&gt;</span>;
 }
 
-<span class='doccomment'>/// The animation rules. The first one is for Animation cascade level, and the second one is for</span>
-<span class='doccomment'>/// Transition cascade level.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>AnimationRules</span>(<span class='kw'>pub</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>RwLock</span><span class='op'>&lt;</span><span class='ident'>PropertyDeclarationBlock</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>,
-                          <span class='kw'>pub</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>RwLock</span><span class='op'>&lt;</span><span class='ident'>PropertyDeclarationBlock</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>);
+<span class="doccomment">/// The animation rules. The first one is for Animation cascade level, and the second one is for</span>
+<span class="doccomment">/// Transition cascade level.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AnimationRules</span>(<span class="kw">pub</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">PropertyDeclarationBlock</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>,
+                          <span class="kw">pub</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">PropertyDeclarationBlock</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>);
 
-<span class='doccomment'>/// The element trait, the main abstraction the style crate acts over.</span>
-<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>TElement</span> : <span class='ident'>PartialEq</span> <span class='op'>+</span> <span class='ident'>Debug</span> <span class='op'>+</span> <span class='ident'>Sized</span> <span class='op'>+</span> <span class='ident'>Copy</span> <span class='op'>+</span> <span class='ident'>Clone</span> <span class='op'>+</span> <span class='ident'>ElementExt</span> <span class='op'>+</span> <span class='ident'>PresentationalHintsSynthetizer</span> {
-    <span class='doccomment'>/// The concrete node type.</span>
-    <span class='kw'>type</span> <span class='ident'>ConcreteNode</span>: <span class='ident'>TNode</span><span class='op'>&lt;</span><span class='ident'>ConcreteElement</span> <span class='op'>=</span> <span class='self'>Self</span><span class='op'>&gt;</span>;
+<span class="doccomment">/// The element trait, the main abstraction the style crate acts over.</span>
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">TElement</span> : <span class="ident">PartialEq</span> <span class="op">+</span> <span class="ident">Debug</span> <span class="op">+</span> <span class="ident">Sized</span> <span class="op">+</span> <span class="ident">Copy</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">ElementExt</span> <span class="op">+</span> <span class="ident">PresentationalHintsSynthetizer</span> {
+    <span class="doccomment">/// The concrete node type.</span>
+    <span class="kw">type</span> <span class="ident">ConcreteNode</span>: <span class="ident">TNode</span><span class="op">&lt;</span><span class="ident">ConcreteElement</span> <span class="op">=</span> <span class="self">Self</span><span class="op">&gt;</span>;
 
-    <span class='doccomment'>/// Get this element as a node.</span>
-    <span class='kw'>fn</span> <span class='ident'>as_node</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span>::<span class='ident'>ConcreteNode</span>;
+    <span class="doccomment">/// Get this element as a node.</span>
+    <span class="kw">fn</span> <span class="ident">as_node</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">ConcreteNode</span>;
 
-    <span class='doccomment'>/// While doing a reflow, the element at the root has no parent, as far as we&#39;re</span>
-    <span class='doccomment'>/// concerned. This method returns `None` at the reflow root.</span>
-    <span class='kw'>fn</span> <span class='ident'>layout_parent_element</span>(<span class='self'>self</span>, <span class='ident'>reflow_root</span>: <span class='ident'>OpaqueNode</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='self'>Self</span><span class='op'>&gt;</span> {
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>as_node</span>().<span class='ident'>opaque</span>() <span class='op'>==</span> <span class='ident'>reflow_root</span> {
-            <span class='prelude-val'>None</span>
-        } <span class='kw'>else</span> {
-            <span class='self'>self</span>.<span class='ident'>parent_element</span>()
+    <span class="doccomment">/// While doing a reflow, the element at the root has no parent, as far as we&#39;re</span>
+    <span class="doccomment">/// concerned. This method returns `None` at the reflow root.</span>
+    <span class="kw">fn</span> <span class="ident">layout_parent_element</span>(<span class="self">self</span>, <span class="ident">reflow_root</span>: <span class="ident">OpaqueNode</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">as_node</span>().<span class="ident">opaque</span>() <span class="op">==</span> <span class="ident">reflow_root</span> {
+            <span class="prelude-val">None</span>
+        } <span class="kw">else</span> {
+            <span class="self">self</span>.<span class="ident">parent_element</span>()
         }
     }
 
-    <span class='doccomment'>/// Get this element&#39;s style attribute.</span>
-    <span class='kw'>fn</span> <span class='ident'>style_attribute</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>RwLock</span><span class='op'>&lt;</span><span class='ident'>PropertyDeclarationBlock</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>;
+    <span class="doccomment">/// Get this element&#39;s style attribute.</span>
+    <span class="kw">fn</span> <span class="ident">style_attribute</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">PropertyDeclarationBlock</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>;
 
-    <span class='doccomment'>/// Get this element&#39;s animation rules.</span>
-    <span class='kw'>fn</span> <span class='ident'>get_animation_rules</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_pseudo</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>PseudoElement</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>AnimationRules</span> {
-        <span class='ident'>AnimationRules</span>(<span class='prelude-val'>None</span>, <span class='prelude-val'>None</span>)
+    <span class="doccomment">/// Get this element&#39;s animation rules.</span>
+    <span class="kw">fn</span> <span class="ident">get_animation_rules</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_pseudo</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PseudoElement</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">AnimationRules</span> {
+        <span class="ident">AnimationRules</span>(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
     }
 
-    <span class='doccomment'>/// Get this element&#39;s state, for non-tree-structural pseudos.</span>
-    <span class='kw'>fn</span> <span class='ident'>get_state</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>ElementState</span>;
+    <span class="doccomment">/// Get this element&#39;s state, for non-tree-structural pseudos.</span>
+    <span class="kw">fn</span> <span class="ident">get_state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ElementState</span>;
 
-    <span class='doccomment'>/// Whether this element has an attribute with a given namespace.</span>
-    <span class='kw'>fn</span> <span class='ident'>has_attr</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>namespace</span>: <span class='kw-2'>&amp;</span><span class='ident'>Namespace</span>, <span class='ident'>attr</span>: <span class='kw-2'>&amp;</span><span class='ident'>LocalName</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
+    <span class="doccomment">/// Whether this element has an attribute with a given namespace.</span>
+    <span class="kw">fn</span> <span class="ident">has_attr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">namespace</span>: <span class="kw-2">&amp;</span><span class="ident">Namespace</span>, <span class="ident">attr</span>: <span class="kw-2">&amp;</span><span class="ident">LocalName</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>;
 
-    <span class='doccomment'>/// Whether an attribute value equals `value`.</span>
-    <span class='kw'>fn</span> <span class='ident'>attr_equals</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>namespace</span>: <span class='kw-2'>&amp;</span><span class='ident'>Namespace</span>, <span class='ident'>attr</span>: <span class='kw-2'>&amp;</span><span class='ident'>LocalName</span>, <span class='ident'>value</span>: <span class='kw-2'>&amp;</span><span class='ident'>Atom</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
+    <span class="doccomment">/// Whether an attribute value equals `value`.</span>
+    <span class="kw">fn</span> <span class="ident">attr_equals</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">namespace</span>: <span class="kw-2">&amp;</span><span class="ident">Namespace</span>, <span class="ident">attr</span>: <span class="kw-2">&amp;</span><span class="ident">LocalName</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">Atom</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>;
 
-    <span class='doccomment'>/// Get the pre-existing style to calculate restyle damage (change hints).</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// This needs to be generic since it varies between Servo and Gecko.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// XXX(emilio): It&#39;s a bit unfortunate we need to pass the current computed</span>
-    <span class='doccomment'>/// values as an argument here, but otherwise Servo would crash due to</span>
-    <span class='doccomment'>/// double borrows to return it.</span>
-    <span class='kw'>fn</span> <span class='ident'>existing_style_for_restyle_damage</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='self'>self</span>,
-                                             <span class='ident'>current_computed_values</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>ComputedValues</span><span class='op'>&gt;</span>,
-                                             <span class='ident'>pseudo</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>PseudoElement</span><span class='op'>&gt;</span>)
-                                             <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>PreExistingComputedValues</span><span class='op'>&gt;</span>;
+    <span class="doccomment">/// Get the pre-existing style to calculate restyle damage (change hints).</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This needs to be generic since it varies between Servo and Gecko.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// XXX(emilio): It&#39;s a bit unfortunate we need to pass the current computed</span>
+    <span class="doccomment">/// values as an argument here, but otherwise Servo would crash due to</span>
+    <span class="doccomment">/// double borrows to return it.</span>
+    <span class="kw">fn</span> <span class="ident">existing_style_for_restyle_damage</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
+                                             <span class="ident">current_computed_values</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ComputedValues</span><span class="op">&gt;</span>,
+                                             <span class="ident">pseudo</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PseudoElement</span><span class="op">&gt;</span>)
+                                             <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">PreExistingComputedValues</span><span class="op">&gt;</span>;
 
-    <span class='doccomment'>/// Returns true if this element may have a descendant needing style processing.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Note that we cannot guarantee the existence of such an element, because</span>
-    <span class='doccomment'>/// it may have been removed from the DOM between marking it for restyle and</span>
-    <span class='doccomment'>/// the actual restyle traversal.</span>
-    <span class='kw'>fn</span> <span class='ident'>has_dirty_descendants</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
+    <span class="doccomment">/// Returns true if this element may have a descendant needing style processing.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Note that we cannot guarantee the existence of such an element, because</span>
+    <span class="doccomment">/// it may have been removed from the DOM between marking it for restyle and</span>
+    <span class="doccomment">/// the actual restyle traversal.</span>
+    <span class="kw">fn</span> <span class="ident">has_dirty_descendants</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>;
 
-    <span class='doccomment'>/// Flag that this element has a descendant for style processing.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Only safe to call with exclusive access to the element.</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>set_dirty_descendants</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>);
+    <span class="doccomment">/// Flag that this element has a descendant for style processing.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Only safe to call with exclusive access to the element.</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">set_dirty_descendants</span>(<span class="kw-2">&amp;</span><span class="self">self</span>);
 
-    <span class='doccomment'>/// Flag that this element has no descendant for style processing.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Only safe to call with exclusive access to the element.</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>unset_dirty_descendants</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>);
+    <span class="doccomment">/// Flag that this element has no descendant for style processing.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Only safe to call with exclusive access to the element.</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">unset_dirty_descendants</span>(<span class="kw-2">&amp;</span><span class="self">self</span>);
 
-    <span class='doccomment'>/// Atomically stores the number of children of this node that we will</span>
-    <span class='doccomment'>/// need to process during bottom-up traversal.</span>
-    <span class='kw'>fn</span> <span class='ident'>store_children_to_process</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>n</span>: <span class='ident'>isize</span>);
+    <span class="doccomment">/// Atomically stores the number of children of this node that we will</span>
+    <span class="doccomment">/// need to process during bottom-up traversal.</span>
+    <span class="kw">fn</span> <span class="ident">store_children_to_process</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">n</span>: <span class="ident">isize</span>);
 
-    <span class='doccomment'>/// Atomically notes that a child has been processed during bottom-up</span>
-    <span class='doccomment'>/// traversal. Returns the number of children left to process.</span>
-    <span class='kw'>fn</span> <span class='ident'>did_process_child</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>isize</span>;
+    <span class="doccomment">/// Atomically notes that a child has been processed during bottom-up</span>
+    <span class="doccomment">/// traversal. Returns the number of children left to process.</span>
+    <span class="kw">fn</span> <span class="ident">did_process_child</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">isize</span>;
 
-    <span class='doccomment'>/// Gets a reference to the ElementData container.</span>
-    <span class='kw'>fn</span> <span class='ident'>get_data</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>AtomicRefCell</span><span class='op'>&lt;</span><span class='ident'>ElementData</span><span class='op'>&gt;&gt;</span>;
+    <span class="doccomment">/// Gets a reference to the ElementData container.</span>
+    <span class="kw">fn</span> <span class="ident">get_data</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AtomicRefCell</span><span class="op">&lt;</span><span class="ident">ElementData</span><span class="op">&gt;&gt;</span>;
 
-    <span class='doccomment'>/// Immutably borrows the ElementData.</span>
-    <span class='kw'>fn</span> <span class='ident'>borrow_data</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>AtomicRef</span><span class='op'>&lt;</span><span class='ident'>ElementData</span><span class='op'>&gt;&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>get_data</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>x</span><span class='op'>|</span> <span class='ident'>x</span>.<span class='ident'>borrow</span>())
+    <span class="doccomment">/// Immutably borrows the ElementData.</span>
+    <span class="kw">fn</span> <span class="ident">borrow_data</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">AtomicRef</span><span class="op">&lt;</span><span class="ident">ElementData</span><span class="op">&gt;&gt;</span> {
+        <span class="self">self</span>.<span class="ident">get_data</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">borrow</span>())
     }
 
-    <span class='doccomment'>/// Mutably borrows the ElementData.</span>
-    <span class='kw'>fn</span> <span class='ident'>mutate_data</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>AtomicRefMut</span><span class='op'>&lt;</span><span class='ident'>ElementData</span><span class='op'>&gt;&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>get_data</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>x</span><span class='op'>|</span> <span class='ident'>x</span>.<span class='ident'>borrow_mut</span>())
+    <span class="doccomment">/// Mutably borrows the ElementData.</span>
+    <span class="kw">fn</span> <span class="ident">mutate_data</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">AtomicRefMut</span><span class="op">&lt;</span><span class="ident">ElementData</span><span class="op">&gt;&gt;</span> {
+        <span class="self">self</span>.<span class="ident">get_data</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">borrow_mut</span>())
     }
 
-    <span class='doccomment'>/// Whether we should skip any root- or item-based display property</span>
-    <span class='doccomment'>/// blockification on this element.  (This function exists so that Gecko</span>
-    <span class='doccomment'>/// native anonymous content can opt out of this style fixup.)</span>
-    <span class='kw'>fn</span> <span class='ident'>skip_root_and_item_based_display_fixup</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
+    <span class="doccomment">/// Whether we should skip any root- or item-based display property</span>
+    <span class="doccomment">/// blockification on this element.  (This function exists so that Gecko</span>
+    <span class="doccomment">/// native anonymous content can opt out of this style fixup.)</span>
+    <span class="kw">fn</span> <span class="ident">skip_root_and_item_based_display_fixup</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>;
 
-    <span class='doccomment'>/// Sets selector flags, which indicate what kinds of selectors may have</span>
-    <span class='doccomment'>/// matched on this element and therefore what kind of work may need to</span>
-    <span class='doccomment'>/// be performed when DOM state changes.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// This is unsafe, like all the flag-setting methods, because it&#39;s only safe</span>
-    <span class='doccomment'>/// to call with exclusive access to the element. When setting flags on the</span>
-    <span class='doccomment'>/// parent during parallel traversal, we use SequentialTask to queue up the</span>
-    <span class='doccomment'>/// set to run after the threads join.</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>set_selector_flags</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>flags</span>: <span class='ident'>ElementSelectorFlags</span>);
+    <span class="doccomment">/// Sets selector flags, which indicate what kinds of selectors may have</span>
+    <span class="doccomment">/// matched on this element and therefore what kind of work may need to</span>
+    <span class="doccomment">/// be performed when DOM state changes.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is unsafe, like all the flag-setting methods, because it&#39;s only safe</span>
+    <span class="doccomment">/// to call with exclusive access to the element. When setting flags on the</span>
+    <span class="doccomment">/// parent during parallel traversal, we use SequentialTask to queue up the</span>
+    <span class="doccomment">/// set to run after the threads join.</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">set_selector_flags</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">flags</span>: <span class="ident">ElementSelectorFlags</span>);
 
-    <span class='doccomment'>/// Returns true if the element has all the specified selector flags.</span>
-    <span class='kw'>fn</span> <span class='ident'>has_selector_flags</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>flags</span>: <span class='ident'>ElementSelectorFlags</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
+    <span class="doccomment">/// Returns true if the element has all the specified selector flags.</span>
+    <span class="kw">fn</span> <span class="ident">has_selector_flags</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">flags</span>: <span class="ident">ElementSelectorFlags</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>;
 
-    <span class='doccomment'>/// Creates a task to update CSS Animations on a given (pseudo-)element.</span>
-    <span class='doccomment'>/// Note: Gecko only.</span>
-    <span class='kw'>fn</span> <span class='ident'>update_animations</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_pseudo</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>PseudoElement</span><span class='op'>&gt;</span>);
+    <span class="doccomment">/// Creates a task to update CSS Animations on a given (pseudo-)element.</span>
+    <span class="doccomment">/// Note: Gecko only.</span>
+    <span class="kw">fn</span> <span class="ident">update_animations</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_pseudo</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PseudoElement</span><span class="op">&gt;</span>);
 
-    <span class='doccomment'>/// Returns true if the element has a CSS animation.</span>
-    <span class='kw'>fn</span> <span class='ident'>has_css_animations</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>_pseudo</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>PseudoElement</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
+    <span class="doccomment">/// Returns true if the element has a CSS animation.</span>
+    <span class="kw">fn</span> <span class="ident">has_css_animations</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_pseudo</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PseudoElement</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>;
 }
 
-<span class='doccomment'>/// TNode and TElement aren&#39;t Send because we want to be careful and explicit</span>
-<span class='doccomment'>/// about our parallel traversal. However, there are certain situations</span>
-<span class='doccomment'>/// (including but not limited to the traversal) where we need to send DOM</span>
-<span class='doccomment'>/// objects to other threads.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// That&#39;s the reason why `SendNode` exists.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>Debug</span>, <span class='ident'>PartialEq</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>SendNode</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span>(<span class='ident'>N</span>);
-<span class='kw'>unsafe</span> <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span> <span class='ident'>Send</span> <span class='kw'>for</span> <span class='ident'>SendNode</span><span class='op'>&lt;</span><span class='ident'>N</span><span class='op'>&gt;</span> {}
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span> <span class='ident'>SendNode</span><span class='op'>&lt;</span><span class='ident'>N</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Unsafely construct a SendNode.</span>
-    <span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>node</span>: <span class='ident'>N</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='ident'>SendNode</span>(<span class='ident'>node</span>)
+<span class="doccomment">/// TNode and TElement aren&#39;t Send because we want to be careful and explicit</span>
+<span class="doccomment">/// about our parallel traversal. However, there are certain situations</span>
+<span class="doccomment">/// (including but not limited to the traversal) where we need to send DOM</span>
+<span class="doccomment">/// objects to other threads.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// That&#39;s the reason why `SendNode` exists.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SendNode</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span>(<span class="ident">N</span>);
+<span class="kw">unsafe</span> <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">SendNode</span><span class="op">&lt;</span><span class="ident">N</span><span class="op">&gt;</span> {}
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span> <span class="ident">SendNode</span><span class="op">&lt;</span><span class="ident">N</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Unsafely construct a SendNode.</span>
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">node</span>: <span class="ident">N</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">SendNode</span>(<span class="ident">node</span>)
     }
 }
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>N</span>: <span class='ident'>TNode</span><span class='op'>&gt;</span> <span class='ident'>Deref</span> <span class='kw'>for</span> <span class='ident'>SendNode</span><span class='op'>&lt;</span><span class='ident'>N</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Target</span> <span class='op'>=</span> <span class='ident'>N</span>;
-    <span class='kw'>fn</span> <span class='ident'>deref</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>N</span> {
-        <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='number'>0</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">N</span>: <span class="ident">TNode</span><span class="op">&gt;</span> <span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">SendNode</span><span class="op">&lt;</span><span class="ident">N</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">N</span>;
+    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">N</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
     }
 }
 
-<span class='doccomment'>/// Same reason as for the existence of SendNode, SendElement does the proper</span>
-<span class='doccomment'>/// things for a given `TElement`.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>PartialEq</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>SendElement</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span>(<span class='ident'>E</span>);
-<span class='kw'>unsafe</span> <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> <span class='ident'>Send</span> <span class='kw'>for</span> <span class='ident'>SendElement</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span> {}
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> <span class='ident'>SendElement</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Unsafely construct a SendElement.</span>
-    <span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>el</span>: <span class='ident'>E</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='ident'>SendElement</span>(<span class='ident'>el</span>)
+<span class="doccomment">/// Same reason as for the existence of SendNode, SendElement does the proper</span>
+<span class="doccomment">/// things for a given `TElement`.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">PartialEq</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SendElement</span><span class="op">&lt;</span><span class="ident">E</span>: <span class="ident">TElement</span><span class="op">&gt;</span>(<span class="ident">E</span>);
+<span class="kw">unsafe</span> <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">E</span>: <span class="ident">TElement</span><span class="op">&gt;</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">SendElement</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span> {}
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">E</span>: <span class="ident">TElement</span><span class="op">&gt;</span> <span class="ident">SendElement</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Unsafely construct a SendElement.</span>
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">el</span>: <span class="ident">E</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">SendElement</span>(<span class="ident">el</span>)
     }
 }
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='ident'>TElement</span><span class='op'>&gt;</span> <span class='ident'>Deref</span> <span class='kw'>for</span> <span class='ident'>SendElement</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Target</span> <span class='op'>=</span> <span class='ident'>E</span>;
-    <span class='kw'>fn</span> <span class='ident'>deref</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>E</span> {
-        <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='number'>0</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">E</span>: <span class="ident">TElement</span><span class="op">&gt;</span> <span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">SendElement</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">E</span>;
+    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">E</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
     }
 }
 </pre>

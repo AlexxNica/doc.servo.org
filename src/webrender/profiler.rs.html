@@ -753,715 +753,715 @@
 <span id="708">708</span>
 <span id="709">709</span>
 <span id="710">710</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='kw'>use</span> <span class='ident'>debug_render</span>::<span class='ident'>DebugRenderer</span>;
-<span class='kw'>use</span> <span class='ident'>device</span>::{<span class='ident'>GpuMarker</span>, <span class='ident'>GpuSample</span>, <span class='ident'>NamedTag</span>};
-<span class='kw'>use</span> <span class='ident'>euclid</span>::{<span class='ident'>Point2D</span>, <span class='ident'>Size2D</span>, <span class='ident'>Rect</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>vec_deque</span>::<span class='ident'>VecDeque</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>f32</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
-<span class='kw'>use</span> <span class='ident'>webrender_traits</span>::<span class='ident'>ColorF</span>;
-<span class='kw'>use</span> <span class='ident'>time</span>::<span class='ident'>precise_time_ns</span>;
+<span class="kw">use</span> <span class="ident">debug_render</span>::<span class="ident">DebugRenderer</span>;
+<span class="kw">use</span> <span class="ident">device</span>::{<span class="ident">GpuMarker</span>, <span class="ident">GpuSample</span>, <span class="ident">NamedTag</span>};
+<span class="kw">use</span> <span class="ident">euclid</span>::{<span class="ident">Point2D</span>, <span class="ident">Size2D</span>, <span class="ident">Rect</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">vec_deque</span>::<span class="ident">VecDeque</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">f32</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
+<span class="kw">use</span> <span class="ident">webrender_traits</span>::<span class="ident">ColorF</span>;
+<span class="kw">use</span> <span class="ident">time</span>::<span class="ident">precise_time_ns</span>;
 
-<span class='kw'>const</span> <span class='ident'>GRAPH_WIDTH</span>: <span class='ident'>f32</span> <span class='op'>=</span> <span class='number'>1024.0</span>;
-<span class='kw'>const</span> <span class='ident'>GRAPH_HEIGHT</span>: <span class='ident'>f32</span> <span class='op'>=</span> <span class='number'>320.0</span>;
-<span class='kw'>const</span> <span class='ident'>GRAPH_PADDING</span>: <span class='ident'>f32</span> <span class='op'>=</span> <span class='number'>8.0</span>;
-<span class='kw'>const</span> <span class='ident'>GRAPH_FRAME_HEIGHT</span>: <span class='ident'>f32</span> <span class='op'>=</span> <span class='number'>16.0</span>;
-<span class='kw'>const</span> <span class='ident'>PROFILE_PADDING</span>: <span class='ident'>f32</span> <span class='op'>=</span> <span class='number'>10.0</span>;
+<span class="kw">const</span> <span class="ident">GRAPH_WIDTH</span>: <span class="ident">f32</span> <span class="op">=</span> <span class="number">1024.0</span>;
+<span class="kw">const</span> <span class="ident">GRAPH_HEIGHT</span>: <span class="ident">f32</span> <span class="op">=</span> <span class="number">320.0</span>;
+<span class="kw">const</span> <span class="ident">GRAPH_PADDING</span>: <span class="ident">f32</span> <span class="op">=</span> <span class="number">8.0</span>;
+<span class="kw">const</span> <span class="ident">GRAPH_FRAME_HEIGHT</span>: <span class="ident">f32</span> <span class="op">=</span> <span class="number">16.0</span>;
+<span class="kw">const</span> <span class="ident">PROFILE_PADDING</span>: <span class="ident">f32</span> <span class="op">=</span> <span class="number">10.0</span>;
 
-<span class='kw'>const</span> <span class='ident'>ONE_SECOND_NS</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='number'>1000000000</span>;
+<span class="kw">const</span> <span class="ident">ONE_SECOND_NS</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">1000000000</span>;
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Clone</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>GpuProfileTag</span> {
-    <span class='kw'>pub</span> <span class='ident'>label</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>,
-    <span class='kw'>pub</span> <span class='ident'>color</span>: <span class='ident'>ColorF</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GpuProfileTag</span> {
+    <span class="kw">pub</span> <span class="ident">label</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+    <span class="kw">pub</span> <span class="ident">color</span>: <span class="ident">ColorF</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>NamedTag</span> <span class='kw'>for</span> <span class='ident'>GpuProfileTag</span> {
-    <span class='kw'>fn</span> <span class='ident'>get_label</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>str</span> {
-        <span class='self'>self</span>.<span class='ident'>label</span>
+<span class="kw">impl</span> <span class="ident">NamedTag</span> <span class="kw">for</span> <span class="ident">GpuProfileTag</span> {
+    <span class="kw">fn</span> <span class="ident">get_label</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+        <span class="self">self</span>.<span class="ident">label</span>
     }
 }
 
-<span class='kw'>trait</span> <span class='ident'>ProfileCounter</span> {
-    <span class='kw'>fn</span> <span class='ident'>description</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>;
-    <span class='kw'>fn</span> <span class='ident'>value</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>String</span>;
+<span class="kw">trait</span> <span class="ident">ProfileCounter</span> {
+    <span class="kw">fn</span> <span class="ident">description</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>;
+    <span class="kw">fn</span> <span class="ident">value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">String</span>;
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>IntProfileCounter</span> {
-    <span class='ident'>description</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>,
-    <span class='ident'>value</span>: <span class='ident'>usize</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">IntProfileCounter</span> {
+    <span class="ident">description</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+    <span class="ident">value</span>: <span class="ident">usize</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>IntProfileCounter</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>description</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='ident'>IntProfileCounter</span> {
-        <span class='ident'>IntProfileCounter</span> {
-            <span class='ident'>description</span>: <span class='ident'>description</span>,
-            <span class='ident'>value</span>: <span class='number'>0</span>,
+<span class="kw">impl</span> <span class="ident">IntProfileCounter</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">description</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">IntProfileCounter</span> {
+        <span class="ident">IntProfileCounter</span> {
+            <span class="ident">description</span>: <span class="ident">description</span>,
+            <span class="ident">value</span>: <span class="number">0</span>,
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>reset</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>value</span> <span class='op'>=</span> <span class='number'>0</span>;
+    <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">value</span> <span class="op">=</span> <span class="number">0</span>;
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>inc</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>value</span> <span class='op'>+=</span> <span class='number'>1</span>;
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">inc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">value</span> <span class="op">+=</span> <span class="number">1</span>;
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>add</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>amount</span>: <span class='ident'>usize</span>) {
-        <span class='self'>self</span>.<span class='ident'>value</span> <span class='op'>+=</span> <span class='ident'>amount</span>;
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">amount</span>: <span class="ident">usize</span>) {
+        <span class="self">self</span>.<span class="ident">value</span> <span class="op">+=</span> <span class="ident">amount</span>;
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>amount</span>: <span class='ident'>usize</span>) {
-        <span class='self'>self</span>.<span class='ident'>value</span> <span class='op'>=</span> <span class='ident'>amount</span>;
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">amount</span>: <span class="ident">usize</span>) {
+        <span class="self">self</span>.<span class="ident">value</span> <span class="op">=</span> <span class="ident">amount</span>;
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-        <span class='self'>self</span>.<span class='ident'>value</span>
-    }
-}
-
-<span class='kw'>impl</span> <span class='ident'>ProfileCounter</span> <span class='kw'>for</span> <span class='ident'>IntProfileCounter</span> {
-    <span class='kw'>fn</span> <span class='ident'>description</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span> {
-        <span class='self'>self</span>.<span class='ident'>description</span>
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>value</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>String</span> {
-        <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;{}&quot;</span>, <span class='self'>self</span>.<span class='ident'>value</span>)
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">value</span>
     }
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ResourceProfileCounter</span> {
-    <span class='ident'>description</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>,
-    <span class='ident'>value</span>: <span class='ident'>usize</span>,
-    <span class='ident'>size</span>: <span class='ident'>usize</span>,
+<span class="kw">impl</span> <span class="ident">ProfileCounter</span> <span class="kw">for</span> <span class="ident">IntProfileCounter</span> {
+    <span class="kw">fn</span> <span class="ident">description</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+        <span class="self">self</span>.<span class="ident">description</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">String</span> {
+        <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="ident">value</span>)
+    }
 }
 
-<span class='kw'>impl</span> <span class='ident'>ResourceProfileCounter</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>description</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='ident'>ResourceProfileCounter</span> {
-        <span class='ident'>ResourceProfileCounter</span> {
-            <span class='ident'>description</span>: <span class='ident'>description</span>,
-            <span class='ident'>value</span>: <span class='number'>0</span>,
-            <span class='ident'>size</span>: <span class='number'>0</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ResourceProfileCounter</span> {
+    <span class="ident">description</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+    <span class="ident">value</span>: <span class="ident">usize</span>,
+    <span class="ident">size</span>: <span class="ident">usize</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">ResourceProfileCounter</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">description</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">ResourceProfileCounter</span> {
+        <span class="ident">ResourceProfileCounter</span> {
+            <span class="ident">description</span>: <span class="ident">description</span>,
+            <span class="ident">value</span>: <span class="number">0</span>,
+            <span class="ident">size</span>: <span class="number">0</span>,
         }
     }
 
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>reset</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>value</span> <span class='op'>=</span> <span class='number'>0</span>;
-        <span class='self'>self</span>.<span class='ident'>size</span> <span class='op'>=</span> <span class='number'>0</span>;
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">value</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="self">self</span>.<span class="ident">size</span> <span class="op">=</span> <span class="number">0</span>;
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>inc</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>size</span>: <span class='ident'>usize</span>) {
-        <span class='self'>self</span>.<span class='ident'>value</span> <span class='op'>+=</span> <span class='number'>1</span>;
-        <span class='self'>self</span>.<span class='ident'>size</span> <span class='op'>+=</span> <span class='ident'>size</span>;
-    }
-}
-
-<span class='kw'>impl</span> <span class='ident'>ProfileCounter</span> <span class='kw'>for</span> <span class='ident'>ResourceProfileCounter</span> {
-    <span class='kw'>fn</span> <span class='ident'>description</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span> {
-        <span class='self'>self</span>.<span class='ident'>description</span>
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>value</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>String</span> {
-        <span class='kw'>let</span> <span class='ident'>size</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>size</span> <span class='kw'>as</span> <span class='ident'>f32</span> <span class='op'>/</span> (<span class='number'>1024.0</span> <span class='op'>*</span> <span class='number'>1024.0</span>);
-        <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;{} ({:.2} MB)&quot;</span>, <span class='self'>self</span>.<span class='ident'>value</span>, <span class='ident'>size</span>)
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">inc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">size</span>: <span class="ident">usize</span>) {
+        <span class="self">self</span>.<span class="ident">value</span> <span class="op">+=</span> <span class="number">1</span>;
+        <span class="self">self</span>.<span class="ident">size</span> <span class="op">+=</span> <span class="ident">size</span>;
     }
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>TimeProfileCounter</span> {
-    <span class='ident'>description</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>,
-    <span class='ident'>nanoseconds</span>: <span class='ident'>u64</span>,
-    <span class='ident'>invert</span>: <span class='ident'>bool</span>,
+<span class="kw">impl</span> <span class="ident">ProfileCounter</span> <span class="kw">for</span> <span class="ident">ResourceProfileCounter</span> {
+    <span class="kw">fn</span> <span class="ident">description</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+        <span class="self">self</span>.<span class="ident">description</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">String</span> {
+        <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">size</span> <span class="kw">as</span> <span class="ident">f32</span> <span class="op">/</span> (<span class="number">1024.0</span> <span class="op">*</span> <span class="number">1024.0</span>);
+        <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{} ({:.2} MB)&quot;</span>, <span class="self">self</span>.<span class="ident">value</span>, <span class="ident">size</span>)
+    }
 }
 
-<span class='kw'>impl</span> <span class='ident'>TimeProfileCounter</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>description</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>, <span class='ident'>invert</span>: <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='ident'>TimeProfileCounter</span> {
-        <span class='ident'>TimeProfileCounter</span> {
-            <span class='ident'>description</span>: <span class='ident'>description</span>,
-            <span class='ident'>nanoseconds</span>: <span class='number'>0</span>,
-            <span class='ident'>invert</span>: <span class='ident'>invert</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TimeProfileCounter</span> {
+    <span class="ident">description</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+    <span class="ident">nanoseconds</span>: <span class="ident">u64</span>,
+    <span class="ident">invert</span>: <span class="ident">bool</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">TimeProfileCounter</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">description</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">invert</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">TimeProfileCounter</span> {
+        <span class="ident">TimeProfileCounter</span> {
+            <span class="ident">description</span>: <span class="ident">description</span>,
+            <span class="ident">nanoseconds</span>: <span class="number">0</span>,
+            <span class="ident">invert</span>: <span class="ident">invert</span>,
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>reset</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>nanoseconds</span> <span class='op'>=</span> <span class='number'>0</span>;
+    <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">nanoseconds</span> <span class="op">=</span> <span class="number">0</span>;
     }
 
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>ns</span>: <span class='ident'>u64</span>) {
-        <span class='self'>self</span>.<span class='ident'>nanoseconds</span> <span class='op'>=</span> <span class='ident'>ns</span>;
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ns</span>: <span class="ident">u64</span>) {
+        <span class="self">self</span>.<span class="ident">nanoseconds</span> <span class="op">=</span> <span class="ident">ns</span>;
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>profile</span><span class='op'>&lt;</span><span class='ident'>T</span>, <span class='ident'>F</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>callback</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>T</span> <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>FnOnce</span>() <span class='op'>-&gt;</span> <span class='ident'>T</span> {
-        <span class='kw'>let</span> <span class='ident'>t0</span> <span class='op'>=</span> <span class='ident'>precise_time_ns</span>();
-        <span class='kw'>let</span> <span class='ident'>val</span> <span class='op'>=</span> <span class='ident'>callback</span>();
-        <span class='kw'>let</span> <span class='ident'>t1</span> <span class='op'>=</span> <span class='ident'>precise_time_ns</span>();
-        <span class='kw'>let</span> <span class='ident'>ns</span> <span class='op'>=</span> <span class='ident'>t1</span> <span class='op'>-</span> <span class='ident'>t0</span>;
-        <span class='self'>self</span>.<span class='ident'>nanoseconds</span> <span class='op'>+=</span> <span class='ident'>ns</span>;
-        <span class='ident'>val</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">profile</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">callback</span>: <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="ident">T</span> <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnOnce</span>() <span class="op">-&gt;</span> <span class="ident">T</span> {
+        <span class="kw">let</span> <span class="ident">t0</span> <span class="op">=</span> <span class="ident">precise_time_ns</span>();
+        <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="ident">callback</span>();
+        <span class="kw">let</span> <span class="ident">t1</span> <span class="op">=</span> <span class="ident">precise_time_ns</span>();
+        <span class="kw">let</span> <span class="ident">ns</span> <span class="op">=</span> <span class="ident">t1</span> <span class="op">-</span> <span class="ident">t0</span>;
+        <span class="self">self</span>.<span class="ident">nanoseconds</span> <span class="op">+=</span> <span class="ident">ns</span>;
+        <span class="ident">val</span>
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>u64</span> {
-        <span class='self'>self</span>.<span class='ident'>nanoseconds</span>
-    }
-}
-
-<span class='kw'>impl</span> <span class='ident'>ProfileCounter</span> <span class='kw'>for</span> <span class='ident'>TimeProfileCounter</span> {
-    <span class='kw'>fn</span> <span class='ident'>description</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span> {
-        <span class='self'>self</span>.<span class='ident'>description</span>
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>value</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>String</span> {
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>invert</span> {
-            <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;{:.2} fps&quot;</span>, <span class='number'>1000000000.0</span> <span class='op'>/</span> <span class='self'>self</span>.<span class='ident'>nanoseconds</span> <span class='kw'>as</span> <span class='ident'>f64</span>)
-        } <span class='kw'>else</span> {
-            <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;{:.2} ms&quot;</span>, <span class='self'>self</span>.<span class='ident'>nanoseconds</span> <span class='kw'>as</span> <span class='ident'>f64</span> <span class='op'>/</span> <span class='number'>1000000.0</span>)
-        }
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
+        <span class="self">self</span>.<span class="ident">nanoseconds</span>
     }
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>AverageTimeProfileCounter</span> {
-    <span class='ident'>description</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>,
-    <span class='ident'>average_over_ns</span>: <span class='ident'>u64</span>,
-    <span class='ident'>start_ns</span>: <span class='ident'>u64</span>,
-    <span class='ident'>sum_ns</span>: <span class='ident'>u64</span>,
-    <span class='ident'>num_samples</span>: <span class='ident'>u64</span>,
-    <span class='ident'>nanoseconds</span>: <span class='ident'>u64</span>,
-    <span class='ident'>invert</span>: <span class='ident'>bool</span>,
-}
-
-<span class='kw'>impl</span> <span class='ident'>AverageTimeProfileCounter</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>description</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>, <span class='ident'>invert</span>: <span class='ident'>bool</span>, <span class='ident'>average_over_ns</span>: <span class='ident'>u64</span>) <span class='op'>-&gt;</span> <span class='ident'>AverageTimeProfileCounter</span> {
-        <span class='ident'>AverageTimeProfileCounter</span> {
-            <span class='ident'>description</span>: <span class='ident'>description</span>,
-            <span class='ident'>average_over_ns</span>: <span class='ident'>average_over_ns</span>,
-            <span class='ident'>start_ns</span>: <span class='ident'>precise_time_ns</span>(),
-            <span class='ident'>sum_ns</span>: <span class='number'>0</span>,
-            <span class='ident'>num_samples</span>: <span class='number'>0</span>,
-            <span class='ident'>nanoseconds</span>: <span class='number'>0</span>,
-            <span class='ident'>invert</span>: <span class='ident'>invert</span>,
-        }
+<span class="kw">impl</span> <span class="ident">ProfileCounter</span> <span class="kw">for</span> <span class="ident">TimeProfileCounter</span> {
+    <span class="kw">fn</span> <span class="ident">description</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+        <span class="self">self</span>.<span class="ident">description</span>
     }
 
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>reset</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>start_ns</span> <span class='op'>=</span> <span class='ident'>precise_time_ns</span>();
-        <span class='self'>self</span>.<span class='ident'>nanoseconds</span> <span class='op'>=</span> <span class='number'>0</span>;
-        <span class='self'>self</span>.<span class='ident'>sum_ns</span> <span class='op'>=</span> <span class='number'>0</span>;
-        <span class='self'>self</span>.<span class='ident'>num_samples</span> <span class='op'>=</span> <span class='number'>0</span>;
-    }
-
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>ns</span>: <span class='ident'>u64</span>) {
-        <span class='kw'>let</span> <span class='ident'>now</span> <span class='op'>=</span> <span class='ident'>precise_time_ns</span>();
-        <span class='kw'>if</span> (<span class='ident'>now</span> <span class='op'>-</span> <span class='self'>self</span>.<span class='ident'>start_ns</span>) <span class='op'>&gt;</span> <span class='self'>self</span>.<span class='ident'>average_over_ns</span> <span class='op'>&amp;&amp;</span>
-           <span class='self'>self</span>.<span class='ident'>num_samples</span> <span class='op'>&gt;</span> <span class='number'>0</span> {
-            <span class='self'>self</span>.<span class='ident'>nanoseconds</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>sum_ns</span> <span class='op'>/</span> <span class='self'>self</span>.<span class='ident'>num_samples</span>;
-            <span class='self'>self</span>.<span class='ident'>start_ns</span> <span class='op'>=</span> <span class='ident'>now</span>;
-            <span class='self'>self</span>.<span class='ident'>sum_ns</span> <span class='op'>=</span> <span class='number'>0</span>;
-            <span class='self'>self</span>.<span class='ident'>num_samples</span> <span class='op'>=</span> <span class='number'>0</span>;
-        }
-        <span class='self'>self</span>.<span class='ident'>sum_ns</span> <span class='op'>+=</span> <span class='ident'>ns</span>;
-        <span class='self'>self</span>.<span class='ident'>num_samples</span> <span class='op'>+=</span> <span class='number'>1</span>;
-    }
-
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>profile</span><span class='op'>&lt;</span><span class='ident'>T</span>, <span class='ident'>F</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>callback</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>T</span> <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>FnOnce</span>() <span class='op'>-&gt;</span> <span class='ident'>T</span> {
-        <span class='kw'>let</span> <span class='ident'>t0</span> <span class='op'>=</span> <span class='ident'>precise_time_ns</span>();
-        <span class='kw'>let</span> <span class='ident'>val</span> <span class='op'>=</span> <span class='ident'>callback</span>();
-        <span class='kw'>let</span> <span class='ident'>t1</span> <span class='op'>=</span> <span class='ident'>precise_time_ns</span>();
-        <span class='self'>self</span>.<span class='ident'>set</span>(<span class='ident'>t1</span> <span class='op'>-</span> <span class='ident'>t0</span>);
-        <span class='ident'>val</span>
-    }
-}
-
-<span class='kw'>impl</span> <span class='ident'>ProfileCounter</span> <span class='kw'>for</span> <span class='ident'>AverageTimeProfileCounter</span> {
-    <span class='kw'>fn</span> <span class='ident'>description</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span> {
-        <span class='self'>self</span>.<span class='ident'>description</span>
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>value</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>String</span> {
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>invert</span> {
-            <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;{:.2} fps&quot;</span>, <span class='number'>1000000000.0</span> <span class='op'>/</span> <span class='self'>self</span>.<span class='ident'>nanoseconds</span> <span class='kw'>as</span> <span class='ident'>f64</span>)
-        } <span class='kw'>else</span> {
-            <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;{:.2} ms&quot;</span>, <span class='self'>self</span>.<span class='ident'>nanoseconds</span> <span class='kw'>as</span> <span class='ident'>f64</span> <span class='op'>/</span> <span class='number'>1000000.0</span>)
+    <span class="kw">fn</span> <span class="ident">value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">String</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">invert</span> {
+            <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{:.2} fps&quot;</span>, <span class="number">1000000000.0</span> <span class="op">/</span> <span class="self">self</span>.<span class="ident">nanoseconds</span> <span class="kw">as</span> <span class="ident">f64</span>)
+        } <span class="kw">else</span> {
+            <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{:.2} ms&quot;</span>, <span class="self">self</span>.<span class="ident">nanoseconds</span> <span class="kw">as</span> <span class="ident">f64</span> <span class="op">/</span> <span class="number">1000000.0</span>)
         }
     }
 }
 
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>FrameProfileCounters</span> {
-    <span class='kw'>pub</span> <span class='ident'>total_primitives</span>: <span class='ident'>IntProfileCounter</span>,
-    <span class='kw'>pub</span> <span class='ident'>visible_primitives</span>: <span class='ident'>IntProfileCounter</span>,
-    <span class='kw'>pub</span> <span class='ident'>passes</span>: <span class='ident'>IntProfileCounter</span>,
-    <span class='kw'>pub</span> <span class='ident'>targets</span>: <span class='ident'>IntProfileCounter</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AverageTimeProfileCounter</span> {
+    <span class="ident">description</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+    <span class="ident">average_over_ns</span>: <span class="ident">u64</span>,
+    <span class="ident">start_ns</span>: <span class="ident">u64</span>,
+    <span class="ident">sum_ns</span>: <span class="ident">u64</span>,
+    <span class="ident">num_samples</span>: <span class="ident">u64</span>,
+    <span class="ident">nanoseconds</span>: <span class="ident">u64</span>,
+    <span class="ident">invert</span>: <span class="ident">bool</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>FrameProfileCounters</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>FrameProfileCounters</span> {
-        <span class='ident'>FrameProfileCounters</span> {
-            <span class='ident'>total_primitives</span>: <span class='ident'>IntProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;Total Primitives&quot;</span>),
-            <span class='ident'>visible_primitives</span>: <span class='ident'>IntProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;Visible Primitives&quot;</span>),
-            <span class='ident'>passes</span>: <span class='ident'>IntProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;Passes&quot;</span>),
-            <span class='ident'>targets</span>: <span class='ident'>IntProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;Render Targets&quot;</span>),
+<span class="kw">impl</span> <span class="ident">AverageTimeProfileCounter</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">description</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">invert</span>: <span class="ident">bool</span>, <span class="ident">average_over_ns</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="ident">AverageTimeProfileCounter</span> {
+        <span class="ident">AverageTimeProfileCounter</span> {
+            <span class="ident">description</span>: <span class="ident">description</span>,
+            <span class="ident">average_over_ns</span>: <span class="ident">average_over_ns</span>,
+            <span class="ident">start_ns</span>: <span class="ident">precise_time_ns</span>(),
+            <span class="ident">sum_ns</span>: <span class="number">0</span>,
+            <span class="ident">num_samples</span>: <span class="number">0</span>,
+            <span class="ident">nanoseconds</span>: <span class="number">0</span>,
+            <span class="ident">invert</span>: <span class="ident">invert</span>,
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">start_ns</span> <span class="op">=</span> <span class="ident">precise_time_ns</span>();
+        <span class="self">self</span>.<span class="ident">nanoseconds</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="self">self</span>.<span class="ident">sum_ns</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="self">self</span>.<span class="ident">num_samples</span> <span class="op">=</span> <span class="number">0</span>;
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ns</span>: <span class="ident">u64</span>) {
+        <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident">precise_time_ns</span>();
+        <span class="kw">if</span> (<span class="ident">now</span> <span class="op">-</span> <span class="self">self</span>.<span class="ident">start_ns</span>) <span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">average_over_ns</span> <span class="op">&amp;&amp;</span>
+           <span class="self">self</span>.<span class="ident">num_samples</span> <span class="op">&gt;</span> <span class="number">0</span> {
+            <span class="self">self</span>.<span class="ident">nanoseconds</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">sum_ns</span> <span class="op">/</span> <span class="self">self</span>.<span class="ident">num_samples</span>;
+            <span class="self">self</span>.<span class="ident">start_ns</span> <span class="op">=</span> <span class="ident">now</span>;
+            <span class="self">self</span>.<span class="ident">sum_ns</span> <span class="op">=</span> <span class="number">0</span>;
+            <span class="self">self</span>.<span class="ident">num_samples</span> <span class="op">=</span> <span class="number">0</span>;
+        }
+        <span class="self">self</span>.<span class="ident">sum_ns</span> <span class="op">+=</span> <span class="ident">ns</span>;
+        <span class="self">self</span>.<span class="ident">num_samples</span> <span class="op">+=</span> <span class="number">1</span>;
+    }
+
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">profile</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">callback</span>: <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="ident">T</span> <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnOnce</span>() <span class="op">-&gt;</span> <span class="ident">T</span> {
+        <span class="kw">let</span> <span class="ident">t0</span> <span class="op">=</span> <span class="ident">precise_time_ns</span>();
+        <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="ident">callback</span>();
+        <span class="kw">let</span> <span class="ident">t1</span> <span class="op">=</span> <span class="ident">precise_time_ns</span>();
+        <span class="self">self</span>.<span class="ident">set</span>(<span class="ident">t1</span> <span class="op">-</span> <span class="ident">t0</span>);
+        <span class="ident">val</span>
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">ProfileCounter</span> <span class="kw">for</span> <span class="ident">AverageTimeProfileCounter</span> {
+    <span class="kw">fn</span> <span class="ident">description</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+        <span class="self">self</span>.<span class="ident">description</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">String</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">invert</span> {
+            <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{:.2} fps&quot;</span>, <span class="number">1000000000.0</span> <span class="op">/</span> <span class="self">self</span>.<span class="ident">nanoseconds</span> <span class="kw">as</span> <span class="ident">f64</span>)
+        } <span class="kw">else</span> {
+            <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{:.2} ms&quot;</span>, <span class="self">self</span>.<span class="ident">nanoseconds</span> <span class="kw">as</span> <span class="ident">f64</span> <span class="op">/</span> <span class="number">1000000.0</span>)
         }
     }
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>TextureCacheProfileCounters</span> {
-    <span class='kw'>pub</span> <span class='ident'>pages_a8</span>: <span class='ident'>ResourceProfileCounter</span>,
-    <span class='kw'>pub</span> <span class='ident'>pages_rgb8</span>: <span class='ident'>ResourceProfileCounter</span>,
-    <span class='kw'>pub</span> <span class='ident'>pages_rgba8</span>: <span class='ident'>ResourceProfileCounter</span>,
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FrameProfileCounters</span> {
+    <span class="kw">pub</span> <span class="ident">total_primitives</span>: <span class="ident">IntProfileCounter</span>,
+    <span class="kw">pub</span> <span class="ident">visible_primitives</span>: <span class="ident">IntProfileCounter</span>,
+    <span class="kw">pub</span> <span class="ident">passes</span>: <span class="ident">IntProfileCounter</span>,
+    <span class="kw">pub</span> <span class="ident">targets</span>: <span class="ident">IntProfileCounter</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>TextureCacheProfileCounters</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>TextureCacheProfileCounters</span> {
-        <span class='ident'>TextureCacheProfileCounters</span> {
-            <span class='ident'>pages_a8</span>: <span class='ident'>ResourceProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;Texture A8 cached pages&quot;</span>),
-            <span class='ident'>pages_rgb8</span>: <span class='ident'>ResourceProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;Texture RGB8 cached pages&quot;</span>),
-            <span class='ident'>pages_rgba8</span>: <span class='ident'>ResourceProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;Texture RGBA8 cached pages&quot;</span>),
+<span class="kw">impl</span> <span class="ident">FrameProfileCounters</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">FrameProfileCounters</span> {
+        <span class="ident">FrameProfileCounters</span> {
+            <span class="ident">total_primitives</span>: <span class="ident">IntProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;Total Primitives&quot;</span>),
+            <span class="ident">visible_primitives</span>: <span class="ident">IntProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;Visible Primitives&quot;</span>),
+            <span class="ident">passes</span>: <span class="ident">IntProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;Passes&quot;</span>),
+            <span class="ident">targets</span>: <span class="ident">IntProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;Render Targets&quot;</span>),
         }
     }
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>BackendProfileCounters</span> {
-    <span class='kw'>pub</span> <span class='ident'>font_templates</span>: <span class='ident'>ResourceProfileCounter</span>,
-    <span class='kw'>pub</span> <span class='ident'>image_templates</span>: <span class='ident'>ResourceProfileCounter</span>,
-    <span class='kw'>pub</span> <span class='ident'>total_time</span>: <span class='ident'>TimeProfileCounter</span>,
-    <span class='kw'>pub</span> <span class='ident'>texture_cache</span>: <span class='ident'>TextureCacheProfileCounters</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TextureCacheProfileCounters</span> {
+    <span class="kw">pub</span> <span class="ident">pages_a8</span>: <span class="ident">ResourceProfileCounter</span>,
+    <span class="kw">pub</span> <span class="ident">pages_rgb8</span>: <span class="ident">ResourceProfileCounter</span>,
+    <span class="kw">pub</span> <span class="ident">pages_rgba8</span>: <span class="ident">ResourceProfileCounter</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>BackendProfileCounters</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>BackendProfileCounters</span> {
-        <span class='ident'>BackendProfileCounters</span> {
-            <span class='ident'>font_templates</span>: <span class='ident'>ResourceProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;Font Templates&quot;</span>),
-            <span class='ident'>image_templates</span>: <span class='ident'>ResourceProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;Image Templates&quot;</span>),
-            <span class='ident'>total_time</span>: <span class='ident'>TimeProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;Backend CPU Time&quot;</span>, <span class='bool-val'>false</span>),
-            <span class='ident'>texture_cache</span>: <span class='ident'>TextureCacheProfileCounters</span>::<span class='ident'>new</span>(),
-        }
-    }
-
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>reset</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>total_time</span>.<span class='ident'>reset</span>();
-    }
-}
-
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>RendererProfileCounters</span> {
-    <span class='kw'>pub</span> <span class='ident'>frame_counter</span>: <span class='ident'>IntProfileCounter</span>,
-    <span class='kw'>pub</span> <span class='ident'>frame_time</span>: <span class='ident'>AverageTimeProfileCounter</span>,
-    <span class='kw'>pub</span> <span class='ident'>draw_calls</span>: <span class='ident'>IntProfileCounter</span>,
-    <span class='kw'>pub</span> <span class='ident'>vertices</span>: <span class='ident'>IntProfileCounter</span>,
-    <span class='kw'>pub</span> <span class='ident'>vao_count_and_size</span>: <span class='ident'>ResourceProfileCounter</span>,
-}
-
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>RendererProfileTimers</span> {
-    <span class='kw'>pub</span> <span class='ident'>cpu_time</span>: <span class='ident'>TimeProfileCounter</span>,
-    <span class='kw'>pub</span> <span class='ident'>gpu_time</span>: <span class='ident'>TimeProfileCounter</span>,
-    <span class='kw'>pub</span> <span class='ident'>gpu_samples</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>GpuSample</span><span class='op'>&lt;</span><span class='ident'>GpuProfileTag</span><span class='op'>&gt;&gt;</span>,
-}
-
-<span class='kw'>impl</span> <span class='ident'>RendererProfileCounters</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>RendererProfileCounters</span> {
-        <span class='ident'>RendererProfileCounters</span> {
-            <span class='ident'>frame_counter</span>: <span class='ident'>IntProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;Frame&quot;</span>),
-            <span class='ident'>frame_time</span>: <span class='ident'>AverageTimeProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;FPS&quot;</span>, <span class='bool-val'>true</span>, <span class='ident'>ONE_SECOND_NS</span> <span class='op'>/</span> <span class='number'>2</span>),
-            <span class='ident'>draw_calls</span>: <span class='ident'>IntProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;Draw Calls&quot;</span>),
-            <span class='ident'>vertices</span>: <span class='ident'>IntProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;Vertices&quot;</span>),
-            <span class='ident'>vao_count_and_size</span>: <span class='ident'>ResourceProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;VAO&quot;</span>),
-        }
-    }
-
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>reset</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>draw_calls</span>.<span class='ident'>reset</span>();
-        <span class='self'>self</span>.<span class='ident'>vertices</span>.<span class='ident'>reset</span>();
-    }
-}
-
-<span class='kw'>impl</span> <span class='ident'>RendererProfileTimers</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>RendererProfileTimers</span> {
-        <span class='ident'>RendererProfileTimers</span> {
-            <span class='ident'>cpu_time</span>: <span class='ident'>TimeProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;Compositor CPU Time&quot;</span>, <span class='bool-val'>false</span>),
-            <span class='ident'>gpu_samples</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
-            <span class='ident'>gpu_time</span>: <span class='ident'>TimeProfileCounter</span>::<span class='ident'>new</span>(<span class='string'>&quot;GPU Time&quot;</span>, <span class='bool-val'>false</span>),
+<span class="kw">impl</span> <span class="ident">TextureCacheProfileCounters</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">TextureCacheProfileCounters</span> {
+        <span class="ident">TextureCacheProfileCounters</span> {
+            <span class="ident">pages_a8</span>: <span class="ident">ResourceProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;Texture A8 cached pages&quot;</span>),
+            <span class="ident">pages_rgb8</span>: <span class="ident">ResourceProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;Texture RGB8 cached pages&quot;</span>),
+            <span class="ident">pages_rgba8</span>: <span class="ident">ResourceProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;Texture RGBA8 cached pages&quot;</span>),
         }
     }
 }
 
-<span class='kw'>struct</span> <span class='ident'>GraphStats</span> {
-    <span class='ident'>min_value</span>: <span class='ident'>f32</span>,
-    <span class='ident'>mean_value</span>: <span class='ident'>f32</span>,
-    <span class='ident'>max_value</span>: <span class='ident'>f32</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">BackendProfileCounters</span> {
+    <span class="kw">pub</span> <span class="ident">font_templates</span>: <span class="ident">ResourceProfileCounter</span>,
+    <span class="kw">pub</span> <span class="ident">image_templates</span>: <span class="ident">ResourceProfileCounter</span>,
+    <span class="kw">pub</span> <span class="ident">total_time</span>: <span class="ident">TimeProfileCounter</span>,
+    <span class="kw">pub</span> <span class="ident">texture_cache</span>: <span class="ident">TextureCacheProfileCounters</span>,
 }
 
-<span class='kw'>struct</span> <span class='ident'>ProfileGraph</span> {
-    <span class='ident'>max_samples</span>: <span class='ident'>usize</span>,
-    <span class='ident'>values</span>: <span class='ident'>VecDeque</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span>,
-}
-
-<span class='kw'>impl</span> <span class='ident'>ProfileGraph</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>max_samples</span>: <span class='ident'>usize</span>) <span class='op'>-&gt;</span> <span class='ident'>ProfileGraph</span> {
-        <span class='ident'>ProfileGraph</span> {
-            <span class='ident'>max_samples</span>: <span class='ident'>max_samples</span>,
-            <span class='ident'>values</span>: <span class='ident'>VecDeque</span>::<span class='ident'>new</span>(),
+<span class="kw">impl</span> <span class="ident">BackendProfileCounters</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">BackendProfileCounters</span> {
+        <span class="ident">BackendProfileCounters</span> {
+            <span class="ident">font_templates</span>: <span class="ident">ResourceProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;Font Templates&quot;</span>),
+            <span class="ident">image_templates</span>: <span class="ident">ResourceProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;Image Templates&quot;</span>),
+            <span class="ident">total_time</span>: <span class="ident">TimeProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;Backend CPU Time&quot;</span>, <span class="bool-val">false</span>),
+            <span class="ident">texture_cache</span>: <span class="ident">TextureCacheProfileCounters</span>::<span class="ident">new</span>(),
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>ns</span>: <span class='ident'>u64</span>) {
-        <span class='kw'>let</span> <span class='ident'>ms</span> <span class='op'>=</span> <span class='ident'>ns</span> <span class='kw'>as</span> <span class='ident'>f64</span> <span class='op'>/</span> <span class='number'>1000000.0</span>;
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>values</span>.<span class='ident'>len</span>() <span class='op'>==</span> <span class='self'>self</span>.<span class='ident'>max_samples</span> {
-            <span class='self'>self</span>.<span class='ident'>values</span>.<span class='ident'>pop_back</span>();
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">total_time</span>.<span class="ident">reset</span>();
+    }
+}
+
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RendererProfileCounters</span> {
+    <span class="kw">pub</span> <span class="ident">frame_counter</span>: <span class="ident">IntProfileCounter</span>,
+    <span class="kw">pub</span> <span class="ident">frame_time</span>: <span class="ident">AverageTimeProfileCounter</span>,
+    <span class="kw">pub</span> <span class="ident">draw_calls</span>: <span class="ident">IntProfileCounter</span>,
+    <span class="kw">pub</span> <span class="ident">vertices</span>: <span class="ident">IntProfileCounter</span>,
+    <span class="kw">pub</span> <span class="ident">vao_count_and_size</span>: <span class="ident">ResourceProfileCounter</span>,
+}
+
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RendererProfileTimers</span> {
+    <span class="kw">pub</span> <span class="ident">cpu_time</span>: <span class="ident">TimeProfileCounter</span>,
+    <span class="kw">pub</span> <span class="ident">gpu_time</span>: <span class="ident">TimeProfileCounter</span>,
+    <span class="kw">pub</span> <span class="ident">gpu_samples</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">GpuSample</span><span class="op">&lt;</span><span class="ident">GpuProfileTag</span><span class="op">&gt;&gt;</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">RendererProfileCounters</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">RendererProfileCounters</span> {
+        <span class="ident">RendererProfileCounters</span> {
+            <span class="ident">frame_counter</span>: <span class="ident">IntProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;Frame&quot;</span>),
+            <span class="ident">frame_time</span>: <span class="ident">AverageTimeProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;FPS&quot;</span>, <span class="bool-val">true</span>, <span class="ident">ONE_SECOND_NS</span> <span class="op">/</span> <span class="number">2</span>),
+            <span class="ident">draw_calls</span>: <span class="ident">IntProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;Draw Calls&quot;</span>),
+            <span class="ident">vertices</span>: <span class="ident">IntProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;Vertices&quot;</span>),
+            <span class="ident">vao_count_and_size</span>: <span class="ident">ResourceProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;VAO&quot;</span>),
         }
-        <span class='self'>self</span>.<span class='ident'>values</span>.<span class='ident'>push_front</span>(<span class='ident'>ms</span> <span class='kw'>as</span> <span class='ident'>f32</span>);
     }
 
-    <span class='kw'>fn</span> <span class='ident'>stats</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>GraphStats</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>stats</span> <span class='op'>=</span> <span class='ident'>GraphStats</span> {
-            <span class='ident'>min_value</span>: <span class='ident'>f32</span>::<span class='ident'>MAX</span>,
-            <span class='ident'>mean_value</span>: <span class='number'>0.0</span>,
-            <span class='ident'>max_value</span>: <span class='op'>-</span><span class='ident'>f32</span>::<span class='ident'>MAX</span>,
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">draw_calls</span>.<span class="ident">reset</span>();
+        <span class="self">self</span>.<span class="ident">vertices</span>.<span class="ident">reset</span>();
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">RendererProfileTimers</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">RendererProfileTimers</span> {
+        <span class="ident">RendererProfileTimers</span> {
+            <span class="ident">cpu_time</span>: <span class="ident">TimeProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;Compositor CPU Time&quot;</span>, <span class="bool-val">false</span>),
+            <span class="ident">gpu_samples</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
+            <span class="ident">gpu_time</span>: <span class="ident">TimeProfileCounter</span>::<span class="ident">new</span>(<span class="string">&quot;GPU Time&quot;</span>, <span class="bool-val">false</span>),
+        }
+    }
+}
+
+<span class="kw">struct</span> <span class="ident">GraphStats</span> {
+    <span class="ident">min_value</span>: <span class="ident">f32</span>,
+    <span class="ident">mean_value</span>: <span class="ident">f32</span>,
+    <span class="ident">max_value</span>: <span class="ident">f32</span>,
+}
+
+<span class="kw">struct</span> <span class="ident">ProfileGraph</span> {
+    <span class="ident">max_samples</span>: <span class="ident">usize</span>,
+    <span class="ident">values</span>: <span class="ident">VecDeque</span><span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">ProfileGraph</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">max_samples</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">ProfileGraph</span> {
+        <span class="ident">ProfileGraph</span> {
+            <span class="ident">max_samples</span>: <span class="ident">max_samples</span>,
+            <span class="ident">values</span>: <span class="ident">VecDeque</span>::<span class="ident">new</span>(),
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">push</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ns</span>: <span class="ident">u64</span>) {
+        <span class="kw">let</span> <span class="ident">ms</span> <span class="op">=</span> <span class="ident">ns</span> <span class="kw">as</span> <span class="ident">f64</span> <span class="op">/</span> <span class="number">1000000.0</span>;
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="self">self</span>.<span class="ident">max_samples</span> {
+            <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">pop_back</span>();
+        }
+        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">push_front</span>(<span class="ident">ms</span> <span class="kw">as</span> <span class="ident">f32</span>);
+    }
+
+    <span class="kw">fn</span> <span class="ident">stats</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">GraphStats</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stats</span> <span class="op">=</span> <span class="ident">GraphStats</span> {
+            <span class="ident">min_value</span>: <span class="ident">f32</span>::<span class="ident">MAX</span>,
+            <span class="ident">mean_value</span>: <span class="number">0.0</span>,
+            <span class="ident">max_value</span>: <span class="op">-</span><span class="ident">f32</span>::<span class="ident">MAX</span>,
         };
 
-        <span class='kw'>for</span> <span class='ident'>value</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>values</span> {
-            <span class='ident'>stats</span>.<span class='ident'>min_value</span> <span class='op'>=</span> <span class='ident'>stats</span>.<span class='ident'>min_value</span>.<span class='ident'>min</span>(<span class='kw-2'>*</span><span class='ident'>value</span>);
-            <span class='ident'>stats</span>.<span class='ident'>mean_value</span> <span class='op'>=</span> <span class='ident'>stats</span>.<span class='ident'>mean_value</span> <span class='op'>+</span> <span class='kw-2'>*</span><span class='ident'>value</span>;
-            <span class='ident'>stats</span>.<span class='ident'>max_value</span> <span class='op'>=</span> <span class='ident'>stats</span>.<span class='ident'>max_value</span>.<span class='ident'>max</span>(<span class='kw-2'>*</span><span class='ident'>value</span>);
+        <span class="kw">for</span> <span class="ident">value</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span> {
+            <span class="ident">stats</span>.<span class="ident">min_value</span> <span class="op">=</span> <span class="ident">stats</span>.<span class="ident">min_value</span>.<span class="ident">min</span>(<span class="kw-2">*</span><span class="ident">value</span>);
+            <span class="ident">stats</span>.<span class="ident">mean_value</span> <span class="op">=</span> <span class="ident">stats</span>.<span class="ident">mean_value</span> <span class="op">+</span> <span class="kw-2">*</span><span class="ident">value</span>;
+            <span class="ident">stats</span>.<span class="ident">max_value</span> <span class="op">=</span> <span class="ident">stats</span>.<span class="ident">max_value</span>.<span class="ident">max</span>(<span class="kw-2">*</span><span class="ident">value</span>);
         }
 
-        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>values</span>.<span class='ident'>is_empty</span>() {
-            <span class='ident'>stats</span>.<span class='ident'>mean_value</span> <span class='op'>=</span> <span class='ident'>stats</span>.<span class='ident'>mean_value</span> <span class='op'>/</span> <span class='self'>self</span>.<span class='ident'>values</span>.<span class='ident'>len</span>() <span class='kw'>as</span> <span class='ident'>f32</span>;
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">values</span>.<span class="ident">is_empty</span>() {
+            <span class="ident">stats</span>.<span class="ident">mean_value</span> <span class="op">=</span> <span class="ident">stats</span>.<span class="ident">mean_value</span> <span class="op">/</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">f32</span>;
         }
 
-        <span class='ident'>stats</span>
+        <span class="ident">stats</span>
     }
 
-    <span class='kw'>fn</span> <span class='ident'>draw_graph</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
-                  <span class='ident'>x</span>: <span class='ident'>f32</span>,
-                  <span class='ident'>y</span>: <span class='ident'>f32</span>,
-                  <span class='ident'>description</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>,
-                  <span class='ident'>debug_renderer</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>DebugRenderer</span>) <span class='op'>-&gt;</span> <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>size</span> <span class='op'>=</span> <span class='ident'>Size2D</span>::<span class='ident'>new</span>(<span class='number'>600.0</span>, <span class='number'>120.0</span>);
-        <span class='kw'>let</span> <span class='ident'>line_height</span> <span class='op'>=</span> <span class='ident'>debug_renderer</span>.<span class='ident'>line_height</span>();
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>rect</span> <span class='op'>=</span> <span class='ident'>Rect</span>::<span class='ident'>new</span>(<span class='ident'>Point2D</span>::<span class='ident'>new</span>(<span class='ident'>x</span>, <span class='ident'>y</span>), <span class='ident'>size</span>);
-        <span class='kw'>let</span> <span class='ident'>stats</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>stats</span>();
+    <span class="kw">fn</span> <span class="ident">draw_graph</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
+                  <span class="ident">x</span>: <span class="ident">f32</span>,
+                  <span class="ident">y</span>: <span class="ident">f32</span>,
+                  <span class="ident">description</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+                  <span class="ident">debug_renderer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">DebugRenderer</span>) <span class="op">-&gt;</span> <span class="ident">Rect</span><span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">Size2D</span>::<span class="ident">new</span>(<span class="number">600.0</span>, <span class="number">120.0</span>);
+        <span class="kw">let</span> <span class="ident">line_height</span> <span class="op">=</span> <span class="ident">debug_renderer</span>.<span class="ident">line_height</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rect</span> <span class="op">=</span> <span class="ident">Rect</span>::<span class="ident">new</span>(<span class="ident">Point2D</span>::<span class="ident">new</span>(<span class="ident">x</span>, <span class="ident">y</span>), <span class="ident">size</span>);
+        <span class="kw">let</span> <span class="ident">stats</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">stats</span>();
 
-        <span class='kw'>let</span> <span class='ident'>text_color</span> <span class='op'>=</span> <span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>1.0</span>, <span class='number'>1.0</span>, <span class='number'>0.0</span>, <span class='number'>1.0</span>);
-        <span class='kw'>let</span> <span class='ident'>text_origin</span> <span class='op'>=</span> <span class='ident'>rect</span>.<span class='ident'>origin</span> <span class='op'>+</span> <span class='ident'>Point2D</span>::<span class='ident'>new</span>(<span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span>, <span class='number'>20.0</span>);
-        <span class='ident'>debug_renderer</span>.<span class='ident'>add_text</span>(<span class='ident'>text_origin</span>.<span class='ident'>x</span>,
-                                <span class='ident'>text_origin</span>.<span class='ident'>y</span>,
-                                <span class='ident'>description</span>,
-                                <span class='kw-2'>&amp;</span><span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>0.0</span>, <span class='number'>1.0</span>, <span class='number'>0.0</span>, <span class='number'>1.0</span>));
-        <span class='ident'>debug_renderer</span>.<span class='ident'>add_text</span>(<span class='ident'>text_origin</span>.<span class='ident'>x</span>,
-                                <span class='ident'>text_origin</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>line_height</span>,
-                                <span class='kw-2'>&amp;</span><span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;Min: {:.2} ms&quot;</span>, <span class='ident'>stats</span>.<span class='ident'>min_value</span>),
-                                <span class='kw-2'>&amp;</span><span class='ident'>text_color</span>);
-        <span class='ident'>debug_renderer</span>.<span class='ident'>add_text</span>(<span class='ident'>text_origin</span>.<span class='ident'>x</span>,
-                                <span class='ident'>text_origin</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>line_height</span> <span class='op'>*</span> <span class='number'>2.0</span>,
-                                <span class='kw-2'>&amp;</span><span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;Mean: {:.2} ms&quot;</span>, <span class='ident'>stats</span>.<span class='ident'>mean_value</span>),
-                                <span class='kw-2'>&amp;</span><span class='ident'>text_color</span>);
-        <span class='ident'>debug_renderer</span>.<span class='ident'>add_text</span>(<span class='ident'>text_origin</span>.<span class='ident'>x</span>,
-                                <span class='ident'>text_origin</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>line_height</span> <span class='op'>*</span> <span class='number'>3.0</span>,
-                                <span class='kw-2'>&amp;</span><span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;Max: {:.2} ms&quot;</span>, <span class='ident'>stats</span>.<span class='ident'>max_value</span>),
-                                <span class='kw-2'>&amp;</span><span class='ident'>text_color</span>);
+        <span class="kw">let</span> <span class="ident">text_color</span> <span class="op">=</span> <span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">1.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>);
+        <span class="kw">let</span> <span class="ident">text_origin</span> <span class="op">=</span> <span class="ident">rect</span>.<span class="ident">origin</span> <span class="op">+</span> <span class="ident">Point2D</span>::<span class="ident">new</span>(<span class="ident">rect</span>.<span class="ident">size</span>.<span class="ident">width</span>, <span class="number">20.0</span>);
+        <span class="ident">debug_renderer</span>.<span class="ident">add_text</span>(<span class="ident">text_origin</span>.<span class="ident">x</span>,
+                                <span class="ident">text_origin</span>.<span class="ident">y</span>,
+                                <span class="ident">description</span>,
+                                <span class="kw-2">&amp;</span><span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">0.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>));
+        <span class="ident">debug_renderer</span>.<span class="ident">add_text</span>(<span class="ident">text_origin</span>.<span class="ident">x</span>,
+                                <span class="ident">text_origin</span>.<span class="ident">y</span> <span class="op">+</span> <span class="ident">line_height</span>,
+                                <span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Min: {:.2} ms&quot;</span>, <span class="ident">stats</span>.<span class="ident">min_value</span>),
+                                <span class="kw-2">&amp;</span><span class="ident">text_color</span>);
+        <span class="ident">debug_renderer</span>.<span class="ident">add_text</span>(<span class="ident">text_origin</span>.<span class="ident">x</span>,
+                                <span class="ident">text_origin</span>.<span class="ident">y</span> <span class="op">+</span> <span class="ident">line_height</span> <span class="op">*</span> <span class="number">2.0</span>,
+                                <span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Mean: {:.2} ms&quot;</span>, <span class="ident">stats</span>.<span class="ident">mean_value</span>),
+                                <span class="kw-2">&amp;</span><span class="ident">text_color</span>);
+        <span class="ident">debug_renderer</span>.<span class="ident">add_text</span>(<span class="ident">text_origin</span>.<span class="ident">x</span>,
+                                <span class="ident">text_origin</span>.<span class="ident">y</span> <span class="op">+</span> <span class="ident">line_height</span> <span class="op">*</span> <span class="number">3.0</span>,
+                                <span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Max: {:.2} ms&quot;</span>, <span class="ident">stats</span>.<span class="ident">max_value</span>),
+                                <span class="kw-2">&amp;</span><span class="ident">text_color</span>);
 
-        <span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>+=</span> <span class='number'>140.0</span>;
-        <span class='ident'>debug_renderer</span>.<span class='ident'>add_quad</span>(<span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>,
-                                <span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>,
-                                <span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>+</span> <span class='number'>10.0</span>,
-                                <span class='ident'>rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span>,
-                                <span class='kw-2'>&amp;</span><span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>0.1</span>, <span class='number'>0.1</span>, <span class='number'>0.1</span>, <span class='number'>0.8</span>),
-                                <span class='kw-2'>&amp;</span><span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>0.2</span>, <span class='number'>0.2</span>, <span class='number'>0.2</span>, <span class='number'>0.8</span>));
+        <span class="ident">rect</span>.<span class="ident">size</span>.<span class="ident">width</span> <span class="op">+=</span> <span class="number">140.0</span>;
+        <span class="ident">debug_renderer</span>.<span class="ident">add_quad</span>(<span class="ident">rect</span>.<span class="ident">origin</span>.<span class="ident">x</span>,
+                                <span class="ident">rect</span>.<span class="ident">origin</span>.<span class="ident">y</span>,
+                                <span class="ident">rect</span>.<span class="ident">origin</span>.<span class="ident">x</span> <span class="op">+</span> <span class="ident">rect</span>.<span class="ident">size</span>.<span class="ident">width</span> <span class="op">+</span> <span class="number">10.0</span>,
+                                <span class="ident">rect</span>.<span class="ident">origin</span>.<span class="ident">y</span> <span class="op">+</span> <span class="ident">rect</span>.<span class="ident">size</span>.<span class="ident">height</span>,
+                                <span class="kw-2">&amp;</span><span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">0.1</span>, <span class="number">0.1</span>, <span class="number">0.1</span>, <span class="number">0.8</span>),
+                                <span class="kw-2">&amp;</span><span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">0.2</span>, <span class="number">0.2</span>, <span class="number">0.2</span>, <span class="number">0.8</span>));
 
-        <span class='kw'>let</span> <span class='ident'>bx0</span> <span class='op'>=</span> <span class='ident'>x</span> <span class='op'>+</span> <span class='number'>10.0</span>;
-        <span class='kw'>let</span> <span class='ident'>by0</span> <span class='op'>=</span> <span class='ident'>y</span> <span class='op'>+</span> <span class='number'>10.0</span>;
-        <span class='kw'>let</span> <span class='ident'>bx1</span> <span class='op'>=</span> <span class='ident'>bx0</span> <span class='op'>+</span> <span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>-</span> <span class='number'>20.0</span>;
-        <span class='kw'>let</span> <span class='ident'>by1</span> <span class='op'>=</span> <span class='ident'>by0</span> <span class='op'>+</span> <span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>-</span> <span class='number'>20.0</span>;
+        <span class="kw">let</span> <span class="ident">bx0</span> <span class="op">=</span> <span class="ident">x</span> <span class="op">+</span> <span class="number">10.0</span>;
+        <span class="kw">let</span> <span class="ident">by0</span> <span class="op">=</span> <span class="ident">y</span> <span class="op">+</span> <span class="number">10.0</span>;
+        <span class="kw">let</span> <span class="ident">bx1</span> <span class="op">=</span> <span class="ident">bx0</span> <span class="op">+</span> <span class="ident">size</span>.<span class="ident">width</span> <span class="op">-</span> <span class="number">20.0</span>;
+        <span class="kw">let</span> <span class="ident">by1</span> <span class="op">=</span> <span class="ident">by0</span> <span class="op">+</span> <span class="ident">size</span>.<span class="ident">height</span> <span class="op">-</span> <span class="number">20.0</span>;
 
-        <span class='kw'>let</span> <span class='ident'>w</span> <span class='op'>=</span> (<span class='ident'>bx1</span> <span class='op'>-</span> <span class='ident'>bx0</span>) <span class='op'>/</span> <span class='self'>self</span>.<span class='ident'>max_samples</span> <span class='kw'>as</span> <span class='ident'>f32</span>;
-        <span class='kw'>let</span> <span class='ident'>h</span> <span class='op'>=</span> <span class='ident'>by1</span> <span class='op'>-</span> <span class='ident'>by0</span>;
+        <span class="kw">let</span> <span class="ident">w</span> <span class="op">=</span> (<span class="ident">bx1</span> <span class="op">-</span> <span class="ident">bx0</span>) <span class="op">/</span> <span class="self">self</span>.<span class="ident">max_samples</span> <span class="kw">as</span> <span class="ident">f32</span>;
+        <span class="kw">let</span> <span class="ident">h</span> <span class="op">=</span> <span class="ident">by1</span> <span class="op">-</span> <span class="ident">by0</span>;
 
-        <span class='kw'>let</span> <span class='ident'>color_t0</span> <span class='op'>=</span> <span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>0.0</span>, <span class='number'>1.0</span>, <span class='number'>0.0</span>, <span class='number'>1.0</span>);
-        <span class='kw'>let</span> <span class='ident'>color_b0</span> <span class='op'>=</span> <span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>0.0</span>, <span class='number'>0.7</span>, <span class='number'>0.0</span>, <span class='number'>1.0</span>);
+        <span class="kw">let</span> <span class="ident">color_t0</span> <span class="op">=</span> <span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">0.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>);
+        <span class="kw">let</span> <span class="ident">color_b0</span> <span class="op">=</span> <span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">0.0</span>, <span class="number">0.7</span>, <span class="number">0.0</span>, <span class="number">1.0</span>);
 
-        <span class='kw'>let</span> <span class='ident'>color_t1</span> <span class='op'>=</span> <span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>0.0</span>, <span class='number'>1.0</span>, <span class='number'>0.0</span>, <span class='number'>1.0</span>);
-        <span class='kw'>let</span> <span class='ident'>color_b1</span> <span class='op'>=</span> <span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>0.0</span>, <span class='number'>0.7</span>, <span class='number'>0.0</span>, <span class='number'>1.0</span>);
+        <span class="kw">let</span> <span class="ident">color_t1</span> <span class="op">=</span> <span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">0.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>);
+        <span class="kw">let</span> <span class="ident">color_b1</span> <span class="op">=</span> <span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">0.0</span>, <span class="number">0.7</span>, <span class="number">0.0</span>, <span class="number">1.0</span>);
 
-        <span class='kw'>let</span> <span class='ident'>color_t2</span> <span class='op'>=</span> <span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>1.0</span>, <span class='number'>0.0</span>, <span class='number'>0.0</span>, <span class='number'>1.0</span>);
-        <span class='kw'>let</span> <span class='ident'>color_b2</span> <span class='op'>=</span> <span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>0.7</span>, <span class='number'>0.0</span>, <span class='number'>0.0</span>, <span class='number'>1.0</span>);
+        <span class="kw">let</span> <span class="ident">color_t2</span> <span class="op">=</span> <span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>);
+        <span class="kw">let</span> <span class="ident">color_b2</span> <span class="op">=</span> <span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">0.7</span>, <span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>);
 
-        <span class='kw'>for</span> (<span class='ident'>index</span>, <span class='ident'>sample</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>values</span>.<span class='ident'>iter</span>().<span class='ident'>enumerate</span>() {
-            <span class='kw'>let</span> <span class='ident'>sample</span> <span class='op'>=</span> <span class='kw-2'>*</span><span class='ident'>sample</span>;
-            <span class='kw'>let</span> <span class='ident'>x1</span> <span class='op'>=</span> <span class='ident'>bx1</span> <span class='op'>-</span> <span class='ident'>index</span> <span class='kw'>as</span> <span class='ident'>f32</span> <span class='op'>*</span> <span class='ident'>w</span>;
-            <span class='kw'>let</span> <span class='ident'>x0</span> <span class='op'>=</span> <span class='ident'>x1</span> <span class='op'>-</span> <span class='ident'>w</span>;
+        <span class="kw">for</span> (<span class="ident">index</span>, <span class="ident">sample</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
+            <span class="kw">let</span> <span class="ident">sample</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">sample</span>;
+            <span class="kw">let</span> <span class="ident">x1</span> <span class="op">=</span> <span class="ident">bx1</span> <span class="op">-</span> <span class="ident">index</span> <span class="kw">as</span> <span class="ident">f32</span> <span class="op">*</span> <span class="ident">w</span>;
+            <span class="kw">let</span> <span class="ident">x0</span> <span class="op">=</span> <span class="ident">x1</span> <span class="op">-</span> <span class="ident">w</span>;
 
-            <span class='kw'>let</span> <span class='ident'>y0</span> <span class='op'>=</span> <span class='ident'>by1</span> <span class='op'>-</span> (<span class='ident'>sample</span> <span class='op'>/</span> <span class='ident'>stats</span>.<span class='ident'>max_value</span>) <span class='kw'>as</span> <span class='ident'>f32</span> <span class='op'>*</span> <span class='ident'>h</span>;
-            <span class='kw'>let</span> <span class='ident'>y1</span> <span class='op'>=</span> <span class='ident'>by1</span>;
+            <span class="kw">let</span> <span class="ident">y0</span> <span class="op">=</span> <span class="ident">by1</span> <span class="op">-</span> (<span class="ident">sample</span> <span class="op">/</span> <span class="ident">stats</span>.<span class="ident">max_value</span>) <span class="kw">as</span> <span class="ident">f32</span> <span class="op">*</span> <span class="ident">h</span>;
+            <span class="kw">let</span> <span class="ident">y1</span> <span class="op">=</span> <span class="ident">by1</span>;
 
-            <span class='kw'>let</span> (<span class='ident'>color_top</span>, <span class='ident'>color_bottom</span>) <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>sample</span> <span class='op'>&lt;</span> <span class='number'>1000.0</span> <span class='op'>/</span> <span class='number'>60.0</span> {
-                (<span class='kw-2'>&amp;</span><span class='ident'>color_t0</span>, <span class='kw-2'>&amp;</span><span class='ident'>color_b0</span>)
-            } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>sample</span> <span class='op'>&lt;</span> <span class='number'>1000.0</span> <span class='op'>/</span> <span class='number'>30.0</span> {
-                (<span class='kw-2'>&amp;</span><span class='ident'>color_t1</span>, <span class='kw-2'>&amp;</span><span class='ident'>color_b1</span>)
-            } <span class='kw'>else</span> {
-                (<span class='kw-2'>&amp;</span><span class='ident'>color_t2</span>, <span class='kw-2'>&amp;</span><span class='ident'>color_b2</span>)
+            <span class="kw">let</span> (<span class="ident">color_top</span>, <span class="ident">color_bottom</span>) <span class="op">=</span> <span class="kw">if</span> <span class="ident">sample</span> <span class="op">&lt;</span> <span class="number">1000.0</span> <span class="op">/</span> <span class="number">60.0</span> {
+                (<span class="kw-2">&amp;</span><span class="ident">color_t0</span>, <span class="kw-2">&amp;</span><span class="ident">color_b0</span>)
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">sample</span> <span class="op">&lt;</span> <span class="number">1000.0</span> <span class="op">/</span> <span class="number">30.0</span> {
+                (<span class="kw-2">&amp;</span><span class="ident">color_t1</span>, <span class="kw-2">&amp;</span><span class="ident">color_b1</span>)
+            } <span class="kw">else</span> {
+                (<span class="kw-2">&amp;</span><span class="ident">color_t2</span>, <span class="kw-2">&amp;</span><span class="ident">color_b2</span>)
             };
 
-            <span class='ident'>debug_renderer</span>.<span class='ident'>add_quad</span>(<span class='ident'>x0</span>, <span class='ident'>y0</span>, <span class='ident'>x1</span>, <span class='ident'>y1</span>, <span class='ident'>color_top</span>, <span class='ident'>color_bottom</span>);
+            <span class="ident">debug_renderer</span>.<span class="ident">add_quad</span>(<span class="ident">x0</span>, <span class="ident">y0</span>, <span class="ident">x1</span>, <span class="ident">y1</span>, <span class="ident">color_top</span>, <span class="ident">color_bottom</span>);
         }
 
-        <span class='ident'>rect</span>
+        <span class="ident">rect</span>
     }
 }
 
-<span class='kw'>struct</span> <span class='ident'>GpuFrame</span> {
-    <span class='ident'>total_time</span>: <span class='ident'>u64</span>,
-    <span class='ident'>samples</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>GpuSample</span><span class='op'>&lt;</span><span class='ident'>GpuProfileTag</span><span class='op'>&gt;&gt;</span>,
+<span class="kw">struct</span> <span class="ident">GpuFrame</span> {
+    <span class="ident">total_time</span>: <span class="ident">u64</span>,
+    <span class="ident">samples</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">GpuSample</span><span class="op">&lt;</span><span class="ident">GpuProfileTag</span><span class="op">&gt;&gt;</span>,
 }
 
-<span class='kw'>struct</span> <span class='ident'>GpuFrameCollection</span> {
-    <span class='ident'>frames</span>: <span class='ident'>VecDeque</span><span class='op'>&lt;</span><span class='ident'>GpuFrame</span><span class='op'>&gt;</span>,
+<span class="kw">struct</span> <span class="ident">GpuFrameCollection</span> {
+    <span class="ident">frames</span>: <span class="ident">VecDeque</span><span class="op">&lt;</span><span class="ident">GpuFrame</span><span class="op">&gt;</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>GpuFrameCollection</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>GpuFrameCollection</span> {
-        <span class='ident'>GpuFrameCollection</span> {
-            <span class='ident'>frames</span>: <span class='ident'>VecDeque</span>::<span class='ident'>new</span>(),
+<span class="kw">impl</span> <span class="ident">GpuFrameCollection</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">GpuFrameCollection</span> {
+        <span class="ident">GpuFrameCollection</span> {
+            <span class="ident">frames</span>: <span class="ident">VecDeque</span>::<span class="ident">new</span>(),
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>total_time</span>: <span class='ident'>u64</span>, <span class='ident'>samples</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>GpuSample</span><span class='op'>&lt;</span><span class='ident'>GpuProfileTag</span><span class='op'>&gt;&gt;</span>) {
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>frames</span>.<span class='ident'>len</span>() <span class='op'>==</span> <span class='number'>20</span> {
-            <span class='self'>self</span>.<span class='ident'>frames</span>.<span class='ident'>pop_back</span>();
+    <span class="kw">fn</span> <span class="ident">push</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">total_time</span>: <span class="ident">u64</span>, <span class="ident">samples</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">GpuSample</span><span class="op">&lt;</span><span class="ident">GpuProfileTag</span><span class="op">&gt;&gt;</span>) {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">frames</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">20</span> {
+            <span class="self">self</span>.<span class="ident">frames</span>.<span class="ident">pop_back</span>();
         }
-        <span class='self'>self</span>.<span class='ident'>frames</span>.<span class='ident'>push_front</span>(<span class='ident'>GpuFrame</span> {
-            <span class='ident'>total_time</span>: <span class='ident'>total_time</span>,
-            <span class='ident'>samples</span>: <span class='ident'>samples</span>,
+        <span class="self">self</span>.<span class="ident">frames</span>.<span class="ident">push_front</span>(<span class="ident">GpuFrame</span> {
+            <span class="ident">total_time</span>: <span class="ident">total_time</span>,
+            <span class="ident">samples</span>: <span class="ident">samples</span>,
         });
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>GpuFrameCollection</span> {
-    <span class='kw'>fn</span> <span class='ident'>draw</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
-            <span class='ident'>x</span>: <span class='ident'>f32</span>,
-            <span class='ident'>y</span>: <span class='ident'>f32</span>,
-            <span class='ident'>debug_renderer</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>DebugRenderer</span>) <span class='op'>-&gt;</span> <span class='ident'>Rect</span><span class='op'>&lt;</span><span class='ident'>f32</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>bounding_rect</span> <span class='op'>=</span> <span class='ident'>Rect</span>::<span class='ident'>new</span>(<span class='ident'>Point2D</span>::<span class='ident'>new</span>(<span class='ident'>x</span>, <span class='ident'>y</span>),
-                                      <span class='ident'>Size2D</span>::<span class='ident'>new</span>(<span class='ident'>GRAPH_WIDTH</span> <span class='op'>+</span> <span class='number'>2.0</span> <span class='op'>*</span> <span class='ident'>GRAPH_PADDING</span>,
-                                                  <span class='ident'>GRAPH_HEIGHT</span> <span class='op'>+</span> <span class='number'>2.0</span> <span class='op'>*</span> <span class='ident'>GRAPH_PADDING</span>));
-        <span class='kw'>let</span> <span class='ident'>graph_rect</span> <span class='op'>=</span> <span class='ident'>bounding_rect</span>.<span class='ident'>inflate</span>(<span class='op'>-</span><span class='ident'>GRAPH_PADDING</span>, <span class='op'>-</span><span class='ident'>GRAPH_PADDING</span>);
+<span class="kw">impl</span> <span class="ident">GpuFrameCollection</span> {
+    <span class="kw">fn</span> <span class="ident">draw</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
+            <span class="ident">x</span>: <span class="ident">f32</span>,
+            <span class="ident">y</span>: <span class="ident">f32</span>,
+            <span class="ident">debug_renderer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">DebugRenderer</span>) <span class="op">-&gt;</span> <span class="ident">Rect</span><span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">bounding_rect</span> <span class="op">=</span> <span class="ident">Rect</span>::<span class="ident">new</span>(<span class="ident">Point2D</span>::<span class="ident">new</span>(<span class="ident">x</span>, <span class="ident">y</span>),
+                                      <span class="ident">Size2D</span>::<span class="ident">new</span>(<span class="ident">GRAPH_WIDTH</span> <span class="op">+</span> <span class="number">2.0</span> <span class="op">*</span> <span class="ident">GRAPH_PADDING</span>,
+                                                  <span class="ident">GRAPH_HEIGHT</span> <span class="op">+</span> <span class="number">2.0</span> <span class="op">*</span> <span class="ident">GRAPH_PADDING</span>));
+        <span class="kw">let</span> <span class="ident">graph_rect</span> <span class="op">=</span> <span class="ident">bounding_rect</span>.<span class="ident">inflate</span>(<span class="op">-</span><span class="ident">GRAPH_PADDING</span>, <span class="op">-</span><span class="ident">GRAPH_PADDING</span>);
 
-        <span class='ident'>debug_renderer</span>.<span class='ident'>add_quad</span>(<span class='ident'>bounding_rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>,
-                                <span class='ident'>bounding_rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>,
-                                <span class='ident'>bounding_rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>bounding_rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span>,
-                                <span class='ident'>bounding_rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>bounding_rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span>,
-                                <span class='kw-2'>&amp;</span><span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>0.1</span>, <span class='number'>0.1</span>, <span class='number'>0.1</span>, <span class='number'>0.8</span>),
-                                <span class='kw-2'>&amp;</span><span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>0.2</span>, <span class='number'>0.2</span>, <span class='number'>0.2</span>, <span class='number'>0.8</span>));
+        <span class="ident">debug_renderer</span>.<span class="ident">add_quad</span>(<span class="ident">bounding_rect</span>.<span class="ident">origin</span>.<span class="ident">x</span>,
+                                <span class="ident">bounding_rect</span>.<span class="ident">origin</span>.<span class="ident">y</span>,
+                                <span class="ident">bounding_rect</span>.<span class="ident">origin</span>.<span class="ident">x</span> <span class="op">+</span> <span class="ident">bounding_rect</span>.<span class="ident">size</span>.<span class="ident">width</span>,
+                                <span class="ident">bounding_rect</span>.<span class="ident">origin</span>.<span class="ident">y</span> <span class="op">+</span> <span class="ident">bounding_rect</span>.<span class="ident">size</span>.<span class="ident">height</span>,
+                                <span class="kw-2">&amp;</span><span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">0.1</span>, <span class="number">0.1</span>, <span class="number">0.1</span>, <span class="number">0.8</span>),
+                                <span class="kw-2">&amp;</span><span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">0.2</span>, <span class="number">0.2</span>, <span class="number">0.2</span>, <span class="number">0.8</span>));
 
-        <span class='kw'>let</span> <span class='ident'>w</span> <span class='op'>=</span> <span class='ident'>graph_rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span>;
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>y0</span> <span class='op'>=</span> <span class='ident'>graph_rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>;
+        <span class="kw">let</span> <span class="ident">w</span> <span class="op">=</span> <span class="ident">graph_rect</span>.<span class="ident">size</span>.<span class="ident">width</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">y0</span> <span class="op">=</span> <span class="ident">graph_rect</span>.<span class="ident">origin</span>.<span class="ident">y</span>;
 
-        <span class='kw'>let</span> <span class='ident'>max_time</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>frames</span>
-                           .<span class='ident'>iter</span>()
-                           .<span class='ident'>max_by_key</span>(<span class='op'>|</span><span class='ident'>f</span><span class='op'>|</span> <span class='ident'>f</span>.<span class='ident'>total_time</span>)
-                           .<span class='ident'>unwrap</span>()
-                           .<span class='ident'>total_time</span> <span class='kw'>as</span> <span class='ident'>f32</span>;
+        <span class="kw">let</span> <span class="ident">max_time</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">frames</span>
+                           .<span class="ident">iter</span>()
+                           .<span class="ident">max_by_key</span>(<span class="op">|</span><span class="ident">f</span><span class="op">|</span> <span class="ident">f</span>.<span class="ident">total_time</span>)
+                           .<span class="ident">unwrap</span>()
+                           .<span class="ident">total_time</span> <span class="kw">as</span> <span class="ident">f32</span>;
 
-        <span class='kw'>for</span> <span class='ident'>frame</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>frames</span> {
-            <span class='kw'>let</span> <span class='ident'>y1</span> <span class='op'>=</span> <span class='ident'>y0</span> <span class='op'>+</span> <span class='ident'>GRAPH_FRAME_HEIGHT</span>;
+        <span class="kw">for</span> <span class="ident">frame</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">frames</span> {
+            <span class="kw">let</span> <span class="ident">y1</span> <span class="op">=</span> <span class="ident">y0</span> <span class="op">+</span> <span class="ident">GRAPH_FRAME_HEIGHT</span>;
 
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>current_ns</span> <span class='op'>=</span> <span class='number'>0</span>;
-            <span class='kw'>for</span> <span class='ident'>sample</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>frame</span>.<span class='ident'>samples</span> {
-                <span class='kw'>let</span> <span class='ident'>x0</span> <span class='op'>=</span> <span class='ident'>graph_rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>w</span> <span class='op'>*</span> <span class='ident'>current_ns</span> <span class='kw'>as</span> <span class='ident'>f32</span> <span class='op'>/</span> <span class='ident'>max_time</span>;
-                <span class='ident'>current_ns</span> <span class='op'>+=</span> <span class='ident'>sample</span>.<span class='ident'>time_ns</span>;
-                <span class='kw'>let</span> <span class='ident'>x1</span> <span class='op'>=</span> <span class='ident'>graph_rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>w</span> <span class='op'>*</span> <span class='ident'>current_ns</span> <span class='kw'>as</span> <span class='ident'>f32</span> <span class='op'>/</span> <span class='ident'>max_time</span>;
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">current_ns</span> <span class="op">=</span> <span class="number">0</span>;
+            <span class="kw">for</span> <span class="ident">sample</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">frame</span>.<span class="ident">samples</span> {
+                <span class="kw">let</span> <span class="ident">x0</span> <span class="op">=</span> <span class="ident">graph_rect</span>.<span class="ident">origin</span>.<span class="ident">x</span> <span class="op">+</span> <span class="ident">w</span> <span class="op">*</span> <span class="ident">current_ns</span> <span class="kw">as</span> <span class="ident">f32</span> <span class="op">/</span> <span class="ident">max_time</span>;
+                <span class="ident">current_ns</span> <span class="op">+=</span> <span class="ident">sample</span>.<span class="ident">time_ns</span>;
+                <span class="kw">let</span> <span class="ident">x1</span> <span class="op">=</span> <span class="ident">graph_rect</span>.<span class="ident">origin</span>.<span class="ident">x</span> <span class="op">+</span> <span class="ident">w</span> <span class="op">*</span> <span class="ident">current_ns</span> <span class="kw">as</span> <span class="ident">f32</span> <span class="op">/</span> <span class="ident">max_time</span>;
 
-                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>bottom_color</span> <span class='op'>=</span> <span class='ident'>sample</span>.<span class='ident'>tag</span>.<span class='ident'>color</span>;
-                <span class='ident'>bottom_color</span>.<span class='ident'>a</span> <span class='op'>*=</span> <span class='number'>0.5</span>;
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bottom_color</span> <span class="op">=</span> <span class="ident">sample</span>.<span class="ident">tag</span>.<span class="ident">color</span>;
+                <span class="ident">bottom_color</span>.<span class="ident">a</span> <span class="op">*=</span> <span class="number">0.5</span>;
 
-                <span class='ident'>debug_renderer</span>.<span class='ident'>add_quad</span>(<span class='ident'>x0</span>,
-                                        <span class='ident'>y0</span>,
-                                        <span class='ident'>x1</span>,
-                                        <span class='ident'>y1</span>,
-                                        <span class='kw-2'>&amp;</span><span class='ident'>sample</span>.<span class='ident'>tag</span>.<span class='ident'>color</span>,
-                                        <span class='kw-2'>&amp;</span><span class='ident'>bottom_color</span>);
+                <span class="ident">debug_renderer</span>.<span class="ident">add_quad</span>(<span class="ident">x0</span>,
+                                        <span class="ident">y0</span>,
+                                        <span class="ident">x1</span>,
+                                        <span class="ident">y1</span>,
+                                        <span class="kw-2">&amp;</span><span class="ident">sample</span>.<span class="ident">tag</span>.<span class="ident">color</span>,
+                                        <span class="kw-2">&amp;</span><span class="ident">bottom_color</span>);
             }
 
-            <span class='ident'>y0</span> <span class='op'>=</span> <span class='ident'>y1</span>;
+            <span class="ident">y0</span> <span class="op">=</span> <span class="ident">y1</span>;
         }
 
-        <span class='ident'>bounding_rect</span>
+        <span class="ident">bounding_rect</span>
     }
 }
 
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Profiler</span> {
-    <span class='ident'>x_left</span>: <span class='ident'>f32</span>,
-    <span class='ident'>y_left</span>: <span class='ident'>f32</span>,
-    <span class='ident'>x_right</span>: <span class='ident'>f32</span>,
-    <span class='ident'>y_right</span>: <span class='ident'>f32</span>,
-    <span class='ident'>backend_time</span>: <span class='ident'>ProfileGraph</span>,
-    <span class='ident'>compositor_time</span>: <span class='ident'>ProfileGraph</span>,
-    <span class='ident'>gpu_time</span>: <span class='ident'>ProfileGraph</span>,
-    <span class='ident'>gpu_frames</span>: <span class='ident'>GpuFrameCollection</span>,
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Profiler</span> {
+    <span class="ident">x_left</span>: <span class="ident">f32</span>,
+    <span class="ident">y_left</span>: <span class="ident">f32</span>,
+    <span class="ident">x_right</span>: <span class="ident">f32</span>,
+    <span class="ident">y_right</span>: <span class="ident">f32</span>,
+    <span class="ident">backend_time</span>: <span class="ident">ProfileGraph</span>,
+    <span class="ident">compositor_time</span>: <span class="ident">ProfileGraph</span>,
+    <span class="ident">gpu_time</span>: <span class="ident">ProfileGraph</span>,
+    <span class="ident">gpu_frames</span>: <span class="ident">GpuFrameCollection</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>Profiler</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>Profiler</span> {
-        <span class='ident'>Profiler</span> {
-            <span class='ident'>x_left</span>: <span class='number'>0.0</span>,
-            <span class='ident'>y_left</span>: <span class='number'>0.0</span>,
-            <span class='ident'>x_right</span>: <span class='number'>0.0</span>,
-            <span class='ident'>y_right</span>: <span class='number'>0.0</span>,
-            <span class='ident'>backend_time</span>: <span class='ident'>ProfileGraph</span>::<span class='ident'>new</span>(<span class='number'>600</span>),
-            <span class='ident'>compositor_time</span>: <span class='ident'>ProfileGraph</span>::<span class='ident'>new</span>(<span class='number'>600</span>),
-            <span class='ident'>gpu_time</span>: <span class='ident'>ProfileGraph</span>::<span class='ident'>new</span>(<span class='number'>600</span>),
-            <span class='ident'>gpu_frames</span>: <span class='ident'>GpuFrameCollection</span>::<span class='ident'>new</span>(),
+<span class="kw">impl</span> <span class="ident">Profiler</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">Profiler</span> {
+        <span class="ident">Profiler</span> {
+            <span class="ident">x_left</span>: <span class="number">0.0</span>,
+            <span class="ident">y_left</span>: <span class="number">0.0</span>,
+            <span class="ident">x_right</span>: <span class="number">0.0</span>,
+            <span class="ident">y_right</span>: <span class="number">0.0</span>,
+            <span class="ident">backend_time</span>: <span class="ident">ProfileGraph</span>::<span class="ident">new</span>(<span class="number">600</span>),
+            <span class="ident">compositor_time</span>: <span class="ident">ProfileGraph</span>::<span class="ident">new</span>(<span class="number">600</span>),
+            <span class="ident">gpu_time</span>: <span class="ident">ProfileGraph</span>::<span class="ident">new</span>(<span class="number">600</span>),
+            <span class="ident">gpu_frames</span>: <span class="ident">GpuFrameCollection</span>::<span class="ident">new</span>(),
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>draw_counters</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                     <span class='ident'>counters</span>: <span class='kw-2'>&amp;</span>[<span class='kw-2'>&amp;</span><span class='ident'>ProfileCounter</span>],
-                     <span class='ident'>debug_renderer</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>DebugRenderer</span>,
-                     <span class='ident'>left</span>: <span class='ident'>bool</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>label_rect</span> <span class='op'>=</span> <span class='ident'>Rect</span>::<span class='ident'>zero</span>();
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>value_rect</span> <span class='op'>=</span> <span class='ident'>Rect</span>::<span class='ident'>zero</span>();
-        <span class='kw'>let</span> (<span class='kw-2'>mut</span> <span class='ident'>current_x</span>, <span class='kw-2'>mut</span> <span class='ident'>current_y</span>) <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>left</span> {
-            (<span class='self'>self</span>.<span class='ident'>x_left</span>, <span class='self'>self</span>.<span class='ident'>y_left</span>)
-        } <span class='kw'>else</span> {
-            (<span class='self'>self</span>.<span class='ident'>x_right</span>, <span class='self'>self</span>.<span class='ident'>y_right</span>)
+    <span class="kw">fn</span> <span class="ident">draw_counters</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+                     <span class="ident">counters</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">ProfileCounter</span>],
+                     <span class="ident">debug_renderer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">DebugRenderer</span>,
+                     <span class="ident">left</span>: <span class="ident">bool</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">label_rect</span> <span class="op">=</span> <span class="ident">Rect</span>::<span class="ident">zero</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value_rect</span> <span class="op">=</span> <span class="ident">Rect</span>::<span class="ident">zero</span>();
+        <span class="kw">let</span> (<span class="kw-2">mut</span> <span class="ident">current_x</span>, <span class="kw-2">mut</span> <span class="ident">current_y</span>) <span class="op">=</span> <span class="kw">if</span> <span class="ident">left</span> {
+            (<span class="self">self</span>.<span class="ident">x_left</span>, <span class="self">self</span>.<span class="ident">y_left</span>)
+        } <span class="kw">else</span> {
+            (<span class="self">self</span>.<span class="ident">x_right</span>, <span class="self">self</span>.<span class="ident">y_right</span>)
         };
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>color_index</span> <span class='op'>=</span> <span class='number'>0</span>;
-        <span class='kw'>let</span> <span class='ident'>line_height</span> <span class='op'>=</span> <span class='ident'>debug_renderer</span>.<span class='ident'>line_height</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">color_index</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="ident">line_height</span> <span class="op">=</span> <span class="ident">debug_renderer</span>.<span class="ident">line_height</span>();
 
-        <span class='kw'>let</span> <span class='ident'>colors</span> <span class='op'>=</span> [
-            <span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>1.0</span>, <span class='number'>1.0</span>, <span class='number'>1.0</span>, <span class='number'>1.0</span>),
-            <span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>1.0</span>, <span class='number'>1.0</span>, <span class='number'>0.0</span>, <span class='number'>1.0</span>),
+        <span class="kw">let</span> <span class="ident">colors</span> <span class="op">=</span> [
+            <span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">1.0</span>, <span class="number">1.0</span>, <span class="number">1.0</span>, <span class="number">1.0</span>),
+            <span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">1.0</span>, <span class="number">1.0</span>, <span class="number">0.0</span>, <span class="number">1.0</span>),
         ];
 
-        <span class='kw'>for</span> <span class='ident'>counter</span> <span class='kw'>in</span> <span class='ident'>counters</span> {
-            <span class='kw'>let</span> <span class='ident'>rect</span> <span class='op'>=</span> <span class='ident'>debug_renderer</span>.<span class='ident'>add_text</span>(<span class='ident'>current_x</span>,
-                                               <span class='ident'>current_y</span>,
-                                               <span class='ident'>counter</span>.<span class='ident'>description</span>(),
-                                               <span class='kw-2'>&amp;</span><span class='ident'>colors</span>[<span class='ident'>color_index</span>]);
-            <span class='ident'>color_index</span> <span class='op'>=</span> (<span class='ident'>color_index</span><span class='op'>+</span><span class='number'>1</span>) <span class='op'>%</span> <span class='ident'>colors</span>.<span class='ident'>len</span>();
+        <span class="kw">for</span> <span class="ident">counter</span> <span class="kw">in</span> <span class="ident">counters</span> {
+            <span class="kw">let</span> <span class="ident">rect</span> <span class="op">=</span> <span class="ident">debug_renderer</span>.<span class="ident">add_text</span>(<span class="ident">current_x</span>,
+                                               <span class="ident">current_y</span>,
+                                               <span class="ident">counter</span>.<span class="ident">description</span>(),
+                                               <span class="kw-2">&amp;</span><span class="ident">colors</span>[<span class="ident">color_index</span>]);
+            <span class="ident">color_index</span> <span class="op">=</span> (<span class="ident">color_index</span><span class="op">+</span><span class="number">1</span>) <span class="op">%</span> <span class="ident">colors</span>.<span class="ident">len</span>();
 
-            <span class='ident'>label_rect</span> <span class='op'>=</span> <span class='ident'>label_rect</span>.<span class='ident'>union</span>(<span class='kw-2'>&amp;</span><span class='ident'>rect</span>);
-            <span class='ident'>current_y</span> <span class='op'>+=</span> <span class='ident'>line_height</span>;
+            <span class="ident">label_rect</span> <span class="op">=</span> <span class="ident">label_rect</span>.<span class="ident">union</span>(<span class="kw-2">&amp;</span><span class="ident">rect</span>);
+            <span class="ident">current_y</span> <span class="op">+=</span> <span class="ident">line_height</span>;
         }
 
-        <span class='ident'>color_index</span> <span class='op'>=</span> <span class='number'>0</span>;
-        <span class='ident'>current_x</span> <span class='op'>=</span> <span class='ident'>label_rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>label_rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span> <span class='op'>+</span> <span class='number'>60.0</span>;
-        <span class='ident'>current_y</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>left</span> {
-            <span class='self'>self</span>.<span class='ident'>y_left</span>
-        } <span class='kw'>else</span> {
-            <span class='self'>self</span>.<span class='ident'>y_right</span>
+        <span class="ident">color_index</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="ident">current_x</span> <span class="op">=</span> <span class="ident">label_rect</span>.<span class="ident">origin</span>.<span class="ident">x</span> <span class="op">+</span> <span class="ident">label_rect</span>.<span class="ident">size</span>.<span class="ident">width</span> <span class="op">+</span> <span class="number">60.0</span>;
+        <span class="ident">current_y</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">left</span> {
+            <span class="self">self</span>.<span class="ident">y_left</span>
+        } <span class="kw">else</span> {
+            <span class="self">self</span>.<span class="ident">y_right</span>
         };
 
-        <span class='kw'>for</span> <span class='ident'>counter</span> <span class='kw'>in</span> <span class='ident'>counters</span> {
-            <span class='kw'>let</span> <span class='ident'>rect</span> <span class='op'>=</span> <span class='ident'>debug_renderer</span>.<span class='ident'>add_text</span>(<span class='ident'>current_x</span>,
-                                                    <span class='ident'>current_y</span>,
-                                                    <span class='kw-2'>&amp;</span><span class='ident'>counter</span>.<span class='ident'>value</span>(),
-                                                    <span class='kw-2'>&amp;</span><span class='ident'>colors</span>[<span class='ident'>color_index</span>]);
-            <span class='ident'>color_index</span> <span class='op'>=</span> (<span class='ident'>color_index</span><span class='op'>+</span><span class='number'>1</span>) <span class='op'>%</span> <span class='ident'>colors</span>.<span class='ident'>len</span>();
+        <span class="kw">for</span> <span class="ident">counter</span> <span class="kw">in</span> <span class="ident">counters</span> {
+            <span class="kw">let</span> <span class="ident">rect</span> <span class="op">=</span> <span class="ident">debug_renderer</span>.<span class="ident">add_text</span>(<span class="ident">current_x</span>,
+                                                    <span class="ident">current_y</span>,
+                                                    <span class="kw-2">&amp;</span><span class="ident">counter</span>.<span class="ident">value</span>(),
+                                                    <span class="kw-2">&amp;</span><span class="ident">colors</span>[<span class="ident">color_index</span>]);
+            <span class="ident">color_index</span> <span class="op">=</span> (<span class="ident">color_index</span><span class="op">+</span><span class="number">1</span>) <span class="op">%</span> <span class="ident">colors</span>.<span class="ident">len</span>();
 
-            <span class='ident'>value_rect</span> <span class='op'>=</span> <span class='ident'>value_rect</span>.<span class='ident'>union</span>(<span class='kw-2'>&amp;</span><span class='ident'>rect</span>);
-            <span class='ident'>current_y</span> <span class='op'>+=</span> <span class='ident'>line_height</span>;
+            <span class="ident">value_rect</span> <span class="op">=</span> <span class="ident">value_rect</span>.<span class="ident">union</span>(<span class="kw-2">&amp;</span><span class="ident">rect</span>);
+            <span class="ident">current_y</span> <span class="op">+=</span> <span class="ident">line_height</span>;
         }
 
-        <span class='kw'>let</span> <span class='ident'>total_rect</span> <span class='op'>=</span> <span class='ident'>label_rect</span>.<span class='ident'>union</span>(<span class='kw-2'>&amp;</span><span class='ident'>value_rect</span>).<span class='ident'>inflate</span>(<span class='number'>10.0</span>, <span class='number'>10.0</span>);
-        <span class='ident'>debug_renderer</span>.<span class='ident'>add_quad</span>(<span class='ident'>total_rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span>,
-                                <span class='ident'>total_rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span>,
-                                <span class='ident'>total_rect</span>.<span class='ident'>origin</span>.<span class='ident'>x</span> <span class='op'>+</span> <span class='ident'>total_rect</span>.<span class='ident'>size</span>.<span class='ident'>width</span>,
-                                <span class='ident'>total_rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>total_rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span>,
-                                <span class='kw-2'>&amp;</span><span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>0.1</span>, <span class='number'>0.1</span>, <span class='number'>0.1</span>, <span class='number'>0.8</span>),
-                                <span class='kw-2'>&amp;</span><span class='ident'>ColorF</span>::<span class='ident'>new</span>(<span class='number'>0.2</span>, <span class='number'>0.2</span>, <span class='number'>0.2</span>, <span class='number'>0.8</span>));
-        <span class='kw'>let</span> <span class='ident'>new_y</span> <span class='op'>=</span> <span class='ident'>total_rect</span>.<span class='ident'>origin</span>.<span class='ident'>y</span> <span class='op'>+</span> <span class='ident'>total_rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>+</span> <span class='number'>30.0</span>;
-        <span class='kw'>if</span> <span class='ident'>left</span> {
-            <span class='self'>self</span>.<span class='ident'>y_left</span> <span class='op'>=</span> <span class='ident'>new_y</span>;
-        } <span class='kw'>else</span> {
-            <span class='self'>self</span>.<span class='ident'>y_right</span> <span class='op'>=</span> <span class='ident'>new_y</span>;
+        <span class="kw">let</span> <span class="ident">total_rect</span> <span class="op">=</span> <span class="ident">label_rect</span>.<span class="ident">union</span>(<span class="kw-2">&amp;</span><span class="ident">value_rect</span>).<span class="ident">inflate</span>(<span class="number">10.0</span>, <span class="number">10.0</span>);
+        <span class="ident">debug_renderer</span>.<span class="ident">add_quad</span>(<span class="ident">total_rect</span>.<span class="ident">origin</span>.<span class="ident">x</span>,
+                                <span class="ident">total_rect</span>.<span class="ident">origin</span>.<span class="ident">y</span>,
+                                <span class="ident">total_rect</span>.<span class="ident">origin</span>.<span class="ident">x</span> <span class="op">+</span> <span class="ident">total_rect</span>.<span class="ident">size</span>.<span class="ident">width</span>,
+                                <span class="ident">total_rect</span>.<span class="ident">origin</span>.<span class="ident">y</span> <span class="op">+</span> <span class="ident">total_rect</span>.<span class="ident">size</span>.<span class="ident">height</span>,
+                                <span class="kw-2">&amp;</span><span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">0.1</span>, <span class="number">0.1</span>, <span class="number">0.1</span>, <span class="number">0.8</span>),
+                                <span class="kw-2">&amp;</span><span class="ident">ColorF</span>::<span class="ident">new</span>(<span class="number">0.2</span>, <span class="number">0.2</span>, <span class="number">0.2</span>, <span class="number">0.8</span>));
+        <span class="kw">let</span> <span class="ident">new_y</span> <span class="op">=</span> <span class="ident">total_rect</span>.<span class="ident">origin</span>.<span class="ident">y</span> <span class="op">+</span> <span class="ident">total_rect</span>.<span class="ident">size</span>.<span class="ident">height</span> <span class="op">+</span> <span class="number">30.0</span>;
+        <span class="kw">if</span> <span class="ident">left</span> {
+            <span class="self">self</span>.<span class="ident">y_left</span> <span class="op">=</span> <span class="ident">new_y</span>;
+        } <span class="kw">else</span> {
+            <span class="self">self</span>.<span class="ident">y_right</span> <span class="op">=</span> <span class="ident">new_y</span>;
         }
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>draw_profile</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                        <span class='ident'>frame_profile</span>: <span class='kw-2'>&amp;</span><span class='ident'>FrameProfileCounters</span>,
-                        <span class='ident'>backend_profile</span>: <span class='kw-2'>&amp;</span><span class='ident'>BackendProfileCounters</span>,
-                        <span class='ident'>renderer_profile</span>: <span class='kw-2'>&amp;</span><span class='ident'>RendererProfileCounters</span>,
-                        <span class='ident'>renderer_timers</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>RendererProfileTimers</span>,
-                        <span class='ident'>debug_renderer</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>DebugRenderer</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">draw_profile</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+                        <span class="ident">frame_profile</span>: <span class="kw-2">&amp;</span><span class="ident">FrameProfileCounters</span>,
+                        <span class="ident">backend_profile</span>: <span class="kw-2">&amp;</span><span class="ident">BackendProfileCounters</span>,
+                        <span class="ident">renderer_profile</span>: <span class="kw-2">&amp;</span><span class="ident">RendererProfileCounters</span>,
+                        <span class="ident">renderer_timers</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">RendererProfileTimers</span>,
+                        <span class="ident">debug_renderer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">DebugRenderer</span>) {
 
-        <span class='kw'>let</span> <span class='ident'>_gm</span> <span class='op'>=</span> <span class='ident'>GpuMarker</span>::<span class='ident'>new</span>(<span class='string'>&quot;profile&quot;</span>);
-        <span class='self'>self</span>.<span class='ident'>x_left</span> <span class='op'>=</span> <span class='number'>20.0</span>;
-        <span class='self'>self</span>.<span class='ident'>y_left</span> <span class='op'>=</span> <span class='number'>40.0</span>;
-        <span class='self'>self</span>.<span class='ident'>x_right</span> <span class='op'>=</span> <span class='number'>400.0</span>;
-        <span class='self'>self</span>.<span class='ident'>y_right</span> <span class='op'>=</span> <span class='number'>40.0</span>;
+        <span class="kw">let</span> <span class="ident">_gm</span> <span class="op">=</span> <span class="ident">GpuMarker</span>::<span class="ident">new</span>(<span class="string">&quot;profile&quot;</span>);
+        <span class="self">self</span>.<span class="ident">x_left</span> <span class="op">=</span> <span class="number">20.0</span>;
+        <span class="self">self</span>.<span class="ident">y_left</span> <span class="op">=</span> <span class="number">40.0</span>;
+        <span class="self">self</span>.<span class="ident">x_right</span> <span class="op">=</span> <span class="number">400.0</span>;
+        <span class="self">self</span>.<span class="ident">y_right</span> <span class="op">=</span> <span class="number">40.0</span>;
 
-        <span class='self'>self</span>.<span class='ident'>draw_counters</span>(<span class='kw-2'>&amp;</span>[
-            <span class='kw-2'>&amp;</span><span class='ident'>renderer_profile</span>.<span class='ident'>frame_counter</span>,
-            <span class='kw-2'>&amp;</span><span class='ident'>renderer_profile</span>.<span class='ident'>frame_time</span>,
-        ], <span class='ident'>debug_renderer</span>, <span class='bool-val'>true</span>);
+        <span class="self">self</span>.<span class="ident">draw_counters</span>(<span class="kw-2">&amp;</span>[
+            <span class="kw-2">&amp;</span><span class="ident">renderer_profile</span>.<span class="ident">frame_counter</span>,
+            <span class="kw-2">&amp;</span><span class="ident">renderer_profile</span>.<span class="ident">frame_time</span>,
+        ], <span class="ident">debug_renderer</span>, <span class="bool-val">true</span>);
 
-        <span class='self'>self</span>.<span class='ident'>draw_counters</span>(<span class='kw-2'>&amp;</span>[
-            <span class='kw-2'>&amp;</span><span class='ident'>frame_profile</span>.<span class='ident'>total_primitives</span>,
-            <span class='kw-2'>&amp;</span><span class='ident'>frame_profile</span>.<span class='ident'>visible_primitives</span>,
-            <span class='kw-2'>&amp;</span><span class='ident'>frame_profile</span>.<span class='ident'>passes</span>,
-            <span class='kw-2'>&amp;</span><span class='ident'>frame_profile</span>.<span class='ident'>targets</span>,
-        ], <span class='ident'>debug_renderer</span>, <span class='bool-val'>true</span>);
+        <span class="self">self</span>.<span class="ident">draw_counters</span>(<span class="kw-2">&amp;</span>[
+            <span class="kw-2">&amp;</span><span class="ident">frame_profile</span>.<span class="ident">total_primitives</span>,
+            <span class="kw-2">&amp;</span><span class="ident">frame_profile</span>.<span class="ident">visible_primitives</span>,
+            <span class="kw-2">&amp;</span><span class="ident">frame_profile</span>.<span class="ident">passes</span>,
+            <span class="kw-2">&amp;</span><span class="ident">frame_profile</span>.<span class="ident">targets</span>,
+        ], <span class="ident">debug_renderer</span>, <span class="bool-val">true</span>);
 
-        <span class='self'>self</span>.<span class='ident'>draw_counters</span>(<span class='kw-2'>&amp;</span>[
-            <span class='kw-2'>&amp;</span><span class='ident'>backend_profile</span>.<span class='ident'>font_templates</span>,
-            <span class='kw-2'>&amp;</span><span class='ident'>backend_profile</span>.<span class='ident'>image_templates</span>,
-        ], <span class='ident'>debug_renderer</span>, <span class='bool-val'>true</span>);
+        <span class="self">self</span>.<span class="ident">draw_counters</span>(<span class="kw-2">&amp;</span>[
+            <span class="kw-2">&amp;</span><span class="ident">backend_profile</span>.<span class="ident">font_templates</span>,
+            <span class="kw-2">&amp;</span><span class="ident">backend_profile</span>.<span class="ident">image_templates</span>,
+        ], <span class="ident">debug_renderer</span>, <span class="bool-val">true</span>);
 
-        <span class='self'>self</span>.<span class='ident'>draw_counters</span>(<span class='kw-2'>&amp;</span>[
-            <span class='kw-2'>&amp;</span><span class='ident'>backend_profile</span>.<span class='ident'>texture_cache</span>.<span class='ident'>pages_a8</span>,
-            <span class='kw-2'>&amp;</span><span class='ident'>backend_profile</span>.<span class='ident'>texture_cache</span>.<span class='ident'>pages_rgb8</span>,
-            <span class='kw-2'>&amp;</span><span class='ident'>backend_profile</span>.<span class='ident'>texture_cache</span>.<span class='ident'>pages_rgba8</span>,
-        ], <span class='ident'>debug_renderer</span>, <span class='bool-val'>true</span>);
+        <span class="self">self</span>.<span class="ident">draw_counters</span>(<span class="kw-2">&amp;</span>[
+            <span class="kw-2">&amp;</span><span class="ident">backend_profile</span>.<span class="ident">texture_cache</span>.<span class="ident">pages_a8</span>,
+            <span class="kw-2">&amp;</span><span class="ident">backend_profile</span>.<span class="ident">texture_cache</span>.<span class="ident">pages_rgb8</span>,
+            <span class="kw-2">&amp;</span><span class="ident">backend_profile</span>.<span class="ident">texture_cache</span>.<span class="ident">pages_rgba8</span>,
+        ], <span class="ident">debug_renderer</span>, <span class="bool-val">true</span>);
 
-        <span class='self'>self</span>.<span class='ident'>draw_counters</span>(<span class='kw-2'>&amp;</span>[
-            <span class='kw-2'>&amp;</span><span class='ident'>renderer_profile</span>.<span class='ident'>draw_calls</span>,
-            <span class='kw-2'>&amp;</span><span class='ident'>renderer_profile</span>.<span class='ident'>vertices</span>,
-        ], <span class='ident'>debug_renderer</span>, <span class='bool-val'>true</span>);
+        <span class="self">self</span>.<span class="ident">draw_counters</span>(<span class="kw-2">&amp;</span>[
+            <span class="kw-2">&amp;</span><span class="ident">renderer_profile</span>.<span class="ident">draw_calls</span>,
+            <span class="kw-2">&amp;</span><span class="ident">renderer_profile</span>.<span class="ident">vertices</span>,
+        ], <span class="ident">debug_renderer</span>, <span class="bool-val">true</span>);
 
-        <span class='self'>self</span>.<span class='ident'>draw_counters</span>(<span class='kw-2'>&amp;</span>[
-            <span class='kw-2'>&amp;</span><span class='ident'>backend_profile</span>.<span class='ident'>total_time</span>,
-            <span class='kw-2'>&amp;</span><span class='ident'>renderer_timers</span>.<span class='ident'>cpu_time</span>,
-            <span class='kw-2'>&amp;</span><span class='ident'>renderer_timers</span>.<span class='ident'>gpu_time</span>,
-        ], <span class='ident'>debug_renderer</span>, <span class='bool-val'>false</span>);
+        <span class="self">self</span>.<span class="ident">draw_counters</span>(<span class="kw-2">&amp;</span>[
+            <span class="kw-2">&amp;</span><span class="ident">backend_profile</span>.<span class="ident">total_time</span>,
+            <span class="kw-2">&amp;</span><span class="ident">renderer_timers</span>.<span class="ident">cpu_time</span>,
+            <span class="kw-2">&amp;</span><span class="ident">renderer_timers</span>.<span class="ident">gpu_time</span>,
+        ], <span class="ident">debug_renderer</span>, <span class="bool-val">false</span>);
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>gpu_time</span> <span class='op'>=</span> <span class='number'>0</span>;
-        <span class='kw'>let</span> <span class='ident'>gpu_samples</span> <span class='op'>=</span> <span class='ident'>mem</span>::<span class='ident'>replace</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>renderer_timers</span>.<span class='ident'>gpu_samples</span>, <span class='ident'>Vec</span>::<span class='ident'>new</span>());
-        <span class='kw'>for</span> <span class='ident'>sample</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>gpu_samples</span> {
-            <span class='ident'>gpu_time</span> <span class='op'>+=</span> <span class='ident'>sample</span>.<span class='ident'>time_ns</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">gpu_time</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="ident">gpu_samples</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">renderer_timers</span>.<span class="ident">gpu_samples</span>, <span class="ident">Vec</span>::<span class="ident">new</span>());
+        <span class="kw">for</span> <span class="ident">sample</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">gpu_samples</span> {
+            <span class="ident">gpu_time</span> <span class="op">+=</span> <span class="ident">sample</span>.<span class="ident">time_ns</span>;
         }
 
-        <span class='self'>self</span>.<span class='ident'>backend_time</span>.<span class='ident'>push</span>(<span class='ident'>backend_profile</span>.<span class='ident'>total_time</span>.<span class='ident'>nanoseconds</span>);
-        <span class='self'>self</span>.<span class='ident'>compositor_time</span>.<span class='ident'>push</span>(<span class='ident'>renderer_timers</span>.<span class='ident'>cpu_time</span>.<span class='ident'>nanoseconds</span>);
-        <span class='self'>self</span>.<span class='ident'>gpu_time</span>.<span class='ident'>push</span>(<span class='ident'>gpu_time</span>);
-        <span class='self'>self</span>.<span class='ident'>gpu_frames</span>.<span class='ident'>push</span>(<span class='ident'>gpu_time</span>, <span class='ident'>gpu_samples</span>);
+        <span class="self">self</span>.<span class="ident">backend_time</span>.<span class="ident">push</span>(<span class="ident">backend_profile</span>.<span class="ident">total_time</span>.<span class="ident">nanoseconds</span>);
+        <span class="self">self</span>.<span class="ident">compositor_time</span>.<span class="ident">push</span>(<span class="ident">renderer_timers</span>.<span class="ident">cpu_time</span>.<span class="ident">nanoseconds</span>);
+        <span class="self">self</span>.<span class="ident">gpu_time</span>.<span class="ident">push</span>(<span class="ident">gpu_time</span>);
+        <span class="self">self</span>.<span class="ident">gpu_frames</span>.<span class="ident">push</span>(<span class="ident">gpu_time</span>, <span class="ident">gpu_samples</span>);
 
-        <span class='kw'>let</span> <span class='ident'>rect</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>backend_time</span>.<span class='ident'>draw_graph</span>(<span class='self'>self</span>.<span class='ident'>x_left</span>, <span class='self'>self</span>.<span class='ident'>y_left</span>, <span class='string'>&quot;CPU (backend)&quot;</span>, <span class='ident'>debug_renderer</span>);
-        <span class='self'>self</span>.<span class='ident'>y_left</span> <span class='op'>+=</span> <span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>+</span> <span class='ident'>PROFILE_PADDING</span>;
-        <span class='kw'>let</span> <span class='ident'>rect</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>compositor_time</span>.<span class='ident'>draw_graph</span>(<span class='self'>self</span>.<span class='ident'>x_left</span>, <span class='self'>self</span>.<span class='ident'>y_left</span>, <span class='string'>&quot;CPU (compositor)&quot;</span>, <span class='ident'>debug_renderer</span>);
-        <span class='self'>self</span>.<span class='ident'>y_left</span> <span class='op'>+=</span> <span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>+</span> <span class='ident'>PROFILE_PADDING</span>;
-        <span class='kw'>let</span> <span class='ident'>rect</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_time</span>.<span class='ident'>draw_graph</span>(<span class='self'>self</span>.<span class='ident'>x_left</span>, <span class='self'>self</span>.<span class='ident'>y_left</span>, <span class='string'>&quot;GPU&quot;</span>, <span class='ident'>debug_renderer</span>);
-        <span class='self'>self</span>.<span class='ident'>y_left</span> <span class='op'>+=</span> <span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>+</span> <span class='ident'>PROFILE_PADDING</span>;
-        <span class='kw'>let</span> <span class='ident'>rect</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>gpu_frames</span>.<span class='ident'>draw</span>(<span class='self'>self</span>.<span class='ident'>x_left</span>,
-                                        <span class='self'>self</span>.<span class='ident'>y_left</span>,
-                                        <span class='ident'>debug_renderer</span>);
-        <span class='self'>self</span>.<span class='ident'>y_left</span> <span class='op'>+=</span> <span class='ident'>rect</span>.<span class='ident'>size</span>.<span class='ident'>height</span> <span class='op'>+</span> <span class='ident'>PROFILE_PADDING</span>;
+        <span class="kw">let</span> <span class="ident">rect</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">backend_time</span>.<span class="ident">draw_graph</span>(<span class="self">self</span>.<span class="ident">x_left</span>, <span class="self">self</span>.<span class="ident">y_left</span>, <span class="string">&quot;CPU (backend)&quot;</span>, <span class="ident">debug_renderer</span>);
+        <span class="self">self</span>.<span class="ident">y_left</span> <span class="op">+=</span> <span class="ident">rect</span>.<span class="ident">size</span>.<span class="ident">height</span> <span class="op">+</span> <span class="ident">PROFILE_PADDING</span>;
+        <span class="kw">let</span> <span class="ident">rect</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">compositor_time</span>.<span class="ident">draw_graph</span>(<span class="self">self</span>.<span class="ident">x_left</span>, <span class="self">self</span>.<span class="ident">y_left</span>, <span class="string">&quot;CPU (compositor)&quot;</span>, <span class="ident">debug_renderer</span>);
+        <span class="self">self</span>.<span class="ident">y_left</span> <span class="op">+=</span> <span class="ident">rect</span>.<span class="ident">size</span>.<span class="ident">height</span> <span class="op">+</span> <span class="ident">PROFILE_PADDING</span>;
+        <span class="kw">let</span> <span class="ident">rect</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">gpu_time</span>.<span class="ident">draw_graph</span>(<span class="self">self</span>.<span class="ident">x_left</span>, <span class="self">self</span>.<span class="ident">y_left</span>, <span class="string">&quot;GPU&quot;</span>, <span class="ident">debug_renderer</span>);
+        <span class="self">self</span>.<span class="ident">y_left</span> <span class="op">+=</span> <span class="ident">rect</span>.<span class="ident">size</span>.<span class="ident">height</span> <span class="op">+</span> <span class="ident">PROFILE_PADDING</span>;
+        <span class="kw">let</span> <span class="ident">rect</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">gpu_frames</span>.<span class="ident">draw</span>(<span class="self">self</span>.<span class="ident">x_left</span>,
+                                        <span class="self">self</span>.<span class="ident">y_left</span>,
+                                        <span class="ident">debug_renderer</span>);
+        <span class="self">self</span>.<span class="ident">y_left</span> <span class="op">+=</span> <span class="ident">rect</span>.<span class="ident">size</span>.<span class="ident">height</span> <span class="op">+</span> <span class="ident">PROFILE_PADDING</span>;
     }
 }
 </pre>

@@ -1,7 +1,6 @@
 (function() {var implementors = {};
 implementors["aho_corasick"] = [];
 implementors["layout_thread"] = [];
-implementors["net"] = [];
 implementors["script"] = [];
 implementors["servo"] = [];
 

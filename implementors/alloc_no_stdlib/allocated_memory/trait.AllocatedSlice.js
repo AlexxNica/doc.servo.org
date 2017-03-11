@@ -1,7 +1,6 @@
 (function() {var implementors = {};
 implementors["alloc_no_stdlib"] = [];
 implementors["brotli"] = [];
-implementors["net"] = [];
 implementors["servo"] = [];
 
             if (window.register_implementors) {

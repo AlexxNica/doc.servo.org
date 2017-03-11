@@ -1,6 +1,5 @@
 (function() {var implementors = {};
 implementors["layout_thread"] = [];
-implementors["net"] = [];
 implementors["regex"] = [];
 implementors["script"] = [];
 implementors["servo"] = [];

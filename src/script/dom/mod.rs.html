@@ -512,476 +512,476 @@
 <span id="467">467</span>
 <span id="468">468</span>
 <span id="469">469</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! The implementation of the DOM.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! The DOM is comprised of interfaces (defined by specifications using</span>
-<span class='doccomment'>//! [WebIDL](https://heycam.github.io/webidl/)) that are implemented as Rust</span>
-<span class='doccomment'>//! structs in submodules of this module. Its implementation is documented</span>
-<span class='doccomment'>//! below.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! A DOM object and its reflector</span>
-<span class='doccomment'>//! ==============================</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! The implementation of an interface `Foo` in Servo&#39;s DOM involves two</span>
-<span class='doccomment'>//! related but distinct objects:</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! * the **DOM object**: an instance of the Rust struct `dom::foo::Foo`</span>
-<span class='doccomment'>//!   (marked with the `#[dom_struct]` attribute) on the Rust heap;</span>
-<span class='doccomment'>//! * the **reflector**: a `JSObject` allocated by SpiderMonkey, that owns the</span>
-<span class='doccomment'>//!   DOM object.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Memory management</span>
-<span class='doccomment'>//! =================</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Reflectors of DOM objects, and thus the DOM objects themselves, are managed</span>
-<span class='doccomment'>//! by the SpiderMonkey Garbage Collector. Thus, keeping alive a DOM object</span>
-<span class='doccomment'>//! is done through its reflector.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! For more information, see:</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! * rooting pointers on the stack:</span>
-<span class='doccomment'>//!   the [`Root`](bindings/js/struct.Root.html) smart pointer;</span>
-<span class='doccomment'>//! * tracing pointers in member fields: the [`JS`](bindings/js/struct.JS.html),</span>
-<span class='doccomment'>//!   [`MutNullableJS`](bindings/js/struct.MutNullableJS.html) and</span>
-<span class='doccomment'>//!   [`MutJS`](bindings/js/struct.MutJS.html) smart pointers and</span>
-<span class='doccomment'>//!   [the tracing implementation](bindings/trace/index.html);</span>
-<span class='doccomment'>//! * rooting pointers from across thread boundaries or in channels: the</span>
-<span class='doccomment'>//!   [`Trusted`](bindings/refcounted/struct.Trusted.html) smart pointer;</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Inheritance</span>
-<span class='doccomment'>//! ===========</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Rust does not support struct inheritance, as would be used for the</span>
-<span class='doccomment'>//! object-oriented DOM APIs. To work around this issue, Servo stores an</span>
-<span class='doccomment'>//! instance of the superclass in the first field of its subclasses. (Note that</span>
-<span class='doccomment'>//! it is stored by value, rather than in a smart pointer such as `JS&lt;T&gt;`.)</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! This implies that a pointer to an object can safely be cast to a pointer</span>
-<span class='doccomment'>//! to all its classes.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! This invariant is enforced by the lint in</span>
-<span class='doccomment'>//! `plugins::lints::inheritance_integrity`.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Interfaces which either derive from or are derived by other interfaces</span>
-<span class='doccomment'>//! implement the `Castable` trait, which provides three methods `is::&lt;T&gt;()`,</span>
-<span class='doccomment'>//! `downcast::&lt;T&gt;()` and `upcast::&lt;T&gt;()` to cast across the type hierarchy</span>
-<span class='doccomment'>//! and check whether a given instance is of a given type.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! ```ignore</span>
-<span class='doccomment'>//! use dom::bindings::inheritance::Castable;</span>
-<span class='doccomment'>//! use dom::element::Element;</span>
-<span class='doccomment'>//! use dom::htmlelement::HTMLElement;</span>
-<span class='doccomment'>//! use dom::htmlinputelement::HTMLInputElement;</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! if let Some(elem) = node.downcast::&lt;Element&gt; {</span>
-<span class='doccomment'>//!     if elem.is::&lt;HTMLInputElement&gt;() {</span>
-<span class='doccomment'>//!         return elem.upcast::&lt;HTMLElement&gt;();</span>
-<span class='doccomment'>//!     }</span>
-<span class='doccomment'>//! }</span>
-<span class='doccomment'>//! ```</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Furthermore, when discriminating a given instance against multiple</span>
-<span class='doccomment'>//! interface types, code generation provides a convenient TypeId enum</span>
-<span class='doccomment'>//! which can be used to write `match` expressions instead of multiple</span>
-<span class='doccomment'>//! calls to `Castable::is::&lt;T&gt;`. The `type_id()` method of an instance is</span>
-<span class='doccomment'>//! provided by the farthest interface it derives from, e.g. `EventTarget`</span>
-<span class='doccomment'>//! for `HTMLMediaElement`. For convenience, that method is also provided</span>
-<span class='doccomment'>//! on the `Node` interface to avoid unnecessary upcasts to `EventTarget`.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! ```ignore</span>
-<span class='doccomment'>//! use dom::bindings::inheritance::{EventTargetTypeId, NodeTypeId};</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! match *node.type_id() {</span>
-<span class='doccomment'>//!     EventTargetTypeId::Node(NodeTypeId::CharacterData(_)) =&gt; ...,</span>
-<span class='doccomment'>//!     EventTargetTypeId::Node(NodeTypeId::Element(_)) =&gt; ...,</span>
-<span class='doccomment'>//!     ...,</span>
-<span class='doccomment'>//! }</span>
-<span class='doccomment'>//! ```</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Construction</span>
-<span class='doccomment'>//! ============</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! DOM objects of type `T` in Servo have two constructors:</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! * a `T::new_inherited` static method that returns a plain `T`, and</span>
-<span class='doccomment'>//! * a `T::new` static method that returns `Root&lt;T&gt;`.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! (The result of either method can be wrapped in `Result`, if that is</span>
-<span class='doccomment'>//! appropriate for the type in question.)</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! The latter calls the former, boxes the result, and creates a reflector</span>
-<span class='doccomment'>//! corresponding to it by calling `dom::bindings::utils::reflect_dom_object`</span>
-<span class='doccomment'>//! (which yields ownership of the object to the SpiderMonkey Garbage Collector).</span>
-<span class='doccomment'>//! This is the API to use when creating a DOM object.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! The former should only be called by the latter, and by subclasses&#39;</span>
-<span class='doccomment'>//! `new_inherited` methods.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! DOM object constructors in JavaScript correspond to a `T::Constructor`</span>
-<span class='doccomment'>//! static method. This method is always fallible.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Destruction</span>
-<span class='doccomment'>//! ===========</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! When the SpiderMonkey Garbage Collector discovers that the reflector of a</span>
-<span class='doccomment'>//! DOM object is garbage, it calls the reflector&#39;s finalization hook. This</span>
-<span class='doccomment'>//! function deletes the reflector&#39;s DOM object, calling its destructor in the</span>
-<span class='doccomment'>//! process.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Mutability and aliasing</span>
-<span class='doccomment'>//! =======================</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Reflectors are JavaScript objects, and as such can be freely aliased. As</span>
-<span class='doccomment'>//! Rust does not allow mutable aliasing, mutable borrows of DOM objects are</span>
-<span class='doccomment'>//! not allowed. In particular, any mutable fields use `Cell` or `DOMRefCell`</span>
-<span class='doccomment'>//! to manage their mutability.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! `Reflector` and `DomObject`</span>
-<span class='doccomment'>//! =============================</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Every DOM object has a `Reflector` as its first (transitive) member field.</span>
-<span class='doccomment'>//! This contains a `*mut JSObject` that points to its reflector.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! The `FooBinding::Wrap` function creates the reflector, stores a pointer to</span>
-<span class='doccomment'>//! the DOM object in the reflector, and initializes the pointer to the reflector</span>
-<span class='doccomment'>//! in the `Reflector` field.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! The `DomObject` trait provides a `reflector()` method that returns the</span>
-<span class='doccomment'>//! DOM object&#39;s `Reflector`. It is implemented automatically for DOM structs</span>
-<span class='doccomment'>//! through the `#[dom_struct]` attribute.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Implementing methods for a DOM object</span>
-<span class='doccomment'>//! =====================================</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! * `dom::bindings::codegen::Bindings::FooBindings::FooMethods` for methods</span>
-<span class='doccomment'>//!   defined through IDL;</span>
-<span class='doccomment'>//! * `&amp;self` public methods for public helpers;</span>
-<span class='doccomment'>//! * `&amp;self` methods for private helpers.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Accessing fields of a DOM object</span>
-<span class='doccomment'>//! ================================</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! All fields of DOM objects are private; accessing them from outside their</span>
-<span class='doccomment'>//! module is done through explicit getter or setter methods.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Inheritance and casting</span>
-<span class='doccomment'>//! =======================</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! All DOM interfaces part of an inheritance chain (i.e. interfaces</span>
-<span class='doccomment'>//! that derive others or are derived from) implement the trait `Castable`</span>
-<span class='doccomment'>//! which provides both downcast and upcasts.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! ```ignore</span>
-<span class='doccomment'>//! # use script::dom::bindings::inheritance::Castable;</span>
-<span class='doccomment'>//! # use script::dom::element::Element;</span>
-<span class='doccomment'>//! # use script::dom::node::Node;</span>
-<span class='doccomment'>//! # use script::dom::htmlelement::HTMLElement;</span>
-<span class='doccomment'>//! fn f(element: &amp;Element) {</span>
-<span class='doccomment'>//!     let base = element.upcast::&lt;Node&gt;();</span>
-<span class='doccomment'>//!     let derived = element.downcast::&lt;HTMLElement&gt;().unwrap();</span>
-<span class='doccomment'>//! }</span>
-<span class='doccomment'>//! ```</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Adding a new DOM interface</span>
-<span class='doccomment'>//! ==========================</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Adding a new interface `Foo` requires at least the following:</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! * adding the new IDL file at `components/script/dom/webidls/Foo.webidl`;</span>
-<span class='doccomment'>//! * creating `components/script/dom/foo.rs`;</span>
-<span class='doccomment'>//! * listing `foo.rs` in `components/script/dom/mod.rs`;</span>
-<span class='doccomment'>//! * defining the DOM struct `Foo` with a `#[dom_struct]` attribute, a</span>
-<span class='doccomment'>//!   superclass or `Reflector` member, and other members as appropriate;</span>
-<span class='doccomment'>//! * implementing the</span>
-<span class='doccomment'>//!   `dom::bindings::codegen::Bindings::FooBindings::FooMethods` trait for</span>
-<span class='doccomment'>//!   `Foo`;</span>
-<span class='doccomment'>//! * adding/updating the match arm in create_element in</span>
-<span class='doccomment'>//!   `components/script/dom/create.rs` (only applicable to new types inheriting</span>
-<span class='doccomment'>//!   from `HTMLElement`)</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! More information is available in the [bindings module](bindings/index.html).</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Accessing DOM objects from layout</span>
-<span class='doccomment'>//! =================================</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Layout code can access the DOM through the</span>
-<span class='doccomment'>//! [`LayoutJS`](bindings/js/struct.LayoutJS.html) smart pointer. This does not</span>
-<span class='doccomment'>//! keep the DOM object alive; we ensure that no DOM code (Garbage Collection</span>
-<span class='doccomment'>//! in particular) runs while the layout thread is accessing the DOM.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Methods accessible to layout are implemented on `LayoutJS&lt;Foo&gt;` using</span>
-<span class='doccomment'>//! `LayoutFooHelpers` traits.</span>
+<span class="doccomment">//! The implementation of the DOM.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The DOM is comprised of interfaces (defined by specifications using</span>
+<span class="doccomment">//! [WebIDL](https://heycam.github.io/webidl/)) that are implemented as Rust</span>
+<span class="doccomment">//! structs in submodules of this module. Its implementation is documented</span>
+<span class="doccomment">//! below.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! A DOM object and its reflector</span>
+<span class="doccomment">//! ==============================</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The implementation of an interface `Foo` in Servo&#39;s DOM involves two</span>
+<span class="doccomment">//! related but distinct objects:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! * the **DOM object**: an instance of the Rust struct `dom::foo::Foo`</span>
+<span class="doccomment">//!   (marked with the `#[dom_struct]` attribute) on the Rust heap;</span>
+<span class="doccomment">//! * the **reflector**: a `JSObject` allocated by SpiderMonkey, that owns the</span>
+<span class="doccomment">//!   DOM object.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Memory management</span>
+<span class="doccomment">//! =================</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Reflectors of DOM objects, and thus the DOM objects themselves, are managed</span>
+<span class="doccomment">//! by the SpiderMonkey Garbage Collector. Thus, keeping alive a DOM object</span>
+<span class="doccomment">//! is done through its reflector.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! For more information, see:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! * rooting pointers on the stack:</span>
+<span class="doccomment">//!   the [`Root`](bindings/js/struct.Root.html) smart pointer;</span>
+<span class="doccomment">//! * tracing pointers in member fields: the [`JS`](bindings/js/struct.JS.html),</span>
+<span class="doccomment">//!   [`MutNullableJS`](bindings/js/struct.MutNullableJS.html) and</span>
+<span class="doccomment">//!   [`MutJS`](bindings/js/struct.MutJS.html) smart pointers and</span>
+<span class="doccomment">//!   [the tracing implementation](bindings/trace/index.html);</span>
+<span class="doccomment">//! * rooting pointers from across thread boundaries or in channels: the</span>
+<span class="doccomment">//!   [`Trusted`](bindings/refcounted/struct.Trusted.html) smart pointer;</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Inheritance</span>
+<span class="doccomment">//! ===========</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Rust does not support struct inheritance, as would be used for the</span>
+<span class="doccomment">//! object-oriented DOM APIs. To work around this issue, Servo stores an</span>
+<span class="doccomment">//! instance of the superclass in the first field of its subclasses. (Note that</span>
+<span class="doccomment">//! it is stored by value, rather than in a smart pointer such as `JS&lt;T&gt;`.)</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! This implies that a pointer to an object can safely be cast to a pointer</span>
+<span class="doccomment">//! to all its classes.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! This invariant is enforced by the lint in</span>
+<span class="doccomment">//! `plugins::lints::inheritance_integrity`.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Interfaces which either derive from or are derived by other interfaces</span>
+<span class="doccomment">//! implement the `Castable` trait, which provides three methods `is::&lt;T&gt;()`,</span>
+<span class="doccomment">//! `downcast::&lt;T&gt;()` and `upcast::&lt;T&gt;()` to cast across the type hierarchy</span>
+<span class="doccomment">//! and check whether a given instance is of a given type.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ```ignore</span>
+<span class="doccomment">//! use dom::bindings::inheritance::Castable;</span>
+<span class="doccomment">//! use dom::element::Element;</span>
+<span class="doccomment">//! use dom::htmlelement::HTMLElement;</span>
+<span class="doccomment">//! use dom::htmlinputelement::HTMLInputElement;</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! if let Some(elem) = node.downcast::&lt;Element&gt; {</span>
+<span class="doccomment">//!     if elem.is::&lt;HTMLInputElement&gt;() {</span>
+<span class="doccomment">//!         return elem.upcast::&lt;HTMLElement&gt;();</span>
+<span class="doccomment">//!     }</span>
+<span class="doccomment">//! }</span>
+<span class="doccomment">//! ```</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Furthermore, when discriminating a given instance against multiple</span>
+<span class="doccomment">//! interface types, code generation provides a convenient TypeId enum</span>
+<span class="doccomment">//! which can be used to write `match` expressions instead of multiple</span>
+<span class="doccomment">//! calls to `Castable::is::&lt;T&gt;`. The `type_id()` method of an instance is</span>
+<span class="doccomment">//! provided by the farthest interface it derives from, e.g. `EventTarget`</span>
+<span class="doccomment">//! for `HTMLMediaElement`. For convenience, that method is also provided</span>
+<span class="doccomment">//! on the `Node` interface to avoid unnecessary upcasts to `EventTarget`.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ```ignore</span>
+<span class="doccomment">//! use dom::bindings::inheritance::{EventTargetTypeId, NodeTypeId};</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! match *node.type_id() {</span>
+<span class="doccomment">//!     EventTargetTypeId::Node(NodeTypeId::CharacterData(_)) =&gt; ...,</span>
+<span class="doccomment">//!     EventTargetTypeId::Node(NodeTypeId::Element(_)) =&gt; ...,</span>
+<span class="doccomment">//!     ...,</span>
+<span class="doccomment">//! }</span>
+<span class="doccomment">//! ```</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Construction</span>
+<span class="doccomment">//! ============</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! DOM objects of type `T` in Servo have two constructors:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! * a `T::new_inherited` static method that returns a plain `T`, and</span>
+<span class="doccomment">//! * a `T::new` static method that returns `Root&lt;T&gt;`.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! (The result of either method can be wrapped in `Result`, if that is</span>
+<span class="doccomment">//! appropriate for the type in question.)</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The latter calls the former, boxes the result, and creates a reflector</span>
+<span class="doccomment">//! corresponding to it by calling `dom::bindings::utils::reflect_dom_object`</span>
+<span class="doccomment">//! (which yields ownership of the object to the SpiderMonkey Garbage Collector).</span>
+<span class="doccomment">//! This is the API to use when creating a DOM object.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The former should only be called by the latter, and by subclasses&#39;</span>
+<span class="doccomment">//! `new_inherited` methods.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! DOM object constructors in JavaScript correspond to a `T::Constructor`</span>
+<span class="doccomment">//! static method. This method is always fallible.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Destruction</span>
+<span class="doccomment">//! ===========</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! When the SpiderMonkey Garbage Collector discovers that the reflector of a</span>
+<span class="doccomment">//! DOM object is garbage, it calls the reflector&#39;s finalization hook. This</span>
+<span class="doccomment">//! function deletes the reflector&#39;s DOM object, calling its destructor in the</span>
+<span class="doccomment">//! process.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Mutability and aliasing</span>
+<span class="doccomment">//! =======================</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Reflectors are JavaScript objects, and as such can be freely aliased. As</span>
+<span class="doccomment">//! Rust does not allow mutable aliasing, mutable borrows of DOM objects are</span>
+<span class="doccomment">//! not allowed. In particular, any mutable fields use `Cell` or `DOMRefCell`</span>
+<span class="doccomment">//! to manage their mutability.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! `Reflector` and `DomObject`</span>
+<span class="doccomment">//! =============================</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Every DOM object has a `Reflector` as its first (transitive) member field.</span>
+<span class="doccomment">//! This contains a `*mut JSObject` that points to its reflector.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The `FooBinding::Wrap` function creates the reflector, stores a pointer to</span>
+<span class="doccomment">//! the DOM object in the reflector, and initializes the pointer to the reflector</span>
+<span class="doccomment">//! in the `Reflector` field.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The `DomObject` trait provides a `reflector()` method that returns the</span>
+<span class="doccomment">//! DOM object&#39;s `Reflector`. It is implemented automatically for DOM structs</span>
+<span class="doccomment">//! through the `#[dom_struct]` attribute.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Implementing methods for a DOM object</span>
+<span class="doccomment">//! =====================================</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! * `dom::bindings::codegen::Bindings::FooBindings::FooMethods` for methods</span>
+<span class="doccomment">//!   defined through IDL;</span>
+<span class="doccomment">//! * `&amp;self` public methods for public helpers;</span>
+<span class="doccomment">//! * `&amp;self` methods for private helpers.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Accessing fields of a DOM object</span>
+<span class="doccomment">//! ================================</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! All fields of DOM objects are private; accessing them from outside their</span>
+<span class="doccomment">//! module is done through explicit getter or setter methods.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Inheritance and casting</span>
+<span class="doccomment">//! =======================</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! All DOM interfaces part of an inheritance chain (i.e. interfaces</span>
+<span class="doccomment">//! that derive others or are derived from) implement the trait `Castable`</span>
+<span class="doccomment">//! which provides both downcast and upcasts.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ```ignore</span>
+<span class="doccomment">//! # use script::dom::bindings::inheritance::Castable;</span>
+<span class="doccomment">//! # use script::dom::element::Element;</span>
+<span class="doccomment">//! # use script::dom::node::Node;</span>
+<span class="doccomment">//! # use script::dom::htmlelement::HTMLElement;</span>
+<span class="doccomment">//! fn f(element: &amp;Element) {</span>
+<span class="doccomment">//!     let base = element.upcast::&lt;Node&gt;();</span>
+<span class="doccomment">//!     let derived = element.downcast::&lt;HTMLElement&gt;().unwrap();</span>
+<span class="doccomment">//! }</span>
+<span class="doccomment">//! ```</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Adding a new DOM interface</span>
+<span class="doccomment">//! ==========================</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Adding a new interface `Foo` requires at least the following:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! * adding the new IDL file at `components/script/dom/webidls/Foo.webidl`;</span>
+<span class="doccomment">//! * creating `components/script/dom/foo.rs`;</span>
+<span class="doccomment">//! * listing `foo.rs` in `components/script/dom/mod.rs`;</span>
+<span class="doccomment">//! * defining the DOM struct `Foo` with a `#[dom_struct]` attribute, a</span>
+<span class="doccomment">//!   superclass or `Reflector` member, and other members as appropriate;</span>
+<span class="doccomment">//! * implementing the</span>
+<span class="doccomment">//!   `dom::bindings::codegen::Bindings::FooBindings::FooMethods` trait for</span>
+<span class="doccomment">//!   `Foo`;</span>
+<span class="doccomment">//! * adding/updating the match arm in create_element in</span>
+<span class="doccomment">//!   `components/script/dom/create.rs` (only applicable to new types inheriting</span>
+<span class="doccomment">//!   from `HTMLElement`)</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! More information is available in the [bindings module](bindings/index.html).</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Accessing DOM objects from layout</span>
+<span class="doccomment">//! =================================</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Layout code can access the DOM through the</span>
+<span class="doccomment">//! [`LayoutJS`](bindings/js/struct.LayoutJS.html) smart pointer. This does not</span>
+<span class="doccomment">//! keep the DOM object alive; we ensure that no DOM code (Garbage Collection</span>
+<span class="doccomment">//! in particular) runs while the layout thread is accessing the DOM.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Methods accessible to layout are implemented on `LayoutJS&lt;Foo&gt;` using</span>
+<span class="doccomment">//! `LayoutFooHelpers` traits.</span>
 
-<span class='attribute'>#[<span class='ident'>macro_use</span>]</span>
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>macros</span>;
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">macros</span>;
 
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>types</span> {
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>target_env</span> <span class='op'>=</span> <span class='string'>&quot;msvc&quot;</span>))]</span>
-    <span class='macro'>include</span><span class='macro'>!</span>(<span class='macro'>concat</span><span class='macro'>!</span>(<span class='macro'>env</span><span class='macro'>!</span>(<span class='string'>&quot;OUT_DIR&quot;</span>), <span class='string'>&quot;/InterfaceTypes.rs&quot;</span>));
-    <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>target_env</span> <span class='op'>=</span> <span class='string'>&quot;msvc&quot;</span>)]</span>
-    <span class='macro'>include</span><span class='macro'>!</span>(<span class='macro'>concat</span><span class='macro'>!</span>(<span class='macro'>env</span><span class='macro'>!</span>(<span class='string'>&quot;OUT_DIR&quot;</span>), <span class='string'>&quot;/build/InterfaceTypes.rs&quot;</span>));
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">types</span> {
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">target_env</span> <span class="op">=</span> <span class="string">&quot;msvc&quot;</span>))]</span>
+    <span class="macro">include</span><span class="macro">!</span>(<span class="macro">concat</span><span class="macro">!</span>(<span class="macro">env</span><span class="macro">!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/InterfaceTypes.rs&quot;</span>));
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_env</span> <span class="op">=</span> <span class="string">&quot;msvc&quot;</span>)]</span>
+    <span class="macro">include</span><span class="macro">!</span>(<span class="macro">concat</span><span class="macro">!</span>(<span class="macro">env</span><span class="macro">!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/build/InterfaceTypes.rs&quot;</span>));
 }
 
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>abstractworker</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>abstractworkerglobalscope</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>activation</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>attr</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>beforeunloadevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>bindings</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>blob</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>bluetooth</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>bluetoothadvertisingevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>bluetoothcharacteristicproperties</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>bluetoothdevice</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>bluetoothpermissionresult</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>bluetoothremotegattcharacteristic</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>bluetoothremotegattdescriptor</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>bluetoothremotegattserver</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>bluetoothremotegattservice</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>bluetoothuuid</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>browsingcontext</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>canvasgradient</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>canvaspattern</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>canvasrenderingcontext2d</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>characterdata</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>client</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>closeevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>comment</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>console</span>;
-<span class='kw'>mod</span> <span class='ident'>create</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>crypto</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>css</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>cssconditionrule</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>cssfontfacerule</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>cssgroupingrule</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>cssimportrule</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>csskeyframerule</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>csskeyframesrule</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>cssmediarule</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>cssnamespacerule</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>cssrule</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>cssrulelist</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>cssstyledeclaration</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>cssstylerule</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>cssstylesheet</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>csssupportsrule</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>cssviewportrule</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>customevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>dedicatedworkerglobalscope</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>dissimilaroriginlocation</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>dissimilaroriginwindow</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>document</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>documentfragment</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>documenttype</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>domexception</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>domimplementation</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>dommatrix</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>dommatrixreadonly</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>domparser</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>dompoint</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>dompointreadonly</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>domquad</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>domrect</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>domrectlist</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>domrectreadonly</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>domstringmap</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>domtokenlist</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>element</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>errorevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>event</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>eventsource</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>eventtarget</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>extendableevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>extendablemessageevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>file</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>filelist</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>filereader</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>filereadersync</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>focusevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>forcetouchevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>formdata</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>globalscope</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>hashchangeevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>headers</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>history</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlanchorelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlappletelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlareaelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlaudioelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlbaseelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlbodyelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlbrelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlbuttonelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlcanvaselement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlcollection</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmldataelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmldatalistelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmldetailselement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmldialogelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmldirectoryelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmldivelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmldlistelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlembedelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlfieldsetelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlfontelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlformcontrolscollection</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlformelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlframeelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlframesetelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlheadelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlheadingelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlhrelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlhtmlelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmliframeelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlimageelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlinputelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmllabelelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmllegendelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmllielement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmllinkelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlmapelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlmediaelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlmetaelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlmeterelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlmodelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlobjectelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlolistelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmloptgroupelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmloptionelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmloptionscollection</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmloutputelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlparagraphelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlparamelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlpreelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlprogresselement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlquoteelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlscriptelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlselectelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlsourceelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlspanelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlstyleelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmltablecaptionelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmltablecellelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmltablecolelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmltabledatacellelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmltableelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmltableheadercellelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmltablerowelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmltablesectionelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmltemplateelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmltextareaelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmltimeelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmltitleelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmltrackelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlulistelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlunknownelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>htmlvideoelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>imagedata</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>keyboardevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>location</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>mediaerror</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>medialist</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>mediaquerylist</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>mediaquerylistevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>messageevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>mimetype</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>mimetypearray</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>mouseevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>namednodemap</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>navigator</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>navigatorinfo</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>node</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>nodeiterator</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>nodelist</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>pagetransitionevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>performance</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>performancetiming</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>permissions</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>permissionstatus</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>plugin</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>pluginarray</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>popstateevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>processinginstruction</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>progressevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>promise</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>promisenativehandler</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>radionodelist</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>range</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>request</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>response</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>screen</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>serviceworker</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>serviceworkercontainer</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>serviceworkerglobalscope</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>serviceworkerregistration</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>servoparser</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>storage</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>storageevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>stylesheet</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>stylesheetlist</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>svgelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>svggraphicselement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>svgsvgelement</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>testbinding</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>testbindingiterable</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>testbindingpairiterable</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>testbindingproxy</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>testrunner</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>text</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>textdecoder</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>textencoder</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>touch</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>touchevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>touchlist</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>transitionevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>treewalker</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>uievent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>url</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>urlhelper</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>urlsearchparams</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>userscripts</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>validation</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>validitystate</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>values</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>virtualmethods</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>vr</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>vrdisplay</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>vrdisplaycapabilities</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>vrdisplayevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>vreyeparameters</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>vrfieldofview</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>vrframedata</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>vrpose</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>vrstageparameters</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>webgl_validations</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>webglactiveinfo</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>webglbuffer</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>webglcontextevent</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>webglframebuffer</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>webglobject</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>webglprogram</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>webglrenderbuffer</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>webglrenderingcontext</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>webglshader</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>webglshaderprecisionformat</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>webgltexture</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>webgluniformlocation</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>websocket</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>window</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>worker</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>workerglobalscope</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>workerlocation</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>workernavigator</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>xmldocument</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>xmlhttprequest</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>xmlhttprequesteventtarget</span>;
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>xmlhttprequestupload</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">abstractworker</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">abstractworkerglobalscope</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">activation</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">attr</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">beforeunloadevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bindings</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">blob</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bluetooth</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bluetoothadvertisingevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bluetoothcharacteristicproperties</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bluetoothdevice</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bluetoothpermissionresult</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bluetoothremotegattcharacteristic</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bluetoothremotegattdescriptor</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bluetoothremotegattserver</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bluetoothremotegattservice</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bluetoothuuid</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">browsingcontext</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">canvasgradient</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">canvaspattern</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">canvasrenderingcontext2d</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">characterdata</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">client</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">closeevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">comment</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">console</span>;
+<span class="kw">mod</span> <span class="ident">create</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">crypto</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">css</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cssconditionrule</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cssfontfacerule</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cssgroupingrule</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cssimportrule</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">csskeyframerule</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">csskeyframesrule</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cssmediarule</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cssnamespacerule</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cssrule</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cssrulelist</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cssstyledeclaration</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cssstylerule</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cssstylesheet</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">csssupportsrule</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">cssviewportrule</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">customevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">dedicatedworkerglobalscope</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">dissimilaroriginlocation</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">dissimilaroriginwindow</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">document</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">documentfragment</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">documenttype</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">domexception</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">domimplementation</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">dommatrix</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">dommatrixreadonly</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">domparser</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">dompoint</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">dompointreadonly</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">domquad</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">domrect</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">domrectlist</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">domrectreadonly</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">domstringmap</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">domtokenlist</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">element</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">errorevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">event</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">eventsource</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">eventtarget</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">extendableevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">extendablemessageevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">file</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">filelist</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">filereader</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">filereadersync</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">focusevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">forcetouchevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">formdata</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">globalscope</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">hashchangeevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">headers</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">history</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlanchorelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlappletelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlareaelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlaudioelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlbaseelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlbodyelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlbrelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlbuttonelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlcanvaselement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlcollection</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmldataelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmldatalistelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmldetailselement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmldialogelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmldirectoryelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmldivelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmldlistelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlembedelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlfieldsetelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlfontelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlformcontrolscollection</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlformelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlframeelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlframesetelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlheadelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlheadingelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlhrelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlhtmlelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmliframeelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlimageelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlinputelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmllabelelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmllegendelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmllielement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmllinkelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlmapelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlmediaelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlmetaelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlmeterelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlmodelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlobjectelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlolistelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmloptgroupelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmloptionelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmloptionscollection</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmloutputelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlparagraphelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlparamelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlpreelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlprogresselement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlquoteelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlscriptelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlselectelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlsourceelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlspanelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlstyleelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmltablecaptionelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmltablecellelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmltablecolelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmltabledatacellelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmltableelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmltableheadercellelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmltablerowelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmltablesectionelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmltemplateelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmltextareaelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmltimeelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmltitleelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmltrackelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlulistelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlunknownelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">htmlvideoelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">imagedata</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">keyboardevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">location</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">mediaerror</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">medialist</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">mediaquerylist</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">mediaquerylistevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">messageevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">mimetype</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">mimetypearray</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">mouseevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">namednodemap</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">navigator</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">navigatorinfo</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">node</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">nodeiterator</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">nodelist</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">pagetransitionevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">performance</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">performancetiming</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">permissions</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">permissionstatus</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">plugin</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">pluginarray</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">popstateevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">processinginstruction</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">progressevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">promise</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">promisenativehandler</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">radionodelist</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">range</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">request</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">response</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">screen</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">serviceworker</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">serviceworkercontainer</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">serviceworkerglobalscope</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">serviceworkerregistration</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">servoparser</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">storage</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">storageevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">stylesheet</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">stylesheetlist</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">svgelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">svggraphicselement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">svgsvgelement</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">testbinding</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">testbindingiterable</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">testbindingpairiterable</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">testbindingproxy</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">testrunner</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">text</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">textdecoder</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">textencoder</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">touch</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">touchevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">touchlist</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">transitionevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">treewalker</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">uievent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">url</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">urlhelper</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">urlsearchparams</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">userscripts</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">validation</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">validitystate</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">values</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">virtualmethods</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">vr</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">vrdisplay</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">vrdisplaycapabilities</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">vrdisplayevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">vreyeparameters</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">vrfieldofview</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">vrframedata</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">vrpose</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">vrstageparameters</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">webgl_validations</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">webglactiveinfo</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">webglbuffer</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">webglcontextevent</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">webglframebuffer</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">webglobject</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">webglprogram</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">webglrenderbuffer</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">webglrenderingcontext</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">webglshader</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">webglshaderprecisionformat</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">webgltexture</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">webgluniformlocation</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">websocket</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">window</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">worker</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">workerglobalscope</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">workerlocation</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">workernavigator</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">xmldocument</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">xmlhttprequest</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">xmlhttprequesteventtarget</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">xmlhttprequestupload</span>;
 </pre>
 </section>
     <section id='search' class="content hidden"></section>

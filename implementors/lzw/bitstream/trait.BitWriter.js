@@ -4,7 +4,6 @@ implementors["glutin"] = [];
 implementors["image"] = [];
 implementors["layout_thread"] = [];
 implementors["lzw"] = [];
-implementors["net"] = [];
 implementors["net_traits"] = [];
 implementors["script"] = [];
 implementors["servo"] = [];

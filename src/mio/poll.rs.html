@@ -1004,966 +1004,966 @@
 <span id="959">959</span>
 <span id="960">960</span>
 <span id="961">961</span>
-</pre><pre class='rust '>
-<span class='kw'>use</span> {<span class='ident'>sys</span>, <span class='ident'>Evented</span>, <span class='ident'>Token</span>};
-<span class='kw'>use</span> <span class='ident'>event</span>::{<span class='self'>self</span>, <span class='ident'>Ready</span>, <span class='ident'>Event</span>, <span class='ident'>PollOpt</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::{<span class='ident'>fmt</span>, <span class='ident'>io</span>, <span class='ident'>mem</span>, <span class='ident'>ptr</span>, <span class='ident'>usize</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::{<span class='ident'>UnsafeCell</span>, <span class='ident'>Cell</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>isize</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>marker</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>Arc</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>atomic</span>::{<span class='ident'>AtomicUsize</span>, <span class='ident'>AtomicPtr</span>, <span class='ident'>Ordering</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>time</span>::<span class='ident'>Duration</span>;
+</pre><pre class="rust ">
+<span class="kw">use</span> {<span class="ident">sys</span>, <span class="ident">Evented</span>, <span class="ident">Token</span>};
+<span class="kw">use</span> <span class="ident">event</span>::{<span class="self">self</span>, <span class="ident">Ready</span>, <span class="ident">Event</span>, <span class="ident">PollOpt</span>};
+<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">fmt</span>, <span class="ident">io</span>, <span class="ident">mem</span>, <span class="ident">ptr</span>, <span class="ident">usize</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::{<span class="ident">UnsafeCell</span>, <span class="ident">Cell</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">isize</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">atomic</span>::{<span class="ident">AtomicUsize</span>, <span class="ident">AtomicPtr</span>, <span class="ident">Ordering</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::<span class="ident">Duration</span>;
 
-<span class='kw'>const</span> <span class='ident'>MAX_REFCOUNT</span>: <span class='ident'>usize</span> <span class='op'>=</span> (<span class='ident'>isize</span>::<span class='ident'>MAX</span>) <span class='kw'>as</span> <span class='ident'>usize</span>;
+<span class="kw">const</span> <span class="ident">MAX_REFCOUNT</span>: <span class="ident">usize</span> <span class="op">=</span> (<span class="ident">isize</span>::<span class="ident">MAX</span>) <span class="kw">as</span> <span class="ident">usize</span>;
 
-<span class='doccomment'>/// Polls for readiness events on all registered values.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// The `Poll` type acts as an interface allowing a program to wait on a set of</span>
-<span class='doccomment'>/// IO handles until one or more become &quot;ready&quot; to be operated on. An IO handle</span>
-<span class='doccomment'>/// is considered ready to operate on when the given operation can complete</span>
-<span class='doccomment'>/// without blocking.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// To use `Poll`, an IO handle must first be registered with the `Poll`</span>
-<span class='doccomment'>/// instance using the `register()` handle. An `Ready` representing the</span>
-<span class='doccomment'>/// program&#39;s interest in the socket is specified as well as an arbitrary</span>
-<span class='doccomment'>/// `Token` which is used to identify the IO handle in the future.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// ## Edge-triggered and level-triggered</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// An IO handle registration may request edge-triggered notifications or</span>
-<span class='doccomment'>/// level-triggered notifications. This is done by specifying the `PollOpt`</span>
-<span class='doccomment'>/// argument to `register()` and `reregister()`.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// ## Portability</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Cross platform portability is provided for Mio&#39;s TCP &amp; UDP implementations.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// ## Examples</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// ```no_run</span>
-<span class='doccomment'>/// use mio::*;</span>
-<span class='doccomment'>/// use mio::tcp::*;</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// // Construct a new `Poll` handle as well as the `Events` we&#39;ll store into</span>
-<span class='doccomment'>/// let poll = Poll::new().unwrap();</span>
-<span class='doccomment'>/// let mut events = Events::with_capacity(1024);</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// // Connect the stream</span>
-<span class='doccomment'>/// let stream = TcpStream::connect(&amp;&quot;173.194.33.80:80&quot;.parse().unwrap()).unwrap();</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// // Register the stream with `Poll`</span>
-<span class='doccomment'>/// poll.register(&amp;stream, Token(0), Ready::all(), PollOpt::edge()).unwrap();</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// // Wait for the socket to become ready</span>
-<span class='doccomment'>/// poll.poll(&amp;mut events, None).unwrap();</span>
-<span class='doccomment'>/// ```</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Poll</span> {
-    <span class='comment'>// This type is `Send`, but not `Sync`, so ensure it&#39;s exposed as such.</span>
-    <span class='ident'>_marker</span>: <span class='ident'>marker</span>::<span class='ident'>PhantomData</span><span class='op'>&lt;</span><span class='ident'>Cell</span><span class='op'>&lt;</span>()<span class='op'>&gt;&gt;</span>,
+<span class="doccomment">/// Polls for readiness events on all registered values.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The `Poll` type acts as an interface allowing a program to wait on a set of</span>
+<span class="doccomment">/// IO handles until one or more become &quot;ready&quot; to be operated on. An IO handle</span>
+<span class="doccomment">/// is considered ready to operate on when the given operation can complete</span>
+<span class="doccomment">/// without blocking.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// To use `Poll`, an IO handle must first be registered with the `Poll`</span>
+<span class="doccomment">/// instance using the `register()` handle. An `Ready` representing the</span>
+<span class="doccomment">/// program&#39;s interest in the socket is specified as well as an arbitrary</span>
+<span class="doccomment">/// `Token` which is used to identify the IO handle in the future.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// ## Edge-triggered and level-triggered</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// An IO handle registration may request edge-triggered notifications or</span>
+<span class="doccomment">/// level-triggered notifications. This is done by specifying the `PollOpt`</span>
+<span class="doccomment">/// argument to `register()` and `reregister()`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// ## Portability</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Cross platform portability is provided for Mio&#39;s TCP &amp; UDP implementations.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// ## Examples</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// ```no_run</span>
+<span class="doccomment">/// use mio::*;</span>
+<span class="doccomment">/// use mio::tcp::*;</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// // Construct a new `Poll` handle as well as the `Events` we&#39;ll store into</span>
+<span class="doccomment">/// let poll = Poll::new().unwrap();</span>
+<span class="doccomment">/// let mut events = Events::with_capacity(1024);</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// // Connect the stream</span>
+<span class="doccomment">/// let stream = TcpStream::connect(&amp;&quot;173.194.33.80:80&quot;.parse().unwrap()).unwrap();</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// // Register the stream with `Poll`</span>
+<span class="doccomment">/// poll.register(&amp;stream, Token(0), Ready::all(), PollOpt::edge()).unwrap();</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// // Wait for the socket to become ready</span>
+<span class="doccomment">/// poll.poll(&amp;mut events, None).unwrap();</span>
+<span class="doccomment">/// ```</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Poll</span> {
+    <span class="comment">// This type is `Send`, but not `Sync`, so ensure it&#39;s exposed as such.</span>
+    <span class="ident">_marker</span>: <span class="ident">marker</span>::<span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">Cell</span><span class="op">&lt;</span>()<span class="op">&gt;&gt;</span>,
 
-    <span class='comment'>// Platform specific IO selector</span>
-    <span class='ident'>selector</span>: <span class='ident'>sys</span>::<span class='ident'>Selector</span>,
+    <span class="comment">// Platform specific IO selector</span>
+    <span class="ident">selector</span>: <span class="ident">sys</span>::<span class="ident">Selector</span>,
 
-    <span class='comment'>// Custom readiness queue</span>
-    <span class='ident'>readiness_queue</span>: <span class='ident'>ReadinessQueue</span>,
+    <span class="comment">// Custom readiness queue</span>
+    <span class="ident">readiness_queue</span>: <span class="ident">ReadinessQueue</span>,
 }
 
-<span class='doccomment'>/// Handle to a Poll registration. Used for registering custom types for event</span>
-<span class='doccomment'>/// notifications.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Registration</span> {
-    <span class='ident'>inner</span>: <span class='ident'>RegistrationInner</span>,
+<span class="doccomment">/// Handle to a Poll registration. Used for registering custom types for event</span>
+<span class="doccomment">/// notifications.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Registration</span> {
+    <span class="ident">inner</span>: <span class="ident">RegistrationInner</span>,
 }
 
-<span class='doccomment'>/// Used to update readiness for an associated `Registration`. `SetReadiness`</span>
-<span class='doccomment'>/// is `Sync` which allows it to be updated across threads.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>SetReadiness</span> {
-    <span class='ident'>inner</span>: <span class='ident'>RegistrationInner</span>,
+<span class="doccomment">/// Used to update readiness for an associated `Registration`. `SetReadiness`</span>
+<span class="doccomment">/// is `Sync` which allows it to be updated across threads.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SetReadiness</span> {
+    <span class="ident">inner</span>: <span class="ident">RegistrationInner</span>,
 }
 
-<span class='kw'>struct</span> <span class='ident'>RegistrationInner</span> {
-    <span class='comment'>// ARC pointer to the Poll&#39;s readiness queue</span>
-    <span class='ident'>queue</span>: <span class='ident'>ReadinessQueue</span>,
+<span class="kw">struct</span> <span class="ident">RegistrationInner</span> {
+    <span class="comment">// ARC pointer to the Poll&#39;s readiness queue</span>
+    <span class="ident">queue</span>: <span class="ident">ReadinessQueue</span>,
 
-    <span class='comment'>// Unsafe pointer to the registration&#39;s node. The node is owned by the</span>
-    <span class='comment'>// registration queue.</span>
-    <span class='ident'>node</span>: <span class='ident'>ReadyRef</span>,
+    <span class="comment">// Unsafe pointer to the registration&#39;s node. The node is owned by the</span>
+    <span class="comment">// registration queue.</span>
+    <span class="ident">node</span>: <span class="ident">ReadyRef</span>,
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>)]</span>
-<span class='kw'>struct</span> <span class='ident'>ReadinessQueue</span> {
-    <span class='ident'>inner</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>UnsafeCell</span><span class='op'>&lt;</span><span class='ident'>ReadinessQueueInner</span><span class='op'>&gt;&gt;</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="kw">struct</span> <span class="ident">ReadinessQueue</span> {
+    <span class="ident">inner</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">UnsafeCell</span><span class="op">&lt;</span><span class="ident">ReadinessQueueInner</span><span class="op">&gt;&gt;</span>,
 }
 
-<span class='kw'>struct</span> <span class='ident'>ReadinessQueueInner</span> {
-    <span class='comment'>// Used to wake up `Poll` when readiness is set in another thread.</span>
-    <span class='ident'>awakener</span>: <span class='ident'>sys</span>::<span class='ident'>Awakener</span>,
+<span class="kw">struct</span> <span class="ident">ReadinessQueueInner</span> {
+    <span class="comment">// Used to wake up `Poll` when readiness is set in another thread.</span>
+    <span class="ident">awakener</span>: <span class="ident">sys</span>::<span class="ident">Awakener</span>,
 
-    <span class='comment'>// All readiness nodes are owned by the `Poll` instance and live either in</span>
-    <span class='comment'>// this linked list or in a `readiness_wheel` linked list.</span>
-    <span class='ident'>head_all_nodes</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ReadinessNode</span><span class='op'>&gt;&gt;</span>,
+    <span class="comment">// All readiness nodes are owned by the `Poll` instance and live either in</span>
+    <span class="comment">// this linked list or in a `readiness_wheel` linked list.</span>
+    <span class="ident">head_all_nodes</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ReadinessNode</span><span class="op">&gt;&gt;</span>,
 
-    <span class='comment'>// linked list of nodes that are pending some processing</span>
-    <span class='ident'>head_readiness</span>: <span class='ident'>AtomicPtr</span><span class='op'>&lt;</span><span class='ident'>ReadinessNode</span><span class='op'>&gt;</span>,
+    <span class="comment">// linked list of nodes that are pending some processing</span>
+    <span class="ident">head_readiness</span>: <span class="ident">AtomicPtr</span><span class="op">&lt;</span><span class="ident">ReadinessNode</span><span class="op">&gt;</span>,
 
-    <span class='comment'>// A fake readiness node used to indicate that `Poll::poll` will block.</span>
-    <span class='ident'>sleep_token</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ReadinessNode</span><span class='op'>&gt;</span>,
+    <span class="comment">// A fake readiness node used to indicate that `Poll::poll` will block.</span>
+    <span class="ident">sleep_token</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ReadinessNode</span><span class="op">&gt;</span>,
 }
 
-<span class='kw'>struct</span> <span class='ident'>ReadyList</span> {
-    <span class='ident'>head</span>: <span class='ident'>ReadyRef</span>,
+<span class="kw">struct</span> <span class="ident">ReadyList</span> {
+    <span class="ident">head</span>: <span class="ident">ReadyRef</span>,
 }
 
-<span class='kw'>struct</span> <span class='ident'>ReadyRef</span> {
-    <span class='ident'>ptr</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>ReadinessNode</span>,
+<span class="kw">struct</span> <span class="ident">ReadyRef</span> {
+    <span class="ident">ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ReadinessNode</span>,
 }
 
-<span class='kw'>struct</span> <span class='ident'>ReadinessNode</span> {
-    <span class='comment'>// ===== Fields only accessed by Poll =====</span>
-    <span class='comment'>//</span>
-    <span class='comment'>// Next node in ownership tracking queue</span>
-    <span class='ident'>next_all_nodes</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ReadinessNode</span><span class='op'>&gt;&gt;</span>,
+<span class="kw">struct</span> <span class="ident">ReadinessNode</span> {
+    <span class="comment">// ===== Fields only accessed by Poll =====</span>
+    <span class="comment">//</span>
+    <span class="comment">// Next node in ownership tracking queue</span>
+    <span class="ident">next_all_nodes</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ReadinessNode</span><span class="op">&gt;&gt;</span>,
 
-    <span class='comment'>// Previous node in the owned list</span>
-    <span class='ident'>prev_all_nodes</span>: <span class='ident'>ReadyRef</span>,
+    <span class="comment">// Previous node in the owned list</span>
+    <span class="ident">prev_all_nodes</span>: <span class="ident">ReadyRef</span>,
 
-    <span class='comment'>// Data set in register / reregister functions and read in `Poll`. This</span>
-    <span class='comment'>// field should only be accessed from the thread that owns the `Poll`</span>
-    <span class='comment'>// instance.</span>
-    <span class='ident'>registration_data</span>: <span class='ident'>UnsafeCell</span><span class='op'>&lt;</span><span class='ident'>RegistrationData</span><span class='op'>&gt;</span>,
+    <span class="comment">// Data set in register / reregister functions and read in `Poll`. This</span>
+    <span class="comment">// field should only be accessed from the thread that owns the `Poll`</span>
+    <span class="comment">// instance.</span>
+    <span class="ident">registration_data</span>: <span class="ident">UnsafeCell</span><span class="op">&lt;</span><span class="ident">RegistrationData</span><span class="op">&gt;</span>,
 
-    <span class='comment'>// ===== Fields accessed by any thread ====</span>
-    <span class='comment'>//</span>
-    <span class='comment'>// Used when the node is queued in the readiness linked list. Accessing</span>
-    <span class='comment'>// this field requires winning the &quot;queue&quot; lock</span>
-    <span class='ident'>next_readiness</span>: <span class='ident'>ReadyRef</span>,
+    <span class="comment">// ===== Fields accessed by any thread ====</span>
+    <span class="comment">//</span>
+    <span class="comment">// Used when the node is queued in the readiness linked list. Accessing</span>
+    <span class="comment">// this field requires winning the &quot;queue&quot; lock</span>
+    <span class="ident">next_readiness</span>: <span class="ident">ReadyRef</span>,
 
-    <span class='comment'>// The set of events to include in the notification on next poll</span>
-    <span class='ident'>events</span>: <span class='ident'>AtomicUsize</span>,
+    <span class="comment">// The set of events to include in the notification on next poll</span>
+    <span class="ident">events</span>: <span class="ident">AtomicUsize</span>,
 
-    <span class='comment'>// Tracks if the node is queued for readiness using the MSB, the</span>
-    <span class='comment'>// rest of the usize is the readiness delay.</span>
-    <span class='ident'>queued</span>: <span class='ident'>AtomicUsize</span>,
+    <span class="comment">// Tracks if the node is queued for readiness using the MSB, the</span>
+    <span class="comment">// rest of the usize is the readiness delay.</span>
+    <span class="ident">queued</span>: <span class="ident">AtomicUsize</span>,
 
-    <span class='comment'>// Tracks the number of `ReadyRef` pointers</span>
-    <span class='ident'>ref_count</span>: <span class='ident'>AtomicUsize</span>,
+    <span class="comment">// Tracks the number of `ReadyRef` pointers</span>
+    <span class="ident">ref_count</span>: <span class="ident">AtomicUsize</span>,
 }
 
-<span class='kw'>struct</span> <span class='ident'>RegistrationData</span> {
-    <span class='comment'>// The Token used to register the `Evented` with`Poll`</span>
-    <span class='ident'>token</span>: <span class='ident'>Token</span>,
+<span class="kw">struct</span> <span class="ident">RegistrationData</span> {
+    <span class="comment">// The Token used to register the `Evented` with`Poll`</span>
+    <span class="ident">token</span>: <span class="ident">Token</span>,
 
-    <span class='comment'>// The registration interest</span>
-    <span class='ident'>interest</span>: <span class='ident'>Ready</span>,
+    <span class="comment">// The registration interest</span>
+    <span class="ident">interest</span>: <span class="ident">Ready</span>,
 
-    <span class='comment'>// Poll opts</span>
-    <span class='ident'>opts</span>: <span class='ident'>PollOpt</span>,
+    <span class="comment">// Poll opts</span>
+    <span class="ident">opts</span>: <span class="ident">PollOpt</span>,
 }
 
-<span class='kw'>const</span> <span class='ident'>NODE_QUEUED_FLAG</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='number'>1</span>;
+<span class="kw">const</span> <span class="ident">NODE_QUEUED_FLAG</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">1</span>;
 
-<span class='kw'>const</span> <span class='ident'>AWAKEN</span>: <span class='ident'>Token</span> <span class='op'>=</span> <span class='ident'>Token</span>(<span class='ident'>usize</span>::<span class='ident'>MAX</span>);
+<span class="kw">const</span> <span class="ident">AWAKEN</span>: <span class="ident">Token</span> <span class="op">=</span> <span class="ident">Token</span>(<span class="ident">usize</span>::<span class="ident">MAX</span>);
 
-<span class='comment'>/*
+<span class="comment">/*
  *
  * ===== Poll =====
  *
  */</span>
 
-<span class='kw'>impl</span> <span class='ident'>Poll</span> {
-    <span class='doccomment'>/// Return a new `Poll` handle using a default configuration.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Poll</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>poll</span> <span class='op'>=</span> <span class='ident'>Poll</span> {
-            <span class='ident'>selector</span>: <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>sys</span>::<span class='ident'>Selector</span>::<span class='ident'>new</span>()),
-            <span class='ident'>readiness_queue</span>: <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>ReadinessQueue</span>::<span class='ident'>new</span>()),
-            <span class='ident'>_marker</span>: <span class='ident'>marker</span>::<span class='ident'>PhantomData</span>,
+<span class="kw">impl</span> <span class="ident">Poll</span> {
+    <span class="doccomment">/// Return a new `Poll` handle using a default configuration.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Poll</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">poll</span> <span class="op">=</span> <span class="ident">Poll</span> {
+            <span class="ident">selector</span>: <span class="macro">try</span><span class="macro">!</span>(<span class="ident">sys</span>::<span class="ident">Selector</span>::<span class="ident">new</span>()),
+            <span class="ident">readiness_queue</span>: <span class="macro">try</span><span class="macro">!</span>(<span class="ident">ReadinessQueue</span>::<span class="ident">new</span>()),
+            <span class="ident">_marker</span>: <span class="ident">marker</span>::<span class="ident">PhantomData</span>,
         };
 
-        <span class='comment'>// Register the notification wakeup FD with the IO poller</span>
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>poll</span>.<span class='ident'>readiness_queue</span>.<span class='ident'>inner</span>().<span class='ident'>awakener</span>.<span class='ident'>register</span>(<span class='kw-2'>&amp;</span><span class='ident'>poll</span>, <span class='ident'>AWAKEN</span>, <span class='ident'>Ready</span>::<span class='ident'>readable</span>(), <span class='ident'>PollOpt</span>::<span class='ident'>edge</span>()));
+        <span class="comment">// Register the notification wakeup FD with the IO poller</span>
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">poll</span>.<span class="ident">readiness_queue</span>.<span class="ident">inner</span>().<span class="ident">awakener</span>.<span class="ident">register</span>(<span class="kw-2">&amp;</span><span class="ident">poll</span>, <span class="ident">AWAKEN</span>, <span class="ident">Ready</span>::<span class="ident">readable</span>(), <span class="ident">PollOpt</span>::<span class="ident">edge</span>()));
 
-        <span class='prelude-val'>Ok</span>(<span class='ident'>poll</span>)
+        <span class="prelude-val">Ok</span>(<span class="ident">poll</span>)
     }
 
-    <span class='doccomment'>/// Register an `Evented` handle with the `Poll` instance.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>register</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>io</span>: <span class='kw-2'>&amp;</span><span class='ident'>E</span>, <span class='ident'>token</span>: <span class='ident'>Token</span>, <span class='ident'>interest</span>: <span class='ident'>Ready</span>, <span class='ident'>opts</span>: <span class='ident'>PollOpt</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span>
-        <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>Evented</span>
+    <span class="doccomment">/// Register an `Evented` handle with the `Poll` instance.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">register</span><span class="op">&lt;</span><span class="ident">E</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">io</span>: <span class="kw-2">&amp;</span><span class="ident">E</span>, <span class="ident">token</span>: <span class="ident">Token</span>, <span class="ident">interest</span>: <span class="ident">Ready</span>, <span class="ident">opts</span>: <span class="ident">PollOpt</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>
+        <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">Evented</span>
     {
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>validate_args</span>(<span class='ident'>token</span>, <span class='ident'>interest</span>));
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">validate_args</span>(<span class="ident">token</span>, <span class="ident">interest</span>));
 
-        <span class='comment'>/*
+        <span class="comment">/*
          * Undefined behavior:
          * - Reusing a token with a different `Evented` without deregistering
          * (or closing) the original `Evented`.
          */</span>
-        <span class='macro'>trace</span><span class='macro'>!</span>(<span class='string'>&quot;registering with poller&quot;</span>);
+        <span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;registering with poller&quot;</span>);
 
-        <span class='comment'>// Register interests for this socket</span>
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>io</span>.<span class='ident'>register</span>(<span class='self'>self</span>, <span class='ident'>token</span>, <span class='ident'>interest</span>, <span class='ident'>opts</span>));
+        <span class="comment">// Register interests for this socket</span>
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">io</span>.<span class="ident">register</span>(<span class="self">self</span>, <span class="ident">token</span>, <span class="ident">interest</span>, <span class="ident">opts</span>));
 
-        <span class='prelude-val'>Ok</span>(())
+        <span class="prelude-val">Ok</span>(())
     }
 
-    <span class='doccomment'>/// Re-register an `Evented` handle with the `Poll` instance.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>reregister</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>io</span>: <span class='kw-2'>&amp;</span><span class='ident'>E</span>, <span class='ident'>token</span>: <span class='ident'>Token</span>, <span class='ident'>interest</span>: <span class='ident'>Ready</span>, <span class='ident'>opts</span>: <span class='ident'>PollOpt</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span>
-        <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>Evented</span>
+    <span class="doccomment">/// Re-register an `Evented` handle with the `Poll` instance.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reregister</span><span class="op">&lt;</span><span class="ident">E</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">io</span>: <span class="kw-2">&amp;</span><span class="ident">E</span>, <span class="ident">token</span>: <span class="ident">Token</span>, <span class="ident">interest</span>: <span class="ident">Ready</span>, <span class="ident">opts</span>: <span class="ident">PollOpt</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>
+        <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">Evented</span>
     {
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>validate_args</span>(<span class='ident'>token</span>, <span class='ident'>interest</span>));
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">validate_args</span>(<span class="ident">token</span>, <span class="ident">interest</span>));
 
-        <span class='macro'>trace</span><span class='macro'>!</span>(<span class='string'>&quot;registering with poller&quot;</span>);
+        <span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;registering with poller&quot;</span>);
 
-        <span class='comment'>// Register interests for this socket</span>
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>io</span>.<span class='ident'>reregister</span>(<span class='self'>self</span>, <span class='ident'>token</span>, <span class='ident'>interest</span>, <span class='ident'>opts</span>));
+        <span class="comment">// Register interests for this socket</span>
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">io</span>.<span class="ident">reregister</span>(<span class="self">self</span>, <span class="ident">token</span>, <span class="ident">interest</span>, <span class="ident">opts</span>));
 
-        <span class='prelude-val'>Ok</span>(())
+        <span class="prelude-val">Ok</span>(())
     }
 
-    <span class='doccomment'>/// Deregister an `Evented` handle with the `Poll` instance.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>deregister</span><span class='op'>&lt;</span><span class='ident'>E</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>io</span>: <span class='kw-2'>&amp;</span><span class='ident'>E</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span>
-        <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>Evented</span>
+    <span class="doccomment">/// Deregister an `Evented` handle with the `Poll` instance.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">deregister</span><span class="op">&lt;</span><span class="ident">E</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">io</span>: <span class="kw-2">&amp;</span><span class="ident">E</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>
+        <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">Evented</span>
     {
-        <span class='macro'>trace</span><span class='macro'>!</span>(<span class='string'>&quot;deregistering IO with poller&quot;</span>);
+        <span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;deregistering IO with poller&quot;</span>);
 
-        <span class='comment'>// Deregister interests for this socket</span>
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>io</span>.<span class='ident'>deregister</span>(<span class='self'>self</span>));
+        <span class="comment">// Deregister interests for this socket</span>
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">io</span>.<span class="ident">deregister</span>(<span class="self">self</span>));
 
-        <span class='prelude-val'>Ok</span>(())
+        <span class="prelude-val">Ok</span>(())
     }
 
-    <span class='doccomment'>/// Block the current thread and wait until any `Evented` values registered</span>
-    <span class='doccomment'>/// with the `Poll` instance are ready or the given timeout has elapsed.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>poll</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
-                <span class='ident'>events</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Events</span>,
-                <span class='ident'>timeout</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Duration</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>timeout</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>readiness_queue</span>.<span class='ident'>is_empty</span>() {
-            <span class='macro'>trace</span><span class='macro'>!</span>(<span class='string'>&quot;custom readiness queue has pending events&quot;</span>);
-            <span class='comment'>// Never block if the readiness queue has pending events</span>
-            <span class='prelude-val'>Some</span>(<span class='ident'>Duration</span>::<span class='ident'>from_millis</span>(<span class='number'>0</span>))
-        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>readiness_queue</span>.<span class='ident'>prepare_for_sleep</span>() {
-            <span class='prelude-val'>Some</span>(<span class='ident'>Duration</span>::<span class='ident'>from_millis</span>(<span class='number'>0</span>))
-        } <span class='kw'>else</span> {
-            <span class='ident'>timeout</span>
+    <span class="doccomment">/// Block the current thread and wait until any `Evented` values registered</span>
+    <span class="doccomment">/// with the `Poll` instance are ready or the given timeout has elapsed.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">poll</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
+                <span class="ident">events</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Events</span>,
+                <span class="ident">timeout</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">timeout</span> <span class="op">=</span> <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">readiness_queue</span>.<span class="ident">is_empty</span>() {
+            <span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;custom readiness queue has pending events&quot;</span>);
+            <span class="comment">// Never block if the readiness queue has pending events</span>
+            <span class="prelude-val">Some</span>(<span class="ident">Duration</span>::<span class="ident">from_millis</span>(<span class="number">0</span>))
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">readiness_queue</span>.<span class="ident">prepare_for_sleep</span>() {
+            <span class="prelude-val">Some</span>(<span class="ident">Duration</span>::<span class="ident">from_millis</span>(<span class="number">0</span>))
+        } <span class="kw">else</span> {
+            <span class="ident">timeout</span>
         };
 
-        <span class='comment'>// First get selector events</span>
-        <span class='kw'>let</span> <span class='ident'>awoken</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>selector</span>.<span class='ident'>select</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>events</span>.<span class='ident'>inner</span>, <span class='ident'>AWAKEN</span>,
-                                               <span class='ident'>timeout</span>));
+        <span class="comment">// First get selector events</span>
+        <span class="kw">let</span> <span class="ident">awoken</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">selector</span>.<span class="ident">select</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">events</span>.<span class="ident">inner</span>, <span class="ident">AWAKEN</span>,
+                                               <span class="ident">timeout</span>));
 
-        <span class='kw'>if</span> <span class='ident'>awoken</span> {
-            <span class='self'>self</span>.<span class='ident'>readiness_queue</span>.<span class='ident'>inner</span>().<span class='ident'>awakener</span>.<span class='ident'>cleanup</span>();
+        <span class="kw">if</span> <span class="ident">awoken</span> {
+            <span class="self">self</span>.<span class="ident">readiness_queue</span>.<span class="ident">inner</span>().<span class="ident">awakener</span>.<span class="ident">cleanup</span>();
         }
 
-        <span class='comment'>// Poll custom event queue</span>
-        <span class='self'>self</span>.<span class='ident'>readiness_queue</span>.<span class='ident'>poll</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>events</span>.<span class='ident'>inner</span>);
+        <span class="comment">// Poll custom event queue</span>
+        <span class="self">self</span>.<span class="ident">readiness_queue</span>.<span class="ident">poll</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">events</span>.<span class="ident">inner</span>);
 
-        <span class='comment'>// Return number of polled events</span>
-        <span class='prelude-val'>Ok</span>(<span class='ident'>events</span>.<span class='ident'>len</span>())
+        <span class="comment">// Return number of polled events</span>
+        <span class="prelude-val">Ok</span>(<span class="ident">events</span>.<span class="ident">len</span>())
     }
 }
 
-<span class='kw'>fn</span> <span class='ident'>validate_args</span>(<span class='ident'>token</span>: <span class='ident'>Token</span>, <span class='ident'>interest</span>: <span class='ident'>Ready</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-    <span class='kw'>if</span> <span class='ident'>token</span> <span class='op'>==</span> <span class='ident'>AWAKEN</span> {
-        <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>io</span>::<span class='ident'>Error</span>::<span class='ident'>new</span>(<span class='ident'>io</span>::<span class='ident'>ErrorKind</span>::<span class='ident'>Other</span>, <span class='string'>&quot;invalid token&quot;</span>));
+<span class="kw">fn</span> <span class="ident">validate_args</span>(<span class="ident">token</span>: <span class="ident">Token</span>, <span class="ident">interest</span>: <span class="ident">Ready</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">if</span> <span class="ident">token</span> <span class="op">==</span> <span class="ident">AWAKEN</span> {
+        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">io</span>::<span class="ident">Error</span>::<span class="ident">new</span>(<span class="ident">io</span>::<span class="ident">ErrorKind</span>::<span class="ident">Other</span>, <span class="string">&quot;invalid token&quot;</span>));
     }
 
-    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>interest</span>.<span class='ident'>is_readable</span>() <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='ident'>interest</span>.<span class='ident'>is_writable</span>() {
-        <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>io</span>::<span class='ident'>Error</span>::<span class='ident'>new</span>(<span class='ident'>io</span>::<span class='ident'>ErrorKind</span>::<span class='ident'>Other</span>, <span class='string'>&quot;interest must include readable or writable&quot;</span>));
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">interest</span>.<span class="ident">is_readable</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">interest</span>.<span class="ident">is_writable</span>() {
+        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">io</span>::<span class="ident">Error</span>::<span class="ident">new</span>(<span class="ident">io</span>::<span class="ident">ErrorKind</span>::<span class="ident">Other</span>, <span class="string">&quot;interest must include readable or writable&quot;</span>));
     }
 
-    <span class='prelude-val'>Ok</span>(())
+    <span class="prelude-val">Ok</span>(())
 }
 
-<span class='kw'>impl</span> <span class='ident'>fmt</span>::<span class='ident'>Debug</span> <span class='kw'>for</span> <span class='ident'>Poll</span> {
-    <span class='kw'>fn</span> <span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>fmt</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fmt</span>::<span class='ident'>Formatter</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
-        <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>fmt</span>, <span class='string'>&quot;Poll&quot;</span>)
+<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Poll</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fmt</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;Poll&quot;</span>)
     }
 }
 
-<span class='doccomment'>/// A buffer for I/O events to get placed into, passed to `Poll::poll`.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// This structure is normally re-used on each turn of the event loop and will</span>
-<span class='doccomment'>/// contain any I/O events that happen during a `poll`. After a call to `poll`</span>
-<span class='doccomment'>/// returns the various accessor methods on this structure can be used to</span>
-<span class='doccomment'>/// iterate over the underlying events that ocurred.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Events</span> {
-    <span class='ident'>inner</span>: <span class='ident'>sys</span>::<span class='ident'>Events</span>,
+<span class="doccomment">/// A buffer for I/O events to get placed into, passed to `Poll::poll`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This structure is normally re-used on each turn of the event loop and will</span>
+<span class="doccomment">/// contain any I/O events that happen during a `poll`. After a call to `poll`</span>
+<span class="doccomment">/// returns the various accessor methods on this structure can be used to</span>
+<span class="doccomment">/// iterate over the underlying events that ocurred.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Events</span> {
+    <span class="ident">inner</span>: <span class="ident">sys</span>::<span class="ident">Events</span>,
 }
 
-<span class='doccomment'>/// Iterate an Events structure</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>EventsIter</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='ident'>inner</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Events</span>,
-    <span class='ident'>pos</span>: <span class='ident'>usize</span>,
+<span class="doccomment">/// Iterate an Events structure</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EventsIter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="ident">inner</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Events</span>,
+    <span class="ident">pos</span>: <span class="ident">usize</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>Events</span> {
-    <span class='doccomment'>/// Create a net blank set of events capable of holding up to `capacity`</span>
-    <span class='doccomment'>/// events.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// This parameter typically is an indicator on how many events can be</span>
-    <span class='doccomment'>/// returned each turn of the event loop, but it is not necessarily a hard</span>
-    <span class='doccomment'>/// limit across platforms.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>with_capacity</span>(<span class='ident'>capacity</span>: <span class='ident'>usize</span>) <span class='op'>-&gt;</span> <span class='ident'>Events</span> {
-        <span class='ident'>Events</span> {
-            <span class='ident'>inner</span>: <span class='ident'>sys</span>::<span class='ident'>Events</span>::<span class='ident'>with_capacity</span>(<span class='ident'>capacity</span>),
+<span class="kw">impl</span> <span class="ident">Events</span> {
+    <span class="doccomment">/// Create a net blank set of events capable of holding up to `capacity`</span>
+    <span class="doccomment">/// events.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This parameter typically is an indicator on how many events can be</span>
+    <span class="doccomment">/// returned each turn of the event loop, but it is not necessarily a hard</span>
+    <span class="doccomment">/// limit across platforms.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_capacity</span>(<span class="ident">capacity</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">Events</span> {
+        <span class="ident">Events</span> {
+            <span class="ident">inner</span>: <span class="ident">sys</span>::<span class="ident">Events</span>::<span class="ident">with_capacity</span>(<span class="ident">capacity</span>),
         }
     }
 
-    <span class='doccomment'>/// Returns the `idx`-th event.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Returns `None` if `idx` is greater than the length of this event buffer.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>idx</span>: <span class='ident'>usize</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Event</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>inner</span>.<span class='ident'>get</span>(<span class='ident'>idx</span>)
+    <span class="doccomment">/// Returns the `idx`-th event.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Returns `None` if `idx` is greater than the length of this event buffer.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">idx</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">get</span>(<span class="ident">idx</span>)
     }
 
-    <span class='doccomment'>/// Returns how many events this buffer contains.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>len</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-        <span class='self'>self</span>.<span class='ident'>inner</span>.<span class='ident'>len</span>()
+    <span class="doccomment">/// Returns how many events this buffer contains.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">len</span>()
     }
 
-    <span class='doccomment'>/// Returns whether this buffer contains 0 events.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_empty</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>inner</span>.<span class='ident'>is_empty</span>()
+    <span class="doccomment">/// Returns whether this buffer contains 0 events.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">is_empty</span>()
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>iter</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>EventsIter</span> {
-        <span class='ident'>EventsIter</span> {
-            <span class='ident'>inner</span>: <span class='self'>self</span>,
-            <span class='ident'>pos</span>: <span class='number'>0</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iter</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">EventsIter</span> {
+        <span class="ident">EventsIter</span> {
+            <span class="ident">inner</span>: <span class="self">self</span>,
+            <span class="ident">pos</span>: <span class="number">0</span>
         }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>IntoIterator</span> <span class='kw'>for</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>Events</span> {
-    <span class='kw'>type</span> <span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Event</span>;
-    <span class='kw'>type</span> <span class='ident'>IntoIter</span> <span class='op'>=</span> <span class='ident'>EventsIter</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>;
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">IntoIterator</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Events</span> {
+    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">Event</span>;
+    <span class="kw">type</span> <span class="ident">IntoIter</span> <span class="op">=</span> <span class="ident">EventsIter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>;
 
-    <span class='kw'>fn</span> <span class='ident'>into_iter</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span>::<span class='ident'>IntoIter</span> {
-        <span class='self'>self</span>.<span class='ident'>iter</span>()
+    <span class="kw">fn</span> <span class="ident">into_iter</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">IntoIter</span> {
+        <span class="self">self</span>.<span class="ident">iter</span>()
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>Iterator</span> <span class='kw'>for</span> <span class='ident'>EventsIter</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>Event</span>;
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">EventsIter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">Event</span>;
 
-    <span class='kw'>fn</span> <span class='ident'>next</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Event</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>ret</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>inner</span>.<span class='ident'>get</span>(<span class='self'>self</span>.<span class='ident'>pos</span>);
-        <span class='self'>self</span>.<span class='ident'>pos</span> <span class='op'>+=</span> <span class='number'>1</span>;
-        <span class='ident'>ret</span>
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">get</span>(<span class="self">self</span>.<span class="ident">pos</span>);
+        <span class="self">self</span>.<span class="ident">pos</span> <span class="op">+=</span> <span class="number">1</span>;
+        <span class="ident">ret</span>
     }
 }
 
-<span class='comment'>// ===== Accessors for internal usage =====</span>
+<span class="comment">// ===== Accessors for internal usage =====</span>
 
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>selector</span>(<span class='ident'>poll</span>: <span class='kw-2'>&amp;</span><span class='ident'>Poll</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>sys</span>::<span class='ident'>Selector</span> {
-    <span class='kw-2'>&amp;</span><span class='ident'>poll</span>.<span class='ident'>selector</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">selector</span>(<span class="ident">poll</span>: <span class="kw-2">&amp;</span><span class="ident">Poll</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">sys</span>::<span class="ident">Selector</span> {
+    <span class="kw-2">&amp;</span><span class="ident">poll</span>.<span class="ident">selector</span>
 }
 
-<span class='comment'>/*
+<span class="comment">/*
  *
  * ===== Registration =====
  *
  */</span>
 
-<span class='kw'>impl</span> <span class='ident'>Registration</span> {
-    <span class='doccomment'>/// Create a new `Registration` associated with the given `Poll` instance.</span>
-    <span class='doccomment'>/// The returned `Registration` will be associated with this `Poll` for its</span>
-    <span class='doccomment'>/// entire lifetime.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>poll</span>: <span class='kw-2'>&amp;</span><span class='ident'>Poll</span>, <span class='ident'>token</span>: <span class='ident'>Token</span>, <span class='ident'>interest</span>: <span class='ident'>Ready</span>, <span class='ident'>opts</span>: <span class='ident'>PollOpt</span>) <span class='op'>-&gt;</span> (<span class='ident'>Registration</span>, <span class='ident'>SetReadiness</span>) {
-        <span class='kw'>let</span> <span class='ident'>inner</span> <span class='op'>=</span> <span class='ident'>RegistrationInner</span>::<span class='ident'>new</span>(<span class='ident'>poll</span>, <span class='ident'>token</span>, <span class='ident'>interest</span>, <span class='ident'>opts</span>);
-        <span class='kw'>let</span> <span class='ident'>registration</span> <span class='op'>=</span> <span class='ident'>Registration</span> { <span class='ident'>inner</span>: <span class='ident'>inner</span>.<span class='ident'>clone</span>() };
-        <span class='kw'>let</span> <span class='ident'>set_readiness</span> <span class='op'>=</span> <span class='ident'>SetReadiness</span> { <span class='ident'>inner</span>: <span class='ident'>inner</span>.<span class='ident'>clone</span>() };
+<span class="kw">impl</span> <span class="ident">Registration</span> {
+    <span class="doccomment">/// Create a new `Registration` associated with the given `Poll` instance.</span>
+    <span class="doccomment">/// The returned `Registration` will be associated with this `Poll` for its</span>
+    <span class="doccomment">/// entire lifetime.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">poll</span>: <span class="kw-2">&amp;</span><span class="ident">Poll</span>, <span class="ident">token</span>: <span class="ident">Token</span>, <span class="ident">interest</span>: <span class="ident">Ready</span>, <span class="ident">opts</span>: <span class="ident">PollOpt</span>) <span class="op">-&gt;</span> (<span class="ident">Registration</span>, <span class="ident">SetReadiness</span>) {
+        <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="ident">RegistrationInner</span>::<span class="ident">new</span>(<span class="ident">poll</span>, <span class="ident">token</span>, <span class="ident">interest</span>, <span class="ident">opts</span>);
+        <span class="kw">let</span> <span class="ident">registration</span> <span class="op">=</span> <span class="ident">Registration</span> { <span class="ident">inner</span>: <span class="ident">inner</span>.<span class="ident">clone</span>() };
+        <span class="kw">let</span> <span class="ident">set_readiness</span> <span class="op">=</span> <span class="ident">SetReadiness</span> { <span class="ident">inner</span>: <span class="ident">inner</span>.<span class="ident">clone</span>() };
 
-        (<span class='ident'>registration</span>, <span class='ident'>set_readiness</span>)
+        (<span class="ident">registration</span>, <span class="ident">set_readiness</span>)
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>update</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>poll</span>: <span class='kw-2'>&amp;</span><span class='ident'>Poll</span>, <span class='ident'>token</span>: <span class='ident'>Token</span>, <span class='ident'>interest</span>: <span class='ident'>Ready</span>, <span class='ident'>opts</span>: <span class='ident'>PollOpt</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>inner</span>.<span class='ident'>update</span>(<span class='ident'>poll</span>, <span class='ident'>token</span>, <span class='ident'>interest</span>, <span class='ident'>opts</span>)
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">poll</span>: <span class="kw-2">&amp;</span><span class="ident">Poll</span>, <span class="ident">token</span>: <span class="ident">Token</span>, <span class="ident">interest</span>: <span class="ident">Ready</span>, <span class="ident">opts</span>: <span class="ident">PollOpt</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">update</span>(<span class="ident">poll</span>, <span class="ident">token</span>, <span class="ident">interest</span>, <span class="ident">opts</span>)
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>deregister</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>poll</span>: <span class='kw-2'>&amp;</span><span class='ident'>Poll</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>inner</span>.<span class='ident'>update</span>(<span class='ident'>poll</span>, <span class='ident'>Token</span>(<span class='number'>0</span>), <span class='ident'>Ready</span>::<span class='ident'>none</span>(), <span class='ident'>PollOpt</span>::<span class='ident'>empty</span>())
-    }
-}
-
-<span class='kw'>impl</span> <span class='ident'>Drop</span> <span class='kw'>for</span> <span class='ident'>Registration</span> {
-    <span class='kw'>fn</span> <span class='ident'>drop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='kw'>let</span> <span class='ident'>inner</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>inner</span>;
-        <span class='ident'>inner</span>.<span class='ident'>registration_data_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>inner</span>.<span class='ident'>queue</span>).<span class='ident'>unwrap</span>().<span class='ident'>disable</span>();
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">deregister</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">poll</span>: <span class="kw-2">&amp;</span><span class="ident">Poll</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">update</span>(<span class="ident">poll</span>, <span class="ident">Token</span>(<span class="number">0</span>), <span class="ident">Ready</span>::<span class="ident">none</span>(), <span class="ident">PollOpt</span>::<span class="ident">empty</span>())
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>fmt</span>::<span class='ident'>Debug</span> <span class='kw'>for</span> <span class='ident'>Registration</span> {
-    <span class='kw'>fn</span> <span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>fmt</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fmt</span>::<span class='ident'>Formatter</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
-        <span class='ident'>fmt</span>.<span class='ident'>debug_struct</span>(<span class='string'>&quot;Registration&quot;</span>)
-            .<span class='ident'>finish</span>()
+<span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">Registration</span> {
+    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">inner</span>;
+        <span class="ident">inner</span>.<span class="ident">registration_data_mut</span>(<span class="kw-2">&amp;</span><span class="ident">inner</span>.<span class="ident">queue</span>).<span class="ident">unwrap</span>().<span class="ident">disable</span>();
     }
 }
 
-<span class='kw'>unsafe</span> <span class='kw'>impl</span> <span class='ident'>Send</span> <span class='kw'>for</span> <span class='ident'>Registration</span> { }
-
-<span class='kw'>impl</span> <span class='ident'>SetReadiness</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>readiness</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Ready</span> {
-        <span class='self'>self</span>.<span class='ident'>inner</span>.<span class='ident'>readiness</span>()
-    }
-
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_readiness</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>ready</span>: <span class='ident'>Ready</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>inner</span>.<span class='ident'>set_readiness</span>(<span class='ident'>ready</span>)
+<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Registration</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fmt</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="ident">fmt</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Registration&quot;</span>)
+            .<span class="ident">finish</span>()
     }
 }
 
-<span class='kw'>unsafe</span> <span class='kw'>impl</span> <span class='ident'>Send</span> <span class='kw'>for</span> <span class='ident'>SetReadiness</span> { }
-<span class='kw'>unsafe</span> <span class='kw'>impl</span> <span class='ident'>Sync</span> <span class='kw'>for</span> <span class='ident'>SetReadiness</span> { }
+<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">Registration</span> { }
 
-<span class='kw'>impl</span> <span class='ident'>RegistrationInner</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>poll</span>: <span class='kw-2'>&amp;</span><span class='ident'>Poll</span>, <span class='ident'>token</span>: <span class='ident'>Token</span>, <span class='ident'>interest</span>: <span class='ident'>Ready</span>, <span class='ident'>opts</span>: <span class='ident'>PollOpt</span>) <span class='op'>-&gt;</span> <span class='ident'>RegistrationInner</span> {
-        <span class='kw'>let</span> <span class='ident'>queue</span> <span class='op'>=</span> <span class='ident'>poll</span>.<span class='ident'>readiness_queue</span>.<span class='ident'>clone</span>();
-        <span class='kw'>let</span> <span class='ident'>node</span> <span class='op'>=</span> <span class='ident'>queue</span>.<span class='ident'>new_readiness_node</span>(<span class='ident'>token</span>, <span class='ident'>interest</span>, <span class='ident'>opts</span>, <span class='number'>1</span>);
-
-        <span class='ident'>RegistrationInner</span> {
-            <span class='ident'>node</span>: <span class='ident'>node</span>,
-            <span class='ident'>queue</span>: <span class='ident'>queue</span>,
-        }
+<span class="kw">impl</span> <span class="ident">SetReadiness</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">readiness</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Ready</span> {
+        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">readiness</span>()
     }
 
-    <span class='kw'>fn</span> <span class='ident'>update</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>poll</span>: <span class='kw-2'>&amp;</span><span class='ident'>Poll</span>, <span class='ident'>token</span>: <span class='ident'>Token</span>, <span class='ident'>interest</span>: <span class='ident'>Ready</span>, <span class='ident'>opts</span>: <span class='ident'>PollOpt</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='comment'>// Update the registration data</span>
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>registration_data_mut</span>(<span class='kw-2'>&amp;</span><span class='ident'>poll</span>.<span class='ident'>readiness_queue</span>)).<span class='ident'>update</span>(<span class='ident'>token</span>, <span class='ident'>interest</span>, <span class='ident'>opts</span>);
-
-        <span class='comment'>// If the node is currently ready, re-queue?</span>
-        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>event</span>::<span class='ident'>is_empty</span>(<span class='self'>self</span>.<span class='ident'>readiness</span>()) {
-            <span class='comment'>// The releaxed ordering of `self.readiness()` is sufficient here.</span>
-            <span class='comment'>// All mutations to readiness will immediately attempt to queue the</span>
-            <span class='comment'>// node for processing. This means that this call to</span>
-            <span class='comment'>// `queue_for_processing` is only intended to handle cases where</span>
-            <span class='comment'>// the node was dequeued in `poll` and then has the interest</span>
-            <span class='comment'>// changed, which means that the &quot;newest&quot; readiness value is</span>
-            <span class='comment'>// already known by the current thread.</span>
-            <span class='kw'>let</span> <span class='ident'>needs_wakeup</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>queue_for_processing</span>();
-            <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>needs_wakeup</span>, <span class='string'>&quot;something funky is going on&quot;</span>);
-        }
-
-        <span class='prelude-val'>Ok</span>(())
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>readiness</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Ready</span> {
-        <span class='comment'>// A relaxed ordering is sufficient here as a call to `readiness` is</span>
-        <span class='comment'>// only meant as a hint to what the current value is. It should not be</span>
-        <span class='comment'>// used for any synchronization.</span>
-        <span class='ident'>event</span>::<span class='ident'>from_usize</span>(<span class='self'>self</span>.<span class='ident'>node</span>().<span class='ident'>events</span>.<span class='ident'>load</span>(<span class='ident'>Ordering</span>::<span class='ident'>Relaxed</span>))
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>set_readiness</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>ready</span>: <span class='ident'>Ready</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='comment'>// First store in the new readiness using relaxed as this operation is</span>
-        <span class='comment'>// permitted to be visible ad-hoc. The `queue_for_processing` function</span>
-        <span class='comment'>// will set a `Release` barrier ensuring eventual consistency.</span>
-        <span class='self'>self</span>.<span class='ident'>node</span>().<span class='ident'>events</span>.<span class='ident'>store</span>(<span class='ident'>event</span>::<span class='ident'>as_usize</span>(<span class='ident'>ready</span>), <span class='ident'>Ordering</span>::<span class='ident'>Relaxed</span>);
-
-        <span class='macro'>trace</span><span class='macro'>!</span>(<span class='string'>&quot;set_readiness event {:?} {:?}&quot;</span>, <span class='ident'>ready</span>, <span class='self'>self</span>.<span class='ident'>node</span>().<span class='ident'>token</span>());
-
-        <span class='comment'>// Setting readiness to none doesn&#39;t require any processing by the poll</span>
-        <span class='comment'>// instance, so there is no need to enqueue the node. No barrier is</span>
-        <span class='comment'>// needed in this case since it doesn&#39;t really matter when the value</span>
-        <span class='comment'>// becomes visible to other threads.</span>
-        <span class='kw'>if</span> <span class='ident'>event</span>::<span class='ident'>is_empty</span>(<span class='ident'>ready</span>) {
-            <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(());
-        }
-
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>queue_for_processing</span>() {
-            <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>queue</span>.<span class='ident'>wakeup</span>());
-        }
-
-        <span class='prelude-val'>Ok</span>(())
-    }
-
-    <span class='doccomment'>/// Returns true if `Poll` needs to be woken up</span>
-    <span class='kw'>fn</span> <span class='ident'>queue_for_processing</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='comment'>// `Release` ensures that the `events` mutation is visible if this</span>
-        <span class='comment'>// mutation is visible.</span>
-        <span class='comment'>//</span>
-        <span class='comment'>// `Acquire` ensures that a change to `head_readiness` made in the</span>
-        <span class='comment'>// poll thread is visible if `queued` has been reset to zero.</span>
-        <span class='kw'>let</span> <span class='ident'>prev</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>node</span>().<span class='ident'>queued</span>.<span class='ident'>compare_and_swap</span>(<span class='number'>0</span>, <span class='ident'>NODE_QUEUED_FLAG</span>, <span class='ident'>Ordering</span>::<span class='ident'>AcqRel</span>);
-
-        <span class='comment'>// If the queued flag was not initially set, then the current thread</span>
-        <span class='comment'>// is assigned the responsibility of enqueuing the node for processing.</span>
-        <span class='kw'>if</span> <span class='ident'>prev</span> <span class='op'>==</span> <span class='number'>0</span> {
-            <span class='self'>self</span>.<span class='ident'>queue</span>.<span class='ident'>prepend_readiness_node</span>(<span class='self'>self</span>.<span class='ident'>node</span>.<span class='ident'>clone</span>())
-        } <span class='kw'>else</span> {
-            <span class='bool-val'>false</span>
-        }
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>node</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>ReadinessNode</span> {
-        <span class='self'>self</span>.<span class='ident'>node</span>.<span class='ident'>as_ref</span>().<span class='ident'>unwrap</span>()
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>registration_data_mut</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>readiness_queue</span>: <span class='kw-2'>&amp;</span><span class='ident'>ReadinessQueue</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>RegistrationData</span><span class='op'>&gt;</span> {
-        <span class='comment'>// `&amp;Poll` is passed in here in order to ensure that this function is</span>
-        <span class='comment'>// only called from the thread that owns the `Poll` value. This is</span>
-        <span class='comment'>// required because the function will mutate variables that are read</span>
-        <span class='comment'>// from a call to `Poll::poll`.</span>
-
-        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>queue</span>.<span class='ident'>identical</span>(<span class='ident'>readiness_queue</span>) {
-            <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>io</span>::<span class='ident'>Error</span>::<span class='ident'>new</span>(<span class='ident'>io</span>::<span class='ident'>ErrorKind</span>::<span class='ident'>Other</span>, <span class='string'>&quot;registration registered with another instance of Poll&quot;</span>));
-        }
-
-        <span class='prelude-val'>Ok</span>(<span class='self'>self</span>.<span class='ident'>node</span>().<span class='ident'>registration_data_mut</span>())
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_readiness</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">ready</span>: <span class="ident">Ready</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">set_readiness</span>(<span class="ident">ready</span>)
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>Clone</span> <span class='kw'>for</span> <span class='ident'>RegistrationInner</span> {
-    <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>RegistrationInner</span> {
-        <span class='comment'>// Using a relaxed ordering is alright here, as knowledge of the</span>
-        <span class='comment'>// original reference prevents other threads from erroneously deleting</span>
-        <span class='comment'>// the object.</span>
-        <span class='comment'>//</span>
-        <span class='comment'>// As explained in the [Boost documentation][1], Increasing the</span>
-        <span class='comment'>// reference counter can always be done with memory_order_relaxed: New</span>
-        <span class='comment'>// references to an object can only be formed from an existing</span>
-        <span class='comment'>// reference, and passing an existing reference from one thread to</span>
-        <span class='comment'>// another must already provide any required synchronization.</span>
-        <span class='comment'>//</span>
-        <span class='comment'>// [1]: (www.boost.org/doc/libs/1_55_0/doc/html/atomic/usage_examples.html)</span>
-        <span class='kw'>let</span> <span class='ident'>old_size</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>node</span>().<span class='ident'>ref_count</span>.<span class='ident'>fetch_add</span>(<span class='number'>1</span>, <span class='ident'>Ordering</span>::<span class='ident'>Relaxed</span>);
+<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">SetReadiness</span> { }
+<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Sync</span> <span class="kw">for</span> <span class="ident">SetReadiness</span> { }
 
-        <span class='comment'>// However we need to guard against massive refcounts in case someone</span>
-        <span class='comment'>// is `mem::forget`ing Arcs. If we don&#39;t do this the count can overflow</span>
-        <span class='comment'>// and users will use-after free. We racily saturate to `isize::MAX` on</span>
-        <span class='comment'>// the assumption that there aren&#39;t ~2 billion threads incrementing</span>
-        <span class='comment'>// the reference count at once. This branch will never be taken in</span>
-        <span class='comment'>// any realistic program.</span>
-        <span class='comment'>//</span>
-        <span class='comment'>// We abort because such a program is incredibly degenerate, and we</span>
-        <span class='comment'>// don&#39;t care to support it.</span>
-        <span class='kw'>if</span> <span class='ident'>old_size</span> <span class='op'>&amp;</span> <span class='op'>!</span><span class='ident'>MAX_REFCOUNT</span> <span class='op'>!=</span> <span class='number'>0</span> {
-            <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;too many outstanding refs&quot;</span>);
+<span class="kw">impl</span> <span class="ident">RegistrationInner</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">poll</span>: <span class="kw-2">&amp;</span><span class="ident">Poll</span>, <span class="ident">token</span>: <span class="ident">Token</span>, <span class="ident">interest</span>: <span class="ident">Ready</span>, <span class="ident">opts</span>: <span class="ident">PollOpt</span>) <span class="op">-&gt;</span> <span class="ident">RegistrationInner</span> {
+        <span class="kw">let</span> <span class="ident">queue</span> <span class="op">=</span> <span class="ident">poll</span>.<span class="ident">readiness_queue</span>.<span class="ident">clone</span>();
+        <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">queue</span>.<span class="ident">new_readiness_node</span>(<span class="ident">token</span>, <span class="ident">interest</span>, <span class="ident">opts</span>, <span class="number">1</span>);
+
+        <span class="ident">RegistrationInner</span> {
+            <span class="ident">node</span>: <span class="ident">node</span>,
+            <span class="ident">queue</span>: <span class="ident">queue</span>,
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">poll</span>: <span class="kw-2">&amp;</span><span class="ident">Poll</span>, <span class="ident">token</span>: <span class="ident">Token</span>, <span class="ident">interest</span>: <span class="ident">Ready</span>, <span class="ident">opts</span>: <span class="ident">PollOpt</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="comment">// Update the registration data</span>
+        <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">registration_data_mut</span>(<span class="kw-2">&amp;</span><span class="ident">poll</span>.<span class="ident">readiness_queue</span>)).<span class="ident">update</span>(<span class="ident">token</span>, <span class="ident">interest</span>, <span class="ident">opts</span>);
+
+        <span class="comment">// If the node is currently ready, re-queue?</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">event</span>::<span class="ident">is_empty</span>(<span class="self">self</span>.<span class="ident">readiness</span>()) {
+            <span class="comment">// The releaxed ordering of `self.readiness()` is sufficient here.</span>
+            <span class="comment">// All mutations to readiness will immediately attempt to queue the</span>
+            <span class="comment">// node for processing. This means that this call to</span>
+            <span class="comment">// `queue_for_processing` is only intended to handle cases where</span>
+            <span class="comment">// the node was dequeued in `poll` and then has the interest</span>
+            <span class="comment">// changed, which means that the &quot;newest&quot; readiness value is</span>
+            <span class="comment">// already known by the current thread.</span>
+            <span class="kw">let</span> <span class="ident">needs_wakeup</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">queue_for_processing</span>();
+            <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">needs_wakeup</span>, <span class="string">&quot;something funky is going on&quot;</span>);
         }
 
-        <span class='ident'>RegistrationInner</span> {
-            <span class='ident'>queue</span>: <span class='self'>self</span>.<span class='ident'>queue</span>.<span class='ident'>clone</span>(),
-            <span class='ident'>node</span>: <span class='self'>self</span>.<span class='ident'>node</span>.<span class='ident'>clone</span>(),
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn</span> <span class="ident">readiness</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Ready</span> {
+        <span class="comment">// A relaxed ordering is sufficient here as a call to `readiness` is</span>
+        <span class="comment">// only meant as a hint to what the current value is. It should not be</span>
+        <span class="comment">// used for any synchronization.</span>
+        <span class="ident">event</span>::<span class="ident">from_usize</span>(<span class="self">self</span>.<span class="ident">node</span>().<span class="ident">events</span>.<span class="ident">load</span>(<span class="ident">Ordering</span>::<span class="ident">Relaxed</span>))
+    }
+
+    <span class="kw">fn</span> <span class="ident">set_readiness</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">ready</span>: <span class="ident">Ready</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="comment">// First store in the new readiness using relaxed as this operation is</span>
+        <span class="comment">// permitted to be visible ad-hoc. The `queue_for_processing` function</span>
+        <span class="comment">// will set a `Release` barrier ensuring eventual consistency.</span>
+        <span class="self">self</span>.<span class="ident">node</span>().<span class="ident">events</span>.<span class="ident">store</span>(<span class="ident">event</span>::<span class="ident">as_usize</span>(<span class="ident">ready</span>), <span class="ident">Ordering</span>::<span class="ident">Relaxed</span>);
+
+        <span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;set_readiness event {:?} {:?}&quot;</span>, <span class="ident">ready</span>, <span class="self">self</span>.<span class="ident">node</span>().<span class="ident">token</span>());
+
+        <span class="comment">// Setting readiness to none doesn&#39;t require any processing by the poll</span>
+        <span class="comment">// instance, so there is no need to enqueue the node. No barrier is</span>
+        <span class="comment">// needed in this case since it doesn&#39;t really matter when the value</span>
+        <span class="comment">// becomes visible to other threads.</span>
+        <span class="kw">if</span> <span class="ident">event</span>::<span class="ident">is_empty</span>(<span class="ident">ready</span>) {
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+        }
+
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">queue_for_processing</span>() {
+            <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">queue</span>.<span class="ident">wakeup</span>());
+        }
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="doccomment">/// Returns true if `Poll` needs to be woken up</span>
+    <span class="kw">fn</span> <span class="ident">queue_for_processing</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="comment">// `Release` ensures that the `events` mutation is visible if this</span>
+        <span class="comment">// mutation is visible.</span>
+        <span class="comment">//</span>
+        <span class="comment">// `Acquire` ensures that a change to `head_readiness` made in the</span>
+        <span class="comment">// poll thread is visible if `queued` has been reset to zero.</span>
+        <span class="kw">let</span> <span class="ident">prev</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">node</span>().<span class="ident">queued</span>.<span class="ident">compare_and_swap</span>(<span class="number">0</span>, <span class="ident">NODE_QUEUED_FLAG</span>, <span class="ident">Ordering</span>::<span class="ident">AcqRel</span>);
+
+        <span class="comment">// If the queued flag was not initially set, then the current thread</span>
+        <span class="comment">// is assigned the responsibility of enqueuing the node for processing.</span>
+        <span class="kw">if</span> <span class="ident">prev</span> <span class="op">==</span> <span class="number">0</span> {
+            <span class="self">self</span>.<span class="ident">queue</span>.<span class="ident">prepend_readiness_node</span>(<span class="self">self</span>.<span class="ident">node</span>.<span class="ident">clone</span>())
+        } <span class="kw">else</span> {
+            <span class="bool-val">false</span>
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">node</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">ReadinessNode</span> {
+        <span class="self">self</span>.<span class="ident">node</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>()
+    }
+
+    <span class="kw">fn</span> <span class="ident">registration_data_mut</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">readiness_queue</span>: <span class="kw-2">&amp;</span><span class="ident">ReadinessQueue</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">RegistrationData</span><span class="op">&gt;</span> {
+        <span class="comment">// `&amp;Poll` is passed in here in order to ensure that this function is</span>
+        <span class="comment">// only called from the thread that owns the `Poll` value. This is</span>
+        <span class="comment">// required because the function will mutate variables that are read</span>
+        <span class="comment">// from a call to `Poll::poll`.</span>
+
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">queue</span>.<span class="ident">identical</span>(<span class="ident">readiness_queue</span>) {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">io</span>::<span class="ident">Error</span>::<span class="ident">new</span>(<span class="ident">io</span>::<span class="ident">ErrorKind</span>::<span class="ident">Other</span>, <span class="string">&quot;registration registered with another instance of Poll&quot;</span>));
+        }
+
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">node</span>().<span class="ident">registration_data_mut</span>())
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Clone</span> <span class="kw">for</span> <span class="ident">RegistrationInner</span> {
+    <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">RegistrationInner</span> {
+        <span class="comment">// Using a relaxed ordering is alright here, as knowledge of the</span>
+        <span class="comment">// original reference prevents other threads from erroneously deleting</span>
+        <span class="comment">// the object.</span>
+        <span class="comment">//</span>
+        <span class="comment">// As explained in the [Boost documentation][1], Increasing the</span>
+        <span class="comment">// reference counter can always be done with memory_order_relaxed: New</span>
+        <span class="comment">// references to an object can only be formed from an existing</span>
+        <span class="comment">// reference, and passing an existing reference from one thread to</span>
+        <span class="comment">// another must already provide any required synchronization.</span>
+        <span class="comment">//</span>
+        <span class="comment">// [1]: (www.boost.org/doc/libs/1_55_0/doc/html/atomic/usage_examples.html)</span>
+        <span class="kw">let</span> <span class="ident">old_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">node</span>().<span class="ident">ref_count</span>.<span class="ident">fetch_add</span>(<span class="number">1</span>, <span class="ident">Ordering</span>::<span class="ident">Relaxed</span>);
+
+        <span class="comment">// However we need to guard against massive refcounts in case someone</span>
+        <span class="comment">// is `mem::forget`ing Arcs. If we don&#39;t do this the count can overflow</span>
+        <span class="comment">// and users will use-after free. We racily saturate to `isize::MAX` on</span>
+        <span class="comment">// the assumption that there aren&#39;t ~2 billion threads incrementing</span>
+        <span class="comment">// the reference count at once. This branch will never be taken in</span>
+        <span class="comment">// any realistic program.</span>
+        <span class="comment">//</span>
+        <span class="comment">// We abort because such a program is incredibly degenerate, and we</span>
+        <span class="comment">// don&#39;t care to support it.</span>
+        <span class="kw">if</span> <span class="ident">old_size</span> <span class="op">&amp;</span> <span class="op">!</span><span class="ident">MAX_REFCOUNT</span> <span class="op">!=</span> <span class="number">0</span> {
+            <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;too many outstanding refs&quot;</span>);
+        }
+
+        <span class="ident">RegistrationInner</span> {
+            <span class="ident">queue</span>: <span class="self">self</span>.<span class="ident">queue</span>.<span class="ident">clone</span>(),
+            <span class="ident">node</span>: <span class="self">self</span>.<span class="ident">node</span>.<span class="ident">clone</span>(),
         }
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>Drop</span> <span class='kw'>for</span> <span class='ident'>RegistrationInner</span> {
-    <span class='kw'>fn</span> <span class='ident'>drop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='comment'>// Because `fetch_sub` is already atomic, we do not need to synchronize</span>
-        <span class='comment'>// with other threads unless we are going to delete the object. This</span>
-        <span class='comment'>// same logic applies to the below `fetch_sub` to the `weak` count.</span>
-        <span class='kw'>let</span> <span class='ident'>old_size</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>node</span>().<span class='ident'>ref_count</span>.<span class='ident'>fetch_sub</span>(<span class='number'>1</span>, <span class='ident'>Ordering</span>::<span class='ident'>Release</span>);
+<span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">RegistrationInner</span> {
+    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="comment">// Because `fetch_sub` is already atomic, we do not need to synchronize</span>
+        <span class="comment">// with other threads unless we are going to delete the object. This</span>
+        <span class="comment">// same logic applies to the below `fetch_sub` to the `weak` count.</span>
+        <span class="kw">let</span> <span class="ident">old_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">node</span>().<span class="ident">ref_count</span>.<span class="ident">fetch_sub</span>(<span class="number">1</span>, <span class="ident">Ordering</span>::<span class="ident">Release</span>);
 
-        <span class='kw'>if</span> <span class='ident'>old_size</span> <span class='op'>!=</span> <span class='number'>1</span> {
-            <span class='kw'>return</span>;
+        <span class="kw">if</span> <span class="ident">old_size</span> <span class="op">!=</span> <span class="number">1</span> {
+            <span class="kw">return</span>;
         }
 
-        <span class='comment'>// Signal to the queue that the node is not referenced anymore and can</span>
-        <span class='comment'>// be released / reused</span>
-        <span class='kw'>let</span> _ <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>set_readiness</span>(<span class='ident'>event</span>::<span class='ident'>drop</span>());
+        <span class="comment">// Signal to the queue that the node is not referenced anymore and can</span>
+        <span class="comment">// be released / reused</span>
+        <span class="kw">let</span> _ <span class="op">=</span> <span class="self">self</span>.<span class="ident">set_readiness</span>(<span class="ident">event</span>::<span class="ident">drop</span>());
     }
 }
 
-<span class='comment'>/*
+<span class="comment">/*
  *
  * ===== ReadinessQueue =====
  *
  */</span>
 
-<span class='kw'>impl</span> <span class='ident'>ReadinessQueue</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ReadinessQueue</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>sleep_token</span> <span class='op'>=</span> <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>ReadinessNode</span>::<span class='ident'>new</span>(<span class='ident'>Token</span>(<span class='number'>0</span>), <span class='ident'>Ready</span>::<span class='ident'>none</span>(), <span class='ident'>PollOpt</span>::<span class='ident'>empty</span>(), <span class='number'>0</span>));
+<span class="kw">impl</span> <span class="ident">ReadinessQueue</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ReadinessQueue</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">sleep_token</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">ReadinessNode</span>::<span class="ident">new</span>(<span class="ident">Token</span>(<span class="number">0</span>), <span class="ident">Ready</span>::<span class="ident">none</span>(), <span class="ident">PollOpt</span>::<span class="ident">empty</span>(), <span class="number">0</span>));
 
-        <span class='prelude-val'>Ok</span>(<span class='ident'>ReadinessQueue</span> {
-            <span class='ident'>inner</span>: <span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>UnsafeCell</span>::<span class='ident'>new</span>(<span class='ident'>ReadinessQueueInner</span> {
-                <span class='ident'>awakener</span>: <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>sys</span>::<span class='ident'>Awakener</span>::<span class='ident'>new</span>()),
-                <span class='ident'>head_all_nodes</span>: <span class='prelude-val'>None</span>,
-                <span class='ident'>head_readiness</span>: <span class='ident'>AtomicPtr</span>::<span class='ident'>new</span>(<span class='ident'>ptr</span>::<span class='ident'>null_mut</span>()),
-                <span class='comment'>// Arguments here don&#39;t matter, the node is only used for the</span>
-                <span class='comment'>// pointer value.</span>
-                <span class='ident'>sleep_token</span>: <span class='ident'>sleep_token</span>,
+        <span class="prelude-val">Ok</span>(<span class="ident">ReadinessQueue</span> {
+            <span class="ident">inner</span>: <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">UnsafeCell</span>::<span class="ident">new</span>(<span class="ident">ReadinessQueueInner</span> {
+                <span class="ident">awakener</span>: <span class="macro">try</span><span class="macro">!</span>(<span class="ident">sys</span>::<span class="ident">Awakener</span>::<span class="ident">new</span>()),
+                <span class="ident">head_all_nodes</span>: <span class="prelude-val">None</span>,
+                <span class="ident">head_readiness</span>: <span class="ident">AtomicPtr</span>::<span class="ident">new</span>(<span class="ident">ptr</span>::<span class="ident">null_mut</span>()),
+                <span class="comment">// Arguments here don&#39;t matter, the node is only used for the</span>
+                <span class="comment">// pointer value.</span>
+                <span class="ident">sleep_token</span>: <span class="ident">sleep_token</span>,
             }))
         })
     }
 
-    <span class='kw'>fn</span> <span class='ident'>poll</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>dst</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>sys</span>::<span class='ident'>Events</span>) {
-        <span class='kw'>let</span> <span class='ident'>ready</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>take_ready</span>();
+    <span class="kw">fn</span> <span class="ident">poll</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">sys</span>::<span class="ident">Events</span>) {
+        <span class="kw">let</span> <span class="ident">ready</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">take_ready</span>();
 
-        <span class='comment'>// TODO: Cap number of nodes processed</span>
-        <span class='kw'>for</span> <span class='ident'>node</span> <span class='kw'>in</span> <span class='ident'>ready</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>events</span>;
-            <span class='kw'>let</span> <span class='ident'>opts</span>;
+        <span class="comment">// TODO: Cap number of nodes processed</span>
+        <span class="kw">for</span> <span class="ident">node</span> <span class="kw">in</span> <span class="ident">ready</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">events</span>;
+            <span class="kw">let</span> <span class="ident">opts</span>;
 
             {
-                <span class='kw'>let</span> <span class='ident'>node_ref</span> <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>as_ref</span>().<span class='ident'>unwrap</span>();
-                <span class='ident'>opts</span> <span class='op'>=</span> <span class='ident'>node_ref</span>.<span class='ident'>poll_opts</span>();
+                <span class="kw">let</span> <span class="ident">node_ref</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>();
+                <span class="ident">opts</span> <span class="op">=</span> <span class="ident">node_ref</span>.<span class="ident">poll_opts</span>();
 
-                <span class='comment'>// Atomically read queued. Use Acquire ordering to set a</span>
-                <span class='comment'>// barrier before reading events, which will be read using</span>
-                <span class='comment'>// `Relaxed` ordering. Reading events w/ `Relaxed` is OK thanks to</span>
-                <span class='comment'>// the acquire / release hand off on `queued`.</span>
-                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>queued</span> <span class='op'>=</span> <span class='ident'>node_ref</span>.<span class='ident'>queued</span>.<span class='ident'>load</span>(<span class='ident'>Ordering</span>::<span class='ident'>Acquire</span>);
-                <span class='ident'>events</span> <span class='op'>=</span> <span class='ident'>node_ref</span>.<span class='ident'>poll_events</span>();
+                <span class="comment">// Atomically read queued. Use Acquire ordering to set a</span>
+                <span class="comment">// barrier before reading events, which will be read using</span>
+                <span class="comment">// `Relaxed` ordering. Reading events w/ `Relaxed` is OK thanks to</span>
+                <span class="comment">// the acquire / release hand off on `queued`.</span>
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">queued</span> <span class="op">=</span> <span class="ident">node_ref</span>.<span class="ident">queued</span>.<span class="ident">load</span>(<span class="ident">Ordering</span>::<span class="ident">Acquire</span>);
+                <span class="ident">events</span> <span class="op">=</span> <span class="ident">node_ref</span>.<span class="ident">poll_events</span>();
 
-                <span class='comment'>// Enter a loop attempting to unset the &quot;queued&quot; bit or requeuing</span>
-                <span class='comment'>// the node.</span>
-                <span class='kw'>loop</span> {
-                    <span class='comment'>// In the following conditions, the registration is removed from</span>
-                    <span class='comment'>// the readiness queue:</span>
-                    <span class='comment'>//</span>
-                    <span class='comment'>// - The registration is edge triggered.</span>
-                    <span class='comment'>// - The event set contains no events</span>
-                    <span class='comment'>// - There is a requested delay that has not already expired.</span>
-                    <span class='comment'>//</span>
-                    <span class='comment'>// If the drop flag is set though, the node is never queued</span>
-                    <span class='comment'>// again.</span>
-                    <span class='kw'>if</span> <span class='ident'>event</span>::<span class='ident'>is_drop</span>(<span class='ident'>events</span>) {
-                        <span class='comment'>// dropped nodes are always processed immediately. There is</span>
-                        <span class='comment'>// also no need to unset the queued bit as the node should</span>
-                        <span class='comment'>// not change anymore.</span>
-                        <span class='kw'>break</span>;
-                    } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>opts</span>.<span class='ident'>is_edge</span>() <span class='op'>||</span> <span class='ident'>event</span>::<span class='ident'>is_empty</span>(<span class='ident'>events</span>) {
-                        <span class='comment'>// An acquire barrier is set in order to re-read the</span>
-                        <span class='comment'>// `events field. `Release` is not needed as we have not</span>
-                        <span class='comment'>// mutated any field that we need to expose to the producer</span>
-                        <span class='comment'>// thread.</span>
-                        <span class='kw'>let</span> <span class='ident'>next</span> <span class='op'>=</span> <span class='ident'>node_ref</span>.<span class='ident'>queued</span>.<span class='ident'>compare_and_swap</span>(<span class='ident'>queued</span>, <span class='number'>0</span>, <span class='ident'>Ordering</span>::<span class='ident'>Acquire</span>);
+                <span class="comment">// Enter a loop attempting to unset the &quot;queued&quot; bit or requeuing</span>
+                <span class="comment">// the node.</span>
+                <span class="kw">loop</span> {
+                    <span class="comment">// In the following conditions, the registration is removed from</span>
+                    <span class="comment">// the readiness queue:</span>
+                    <span class="comment">//</span>
+                    <span class="comment">// - The registration is edge triggered.</span>
+                    <span class="comment">// - The event set contains no events</span>
+                    <span class="comment">// - There is a requested delay that has not already expired.</span>
+                    <span class="comment">//</span>
+                    <span class="comment">// If the drop flag is set though, the node is never queued</span>
+                    <span class="comment">// again.</span>
+                    <span class="kw">if</span> <span class="ident">event</span>::<span class="ident">is_drop</span>(<span class="ident">events</span>) {
+                        <span class="comment">// dropped nodes are always processed immediately. There is</span>
+                        <span class="comment">// also no need to unset the queued bit as the node should</span>
+                        <span class="comment">// not change anymore.</span>
+                        <span class="kw">break</span>;
+                    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">opts</span>.<span class="ident">is_edge</span>() <span class="op">||</span> <span class="ident">event</span>::<span class="ident">is_empty</span>(<span class="ident">events</span>) {
+                        <span class="comment">// An acquire barrier is set in order to re-read the</span>
+                        <span class="comment">// `events field. `Release` is not needed as we have not</span>
+                        <span class="comment">// mutated any field that we need to expose to the producer</span>
+                        <span class="comment">// thread.</span>
+                        <span class="kw">let</span> <span class="ident">next</span> <span class="op">=</span> <span class="ident">node_ref</span>.<span class="ident">queued</span>.<span class="ident">compare_and_swap</span>(<span class="ident">queued</span>, <span class="number">0</span>, <span class="ident">Ordering</span>::<span class="ident">Acquire</span>);
 
-                        <span class='comment'>// Re-read in order to ensure we have the latest value</span>
-                        <span class='comment'>// after having marked the registration has dequeued from</span>
-                        <span class='comment'>// the readiness queue. Again, `Relaxed` is OK since we set</span>
-                        <span class='comment'>// the barrier above.</span>
-                        <span class='ident'>events</span> <span class='op'>=</span> <span class='ident'>node_ref</span>.<span class='ident'>poll_events</span>();
+                        <span class="comment">// Re-read in order to ensure we have the latest value</span>
+                        <span class="comment">// after having marked the registration has dequeued from</span>
+                        <span class="comment">// the readiness queue. Again, `Relaxed` is OK since we set</span>
+                        <span class="comment">// the barrier above.</span>
+                        <span class="ident">events</span> <span class="op">=</span> <span class="ident">node_ref</span>.<span class="ident">poll_events</span>();
 
-                        <span class='kw'>if</span> <span class='ident'>queued</span> <span class='op'>==</span> <span class='ident'>next</span> {
-                            <span class='kw'>break</span>;
+                        <span class="kw">if</span> <span class="ident">queued</span> <span class="op">==</span> <span class="ident">next</span> {
+                            <span class="kw">break</span>;
                         }
 
-                        <span class='ident'>queued</span> <span class='op'>=</span> <span class='ident'>next</span>;
-                    } <span class='kw'>else</span> {
-                        <span class='comment'>// The node needs to stay queued for readiness, so it gets</span>
-                        <span class='comment'>// pushed back onto the queue.</span>
-                        <span class='comment'>//</span>
-                        <span class='comment'>// TODO: It would be better to build up a batch list that</span>
-                        <span class='comment'>// requires a single CAS. Also, `Relaxed` ordering would be</span>
-                        <span class='comment'>// OK here as the prepend only needs to be visible by the</span>
-                        <span class='comment'>// current thread.</span>
-                        <span class='kw'>let</span> <span class='ident'>needs_wakeup</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>prepend_readiness_node</span>(<span class='ident'>node</span>.<span class='ident'>clone</span>());
-                        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>needs_wakeup</span>, <span class='string'>&quot;something funky is going on&quot;</span>);
-                        <span class='kw'>break</span>;
+                        <span class="ident">queued</span> <span class="op">=</span> <span class="ident">next</span>;
+                    } <span class="kw">else</span> {
+                        <span class="comment">// The node needs to stay queued for readiness, so it gets</span>
+                        <span class="comment">// pushed back onto the queue.</span>
+                        <span class="comment">//</span>
+                        <span class="comment">// TODO: It would be better to build up a batch list that</span>
+                        <span class="comment">// requires a single CAS. Also, `Relaxed` ordering would be</span>
+                        <span class="comment">// OK here as the prepend only needs to be visible by the</span>
+                        <span class="comment">// current thread.</span>
+                        <span class="kw">let</span> <span class="ident">needs_wakeup</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">prepend_readiness_node</span>(<span class="ident">node</span>.<span class="ident">clone</span>());
+                        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">needs_wakeup</span>, <span class="string">&quot;something funky is going on&quot;</span>);
+                        <span class="kw">break</span>;
                     }
                 }
             }
 
-            <span class='comment'>// Process the node.</span>
-            <span class='kw'>if</span> <span class='ident'>event</span>::<span class='ident'>is_drop</span>(<span class='ident'>events</span>) {
-                <span class='comment'>// Release the node</span>
-                <span class='kw'>let</span> _ <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>unlink_node</span>(<span class='ident'>node</span>);
-            } <span class='kw'>else</span> <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>events</span>.<span class='ident'>is_none</span>() {
-                <span class='kw'>let</span> <span class='ident'>node_ref</span> <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>as_ref</span>().<span class='ident'>unwrap</span>();
+            <span class="comment">// Process the node.</span>
+            <span class="kw">if</span> <span class="ident">event</span>::<span class="ident">is_drop</span>(<span class="ident">events</span>) {
+                <span class="comment">// Release the node</span>
+                <span class="kw">let</span> _ <span class="op">=</span> <span class="self">self</span>.<span class="ident">unlink_node</span>(<span class="ident">node</span>);
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">events</span>.<span class="ident">is_none</span>() {
+                <span class="kw">let</span> <span class="ident">node_ref</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>();
 
-                <span class='comment'>// TODO: Don&#39;t push the event if the capacity of `dst` has</span>
-                <span class='comment'>// been reached</span>
-                <span class='macro'>trace</span><span class='macro'>!</span>(<span class='string'>&quot;returning readiness event {:?} {:?}&quot;</span>, <span class='ident'>events</span>,
-                       <span class='ident'>node_ref</span>.<span class='ident'>token</span>());
-                <span class='ident'>dst</span>.<span class='ident'>push_event</span>(<span class='ident'>Event</span>::<span class='ident'>new</span>(<span class='ident'>events</span>, <span class='ident'>node_ref</span>.<span class='ident'>token</span>()));
+                <span class="comment">// TODO: Don&#39;t push the event if the capacity of `dst` has</span>
+                <span class="comment">// been reached</span>
+                <span class="macro">trace</span><span class="macro">!</span>(<span class="string">&quot;returning readiness event {:?} {:?}&quot;</span>, <span class="ident">events</span>,
+                       <span class="ident">node_ref</span>.<span class="ident">token</span>());
+                <span class="ident">dst</span>.<span class="ident">push_event</span>(<span class="ident">Event</span>::<span class="ident">new</span>(<span class="ident">events</span>, <span class="ident">node_ref</span>.<span class="ident">token</span>()));
 
-                <span class='comment'>// If one-shot, disarm the node</span>
-                <span class='kw'>if</span> <span class='ident'>opts</span>.<span class='ident'>is_oneshot</span>() {
-                    <span class='ident'>node_ref</span>.<span class='ident'>registration_data_mut</span>().<span class='ident'>disable</span>();
+                <span class="comment">// If one-shot, disarm the node</span>
+                <span class="kw">if</span> <span class="ident">opts</span>.<span class="ident">is_oneshot</span>() {
+                    <span class="ident">node_ref</span>.<span class="ident">registration_data_mut</span>().<span class="ident">disable</span>();
                 }
             }
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>wakeup</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>io</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>inner</span>().<span class='ident'>awakener</span>.<span class='ident'>wakeup</span>()
+    <span class="kw">fn</span> <span class="ident">wakeup</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">inner</span>().<span class="ident">awakener</span>.<span class="ident">wakeup</span>()
     }
 
-    <span class='comment'>// Attempts to state to sleeping. This involves changing `head_readiness`</span>
-    <span class='comment'>// to `sleep_token`. Returns true if `poll` can sleep.</span>
-    <span class='kw'>fn</span> <span class='ident'>prepare_for_sleep</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='comment'>// Use relaxed as no memory besides the pointer is being sent across</span>
-        <span class='comment'>// threads. Ordering doesn&#39;t matter, only the current value of</span>
-        <span class='comment'>// `head_readiness`.</span>
-        <span class='ident'>ptr</span>::<span class='ident'>null_mut</span>() <span class='op'>==</span> <span class='self'>self</span>.<span class='ident'>inner</span>().<span class='ident'>head_readiness</span>
-            .<span class='ident'>compare_and_swap</span>(<span class='ident'>ptr</span>::<span class='ident'>null_mut</span>(), <span class='self'>self</span>.<span class='ident'>sleep_token</span>(), <span class='ident'>Ordering</span>::<span class='ident'>Relaxed</span>)
+    <span class="comment">// Attempts to state to sleeping. This involves changing `head_readiness`</span>
+    <span class="comment">// to `sleep_token`. Returns true if `poll` can sleep.</span>
+    <span class="kw">fn</span> <span class="ident">prepare_for_sleep</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="comment">// Use relaxed as no memory besides the pointer is being sent across</span>
+        <span class="comment">// threads. Ordering doesn&#39;t matter, only the current value of</span>
+        <span class="comment">// `head_readiness`.</span>
+        <span class="ident">ptr</span>::<span class="ident">null_mut</span>() <span class="op">==</span> <span class="self">self</span>.<span class="ident">inner</span>().<span class="ident">head_readiness</span>
+            .<span class="ident">compare_and_swap</span>(<span class="ident">ptr</span>::<span class="ident">null_mut</span>(), <span class="self">self</span>.<span class="ident">sleep_token</span>(), <span class="ident">Ordering</span>::<span class="ident">Relaxed</span>)
     }
 
-    <span class='kw'>fn</span> <span class='ident'>take_ready</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>ReadyList</span> {
-        <span class='comment'>// Use `Acquire` ordering to ensure being able to read the latest</span>
-        <span class='comment'>// values of all other atomic mutations.</span>
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>head</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>inner</span>().<span class='ident'>head_readiness</span>.<span class='ident'>swap</span>(<span class='ident'>ptr</span>::<span class='ident'>null_mut</span>(), <span class='ident'>Ordering</span>::<span class='ident'>Acquire</span>);
+    <span class="kw">fn</span> <span class="ident">take_ready</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ReadyList</span> {
+        <span class="comment">// Use `Acquire` ordering to ensure being able to read the latest</span>
+        <span class="comment">// values of all other atomic mutations.</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">head</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner</span>().<span class="ident">head_readiness</span>.<span class="ident">swap</span>(<span class="ident">ptr</span>::<span class="ident">null_mut</span>(), <span class="ident">Ordering</span>::<span class="ident">Acquire</span>);
 
-        <span class='kw'>if</span> <span class='ident'>head</span> <span class='op'>==</span> <span class='self'>self</span>.<span class='ident'>sleep_token</span>() {
-            <span class='ident'>head</span> <span class='op'>=</span> <span class='ident'>ptr</span>::<span class='ident'>null_mut</span>();
+        <span class="kw">if</span> <span class="ident">head</span> <span class="op">==</span> <span class="self">self</span>.<span class="ident">sleep_token</span>() {
+            <span class="ident">head</span> <span class="op">=</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>();
         }
 
-        <span class='ident'>ReadyList</span> { <span class='ident'>head</span>: <span class='ident'>ReadyRef</span>::<span class='ident'>new</span>(<span class='ident'>head</span>) }
+        <span class="ident">ReadyList</span> { <span class="ident">head</span>: <span class="ident">ReadyRef</span>::<span class="ident">new</span>(<span class="ident">head</span>) }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>new_readiness_node</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>token</span>: <span class='ident'>Token</span>, <span class='ident'>interest</span>: <span class='ident'>Ready</span>, <span class='ident'>opts</span>: <span class='ident'>PollOpt</span>, <span class='ident'>ref_count</span>: <span class='ident'>usize</span>) <span class='op'>-&gt;</span> <span class='ident'>ReadyRef</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>node</span> <span class='op'>=</span> <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>ReadinessNode</span>::<span class='ident'>new</span>(<span class='ident'>token</span>, <span class='ident'>interest</span>, <span class='ident'>opts</span>, <span class='ident'>ref_count</span>));
-        <span class='kw'>let</span> <span class='ident'>ret</span> <span class='op'>=</span> <span class='ident'>ReadyRef</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='ident'>node</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>ReadinessNode</span>);
+    <span class="kw">fn</span> <span class="ident">new_readiness_node</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">token</span>: <span class="ident">Token</span>, <span class="ident">interest</span>: <span class="ident">Ready</span>, <span class="ident">opts</span>: <span class="ident">PollOpt</span>, <span class="ident">ref_count</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">ReadyRef</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">ReadinessNode</span>::<span class="ident">new</span>(<span class="ident">token</span>, <span class="ident">interest</span>, <span class="ident">opts</span>, <span class="ident">ref_count</span>));
+        <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">ReadyRef</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="ident">node</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ReadinessNode</span>);
 
-        <span class='ident'>node</span>.<span class='ident'>next_all_nodes</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>inner_mut</span>().<span class='ident'>head_all_nodes</span>.<span class='ident'>take</span>();
+        <span class="ident">node</span>.<span class="ident">next_all_nodes</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner_mut</span>().<span class="ident">head_all_nodes</span>.<span class="ident">take</span>();
 
-        <span class='kw'>let</span> <span class='ident'>ptr</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>node</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>ReadinessNode</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>ReadinessNode</span>;
+        <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">node</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">ReadinessNode</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ReadinessNode</span>;
 
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>next</span>) <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>next_all_nodes</span> {
-            <span class='ident'>next</span>.<span class='ident'>prev_all_nodes</span> <span class='op'>=</span> <span class='ident'>ReadyRef</span>::<span class='ident'>new</span>(<span class='ident'>ptr</span>);
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">next</span>) <span class="op">=</span> <span class="ident">node</span>.<span class="ident">next_all_nodes</span> {
+            <span class="ident">next</span>.<span class="ident">prev_all_nodes</span> <span class="op">=</span> <span class="ident">ReadyRef</span>::<span class="ident">new</span>(<span class="ident">ptr</span>);
         }
 
-        <span class='self'>self</span>.<span class='ident'>inner_mut</span>().<span class='ident'>head_all_nodes</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>node</span>);
+        <span class="self">self</span>.<span class="ident">inner_mut</span>().<span class="ident">head_all_nodes</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">node</span>);
 
-        <span class='ident'>ret</span>
+        <span class="ident">ret</span>
     }
 
-    <span class='doccomment'>/// Prepend the given node to the head of the readiness queue. This is done</span>
-    <span class='doccomment'>/// with relaxed ordering. Returns true if `Poll` needs to be woken up.</span>
-    <span class='kw'>fn</span> <span class='ident'>prepend_readiness_node</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>node</span>: <span class='ident'>ReadyRef</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>curr_head</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>inner</span>().<span class='ident'>head_readiness</span>.<span class='ident'>load</span>(<span class='ident'>Ordering</span>::<span class='ident'>Relaxed</span>);
+    <span class="doccomment">/// Prepend the given node to the head of the readiness queue. This is done</span>
+    <span class="doccomment">/// with relaxed ordering. Returns true if `Poll` needs to be woken up.</span>
+    <span class="kw">fn</span> <span class="ident">prepend_readiness_node</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">node</span>: <span class="ident">ReadyRef</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">curr_head</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner</span>().<span class="ident">head_readiness</span>.<span class="ident">load</span>(<span class="ident">Ordering</span>::<span class="ident">Relaxed</span>);
 
-        <span class='kw'>loop</span> {
-            <span class='kw'>let</span> <span class='ident'>node_next</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>curr_head</span> <span class='op'>==</span> <span class='self'>self</span>.<span class='ident'>sleep_token</span>() {
-                <span class='ident'>ptr</span>::<span class='ident'>null_mut</span>()
-            } <span class='kw'>else</span> {
-                <span class='ident'>curr_head</span>
+        <span class="kw">loop</span> {
+            <span class="kw">let</span> <span class="ident">node_next</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">curr_head</span> <span class="op">==</span> <span class="self">self</span>.<span class="ident">sleep_token</span>() {
+                <span class="ident">ptr</span>::<span class="ident">null_mut</span>()
+            } <span class="kw">else</span> {
+                <span class="ident">curr_head</span>
             };
 
-            <span class='comment'>// Update next pointer</span>
-            <span class='ident'>node</span>.<span class='ident'>as_mut</span>().<span class='ident'>unwrap</span>().<span class='ident'>next_readiness</span> <span class='op'>=</span> <span class='ident'>ReadyRef</span>::<span class='ident'>new</span>(<span class='ident'>node_next</span>);
+            <span class="comment">// Update next pointer</span>
+            <span class="ident">node</span>.<span class="ident">as_mut</span>().<span class="ident">unwrap</span>().<span class="ident">next_readiness</span> <span class="op">=</span> <span class="ident">ReadyRef</span>::<span class="ident">new</span>(<span class="ident">node_next</span>);
 
-            <span class='comment'>// Update the ref, use release ordering to ensure that mutations to</span>
-            <span class='comment'>// previous atomics are visible if the mutation to the head pointer</span>
-            <span class='comment'>// is.</span>
-            <span class='kw'>let</span> <span class='ident'>next_head</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>inner</span>().<span class='ident'>head_readiness</span>.<span class='ident'>compare_and_swap</span>(<span class='ident'>curr_head</span>, <span class='ident'>node</span>.<span class='ident'>ptr</span>, <span class='ident'>Ordering</span>::<span class='ident'>Release</span>);
+            <span class="comment">// Update the ref, use release ordering to ensure that mutations to</span>
+            <span class="comment">// previous atomics are visible if the mutation to the head pointer</span>
+            <span class="comment">// is.</span>
+            <span class="kw">let</span> <span class="ident">next_head</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner</span>().<span class="ident">head_readiness</span>.<span class="ident">compare_and_swap</span>(<span class="ident">curr_head</span>, <span class="ident">node</span>.<span class="ident">ptr</span>, <span class="ident">Ordering</span>::<span class="ident">Release</span>);
 
-            <span class='kw'>if</span> <span class='ident'>curr_head</span> <span class='op'>==</span> <span class='ident'>next_head</span> {
-                <span class='kw'>return</span> <span class='ident'>curr_head</span> <span class='op'>==</span> <span class='self'>self</span>.<span class='ident'>sleep_token</span>();
+            <span class="kw">if</span> <span class="ident">curr_head</span> <span class="op">==</span> <span class="ident">next_head</span> {
+                <span class="kw">return</span> <span class="ident">curr_head</span> <span class="op">==</span> <span class="self">self</span>.<span class="ident">sleep_token</span>();
             }
 
-            <span class='ident'>curr_head</span> <span class='op'>=</span> <span class='ident'>next_head</span>;
+            <span class="ident">curr_head</span> <span class="op">=</span> <span class="ident">next_head</span>;
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>unlink_node</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>node</span>: <span class='ident'>ReadyRef</span>) <span class='op'>-&gt;</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ReadinessNode</span><span class='op'>&gt;</span> {
-        <span class='ident'>node</span>.<span class='ident'>as_mut</span>().<span class='ident'>unwrap</span>().<span class='ident'>unlink</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>inner_mut</span>().<span class='ident'>head_all_nodes</span>)
+    <span class="kw">fn</span> <span class="ident">unlink_node</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">node</span>: <span class="ident">ReadyRef</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ReadinessNode</span><span class="op">&gt;</span> {
+        <span class="ident">node</span>.<span class="ident">as_mut</span>().<span class="ident">unwrap</span>().<span class="ident">unlink</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">inner_mut</span>().<span class="ident">head_all_nodes</span>)
     }
 
-    <span class='kw'>fn</span> <span class='ident'>is_empty</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>inner</span>().<span class='ident'>head_readiness</span>.<span class='ident'>load</span>(<span class='ident'>Ordering</span>::<span class='ident'>Relaxed</span>).<span class='ident'>is_null</span>()
+    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">inner</span>().<span class="ident">head_readiness</span>.<span class="ident">load</span>(<span class="ident">Ordering</span>::<span class="ident">Relaxed</span>).<span class="ident">is_null</span>()
     }
 
-    <span class='kw'>fn</span> <span class='ident'>sleep_token</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>ReadinessNode</span> {
-        <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>inner</span>().<span class='ident'>sleep_token</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>ReadinessNode</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>ReadinessNode</span>
+    <span class="kw">fn</span> <span class="ident">sleep_token</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ReadinessNode</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">inner</span>().<span class="ident">sleep_token</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">ReadinessNode</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ReadinessNode</span>
     }
 
-    <span class='kw'>fn</span> <span class='ident'>identical</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>other</span>: <span class='kw-2'>&amp;</span><span class='ident'>ReadinessQueue</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>inner</span>.<span class='ident'>get</span>() <span class='op'>==</span> <span class='ident'>other</span>.<span class='ident'>inner</span>.<span class='ident'>get</span>()
+    <span class="kw">fn</span> <span class="ident">identical</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">ReadinessQueue</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">get</span>() <span class="op">==</span> <span class="ident">other</span>.<span class="ident">inner</span>.<span class="ident">get</span>()
     }
 
-    <span class='kw'>fn</span> <span class='ident'>inner</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>ReadinessQueueInner</span> {
-        <span class='kw'>unsafe</span> { <span class='ident'>mem</span>::<span class='ident'>transmute</span>(<span class='self'>self</span>.<span class='ident'>inner</span>.<span class='ident'>get</span>()) }
+    <span class="kw">fn</span> <span class="ident">inner</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">ReadinessQueueInner</span> {
+        <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">get</span>()) }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>inner_mut</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ReadinessQueueInner</span> {
-        <span class='kw'>unsafe</span> { <span class='ident'>mem</span>::<span class='ident'>transmute</span>(<span class='self'>self</span>.<span class='ident'>inner</span>.<span class='ident'>get</span>()) }
+    <span class="kw">fn</span> <span class="ident">inner_mut</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ReadinessQueueInner</span> {
+        <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">get</span>()) }
     }
 }
 
-<span class='kw'>unsafe</span> <span class='kw'>impl</span> <span class='ident'>Send</span> <span class='kw'>for</span> <span class='ident'>ReadinessQueue</span> { }
+<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">ReadinessQueue</span> { }
 
-<span class='kw'>impl</span> <span class='ident'>ReadinessNode</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>token</span>: <span class='ident'>Token</span>, <span class='ident'>interest</span>: <span class='ident'>Ready</span>, <span class='ident'>opts</span>: <span class='ident'>PollOpt</span>, <span class='ident'>ref_count</span>: <span class='ident'>usize</span>) <span class='op'>-&gt;</span> <span class='ident'>ReadinessNode</span> {
-        <span class='ident'>ReadinessNode</span> {
-            <span class='ident'>next_all_nodes</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>prev_all_nodes</span>: <span class='ident'>ReadyRef</span>::<span class='ident'>none</span>(),
-            <span class='ident'>registration_data</span>: <span class='ident'>UnsafeCell</span>::<span class='ident'>new</span>(<span class='ident'>RegistrationData</span>::<span class='ident'>new</span>(<span class='ident'>token</span>, <span class='ident'>interest</span>, <span class='ident'>opts</span>)),
-            <span class='ident'>next_readiness</span>: <span class='ident'>ReadyRef</span>::<span class='ident'>none</span>(),
-            <span class='ident'>events</span>: <span class='ident'>AtomicUsize</span>::<span class='ident'>new</span>(<span class='number'>0</span>),
-            <span class='ident'>queued</span>: <span class='ident'>AtomicUsize</span>::<span class='ident'>new</span>(<span class='number'>0</span>),
-            <span class='ident'>ref_count</span>: <span class='ident'>AtomicUsize</span>::<span class='ident'>new</span>(<span class='ident'>ref_count</span>),
+<span class="kw">impl</span> <span class="ident">ReadinessNode</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">token</span>: <span class="ident">Token</span>, <span class="ident">interest</span>: <span class="ident">Ready</span>, <span class="ident">opts</span>: <span class="ident">PollOpt</span>, <span class="ident">ref_count</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">ReadinessNode</span> {
+        <span class="ident">ReadinessNode</span> {
+            <span class="ident">next_all_nodes</span>: <span class="prelude-val">None</span>,
+            <span class="ident">prev_all_nodes</span>: <span class="ident">ReadyRef</span>::<span class="ident">none</span>(),
+            <span class="ident">registration_data</span>: <span class="ident">UnsafeCell</span>::<span class="ident">new</span>(<span class="ident">RegistrationData</span>::<span class="ident">new</span>(<span class="ident">token</span>, <span class="ident">interest</span>, <span class="ident">opts</span>)),
+            <span class="ident">next_readiness</span>: <span class="ident">ReadyRef</span>::<span class="ident">none</span>(),
+            <span class="ident">events</span>: <span class="ident">AtomicUsize</span>::<span class="ident">new</span>(<span class="number">0</span>),
+            <span class="ident">queued</span>: <span class="ident">AtomicUsize</span>::<span class="ident">new</span>(<span class="number">0</span>),
+            <span class="ident">ref_count</span>: <span class="ident">AtomicUsize</span>::<span class="ident">new</span>(<span class="ident">ref_count</span>),
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>poll_events</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Ready</span> {
-        (<span class='self'>self</span>.<span class='ident'>interest</span>() <span class='op'>|</span> <span class='ident'>event</span>::<span class='ident'>drop</span>()) <span class='op'>&amp;</span> <span class='ident'>event</span>::<span class='ident'>from_usize</span>(<span class='self'>self</span>.<span class='ident'>events</span>.<span class='ident'>load</span>(<span class='ident'>Ordering</span>::<span class='ident'>Relaxed</span>))
+    <span class="kw">fn</span> <span class="ident">poll_events</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Ready</span> {
+        (<span class="self">self</span>.<span class="ident">interest</span>() <span class="op">|</span> <span class="ident">event</span>::<span class="ident">drop</span>()) <span class="op">&amp;</span> <span class="ident">event</span>::<span class="ident">from_usize</span>(<span class="self">self</span>.<span class="ident">events</span>.<span class="ident">load</span>(<span class="ident">Ordering</span>::<span class="ident">Relaxed</span>))
     }
 
-    <span class='kw'>fn</span> <span class='ident'>token</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Token</span> {
-        <span class='kw'>unsafe</span> { <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>registration_data</span>.<span class='ident'>get</span>() }.<span class='ident'>token</span>
+    <span class="kw">fn</span> <span class="ident">token</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Token</span> {
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">registration_data</span>.<span class="ident">get</span>() }.<span class="ident">token</span>
     }
 
-    <span class='kw'>fn</span> <span class='ident'>interest</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Ready</span> {
-        <span class='kw'>unsafe</span> { <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>registration_data</span>.<span class='ident'>get</span>() }.<span class='ident'>interest</span>
+    <span class="kw">fn</span> <span class="ident">interest</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Ready</span> {
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">registration_data</span>.<span class="ident">get</span>() }.<span class="ident">interest</span>
     }
 
-    <span class='kw'>fn</span> <span class='ident'>poll_opts</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>PollOpt</span> {
-        <span class='kw'>unsafe</span> { <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>registration_data</span>.<span class='ident'>get</span>() }.<span class='ident'>opts</span>
+    <span class="kw">fn</span> <span class="ident">poll_opts</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">PollOpt</span> {
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">registration_data</span>.<span class="ident">get</span>() }.<span class="ident">opts</span>
     }
 
-    <span class='kw'>fn</span> <span class='ident'>registration_data_mut</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>RegistrationData</span> {
-        <span class='kw'>unsafe</span> { <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>registration_data</span>.<span class='ident'>get</span>() }
+    <span class="kw">fn</span> <span class="ident">registration_data_mut</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">RegistrationData</span> {
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">registration_data</span>.<span class="ident">get</span>() }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>unlink</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>head</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ReadinessNode</span><span class='op'>&gt;&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ReadinessNode</span><span class='op'>&gt;</span> {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>next</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>next_all_nodes</span> {
-            <span class='ident'>next</span>.<span class='ident'>prev_all_nodes</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>prev_all_nodes</span>.<span class='ident'>clone</span>();
+    <span class="kw">fn</span> <span class="ident">unlink</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">head</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ReadinessNode</span><span class="op">&gt;&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ReadinessNode</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">next</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">next_all_nodes</span> {
+            <span class="ident">next</span>.<span class="ident">prev_all_nodes</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">prev_all_nodes</span>.<span class="ident">clone</span>();
         }
 
-        <span class='kw'>let</span> <span class='ident'>node</span>;
+        <span class="kw">let</span> <span class="ident">node</span>;
 
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>prev_all_nodes</span>.<span class='ident'>take</span>().<span class='ident'>as_mut</span>() {
-            <span class='prelude-val'>Some</span>(<span class='ident'>prev</span>) <span class='op'>=&gt;</span> {
-                <span class='ident'>node</span> <span class='op'>=</span> <span class='ident'>prev</span>.<span class='ident'>next_all_nodes</span>.<span class='ident'>take</span>().<span class='ident'>unwrap</span>();
-                <span class='ident'>prev</span>.<span class='ident'>next_all_nodes</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>next_all_nodes</span>.<span class='ident'>take</span>();
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">prev_all_nodes</span>.<span class="ident">take</span>().<span class="ident">as_mut</span>() {
+            <span class="prelude-val">Some</span>(<span class="ident">prev</span>) <span class="op">=&gt;</span> {
+                <span class="ident">node</span> <span class="op">=</span> <span class="ident">prev</span>.<span class="ident">next_all_nodes</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>();
+                <span class="ident">prev</span>.<span class="ident">next_all_nodes</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">next_all_nodes</span>.<span class="ident">take</span>();
             }
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
-                <span class='ident'>node</span> <span class='op'>=</span> <span class='ident'>head</span>.<span class='ident'>take</span>().<span class='ident'>unwrap</span>();
-                <span class='kw-2'>*</span><span class='ident'>head</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>next_all_nodes</span>.<span class='ident'>take</span>();
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                <span class="ident">node</span> <span class="op">=</span> <span class="ident">head</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>();
+                <span class="kw-2">*</span><span class="ident">head</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">next_all_nodes</span>.<span class="ident">take</span>();
             }
         }
 
-        <span class='ident'>node</span>
+        <span class="ident">node</span>
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>RegistrationData</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>token</span>: <span class='ident'>Token</span>, <span class='ident'>interest</span>: <span class='ident'>Ready</span>, <span class='ident'>opts</span>: <span class='ident'>PollOpt</span>) <span class='op'>-&gt;</span> <span class='ident'>RegistrationData</span> {
-        <span class='ident'>RegistrationData</span> {
-            <span class='ident'>token</span>: <span class='ident'>token</span>,
-            <span class='ident'>interest</span>: <span class='ident'>interest</span>,
-            <span class='ident'>opts</span>: <span class='ident'>opts</span>,
+<span class="kw">impl</span> <span class="ident">RegistrationData</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">token</span>: <span class="ident">Token</span>, <span class="ident">interest</span>: <span class="ident">Ready</span>, <span class="ident">opts</span>: <span class="ident">PollOpt</span>) <span class="op">-&gt;</span> <span class="ident">RegistrationData</span> {
+        <span class="ident">RegistrationData</span> {
+            <span class="ident">token</span>: <span class="ident">token</span>,
+            <span class="ident">interest</span>: <span class="ident">interest</span>,
+            <span class="ident">opts</span>: <span class="ident">opts</span>,
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>update</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>token</span>: <span class='ident'>Token</span>, <span class='ident'>interest</span>: <span class='ident'>Ready</span>, <span class='ident'>opts</span>: <span class='ident'>PollOpt</span>) {
-        <span class='self'>self</span>.<span class='ident'>token</span> <span class='op'>=</span> <span class='ident'>token</span>;
-        <span class='self'>self</span>.<span class='ident'>interest</span> <span class='op'>=</span> <span class='ident'>interest</span>;
-        <span class='self'>self</span>.<span class='ident'>opts</span> <span class='op'>=</span> <span class='ident'>opts</span>;
+    <span class="kw">fn</span> <span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">token</span>: <span class="ident">Token</span>, <span class="ident">interest</span>: <span class="ident">Ready</span>, <span class="ident">opts</span>: <span class="ident">PollOpt</span>) {
+        <span class="self">self</span>.<span class="ident">token</span> <span class="op">=</span> <span class="ident">token</span>;
+        <span class="self">self</span>.<span class="ident">interest</span> <span class="op">=</span> <span class="ident">interest</span>;
+        <span class="self">self</span>.<span class="ident">opts</span> <span class="op">=</span> <span class="ident">opts</span>;
     }
 
-    <span class='kw'>fn</span> <span class='ident'>disable</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>interest</span> <span class='op'>=</span> <span class='ident'>Ready</span>::<span class='ident'>none</span>();
-        <span class='self'>self</span>.<span class='ident'>opts</span> <span class='op'>=</span> <span class='ident'>PollOpt</span>::<span class='ident'>empty</span>();
-    }
-}
-
-<span class='kw'>impl</span> <span class='ident'>Iterator</span> <span class='kw'>for</span> <span class='ident'>ReadyList</span> {
-    <span class='kw'>type</span> <span class='ident'>Item</span> <span class='op'>=</span> <span class='ident'>ReadyRef</span>;
-
-    <span class='kw'>fn</span> <span class='ident'>next</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ReadyRef</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>next</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>head</span>.<span class='ident'>take</span>();
-
-        <span class='kw'>if</span> <span class='ident'>next</span>.<span class='ident'>is_some</span>() {
-            <span class='ident'>next</span>.<span class='ident'>as_mut</span>().<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>n</span><span class='op'>|</span> <span class='self'>self</span>.<span class='ident'>head</span> <span class='op'>=</span> <span class='ident'>n</span>.<span class='ident'>next_readiness</span>.<span class='ident'>take</span>());
-            <span class='prelude-val'>Some</span>(<span class='ident'>next</span>)
-        } <span class='kw'>else</span> {
-            <span class='prelude-val'>None</span>
-        }
+    <span class="kw">fn</span> <span class="ident">disable</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">interest</span> <span class="op">=</span> <span class="ident">Ready</span>::<span class="ident">none</span>();
+        <span class="self">self</span>.<span class="ident">opts</span> <span class="op">=</span> <span class="ident">PollOpt</span>::<span class="ident">empty</span>();
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>ReadyRef</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>ptr</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>ReadinessNode</span>) <span class='op'>-&gt;</span> <span class='ident'>ReadyRef</span> {
-        <span class='ident'>ReadyRef</span> { <span class='ident'>ptr</span>: <span class='ident'>ptr</span> }
-    }
+<span class="kw">impl</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">ReadyList</span> {
+    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">ReadyRef</span>;
 
-    <span class='kw'>fn</span> <span class='ident'>none</span>() <span class='op'>-&gt;</span> <span class='ident'>ReadyRef</span> {
-        <span class='ident'>ReadyRef</span> { <span class='ident'>ptr</span>: <span class='ident'>ptr</span>::<span class='ident'>null_mut</span>() }
-    }
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ReadyRef</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">next</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">head</span>.<span class="ident">take</span>();
 
-    <span class='kw'>fn</span> <span class='ident'>take</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>ReadyRef</span> {
-        <span class='kw'>let</span> <span class='ident'>ret</span> <span class='op'>=</span> <span class='ident'>ReadyRef</span> { <span class='ident'>ptr</span>: <span class='self'>self</span>.<span class='ident'>ptr</span> };
-        <span class='self'>self</span>.<span class='ident'>ptr</span> <span class='op'>=</span> <span class='ident'>ptr</span>::<span class='ident'>null_mut</span>();
-        <span class='ident'>ret</span>
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>is_some</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>is_none</span>()
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>is_none</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>is_null</span>()
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>as_ref</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>ReadinessNode</span><span class='op'>&gt;</span> {
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>is_null</span>() {
-            <span class='kw'>return</span> <span class='prelude-val'>None</span>;
-        }
-
-        <span class='kw'>unsafe</span> { <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>) }
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>as_mut</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ReadinessNode</span><span class='op'>&gt;</span> {
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>is_null</span>() {
-            <span class='kw'>return</span> <span class='prelude-val'>None</span>;
-        }
-
-        <span class='kw'>unsafe</span> { <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>) }
-    }
-}
-
-<span class='kw'>impl</span> <span class='ident'>Clone</span> <span class='kw'>for</span> <span class='ident'>ReadyRef</span> {
-    <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>ReadyRef</span> {
-        <span class='ident'>ReadyRef</span>::<span class='ident'>new</span>(<span class='self'>self</span>.<span class='ident'>ptr</span>)
-    }
-}
-
-<span class='kw'>impl</span> <span class='ident'>fmt</span>::<span class='ident'>Pointer</span> <span class='kw'>for</span> <span class='ident'>ReadyRef</span> {
-    <span class='kw'>fn</span> <span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>fmt</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fmt</span>::<span class='ident'>Formatter</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>as_ref</span>() {
-            <span class='prelude-val'>Some</span>(<span class='ident'>r</span>) <span class='op'>=&gt;</span> <span class='ident'>fmt</span>::<span class='ident'>Pointer</span>::<span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='ident'>r</span>, <span class='ident'>fmt</span>),
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='ident'>fmt</span>::<span class='ident'>Pointer</span>::<span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='ident'>ptr</span>::<span class='ident'>null</span>::<span class='op'>&lt;</span><span class='ident'>ReadinessNode</span><span class='op'>&gt;</span>(), <span class='ident'>fmt</span>),
+        <span class="kw">if</span> <span class="ident">next</span>.<span class="ident">is_some</span>() {
+            <span class="ident">next</span>.<span class="ident">as_mut</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">head</span> <span class="op">=</span> <span class="ident">n</span>.<span class="ident">next_readiness</span>.<span class="ident">take</span>());
+            <span class="prelude-val">Some</span>(<span class="ident">next</span>)
+        } <span class="kw">else</span> {
+            <span class="prelude-val">None</span>
         }
     }
 }
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>test</span>)]</span>
-<span class='kw'>mod</span> <span class='ident'>test</span> {
-    <span class='kw'>use</span> {<span class='ident'>Ready</span>, <span class='ident'>Poll</span>, <span class='ident'>PollOpt</span>, <span class='ident'>Registration</span>, <span class='ident'>SetReadiness</span>, <span class='ident'>Token</span>, <span class='ident'>Events</span>};
-    <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>time</span>::<span class='ident'>Duration</span>;
-
-    <span class='kw'>fn</span> <span class='ident'>ensure_send</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Send</span><span class='op'>&gt;</span>(_: <span class='kw-2'>&amp;</span><span class='ident'>T</span>) {}
-    <span class='kw'>fn</span> <span class='ident'>ensure_sync</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Sync</span><span class='op'>&gt;</span>(_: <span class='kw-2'>&amp;</span><span class='ident'>T</span>) {}
-
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>ensure_type_bounds</span>(<span class='ident'>r</span>: <span class='kw-2'>&amp;</span><span class='ident'>Registration</span>, <span class='ident'>s</span>: <span class='kw-2'>&amp;</span><span class='ident'>SetReadiness</span>) {
-        <span class='ident'>ensure_send</span>(<span class='ident'>r</span>);
-        <span class='ident'>ensure_send</span>(<span class='ident'>s</span>);
-        <span class='ident'>ensure_sync</span>(<span class='ident'>s</span>);
+<span class="kw">impl</span> <span class="ident">ReadyRef</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ReadinessNode</span>) <span class="op">-&gt;</span> <span class="ident">ReadyRef</span> {
+        <span class="ident">ReadyRef</span> { <span class="ident">ptr</span>: <span class="ident">ptr</span> }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>readiness_node_count</span>(<span class='ident'>poll</span>: <span class='kw-2'>&amp;</span><span class='ident'>Poll</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>cur</span> <span class='op'>=</span> <span class='ident'>poll</span>.<span class='ident'>readiness_queue</span>.<span class='ident'>inner</span>().<span class='ident'>head_all_nodes</span>.<span class='ident'>as_ref</span>();
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>cnt</span> <span class='op'>=</span> <span class='number'>0</span>;
-
-        <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>node</span>) <span class='op'>=</span> <span class='ident'>cur</span> {
-            <span class='ident'>cnt</span> <span class='op'>+=</span> <span class='number'>1</span>;
-            <span class='ident'>cur</span> <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>next_all_nodes</span>.<span class='ident'>as_ref</span>();
-        }
-
-        <span class='ident'>cnt</span>
+    <span class="kw">fn</span> <span class="ident">none</span>() <span class="op">-&gt;</span> <span class="ident">ReadyRef</span> {
+        <span class="ident">ReadyRef</span> { <span class="ident">ptr</span>: <span class="ident">ptr</span>::<span class="ident">null_mut</span>() }
     }
 
-    <span class='attribute'>#[<span class='ident'>test</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>test_nodes_do_not_leak</span>() {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>poll</span> <span class='op'>=</span> <span class='ident'>Poll</span>::<span class='ident'>new</span>().<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>events</span> <span class='op'>=</span> <span class='ident'>Events</span>::<span class='ident'>with_capacity</span>(<span class='number'>1024</span>);
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>registrations</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>with_capacity</span>(<span class='number'>1_000</span>);
+    <span class="kw">fn</span> <span class="ident">take</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ReadyRef</span> {
+        <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">ReadyRef</span> { <span class="ident">ptr</span>: <span class="self">self</span>.<span class="ident">ptr</span> };
+        <span class="self">self</span>.<span class="ident">ptr</span> <span class="op">=</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>();
+        <span class="ident">ret</span>
+    }
 
-        <span class='kw'>for</span> _ <span class='kw'>in</span> <span class='number'>0</span>..<span class='number'>3</span> {
-            <span class='ident'>registrations</span>.<span class='ident'>push</span>(<span class='ident'>Registration</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>poll</span>, <span class='ident'>Token</span>(<span class='number'>0</span>), <span class='ident'>Ready</span>::<span class='ident'>readable</span>(), <span class='ident'>PollOpt</span>::<span class='ident'>edge</span>()));
+    <span class="kw">fn</span> <span class="ident">is_some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="op">!</span><span class="self">self</span>.<span class="ident">is_none</span>()
+    }
+
+    <span class="kw">fn</span> <span class="ident">is_none</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">is_null</span>()
+    }
+
+    <span class="kw">fn</span> <span class="ident">as_ref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">ReadinessNode</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">is_null</span>() {
+            <span class="kw">return</span> <span class="prelude-val">None</span>;
         }
 
-        <span class='ident'>drop</span>(<span class='ident'>registrations</span>);
+        <span class="kw">unsafe</span> { <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">ptr</span>) }
+    }
 
-        <span class='comment'>// Poll</span>
-        <span class='kw'>let</span> <span class='ident'>num</span> <span class='op'>=</span> <span class='ident'>poll</span>.<span class='ident'>poll</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>events</span>, <span class='prelude-val'>Some</span>(<span class='ident'>Duration</span>::<span class='ident'>from_millis</span>(<span class='number'>300</span>))).<span class='ident'>unwrap</span>();
+    <span class="kw">fn</span> <span class="ident">as_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ReadinessNode</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">is_null</span>() {
+            <span class="kw">return</span> <span class="prelude-val">None</span>;
+        }
 
-        <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='number'>0</span>, <span class='ident'>num</span>);
-        <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='number'>0</span>, <span class='ident'>readiness_node_count</span>(<span class='kw-2'>&amp;</span><span class='ident'>poll</span>));
+        <span class="kw">unsafe</span> { <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">ptr</span>) }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Clone</span> <span class="kw">for</span> <span class="ident">ReadyRef</span> {
+    <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ReadyRef</span> {
+        <span class="ident">ReadyRef</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">ptr</span>)
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Pointer</span> <span class="kw">for</span> <span class="ident">ReadyRef</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fmt</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">as_ref</span>() {
+            <span class="prelude-val">Some</span>(<span class="ident">r</span>) <span class="op">=&gt;</span> <span class="ident">fmt</span>::<span class="ident">Pointer</span>::<span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="ident">r</span>, <span class="ident">fmt</span>),
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">fmt</span>::<span class="ident">Pointer</span>::<span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="ident">ptr</span>::<span class="ident">null</span>::<span class="op">&lt;</span><span class="ident">ReadinessNode</span><span class="op">&gt;</span>(), <span class="ident">fmt</span>),
+        }
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">test</span> {
+    <span class="kw">use</span> {<span class="ident">Ready</span>, <span class="ident">Poll</span>, <span class="ident">PollOpt</span>, <span class="ident">Registration</span>, <span class="ident">SetReadiness</span>, <span class="ident">Token</span>, <span class="ident">Events</span>};
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::<span class="ident">Duration</span>;
+
+    <span class="kw">fn</span> <span class="ident">ensure_send</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Send</span><span class="op">&gt;</span>(_: <span class="kw-2">&amp;</span><span class="ident">T</span>) {}
+    <span class="kw">fn</span> <span class="ident">ensure_sync</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Sync</span><span class="op">&gt;</span>(_: <span class="kw-2">&amp;</span><span class="ident">T</span>) {}
+
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">ensure_type_bounds</span>(<span class="ident">r</span>: <span class="kw-2">&amp;</span><span class="ident">Registration</span>, <span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">SetReadiness</span>) {
+        <span class="ident">ensure_send</span>(<span class="ident">r</span>);
+        <span class="ident">ensure_send</span>(<span class="ident">s</span>);
+        <span class="ident">ensure_sync</span>(<span class="ident">s</span>);
+    }
+
+    <span class="kw">fn</span> <span class="ident">readiness_node_count</span>(<span class="ident">poll</span>: <span class="kw-2">&amp;</span><span class="ident">Poll</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cur</span> <span class="op">=</span> <span class="ident">poll</span>.<span class="ident">readiness_queue</span>.<span class="ident">inner</span>().<span class="ident">head_all_nodes</span>.<span class="ident">as_ref</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cnt</span> <span class="op">=</span> <span class="number">0</span>;
+
+        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">node</span>) <span class="op">=</span> <span class="ident">cur</span> {
+            <span class="ident">cnt</span> <span class="op">+=</span> <span class="number">1</span>;
+            <span class="ident">cur</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">next_all_nodes</span>.<span class="ident">as_ref</span>();
+        }
+
+        <span class="ident">cnt</span>
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_nodes_do_not_leak</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">poll</span> <span class="op">=</span> <span class="ident">Poll</span>::<span class="ident">new</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">events</span> <span class="op">=</span> <span class="ident">Events</span>::<span class="ident">with_capacity</span>(<span class="number">1024</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">registrations</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">1_000</span>);
+
+        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">3</span> {
+            <span class="ident">registrations</span>.<span class="ident">push</span>(<span class="ident">Registration</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">poll</span>, <span class="ident">Token</span>(<span class="number">0</span>), <span class="ident">Ready</span>::<span class="ident">readable</span>(), <span class="ident">PollOpt</span>::<span class="ident">edge</span>()));
+        }
+
+        <span class="ident">drop</span>(<span class="ident">registrations</span>);
+
+        <span class="comment">// Poll</span>
+        <span class="kw">let</span> <span class="ident">num</span> <span class="op">=</span> <span class="ident">poll</span>.<span class="ident">poll</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">events</span>, <span class="prelude-val">Some</span>(<span class="ident">Duration</span>::<span class="ident">from_millis</span>(<span class="number">300</span>))).<span class="ident">unwrap</span>();
+
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="number">0</span>, <span class="ident">num</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="number">0</span>, <span class="ident">readiness_node_count</span>(<span class="kw-2">&amp;</span><span class="ident">poll</span>));
     }
 }
 </pre>

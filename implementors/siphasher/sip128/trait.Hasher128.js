@@ -4,7 +4,6 @@ implementors["gfx"] = [];
 implementors["html5ever"] = [];
 implementors["layout_thread"] = [];
 implementors["mime_guess"] = [];
-implementors["net"] = [];
 implementors["phf"] = [];
 implementors["script"] = [];
 implementors["servo"] = [];

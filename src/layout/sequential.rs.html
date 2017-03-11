@@ -187,150 +187,150 @@
 <span id="142">142</span>
 <span id="143">143</span>
 <span id="144">144</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! Implements sequential traversals over the DOM and flow trees.</span>
+<span class="doccomment">//! Implements sequential traversals over the DOM and flow trees.</span>
 
-<span class='kw'>use</span> <span class='ident'>app_units</span>::<span class='ident'>Au</span>;
-<span class='kw'>use</span> <span class='ident'>context</span>::<span class='ident'>LayoutContext</span>;
-<span class='kw'>use</span> <span class='ident'>display_list_builder</span>::<span class='ident'>DisplayListBuildState</span>;
-<span class='kw'>use</span> <span class='ident'>euclid</span>::<span class='ident'>point</span>::<span class='ident'>Point2D</span>;
-<span class='kw'>use</span> <span class='ident'>floats</span>::<span class='ident'>SpeculatedFloatPlacement</span>;
-<span class='kw'>use</span> <span class='ident'>flow</span>::{<span class='self'>self</span>, <span class='ident'>Flow</span>, <span class='ident'>ImmutableFlowUtils</span>, <span class='ident'>InorderFlowTraversal</span>, <span class='ident'>MutableFlowUtils</span>};
-<span class='kw'>use</span> <span class='ident'>flow</span>::{<span class='ident'>PostorderFlowTraversal</span>, <span class='ident'>PreorderFlowTraversal</span>};
-<span class='kw'>use</span> <span class='ident'>flow</span>::<span class='ident'>IS_ABSOLUTELY_POSITIONED</span>;
-<span class='kw'>use</span> <span class='ident'>fragment</span>::<span class='ident'>FragmentBorderBoxIterator</span>;
-<span class='kw'>use</span> <span class='ident'>generated_content</span>::<span class='ident'>ResolveGeneratedContent</span>;
-<span class='kw'>use</span> <span class='ident'>servo_config</span>::<span class='ident'>opts</span>;
-<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>servo</span>::<span class='ident'>restyle_damage</span>::{<span class='ident'>REFLOW</span>, <span class='ident'>STORE_OVERFLOW</span>};
-<span class='kw'>use</span> <span class='ident'>traversal</span>::{<span class='ident'>AssignBSizes</span>, <span class='ident'>AssignISizes</span>, <span class='ident'>BubbleISizes</span>, <span class='ident'>BuildDisplayList</span>};
+<span class="kw">use</span> <span class="ident">app_units</span>::<span class="ident">Au</span>;
+<span class="kw">use</span> <span class="ident">context</span>::<span class="ident">LayoutContext</span>;
+<span class="kw">use</span> <span class="ident">display_list_builder</span>::<span class="ident">DisplayListBuildState</span>;
+<span class="kw">use</span> <span class="ident">euclid</span>::<span class="ident">point</span>::<span class="ident">Point2D</span>;
+<span class="kw">use</span> <span class="ident">floats</span>::<span class="ident">SpeculatedFloatPlacement</span>;
+<span class="kw">use</span> <span class="ident">flow</span>::{<span class="self">self</span>, <span class="ident">Flow</span>, <span class="ident">ImmutableFlowUtils</span>, <span class="ident">InorderFlowTraversal</span>, <span class="ident">MutableFlowUtils</span>};
+<span class="kw">use</span> <span class="ident">flow</span>::{<span class="ident">PostorderFlowTraversal</span>, <span class="ident">PreorderFlowTraversal</span>};
+<span class="kw">use</span> <span class="ident">flow</span>::<span class="ident">IS_ABSOLUTELY_POSITIONED</span>;
+<span class="kw">use</span> <span class="ident">fragment</span>::<span class="ident">FragmentBorderBoxIterator</span>;
+<span class="kw">use</span> <span class="ident">generated_content</span>::<span class="ident">ResolveGeneratedContent</span>;
+<span class="kw">use</span> <span class="ident">servo_config</span>::<span class="ident">opts</span>;
+<span class="kw">use</span> <span class="ident">style</span>::<span class="ident">servo</span>::<span class="ident">restyle_damage</span>::{<span class="ident">REFLOW</span>, <span class="ident">STORE_OVERFLOW</span>};
+<span class="kw">use</span> <span class="ident">traversal</span>::{<span class="ident">AssignBSizes</span>, <span class="ident">AssignISizes</span>, <span class="ident">BubbleISizes</span>, <span class="ident">BuildDisplayList</span>};
 
-<span class='kw'>pub</span> <span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>sequential</span>::<span class='ident'>traverse_dom</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">sequential</span>::<span class="ident">traverse_dom</span>;
 
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>resolve_generated_content</span>(<span class='ident'>root</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Flow</span>, <span class='ident'>layout_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayoutContext</span>) {
-    <span class='kw'>fn</span> <span class='ident'>doit</span>(<span class='ident'>flow</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Flow</span>, <span class='ident'>level</span>: <span class='ident'>u32</span>, <span class='ident'>traversal</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ResolveGeneratedContent</span>) {
-        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>traversal</span>.<span class='ident'>should_process</span>(<span class='ident'>flow</span>) {
-            <span class='kw'>return</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">resolve_generated_content</span>(<span class="ident">root</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Flow</span>, <span class="ident">layout_context</span>: <span class="kw-2">&amp;</span><span class="ident">LayoutContext</span>) {
+    <span class="kw">fn</span> <span class="ident">doit</span>(<span class="ident">flow</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Flow</span>, <span class="ident">level</span>: <span class="ident">u32</span>, <span class="ident">traversal</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ResolveGeneratedContent</span>) {
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">traversal</span>.<span class="ident">should_process</span>(<span class="ident">flow</span>) {
+            <span class="kw">return</span>
         }
 
-        <span class='ident'>traversal</span>.<span class='ident'>process</span>(<span class='ident'>flow</span>, <span class='ident'>level</span>);
+        <span class="ident">traversal</span>.<span class="ident">process</span>(<span class="ident">flow</span>, <span class="ident">level</span>);
 
-        <span class='kw'>for</span> <span class='ident'>kid</span> <span class='kw'>in</span> <span class='ident'>flow</span>::<span class='ident'>mut_base</span>(<span class='ident'>flow</span>).<span class='ident'>children</span>.<span class='ident'>iter_mut</span>() {
-            <span class='ident'>doit</span>(<span class='ident'>kid</span>, <span class='ident'>level</span> <span class='op'>+</span> <span class='number'>1</span>, <span class='ident'>traversal</span>)
+        <span class="kw">for</span> <span class="ident">kid</span> <span class="kw">in</span> <span class="ident">flow</span>::<span class="ident">mut_base</span>(<span class="ident">flow</span>).<span class="ident">children</span>.<span class="ident">iter_mut</span>() {
+            <span class="ident">doit</span>(<span class="ident">kid</span>, <span class="ident">level</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">traversal</span>)
         }
     }
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>traversal</span> <span class='op'>=</span> <span class='ident'>ResolveGeneratedContent</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>layout_context</span>);
-    <span class='ident'>doit</span>(<span class='ident'>root</span>, <span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>traversal</span>)
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">traversal</span> <span class="op">=</span> <span class="ident">ResolveGeneratedContent</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">layout_context</span>);
+    <span class="ident">doit</span>(<span class="ident">root</span>, <span class="number">0</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">traversal</span>)
 }
 
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>traverse_flow_tree_preorder</span>(<span class='ident'>root</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Flow</span>,
-                                   <span class='ident'>layout_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayoutContext</span>) {
-    <span class='kw'>fn</span> <span class='ident'>doit</span>(<span class='ident'>flow</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Flow</span>,
-            <span class='ident'>assign_inline_sizes</span>: <span class='ident'>AssignISizes</span>,
-            <span class='ident'>assign_block_sizes</span>: <span class='ident'>AssignBSizes</span>) {
-        <span class='kw'>if</span> <span class='ident'>assign_inline_sizes</span>.<span class='ident'>should_process</span>(<span class='ident'>flow</span>) {
-            <span class='ident'>assign_inline_sizes</span>.<span class='ident'>process</span>(<span class='ident'>flow</span>);
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">traverse_flow_tree_preorder</span>(<span class="ident">root</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Flow</span>,
+                                   <span class="ident">layout_context</span>: <span class="kw-2">&amp;</span><span class="ident">LayoutContext</span>) {
+    <span class="kw">fn</span> <span class="ident">doit</span>(<span class="ident">flow</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Flow</span>,
+            <span class="ident">assign_inline_sizes</span>: <span class="ident">AssignISizes</span>,
+            <span class="ident">assign_block_sizes</span>: <span class="ident">AssignBSizes</span>) {
+        <span class="kw">if</span> <span class="ident">assign_inline_sizes</span>.<span class="ident">should_process</span>(<span class="ident">flow</span>) {
+            <span class="ident">assign_inline_sizes</span>.<span class="ident">process</span>(<span class="ident">flow</span>);
         }
 
-        <span class='kw'>for</span> <span class='ident'>kid</span> <span class='kw'>in</span> <span class='ident'>flow</span>::<span class='ident'>child_iter_mut</span>(<span class='ident'>flow</span>) {
-            <span class='ident'>doit</span>(<span class='ident'>kid</span>, <span class='ident'>assign_inline_sizes</span>, <span class='ident'>assign_block_sizes</span>);
+        <span class="kw">for</span> <span class="ident">kid</span> <span class="kw">in</span> <span class="ident">flow</span>::<span class="ident">child_iter_mut</span>(<span class="ident">flow</span>) {
+            <span class="ident">doit</span>(<span class="ident">kid</span>, <span class="ident">assign_inline_sizes</span>, <span class="ident">assign_block_sizes</span>);
         }
 
-        <span class='kw'>if</span> <span class='ident'>assign_block_sizes</span>.<span class='ident'>should_process</span>(<span class='ident'>flow</span>) {
-            <span class='ident'>assign_block_sizes</span>.<span class='ident'>process</span>(<span class='ident'>flow</span>);
+        <span class="kw">if</span> <span class="ident">assign_block_sizes</span>.<span class="ident">should_process</span>(<span class="ident">flow</span>) {
+            <span class="ident">assign_block_sizes</span>.<span class="ident">process</span>(<span class="ident">flow</span>);
         }
     }
 
-    <span class='kw'>if</span> <span class='ident'>opts</span>::<span class='ident'>get</span>().<span class='ident'>bubble_inline_sizes_separately</span> {
-        <span class='kw'>let</span> <span class='ident'>bubble_inline_sizes</span> <span class='op'>=</span> <span class='ident'>BubbleISizes</span> { <span class='ident'>layout_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>layout_context</span> };
+    <span class="kw">if</span> <span class="ident">opts</span>::<span class="ident">get</span>().<span class="ident">bubble_inline_sizes_separately</span> {
+        <span class="kw">let</span> <span class="ident">bubble_inline_sizes</span> <span class="op">=</span> <span class="ident">BubbleISizes</span> { <span class="ident">layout_context</span>: <span class="kw-2">&amp;</span><span class="ident">layout_context</span> };
         {
-            <span class='kw'>let</span> <span class='ident'>root</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Flow</span> <span class='op'>=</span> <span class='ident'>root</span>;
-            <span class='ident'>root</span>.<span class='ident'>traverse_postorder</span>(<span class='kw-2'>&amp;</span><span class='ident'>bubble_inline_sizes</span>);
+            <span class="kw">let</span> <span class="ident">root</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Flow</span> <span class="op">=</span> <span class="ident">root</span>;
+            <span class="ident">root</span>.<span class="ident">traverse_postorder</span>(<span class="kw-2">&amp;</span><span class="ident">bubble_inline_sizes</span>);
         }
     }
 
-    <span class='kw'>let</span> <span class='ident'>assign_inline_sizes</span> <span class='op'>=</span> <span class='ident'>AssignISizes</span> { <span class='ident'>layout_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>layout_context</span> };
-    <span class='kw'>let</span> <span class='ident'>assign_block_sizes</span>  <span class='op'>=</span> <span class='ident'>AssignBSizes</span> { <span class='ident'>layout_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>layout_context</span> };
+    <span class="kw">let</span> <span class="ident">assign_inline_sizes</span> <span class="op">=</span> <span class="ident">AssignISizes</span> { <span class="ident">layout_context</span>: <span class="kw-2">&amp;</span><span class="ident">layout_context</span> };
+    <span class="kw">let</span> <span class="ident">assign_block_sizes</span>  <span class="op">=</span> <span class="ident">AssignBSizes</span> { <span class="ident">layout_context</span>: <span class="kw-2">&amp;</span><span class="ident">layout_context</span> };
 
-    <span class='ident'>doit</span>(<span class='ident'>root</span>, <span class='ident'>assign_inline_sizes</span>, <span class='ident'>assign_block_sizes</span>);
+    <span class="ident">doit</span>(<span class="ident">root</span>, <span class="ident">assign_inline_sizes</span>, <span class="ident">assign_block_sizes</span>);
 }
 
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>build_display_list_for_subtree</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>(<span class='ident'>flow_root</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Flow</span>,
-                                          <span class='ident'>layout_context</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>LayoutContext</span>)
-                                          <span class='op'>-&gt;</span> <span class='ident'>DisplayListBuildState</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>state</span> <span class='op'>=</span> <span class='ident'>DisplayListBuildState</span>::<span class='ident'>new</span>(<span class='ident'>layout_context</span>);
-    <span class='ident'>flow_root</span>.<span class='ident'>collect_stacking_contexts</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>state</span>);
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">build_display_list_for_subtree</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">flow_root</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Flow</span>,
+                                          <span class="ident">layout_context</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">LayoutContext</span>)
+                                          <span class="op">-&gt;</span> <span class="ident">DisplayListBuildState</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">DisplayListBuildState</span>::<span class="ident">new</span>(<span class="ident">layout_context</span>);
+    <span class="ident">flow_root</span>.<span class="ident">collect_stacking_contexts</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>);
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>build_display_list</span> <span class='op'>=</span> <span class='ident'>BuildDisplayList</span> { <span class='ident'>state</span>: <span class='ident'>state</span> };
-    <span class='ident'>build_display_list</span>.<span class='ident'>traverse</span>(<span class='ident'>flow_root</span>);
-    <span class='ident'>build_display_list</span>.<span class='ident'>state</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">build_display_list</span> <span class="op">=</span> <span class="ident">BuildDisplayList</span> { <span class="ident">state</span>: <span class="ident">state</span> };
+    <span class="ident">build_display_list</span>.<span class="ident">traverse</span>(<span class="ident">flow_root</span>);
+    <span class="ident">build_display_list</span>.<span class="ident">state</span>
 }
 
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>iterate_through_flow_tree_fragment_border_boxes</span>(<span class='ident'>root</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Flow</span>,
-                                                       <span class='ident'>iterator</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>FragmentBorderBoxIterator</span>) {
-    <span class='kw'>fn</span> <span class='ident'>doit</span>(<span class='ident'>flow</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Flow</span>,
-            <span class='ident'>level</span>: <span class='ident'>i32</span>,
-            <span class='ident'>iterator</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>FragmentBorderBoxIterator</span>,
-            <span class='ident'>stacking_context_position</span>: <span class='kw-2'>&amp;</span><span class='ident'>Point2D</span><span class='op'>&lt;</span><span class='ident'>Au</span><span class='op'>&gt;</span>) {
-        <span class='ident'>flow</span>.<span class='ident'>iterate_through_fragment_border_boxes</span>(<span class='ident'>iterator</span>, <span class='ident'>level</span>, <span class='ident'>stacking_context_position</span>);
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iterate_through_flow_tree_fragment_border_boxes</span>(<span class="ident">root</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Flow</span>,
+                                                       <span class="ident">iterator</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FragmentBorderBoxIterator</span>) {
+    <span class="kw">fn</span> <span class="ident">doit</span>(<span class="ident">flow</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Flow</span>,
+            <span class="ident">level</span>: <span class="ident">i32</span>,
+            <span class="ident">iterator</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FragmentBorderBoxIterator</span>,
+            <span class="ident">stacking_context_position</span>: <span class="kw-2">&amp;</span><span class="ident">Point2D</span><span class="op">&lt;</span><span class="ident">Au</span><span class="op">&gt;</span>) {
+        <span class="ident">flow</span>.<span class="ident">iterate_through_fragment_border_boxes</span>(<span class="ident">iterator</span>, <span class="ident">level</span>, <span class="ident">stacking_context_position</span>);
 
-        <span class='kw'>for</span> <span class='ident'>kid</span> <span class='kw'>in</span> <span class='ident'>flow</span>::<span class='ident'>mut_base</span>(<span class='ident'>flow</span>).<span class='ident'>child_iter_mut</span>() {
-            <span class='kw'>let</span> <span class='ident'>stacking_context_position</span> <span class='op'>=</span>
-                <span class='kw'>if</span> <span class='ident'>kid</span>.<span class='ident'>is_block_flow</span>() <span class='op'>&amp;&amp;</span> <span class='ident'>kid</span>.<span class='ident'>as_block</span>().<span class='ident'>fragment</span>.<span class='ident'>establishes_stacking_context</span>() {
-                    <span class='kw'>let</span> <span class='ident'>margin</span> <span class='op'>=</span> <span class='ident'>Point2D</span>::<span class='ident'>new</span>(<span class='ident'>kid</span>.<span class='ident'>as_block</span>().<span class='ident'>fragment</span>.<span class='ident'>margin</span>.<span class='ident'>inline_start</span>, <span class='ident'>Au</span>(<span class='number'>0</span>));
-                    <span class='kw-2'>*</span><span class='ident'>stacking_context_position</span> <span class='op'>+</span> <span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='ident'>kid</span>).<span class='ident'>stacking_relative_position</span> <span class='op'>+</span> <span class='ident'>margin</span>
-                } <span class='kw'>else</span> {
-                    <span class='kw-2'>*</span><span class='ident'>stacking_context_position</span>
+        <span class="kw">for</span> <span class="ident">kid</span> <span class="kw">in</span> <span class="ident">flow</span>::<span class="ident">mut_base</span>(<span class="ident">flow</span>).<span class="ident">child_iter_mut</span>() {
+            <span class="kw">let</span> <span class="ident">stacking_context_position</span> <span class="op">=</span>
+                <span class="kw">if</span> <span class="ident">kid</span>.<span class="ident">is_block_flow</span>() <span class="op">&amp;&amp;</span> <span class="ident">kid</span>.<span class="ident">as_block</span>().<span class="ident">fragment</span>.<span class="ident">establishes_stacking_context</span>() {
+                    <span class="kw">let</span> <span class="ident">margin</span> <span class="op">=</span> <span class="ident">Point2D</span>::<span class="ident">new</span>(<span class="ident">kid</span>.<span class="ident">as_block</span>().<span class="ident">fragment</span>.<span class="ident">margin</span>.<span class="ident">inline_start</span>, <span class="ident">Au</span>(<span class="number">0</span>));
+                    <span class="kw-2">*</span><span class="ident">stacking_context_position</span> <span class="op">+</span> <span class="ident">flow</span>::<span class="ident">base</span>(<span class="ident">kid</span>).<span class="ident">stacking_relative_position</span> <span class="op">+</span> <span class="ident">margin</span>
+                } <span class="kw">else</span> {
+                    <span class="kw-2">*</span><span class="ident">stacking_context_position</span>
                 };
 
-            <span class='comment'>// FIXME(#2795): Get the real container size.</span>
-            <span class='ident'>doit</span>(<span class='ident'>kid</span>, <span class='ident'>level</span> <span class='op'>+</span> <span class='number'>1</span>, <span class='ident'>iterator</span>, <span class='kw-2'>&amp;</span><span class='ident'>stacking_context_position</span>);
+            <span class="comment">// FIXME(#2795): Get the real container size.</span>
+            <span class="ident">doit</span>(<span class="ident">kid</span>, <span class="ident">level</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">iterator</span>, <span class="kw-2">&amp;</span><span class="ident">stacking_context_position</span>);
         }
     }
 
-    <span class='ident'>doit</span>(<span class='ident'>root</span>, <span class='number'>0</span>, <span class='ident'>iterator</span>, <span class='kw-2'>&amp;</span><span class='ident'>Point2D</span>::<span class='ident'>zero</span>());
+    <span class="ident">doit</span>(<span class="ident">root</span>, <span class="number">0</span>, <span class="ident">iterator</span>, <span class="kw-2">&amp;</span><span class="ident">Point2D</span>::<span class="ident">zero</span>());
 }
 
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>store_overflow</span>(<span class='ident'>layout_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayoutContext</span>, <span class='ident'>flow</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Flow</span>) {
-    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='ident'>flow</span>).<span class='ident'>restyle_damage</span>.<span class='ident'>contains</span>(<span class='ident'>STORE_OVERFLOW</span>) {
-        <span class='kw'>return</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">store_overflow</span>(<span class="ident">layout_context</span>: <span class="kw-2">&amp;</span><span class="ident">LayoutContext</span>, <span class="ident">flow</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Flow</span>) {
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">flow</span>::<span class="ident">base</span>(<span class="ident">flow</span>).<span class="ident">restyle_damage</span>.<span class="ident">contains</span>(<span class="ident">STORE_OVERFLOW</span>) {
+        <span class="kw">return</span>
     }
 
-    <span class='kw'>for</span> <span class='kw-2'>mut</span> <span class='ident'>kid</span> <span class='kw'>in</span> <span class='ident'>flow</span>::<span class='ident'>mut_base</span>(<span class='ident'>flow</span>).<span class='ident'>child_iter_mut</span>() {
-        <span class='ident'>store_overflow</span>(<span class='ident'>layout_context</span>, <span class='ident'>kid</span>);
+    <span class="kw">for</span> <span class="kw-2">mut</span> <span class="ident">kid</span> <span class="kw">in</span> <span class="ident">flow</span>::<span class="ident">mut_base</span>(<span class="ident">flow</span>).<span class="ident">child_iter_mut</span>() {
+        <span class="ident">store_overflow</span>(<span class="ident">layout_context</span>, <span class="ident">kid</span>);
     }
 
-    <span class='ident'>flow</span>.<span class='ident'>store_overflow</span>(<span class='ident'>layout_context</span>);
+    <span class="ident">flow</span>.<span class="ident">store_overflow</span>(<span class="ident">layout_context</span>);
 
-    <span class='ident'>flow</span>::<span class='ident'>mut_base</span>(<span class='ident'>flow</span>).<span class='ident'>restyle_damage</span>.<span class='ident'>remove</span>(<span class='ident'>STORE_OVERFLOW</span>);
+    <span class="ident">flow</span>::<span class="ident">mut_base</span>(<span class="ident">flow</span>).<span class="ident">restyle_damage</span>.<span class="ident">remove</span>(<span class="ident">STORE_OVERFLOW</span>);
 }
 
-<span class='doccomment'>/// Guesses how much inline size will be taken up by floats on the left and right sides of the</span>
-<span class='doccomment'>/// given flow. This is needed to speculatively calculate the inline sizes of block formatting</span>
-<span class='doccomment'>/// contexts. The speculation typically succeeds, but if it doesn&#39;t we have to lay it out again.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>guess_float_placement</span>(<span class='ident'>flow</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Flow</span>) {
-    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='ident'>flow</span>).<span class='ident'>restyle_damage</span>.<span class='ident'>intersects</span>(<span class='ident'>REFLOW</span>) {
-        <span class='kw'>return</span>
+<span class="doccomment">/// Guesses how much inline size will be taken up by floats on the left and right sides of the</span>
+<span class="doccomment">/// given flow. This is needed to speculatively calculate the inline sizes of block formatting</span>
+<span class="doccomment">/// contexts. The speculation typically succeeds, but if it doesn&#39;t we have to lay it out again.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">guess_float_placement</span>(<span class="ident">flow</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Flow</span>) {
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">flow</span>::<span class="ident">base</span>(<span class="ident">flow</span>).<span class="ident">restyle_damage</span>.<span class="ident">intersects</span>(<span class="ident">REFLOW</span>) {
+        <span class="kw">return</span>
     }
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>floats_in</span> <span class='op'>=</span> <span class='ident'>SpeculatedFloatPlacement</span>::<span class='ident'>compute_floats_in_for_first_child</span>(<span class='ident'>flow</span>);
-    <span class='kw'>for</span> <span class='ident'>kid</span> <span class='kw'>in</span> <span class='ident'>flow</span>::<span class='ident'>mut_base</span>(<span class='ident'>flow</span>).<span class='ident'>child_iter_mut</span>() {
-        <span class='kw'>if</span> <span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='ident'>kid</span>).<span class='ident'>flags</span>.<span class='ident'>contains</span>(<span class='ident'>IS_ABSOLUTELY_POSITIONED</span>) {
-            <span class='comment'>// Do not propagate floats in or out, but do propogate between kids.</span>
-            <span class='ident'>guess_float_placement</span>(<span class='ident'>kid</span>);
-        } <span class='kw'>else</span> {
-            <span class='ident'>floats_in</span>.<span class='ident'>compute_floats_in</span>(<span class='ident'>kid</span>);
-            <span class='ident'>flow</span>::<span class='ident'>mut_base</span>(<span class='ident'>kid</span>).<span class='ident'>speculated_float_placement_in</span> <span class='op'>=</span> <span class='ident'>floats_in</span>;
-            <span class='ident'>guess_float_placement</span>(<span class='ident'>kid</span>);
-            <span class='ident'>floats_in</span> <span class='op'>=</span> <span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='ident'>kid</span>).<span class='ident'>speculated_float_placement_out</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">floats_in</span> <span class="op">=</span> <span class="ident">SpeculatedFloatPlacement</span>::<span class="ident">compute_floats_in_for_first_child</span>(<span class="ident">flow</span>);
+    <span class="kw">for</span> <span class="ident">kid</span> <span class="kw">in</span> <span class="ident">flow</span>::<span class="ident">mut_base</span>(<span class="ident">flow</span>).<span class="ident">child_iter_mut</span>() {
+        <span class="kw">if</span> <span class="ident">flow</span>::<span class="ident">base</span>(<span class="ident">kid</span>).<span class="ident">flags</span>.<span class="ident">contains</span>(<span class="ident">IS_ABSOLUTELY_POSITIONED</span>) {
+            <span class="comment">// Do not propagate floats in or out, but do propogate between kids.</span>
+            <span class="ident">guess_float_placement</span>(<span class="ident">kid</span>);
+        } <span class="kw">else</span> {
+            <span class="ident">floats_in</span>.<span class="ident">compute_floats_in</span>(<span class="ident">kid</span>);
+            <span class="ident">flow</span>::<span class="ident">mut_base</span>(<span class="ident">kid</span>).<span class="ident">speculated_float_placement_in</span> <span class="op">=</span> <span class="ident">floats_in</span>;
+            <span class="ident">guess_float_placement</span>(<span class="ident">kid</span>);
+            <span class="ident">floats_in</span> <span class="op">=</span> <span class="ident">flow</span>::<span class="ident">base</span>(<span class="ident">kid</span>).<span class="ident">speculated_float_placement_out</span>;
         }
     }
-    <span class='ident'>floats_in</span>.<span class='ident'>compute_floats_out</span>(<span class='ident'>flow</span>);
-    <span class='ident'>flow</span>::<span class='ident'>mut_base</span>(<span class='ident'>flow</span>).<span class='ident'>speculated_float_placement_out</span> <span class='op'>=</span> <span class='ident'>floats_in</span>
+    <span class="ident">floats_in</span>.<span class="ident">compute_floats_out</span>(<span class="ident">flow</span>);
+    <span class="ident">flow</span>::<span class="ident">mut_base</span>(<span class="ident">flow</span>).<span class="ident">speculated_float_placement_out</span> <span class="op">=</span> <span class="ident">floats_in</span>
 }
 </pre>
 </section>

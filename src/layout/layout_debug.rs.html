@@ -167,130 +167,130 @@
 <span id="122">122</span>
 <span id="123">123</span>
 <span id="124">124</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! Supports writing a trace file created during each layout scope</span>
-<span class='doccomment'>//! that can be viewed by an external tool to make layout debugging easier.</span>
+<span class="doccomment">//! Supports writing a trace file created during each layout scope</span>
+<span class="doccomment">//! that can be viewed by an external tool to make layout debugging easier.</span>
 
-<span class='kw'>use</span> <span class='ident'>flow</span>;
-<span class='kw'>use</span> <span class='ident'>flow_ref</span>::<span class='ident'>FlowRef</span>;
-<span class='kw'>use</span> <span class='ident'>serde_json</span>::{<span class='ident'>to_string</span>, <span class='ident'>to_value</span>, <span class='ident'>Value</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>ToOwned</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>RefCell</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fs</span>::<span class='ident'>File</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::<span class='ident'>Write</span>;
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>debug_assertions</span>)]</span>
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>atomic</span>::{<span class='ident'>ATOMIC_USIZE_INIT</span>, <span class='ident'>AtomicUsize</span>, <span class='ident'>Ordering</span>};
+<span class="kw">use</span> <span class="ident">flow</span>;
+<span class="kw">use</span> <span class="ident">flow_ref</span>::<span class="ident">FlowRef</span>;
+<span class="kw">use</span> <span class="ident">serde_json</span>::{<span class="ident">to_string</span>, <span class="ident">to_value</span>, <span class="ident">Value</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">ToOwned</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="ident">File</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">debug_assertions</span>)]</span>
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">atomic</span>::{<span class="ident">ATOMIC_USIZE_INIT</span>, <span class="ident">AtomicUsize</span>, <span class="ident">Ordering</span>};
 
-<span class='macro'>thread_local</span><span class='macro'>!</span>(<span class='kw'>static</span> <span class='ident'>STATE_KEY</span>: <span class='ident'>RefCell</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>State</span><span class='op'>&gt;&gt;</span> <span class='op'>=</span> <span class='ident'>RefCell</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>));
+<span class="macro">thread_local</span><span class="macro">!</span>(<span class="kw">static</span> <span class="ident">STATE_KEY</span>: <span class="ident">RefCell</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">State</span><span class="op">&gt;&gt;</span> <span class="op">=</span> <span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="prelude-val">None</span>));
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>debug_assertions</span>)]</span>
-<span class='kw'>static</span> <span class='ident'>DEBUG_ID_COUNTER</span>: <span class='ident'>AtomicUsize</span> <span class='op'>=</span> <span class='ident'>ATOMIC_USIZE_INIT</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">debug_assertions</span>)]</span>
+<span class="kw">static</span> <span class="ident">DEBUG_ID_COUNTER</span>: <span class="ident">AtomicUsize</span> <span class="op">=</span> <span class="ident">ATOMIC_USIZE_INIT</span>;
 
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Scope</span>;
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Scope</span>;
 
-<span class='attribute'>#[<span class='ident'>macro_export</span>]</span>
-<span class='macro'>macro_rules</span><span class='macro'>!</span> <span class='ident'>layout_debug_scope</span>(
-    ($(<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>arg</span>:<span class='ident'>tt</span>)<span class='kw-2'>*</span>) <span class='op'>=&gt;</span> (
-        <span class='kw'>if</span> <span class='macro'>cfg</span><span class='macro'>!</span>(<span class='ident'>debug_assertions</span>) {
-            <span class='ident'>layout_debug</span>::<span class='ident'>Scope</span>::<span class='ident'>new</span>(<span class='macro'>format</span><span class='macro'>!</span>($(<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>arg</span>)<span class='kw-2'>*</span>))
-        } <span class='kw'>else</span> {
-            <span class='ident'>layout_debug</span>::<span class='ident'>Scope</span>
+<span class="attribute">#[<span class="ident">macro_export</span>]</span>
+<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">layout_debug_scope</span>(
+    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> (
+        <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">debug_assertions</span>) {
+            <span class="ident">layout_debug</span>::<span class="ident">Scope</span>::<span class="ident">new</span>(<span class="macro">format</span><span class="macro">!</span>($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>)<span class="kw-2">*</span>))
+        } <span class="kw">else</span> {
+            <span class="ident">layout_debug</span>::<span class="ident">Scope</span>
         }
     )
 );
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Serialize</span>)]</span>
-<span class='kw'>struct</span> <span class='ident'>ScopeData</span> {
-    <span class='ident'>name</span>: <span class='ident'>String</span>,
-    <span class='ident'>pre</span>: <span class='ident'>Value</span>,
-    <span class='ident'>post</span>: <span class='ident'>Value</span>,
-    <span class='ident'>children</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ScopeData</span><span class='op'>&gt;&gt;</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>)]</span>
+<span class="kw">struct</span> <span class="ident">ScopeData</span> {
+    <span class="ident">name</span>: <span class="ident">String</span>,
+    <span class="ident">pre</span>: <span class="ident">Value</span>,
+    <span class="ident">post</span>: <span class="ident">Value</span>,
+    <span class="ident">children</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ScopeData</span><span class="op">&gt;&gt;</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>ScopeData</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>name</span>: <span class='ident'>String</span>, <span class='ident'>pre</span>: <span class='ident'>Value</span>) <span class='op'>-&gt;</span> <span class='ident'>ScopeData</span> {
-        <span class='ident'>ScopeData</span> {
-            <span class='ident'>name</span>: <span class='ident'>name</span>,
-            <span class='ident'>pre</span>: <span class='ident'>pre</span>,
-            <span class='ident'>post</span>: <span class='ident'>Value</span>::<span class='ident'>Null</span>,
-            <span class='ident'>children</span>: <span class='macro'>vec</span><span class='macro'>!</span>(),
+<span class="kw">impl</span> <span class="ident">ScopeData</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">name</span>: <span class="ident">String</span>, <span class="ident">pre</span>: <span class="ident">Value</span>) <span class="op">-&gt;</span> <span class="ident">ScopeData</span> {
+        <span class="ident">ScopeData</span> {
+            <span class="ident">name</span>: <span class="ident">name</span>,
+            <span class="ident">pre</span>: <span class="ident">pre</span>,
+            <span class="ident">post</span>: <span class="ident">Value</span>::<span class="ident">Null</span>,
+            <span class="ident">children</span>: <span class="macro">vec</span><span class="macro">!</span>(),
         }
     }
 }
 
-<span class='kw'>struct</span> <span class='ident'>State</span> {
-    <span class='ident'>flow_root</span>: <span class='ident'>FlowRef</span>,
-    <span class='ident'>scope_stack</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ScopeData</span><span class='op'>&gt;&gt;</span>,
+<span class="kw">struct</span> <span class="ident">State</span> {
+    <span class="ident">flow_root</span>: <span class="ident">FlowRef</span>,
+    <span class="ident">scope_stack</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ScopeData</span><span class="op">&gt;&gt;</span>,
 }
 
-<span class='doccomment'>/// A layout debugging scope. The entire state of the flow tree</span>
-<span class='doccomment'>/// will be output at the beginning and end of this scope.</span>
-<span class='kw'>impl</span> <span class='ident'>Scope</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>name</span>: <span class='ident'>String</span>) <span class='op'>-&gt;</span> <span class='ident'>Scope</span> {
-        <span class='ident'>STATE_KEY</span>.<span class='ident'>with</span>(<span class='op'>|</span><span class='kw-2'>ref</span> <span class='ident'>r</span><span class='op'>|</span> {
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>state</span>) <span class='op'>=</span> <span class='kw-2'>*</span><span class='ident'>r</span>.<span class='ident'>borrow_mut</span>() {
-                <span class='kw'>let</span> <span class='ident'>flow_trace</span> <span class='op'>=</span> <span class='ident'>to_value</span>(<span class='kw-2'>&amp;</span><span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>state</span>.<span class='ident'>flow_root</span>)).<span class='ident'>unwrap</span>();
-                <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='kw'>box</span> <span class='ident'>ScopeData</span>::<span class='ident'>new</span>(<span class='ident'>name</span>.<span class='ident'>clone</span>(), <span class='ident'>flow_trace</span>);
-                <span class='ident'>state</span>.<span class='ident'>scope_stack</span>.<span class='ident'>push</span>(<span class='ident'>data</span>);
+<span class="doccomment">/// A layout debugging scope. The entire state of the flow tree</span>
+<span class="doccomment">/// will be output at the beginning and end of this scope.</span>
+<span class="kw">impl</span> <span class="ident">Scope</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">name</span>: <span class="ident">String</span>) <span class="op">-&gt;</span> <span class="ident">Scope</span> {
+        <span class="ident">STATE_KEY</span>.<span class="ident">with</span>(<span class="op">|</span><span class="kw-2">ref</span> <span class="ident">r</span><span class="op">|</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">state</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">r</span>.<span class="ident">borrow_mut</span>() {
+                <span class="kw">let</span> <span class="ident">flow_trace</span> <span class="op">=</span> <span class="ident">to_value</span>(<span class="kw-2">&amp;</span><span class="ident">flow</span>::<span class="ident">base</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">state</span>.<span class="ident">flow_root</span>)).<span class="ident">unwrap</span>();
+                <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="kw">box</span> <span class="ident">ScopeData</span>::<span class="ident">new</span>(<span class="ident">name</span>.<span class="ident">clone</span>(), <span class="ident">flow_trace</span>);
+                <span class="ident">state</span>.<span class="ident">scope_stack</span>.<span class="ident">push</span>(<span class="ident">data</span>);
             }
         });
-        <span class='ident'>Scope</span>
+        <span class="ident">Scope</span>
     }
 }
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>debug_assertions</span>)]</span>
-<span class='kw'>impl</span> <span class='ident'>Drop</span> <span class='kw'>for</span> <span class='ident'>Scope</span> {
-    <span class='kw'>fn</span> <span class='ident'>drop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='ident'>STATE_KEY</span>.<span class='ident'>with</span>(<span class='op'>|</span><span class='kw-2'>ref</span> <span class='ident'>r</span><span class='op'>|</span> {
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>state</span>) <span class='op'>=</span> <span class='kw-2'>*</span><span class='ident'>r</span>.<span class='ident'>borrow_mut</span>() {
-                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>current_scope</span> <span class='op'>=</span> <span class='ident'>state</span>.<span class='ident'>scope_stack</span>.<span class='ident'>pop</span>().<span class='ident'>unwrap</span>();
-                <span class='ident'>current_scope</span>.<span class='ident'>post</span> <span class='op'>=</span> <span class='ident'>to_value</span>(<span class='kw-2'>&amp;</span><span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>state</span>.<span class='ident'>flow_root</span>)).<span class='ident'>unwrap</span>();
-                <span class='kw'>let</span> <span class='ident'>previous_scope</span> <span class='op'>=</span> <span class='ident'>state</span>.<span class='ident'>scope_stack</span>.<span class='ident'>last_mut</span>().<span class='ident'>unwrap</span>();
-                <span class='ident'>previous_scope</span>.<span class='ident'>children</span>.<span class='ident'>push</span>(<span class='ident'>current_scope</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">debug_assertions</span>)]</span>
+<span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">Scope</span> {
+    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="ident">STATE_KEY</span>.<span class="ident">with</span>(<span class="op">|</span><span class="kw-2">ref</span> <span class="ident">r</span><span class="op">|</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">state</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">r</span>.<span class="ident">borrow_mut</span>() {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">current_scope</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">scope_stack</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>();
+                <span class="ident">current_scope</span>.<span class="ident">post</span> <span class="op">=</span> <span class="ident">to_value</span>(<span class="kw-2">&amp;</span><span class="ident">flow</span>::<span class="ident">base</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">state</span>.<span class="ident">flow_root</span>)).<span class="ident">unwrap</span>();
+                <span class="kw">let</span> <span class="ident">previous_scope</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">scope_stack</span>.<span class="ident">last_mut</span>().<span class="ident">unwrap</span>();
+                <span class="ident">previous_scope</span>.<span class="ident">children</span>.<span class="ident">push</span>(<span class="ident">current_scope</span>);
             }
         });
     }
 }
 
-<span class='doccomment'>/// Generate a unique ID. This is used for items such as Fragment</span>
-<span class='doccomment'>/// which are often reallocated but represent essentially the</span>
-<span class='doccomment'>/// same data.</span>
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>debug_assertions</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>generate_unique_debug_id</span>() <span class='op'>-&gt;</span> <span class='ident'>u16</span> {
-    <span class='ident'>DEBUG_ID_COUNTER</span>.<span class='ident'>fetch_add</span>(<span class='number'>1</span>, <span class='ident'>Ordering</span>::<span class='ident'>SeqCst</span>) <span class='kw'>as</span> <span class='ident'>u16</span>
+<span class="doccomment">/// Generate a unique ID. This is used for items such as Fragment</span>
+<span class="doccomment">/// which are often reallocated but represent essentially the</span>
+<span class="doccomment">/// same data.</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">debug_assertions</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate_unique_debug_id</span>() <span class="op">-&gt;</span> <span class="ident">u16</span> {
+    <span class="ident">DEBUG_ID_COUNTER</span>.<span class="ident">fetch_add</span>(<span class="number">1</span>, <span class="ident">Ordering</span>::<span class="ident">SeqCst</span>) <span class="kw">as</span> <span class="ident">u16</span>
 }
 
-<span class='doccomment'>/// Begin a layout debug trace. If this has not been called,</span>
-<span class='doccomment'>/// creating debug scopes has no effect.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>begin_trace</span>(<span class='ident'>flow_root</span>: <span class='ident'>FlowRef</span>) {
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>STATE_KEY</span>.<span class='ident'>with</span>(<span class='op'>|</span><span class='kw-2'>ref</span> <span class='ident'>r</span><span class='op'>|</span> <span class='ident'>r</span>.<span class='ident'>borrow</span>().<span class='ident'>is_none</span>()));
+<span class="doccomment">/// Begin a layout debug trace. If this has not been called,</span>
+<span class="doccomment">/// creating debug scopes has no effect.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">begin_trace</span>(<span class="ident">flow_root</span>: <span class="ident">FlowRef</span>) {
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">STATE_KEY</span>.<span class="ident">with</span>(<span class="op">|</span><span class="kw-2">ref</span> <span class="ident">r</span><span class="op">|</span> <span class="ident">r</span>.<span class="ident">borrow</span>().<span class="ident">is_none</span>()));
 
-    <span class='ident'>STATE_KEY</span>.<span class='ident'>with</span>(<span class='op'>|</span><span class='kw-2'>ref</span> <span class='ident'>r</span><span class='op'>|</span> {
-        <span class='kw'>let</span> <span class='ident'>flow_trace</span> <span class='op'>=</span> <span class='ident'>to_value</span>(<span class='kw-2'>&amp;</span><span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>flow_root</span>)).<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>state</span> <span class='op'>=</span> <span class='ident'>State</span> {
-            <span class='ident'>scope_stack</span>: <span class='macro'>vec</span><span class='macro'>!</span>[<span class='kw'>box</span> <span class='ident'>ScopeData</span>::<span class='ident'>new</span>(<span class='string'>&quot;root&quot;</span>.<span class='ident'>to_owned</span>(), <span class='ident'>flow_trace</span>)],
-            <span class='ident'>flow_root</span>: <span class='ident'>flow_root</span>.<span class='ident'>clone</span>(),
+    <span class="ident">STATE_KEY</span>.<span class="ident">with</span>(<span class="op">|</span><span class="kw-2">ref</span> <span class="ident">r</span><span class="op">|</span> {
+        <span class="kw">let</span> <span class="ident">flow_trace</span> <span class="op">=</span> <span class="ident">to_value</span>(<span class="kw-2">&amp;</span><span class="ident">flow</span>::<span class="ident">base</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">flow_root</span>)).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">State</span> {
+            <span class="ident">scope_stack</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="kw">box</span> <span class="ident">ScopeData</span>::<span class="ident">new</span>(<span class="string">&quot;root&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">flow_trace</span>)],
+            <span class="ident">flow_root</span>: <span class="ident">flow_root</span>.<span class="ident">clone</span>(),
         };
-        <span class='kw-2'>*</span><span class='ident'>r</span>.<span class='ident'>borrow_mut</span>() <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>state</span>);
+        <span class="kw-2">*</span><span class="ident">r</span>.<span class="ident">borrow_mut</span>() <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">state</span>);
     });
 }
 
-<span class='doccomment'>/// End the debug layout trace. This will write the layout</span>
-<span class='doccomment'>/// trace to disk in the current directory. The output</span>
-<span class='doccomment'>/// file can then be viewed with an external tool.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>end_trace</span>(<span class='ident'>generation</span>: <span class='ident'>u32</span>) {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>thread_state</span> <span class='op'>=</span> <span class='ident'>STATE_KEY</span>.<span class='ident'>with</span>(<span class='op'>|</span><span class='kw-2'>ref</span> <span class='ident'>r</span><span class='op'>|</span> <span class='ident'>r</span>.<span class='ident'>borrow_mut</span>().<span class='ident'>take</span>().<span class='ident'>unwrap</span>());
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>.<span class='ident'>scope_stack</span>.<span class='ident'>len</span>() <span class='op'>==</span> <span class='number'>1</span>);
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>root_scope</span> <span class='op'>=</span> <span class='ident'>thread_state</span>.<span class='ident'>scope_stack</span>.<span class='ident'>pop</span>().<span class='ident'>unwrap</span>();
-    <span class='ident'>root_scope</span>.<span class='ident'>post</span> <span class='op'>=</span> <span class='ident'>to_value</span>(<span class='kw-2'>&amp;</span><span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>thread_state</span>.<span class='ident'>flow_root</span>)).<span class='ident'>unwrap</span>();
+<span class="doccomment">/// End the debug layout trace. This will write the layout</span>
+<span class="doccomment">/// trace to disk in the current directory. The output</span>
+<span class="doccomment">/// file can then be viewed with an external tool.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">end_trace</span>(<span class="ident">generation</span>: <span class="ident">u32</span>) {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">thread_state</span> <span class="op">=</span> <span class="ident">STATE_KEY</span>.<span class="ident">with</span>(<span class="op">|</span><span class="kw-2">ref</span> <span class="ident">r</span><span class="op">|</span> <span class="ident">r</span>.<span class="ident">borrow_mut</span>().<span class="ident">take</span>().<span class="ident">unwrap</span>());
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>.<span class="ident">scope_stack</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">root_scope</span> <span class="op">=</span> <span class="ident">thread_state</span>.<span class="ident">scope_stack</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>();
+    <span class="ident">root_scope</span>.<span class="ident">post</span> <span class="op">=</span> <span class="ident">to_value</span>(<span class="kw-2">&amp;</span><span class="ident">flow</span>::<span class="ident">base</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">thread_state</span>.<span class="ident">flow_root</span>)).<span class="ident">unwrap</span>();
 
-    <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>to_string</span>(<span class='kw-2'>&amp;</span><span class='ident'>root_scope</span>).<span class='ident'>unwrap</span>();
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>file</span> <span class='op'>=</span> <span class='ident'>File</span>::<span class='ident'>create</span>(<span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;layout_trace-{}.json&quot;</span>, <span class='ident'>generation</span>)).<span class='ident'>unwrap</span>();
-    <span class='ident'>file</span>.<span class='ident'>write_all</span>(<span class='ident'>result</span>.<span class='ident'>as_bytes</span>()).<span class='ident'>unwrap</span>();
+    <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">to_string</span>(<span class="kw-2">&amp;</span><span class="ident">root_scope</span>).<span class="ident">unwrap</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">file</span> <span class="op">=</span> <span class="ident">File</span>::<span class="ident">create</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;layout_trace-{}.json&quot;</span>, <span class="ident">generation</span>)).<span class="ident">unwrap</span>();
+    <span class="ident">file</span>.<span class="ident">write_all</span>(<span class="ident">result</span>.<span class="ident">as_bytes</span>()).<span class="ident">unwrap</span>();
 }
 </pre>
 </section>

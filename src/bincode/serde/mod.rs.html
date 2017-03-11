@@ -253,216 +253,216 @@
 <span id="208">208</span>
 <span id="209">209</span>
 <span id="210">210</span>
-</pre><pre class='rust '>
-<span class='doccomment'>//! A collection of serialization and deserialization functions</span>
-<span class='doccomment'>//! that use the `serde` crate for the serializable and deserializable</span>
-<span class='doccomment'>//! implementation.</span>
+</pre><pre class="rust ">
+<span class="doccomment">//! A collection of serialization and deserialization functions</span>
+<span class="doccomment">//! that use the `serde` crate for the serializable and deserializable</span>
+<span class="doccomment">//! implementation.</span>
 
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::{<span class='ident'>Write</span>, <span class='ident'>Read</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::<span class='ident'>Error</span> <span class='kw'>as</span> <span class='ident'>IoError</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::{<span class='ident'>error</span>, <span class='ident'>fmt</span>, <span class='ident'>result</span>};
-<span class='kw'>use</span> ::<span class='ident'>SizeLimit</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">Write</span>, <span class="ident">Read</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Error</span> <span class="kw">as</span> <span class="ident">IoError</span>;
+<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">error</span>, <span class="ident">fmt</span>, <span class="ident">result</span>};
+<span class="kw">use</span> ::<span class="ident">SizeLimit</span>;
 
-<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>reader</span>::{
-    <span class='ident'>Deserializer</span>,
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">reader</span>::{
+    <span class="ident">Deserializer</span>,
 };
 
-<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>writer</span>::{
-    <span class='ident'>Serializer</span>,
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">writer</span>::{
+    <span class="ident">Serializer</span>,
 };
 
-<span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>writer</span>::<span class='ident'>SizeChecker</span>;
+<span class="kw">use</span> <span class="self">self</span>::<span class="ident">writer</span>::<span class="ident">SizeChecker</span>;
 
-<span class='kw'>use</span> <span class='ident'>serde_crate</span> <span class='kw'>as</span> <span class='ident'>serde</span>;
+<span class="kw">use</span> <span class="ident">serde_crate</span> <span class="kw">as</span> <span class="ident">serde</span>;
 
-<span class='kw'>mod</span> <span class='ident'>reader</span>;
-<span class='kw'>mod</span> <span class='ident'>writer</span>;
+<span class="kw">mod</span> <span class="ident">reader</span>;
+<span class="kw">mod</span> <span class="ident">writer</span>;
 
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>result</span>::<span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>, <span class='ident'>Error</span><span class='op'>&gt;</span>;
+<span class="kw">pub</span> <span class="kw">type</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">result</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">Error</span><span class="op">&gt;</span>;
 
-<span class='doccomment'>/// An error that can be produced during (de)serializing.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// If decoding from a Buffer, assume that the buffer has been left</span>
-<span class='doccomment'>/// in an invalid state.</span>
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>Error</span> <span class='op'>=</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ErrorKind</span><span class='op'>&gt;</span>;
+<span class="doccomment">/// An error that can be produced during (de)serializing.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// If decoding from a Buffer, assume that the buffer has been left</span>
+<span class="doccomment">/// in an invalid state.</span>
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ErrorKind</span><span class="op">&gt;</span>;
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>ErrorKind</span> {
-    <span class='doccomment'>/// If the error stems from the reader/writer that is being used</span>
-    <span class='doccomment'>/// during (de)serialization, that error will be stored and returned here.</span>
-    <span class='ident'>IoError</span>(<span class='ident'>IoError</span>),
-    <span class='doccomment'>/// If the bytes in the reader are not decodable because of an invalid</span>
-    <span class='doccomment'>/// encoding, this error will be returned.  This error is only possible</span>
-    <span class='doccomment'>/// if a stream is corrupted.  A stream produced from `encode` or `encode_into`</span>
-    <span class='doccomment'>/// should **never** produce an InvalidEncoding error.</span>
-    <span class='ident'>InvalidEncoding</span>{
-        <span class='ident'>desc</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>, 
-        <span class='ident'>detail</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ErrorKind</span> {
+    <span class="doccomment">/// If the error stems from the reader/writer that is being used</span>
+    <span class="doccomment">/// during (de)serialization, that error will be stored and returned here.</span>
+    <span class="ident">IoError</span>(<span class="ident">IoError</span>),
+    <span class="doccomment">/// If the bytes in the reader are not decodable because of an invalid</span>
+    <span class="doccomment">/// encoding, this error will be returned.  This error is only possible</span>
+    <span class="doccomment">/// if a stream is corrupted.  A stream produced from `encode` or `encode_into`</span>
+    <span class="doccomment">/// should **never** produce an InvalidEncoding error.</span>
+    <span class="ident">InvalidEncoding</span>{
+        <span class="ident">desc</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, 
+        <span class="ident">detail</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>
     },
-    <span class='doccomment'>/// If (de)serializing a message takes more than the provided size limit, this</span>
-    <span class='doccomment'>/// error is returned.</span>
-    <span class='ident'>SizeLimit</span>,
-    <span class='ident'>SequenceMustHaveLength</span>,
-    <span class='ident'>Custom</span>(<span class='ident'>String</span>)
+    <span class="doccomment">/// If (de)serializing a message takes more than the provided size limit, this</span>
+    <span class="doccomment">/// error is returned.</span>
+    <span class="ident">SizeLimit</span>,
+    <span class="ident">SequenceMustHaveLength</span>,
+    <span class="ident">Custom</span>(<span class="ident">String</span>)
 }
 
-<span class='kw'>impl</span> <span class='ident'>error</span>::<span class='ident'>Error</span> <span class='kw'>for</span> <span class='ident'>ErrorKind</span> {
-    <span class='kw'>fn</span> <span class='ident'>description</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>str</span> {
-        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='self'>self</span> {
-            <span class='ident'>ErrorKind</span>::<span class='ident'>IoError</span>(<span class='kw-2'>ref</span> <span class='ident'>err</span>) <span class='op'>=&gt;</span> <span class='ident'>error</span>::<span class='ident'>Error</span>::<span class='ident'>description</span>(<span class='ident'>err</span>),
-            <span class='ident'>ErrorKind</span>::<span class='ident'>InvalidEncoding</span>{<span class='ident'>desc</span>, ..} <span class='op'>=&gt;</span> <span class='ident'>desc</span>,
-            <span class='ident'>ErrorKind</span>::<span class='ident'>SequenceMustHaveLength</span> <span class='op'>=&gt;</span> <span class='string'>&quot;bincode can&#39;t encode infinite sequences&quot;</span>,
-            <span class='ident'>ErrorKind</span>::<span class='ident'>SizeLimit</span> <span class='op'>=&gt;</span> <span class='string'>&quot;the size limit for decoding has been reached&quot;</span>,
-            <span class='ident'>ErrorKind</span>::<span class='ident'>Custom</span>(<span class='kw-2'>ref</span> <span class='ident'>msg</span>) <span class='op'>=&gt;</span> <span class='ident'>msg</span>,
+<span class="kw">impl</span> <span class="ident">error</span>::<span class="ident">Error</span> <span class="kw">for</span> <span class="ident">ErrorKind</span> {
+    <span class="kw">fn</span> <span class="ident">description</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">ErrorKind</span>::<span class="ident">IoError</span>(<span class="kw-2">ref</span> <span class="ident">err</span>) <span class="op">=&gt;</span> <span class="ident">error</span>::<span class="ident">Error</span>::<span class="ident">description</span>(<span class="ident">err</span>),
+            <span class="ident">ErrorKind</span>::<span class="ident">InvalidEncoding</span>{<span class="ident">desc</span>, ..} <span class="op">=&gt;</span> <span class="ident">desc</span>,
+            <span class="ident">ErrorKind</span>::<span class="ident">SequenceMustHaveLength</span> <span class="op">=&gt;</span> <span class="string">&quot;bincode can&#39;t encode infinite sequences&quot;</span>,
+            <span class="ident">ErrorKind</span>::<span class="ident">SizeLimit</span> <span class="op">=&gt;</span> <span class="string">&quot;the size limit for decoding has been reached&quot;</span>,
+            <span class="ident">ErrorKind</span>::<span class="ident">Custom</span>(<span class="kw-2">ref</span> <span class="ident">msg</span>) <span class="op">=&gt;</span> <span class="ident">msg</span>,
 
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>cause</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>error</span>::<span class='ident'>Error</span><span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='self'>self</span> {
-            <span class='ident'>ErrorKind</span>::<span class='ident'>IoError</span>(<span class='kw-2'>ref</span> <span class='ident'>err</span>) <span class='op'>=&gt;</span> <span class='ident'>err</span>.<span class='ident'>cause</span>(),
-            <span class='ident'>ErrorKind</span>::<span class='ident'>InvalidEncoding</span>{..} <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
-            <span class='ident'>ErrorKind</span>::<span class='ident'>SequenceMustHaveLength</span> <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
-            <span class='ident'>ErrorKind</span>::<span class='ident'>SizeLimit</span> <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
-            <span class='ident'>ErrorKind</span>::<span class='ident'>Custom</span>(_) <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
+    <span class="kw">fn</span> <span class="ident">cause</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">error</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">ErrorKind</span>::<span class="ident">IoError</span>(<span class="kw-2">ref</span> <span class="ident">err</span>) <span class="op">=&gt;</span> <span class="ident">err</span>.<span class="ident">cause</span>(),
+            <span class="ident">ErrorKind</span>::<span class="ident">InvalidEncoding</span>{..} <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">ErrorKind</span>::<span class="ident">SequenceMustHaveLength</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">ErrorKind</span>::<span class="ident">SizeLimit</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">ErrorKind</span>::<span class="ident">Custom</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>From</span><span class='op'>&lt;</span><span class='ident'>IoError</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Error</span> {
-    <span class='kw'>fn</span> <span class='ident'>from</span>(<span class='ident'>err</span>: <span class='ident'>IoError</span>) <span class='op'>-&gt;</span> <span class='ident'>Error</span> {
-        <span class='ident'>ErrorKind</span>::<span class='ident'>IoError</span>(<span class='ident'>err</span>).<span class='ident'>into</span>()
+<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">IoError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Error</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">err</span>: <span class="ident">IoError</span>) <span class="op">-&gt;</span> <span class="ident">Error</span> {
+        <span class="ident">ErrorKind</span>::<span class="ident">IoError</span>(<span class="ident">err</span>).<span class="ident">into</span>()
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>fmt</span>::<span class='ident'>Display</span> <span class='kw'>for</span> <span class='ident'>ErrorKind</span> {
-    <span class='kw'>fn</span> <span class='ident'>fmt</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>fmt</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fmt</span>::<span class='ident'>Formatter</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> {
-        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='self'>self</span> {
-            <span class='ident'>ErrorKind</span>::<span class='ident'>IoError</span>(<span class='kw-2'>ref</span> <span class='ident'>ioerr</span>) <span class='op'>=&gt;</span>
-                <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>fmt</span>, <span class='string'>&quot;IoError: {}&quot;</span>, <span class='ident'>ioerr</span>),
-            <span class='ident'>ErrorKind</span>::<span class='ident'>InvalidEncoding</span>{<span class='ident'>desc</span>, <span class='ident'>detail</span>: <span class='prelude-val'>None</span>}<span class='op'>=&gt;</span>
-                <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>fmt</span>, <span class='string'>&quot;InvalidEncoding: {}&quot;</span>, <span class='ident'>desc</span>),
-            <span class='ident'>ErrorKind</span>::<span class='ident'>InvalidEncoding</span>{<span class='ident'>desc</span>, <span class='ident'>detail</span>: <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>detail</span>)}<span class='op'>=&gt;</span>
-                <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>fmt</span>, <span class='string'>&quot;InvalidEncoding: {} ({})&quot;</span>, <span class='ident'>desc</span>, <span class='ident'>detail</span>),
-            <span class='ident'>ErrorKind</span>::<span class='ident'>SequenceMustHaveLength</span> <span class='op'>=&gt;</span>
-                <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>fmt</span>, <span class='string'>&quot;Bincode can only encode sequences and maps that have a knowable size ahead of time.&quot;</span>),
-            <span class='ident'>ErrorKind</span>::<span class='ident'>SizeLimit</span> <span class='op'>=&gt;</span>
-                <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>fmt</span>, <span class='string'>&quot;SizeLimit&quot;</span>),
-            <span class='ident'>ErrorKind</span>::<span class='ident'>Custom</span>(<span class='kw-2'>ref</span> <span class='ident'>s</span>) <span class='op'>=&gt;</span>
-                <span class='ident'>s</span>.<span class='ident'>fmt</span>(<span class='ident'>fmt</span>),
+<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">ErrorKind</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fmt</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">ErrorKind</span>::<span class="ident">IoError</span>(<span class="kw-2">ref</span> <span class="ident">ioerr</span>) <span class="op">=&gt;</span>
+                <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;IoError: {}&quot;</span>, <span class="ident">ioerr</span>),
+            <span class="ident">ErrorKind</span>::<span class="ident">InvalidEncoding</span>{<span class="ident">desc</span>, <span class="ident">detail</span>: <span class="prelude-val">None</span>}<span class="op">=&gt;</span>
+                <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;InvalidEncoding: {}&quot;</span>, <span class="ident">desc</span>),
+            <span class="ident">ErrorKind</span>::<span class="ident">InvalidEncoding</span>{<span class="ident">desc</span>, <span class="ident">detail</span>: <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">detail</span>)}<span class="op">=&gt;</span>
+                <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;InvalidEncoding: {} ({})&quot;</span>, <span class="ident">desc</span>, <span class="ident">detail</span>),
+            <span class="ident">ErrorKind</span>::<span class="ident">SequenceMustHaveLength</span> <span class="op">=&gt;</span>
+                <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;Bincode can only encode sequences and maps that have a knowable size ahead of time.&quot;</span>),
+            <span class="ident">ErrorKind</span>::<span class="ident">SizeLimit</span> <span class="op">=&gt;</span>
+                <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;SizeLimit&quot;</span>),
+            <span class="ident">ErrorKind</span>::<span class="ident">Custom</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) <span class="op">=&gt;</span>
+                <span class="ident">s</span>.<span class="ident">fmt</span>(<span class="ident">fmt</span>),
         }
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>serde</span>::<span class='ident'>de</span>::<span class='ident'>Error</span> <span class='kw'>for</span> <span class='ident'>Error</span> {
-    <span class='kw'>fn</span> <span class='ident'>custom</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>fmt</span>::<span class='ident'>Display</span><span class='op'>&gt;</span>(<span class='ident'>desc</span>: <span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='ident'>Error</span> {
-        <span class='ident'>ErrorKind</span>::<span class='ident'>Custom</span>(<span class='ident'>desc</span>.<span class='ident'>to_string</span>()).<span class='ident'>into</span>()
+<span class="kw">impl</span> <span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span> <span class="kw">for</span> <span class="ident">Error</span> {
+    <span class="kw">fn</span> <span class="ident">custom</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">fmt</span>::<span class="ident">Display</span><span class="op">&gt;</span>(<span class="ident">desc</span>: <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">Error</span> {
+        <span class="ident">ErrorKind</span>::<span class="ident">Custom</span>(<span class="ident">desc</span>.<span class="ident">to_string</span>()).<span class="ident">into</span>()
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>serde</span>::<span class='ident'>ser</span>::<span class='ident'>Error</span> <span class='kw'>for</span> <span class='ident'>Error</span> {
-    <span class='kw'>fn</span> <span class='ident'>custom</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>fmt</span>::<span class='ident'>Display</span><span class='op'>&gt;</span>(<span class='ident'>msg</span>: <span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='ident'>ErrorKind</span>::<span class='ident'>Custom</span>(<span class='ident'>msg</span>.<span class='ident'>to_string</span>()).<span class='ident'>into</span>()
+<span class="kw">impl</span> <span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">Error</span> <span class="kw">for</span> <span class="ident">Error</span> {
+    <span class="kw">fn</span> <span class="ident">custom</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">fmt</span>::<span class="ident">Display</span><span class="op">&gt;</span>(<span class="ident">msg</span>: <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">ErrorKind</span>::<span class="ident">Custom</span>(<span class="ident">msg</span>.<span class="ident">to_string</span>()).<span class="ident">into</span>()
     }
 } 
 
-<span class='doccomment'>/// Serializes an object directly into a `Writer`.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// If the serialization would take more bytes than allowed by `size_limit`, an error</span>
-<span class='doccomment'>/// is returned and *no bytes* will be written into the `Writer`.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// If this returns an `Error` (other than SizeLimit), assume that the</span>
-<span class='doccomment'>/// writer is in an invalid state, as writing could bail out in the middle of</span>
-<span class='doccomment'>/// serializing.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>serialize_into</span><span class='op'>&lt;</span><span class='ident'>W</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span>, <span class='ident'>T</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span><span class='op'>&gt;</span>(<span class='ident'>writer</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>W</span>, <span class='ident'>value</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>, <span class='ident'>size_limit</span>: <span class='ident'>SizeLimit</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>W</span>: <span class='ident'>Write</span>, 
-          <span class='ident'>T</span>: <span class='ident'>serde</span>::<span class='ident'>Serialize</span>,
+<span class="doccomment">/// Serializes an object directly into a `Writer`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// If the serialization would take more bytes than allowed by `size_limit`, an error</span>
+<span class="doccomment">/// is returned and *no bytes* will be written into the `Writer`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// If this returns an `Error` (other than SizeLimit), assume that the</span>
+<span class="doccomment">/// writer is in an invalid state, as writing could bail out in the middle of</span>
+<span class="doccomment">/// serializing.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialize_into</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="question-mark">?</span><span class="ident">Sized</span>, <span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">size_limit</span>: <span class="ident">SizeLimit</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">W</span>: <span class="ident">Write</span>, 
+          <span class="ident">T</span>: <span class="ident">serde</span>::<span class="ident">Serialize</span>,
 {
-    <span class='kw'>match</span> <span class='ident'>size_limit</span> {
-        <span class='ident'>SizeLimit</span>::<span class='ident'>Infinite</span> <span class='op'>=&gt;</span> { }
-        <span class='ident'>SizeLimit</span>::<span class='ident'>Bounded</span>(<span class='ident'>x</span>) <span class='op'>=&gt;</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>size_checker</span> <span class='op'>=</span> <span class='ident'>SizeChecker</span>::<span class='ident'>new</span>(<span class='ident'>x</span>);
-            <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>value</span>.<span class='ident'>serialize</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>size_checker</span>))
+    <span class="kw">match</span> <span class="ident">size_limit</span> {
+        <span class="ident">SizeLimit</span>::<span class="ident">Infinite</span> <span class="op">=&gt;</span> { }
+        <span class="ident">SizeLimit</span>::<span class="ident">Bounded</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">size_checker</span> <span class="op">=</span> <span class="ident">SizeChecker</span>::<span class="ident">new</span>(<span class="ident">x</span>);
+            <span class="macro">try</span><span class="macro">!</span>(<span class="ident">value</span>.<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">size_checker</span>))
         }
     }
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>serializer</span> <span class='op'>=</span> <span class='ident'>Serializer</span>::<span class='ident'>new</span>(<span class='ident'>writer</span>);
-    <span class='ident'>serde</span>::<span class='ident'>Serialize</span>::<span class='ident'>serialize</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>serializer</span>)
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serializer</span> <span class="op">=</span> <span class="ident">Serializer</span>::<span class="ident">new</span>(<span class="ident">writer</span>);
+    <span class="ident">serde</span>::<span class="ident">Serialize</span>::<span class="ident">serialize</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">serializer</span>)
 }
 
-<span class='doccomment'>/// Serializes a serializable object into a `Vec` of bytes.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// If the serialization would take more bytes than allowed by `size_limit`,</span>
-<span class='doccomment'>/// an error is returned.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>serialize</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span><span class='op'>&gt;</span>(<span class='ident'>value</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>, <span class='ident'>size_limit</span>: <span class='ident'>SizeLimit</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>serde</span>::<span class='ident'>Serialize</span>
+<span class="doccomment">/// Serializes a serializable object into a `Vec` of bytes.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// If the serialization would take more bytes than allowed by `size_limit`,</span>
+<span class="doccomment">/// an error is returned.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">size_limit</span>: <span class="ident">SizeLimit</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span>
+    <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">serde</span>::<span class="ident">Serialize</span>
 {
-    <span class='comment'>// Since we are putting values directly into a vector, we can do size</span>
-    <span class='comment'>// computation out here and pre-allocate a buffer of *exactly*</span>
-    <span class='comment'>// the right size.</span>
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>writer</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>size_limit</span> {
-        <span class='ident'>SizeLimit</span>::<span class='ident'>Bounded</span>(<span class='ident'>size_limit</span>) <span class='op'>=&gt;</span> {
-            <span class='kw'>let</span> <span class='ident'>actual_size</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>serialized_size_bounded</span>(<span class='ident'>value</span>, <span class='ident'>size_limit</span>).<span class='ident'>ok_or</span>(<span class='ident'>ErrorKind</span>::<span class='ident'>SizeLimit</span>));
-            <span class='ident'>Vec</span>::<span class='ident'>with_capacity</span>(<span class='ident'>actual_size</span> <span class='kw'>as</span> <span class='ident'>usize</span>)
+    <span class="comment">// Since we are putting values directly into a vector, we can do size</span>
+    <span class="comment">// computation out here and pre-allocate a buffer of *exactly*</span>
+    <span class="comment">// the right size.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">writer</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">size_limit</span> {
+        <span class="ident">SizeLimit</span>::<span class="ident">Bounded</span>(<span class="ident">size_limit</span>) <span class="op">=&gt;</span> {
+            <span class="kw">let</span> <span class="ident">actual_size</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">serialized_size_bounded</span>(<span class="ident">value</span>, <span class="ident">size_limit</span>).<span class="ident">ok_or</span>(<span class="ident">ErrorKind</span>::<span class="ident">SizeLimit</span>));
+            <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">actual_size</span> <span class="kw">as</span> <span class="ident">usize</span>)
         }
-        <span class='ident'>SizeLimit</span>::<span class='ident'>Infinite</span> <span class='op'>=&gt;</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>()
+        <span class="ident">SizeLimit</span>::<span class="ident">Infinite</span> <span class="op">=&gt;</span> <span class="ident">Vec</span>::<span class="ident">new</span>()
     };
 
-    <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>serialize_into</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>writer</span>, <span class='ident'>value</span>, <span class='ident'>SizeLimit</span>::<span class='ident'>Infinite</span>));
-    <span class='prelude-val'>Ok</span>(<span class='ident'>writer</span>)
+    <span class="macro">try</span><span class="macro">!</span>(<span class="ident">serialize_into</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">writer</span>, <span class="ident">value</span>, <span class="ident">SizeLimit</span>::<span class="ident">Infinite</span>));
+    <span class="prelude-val">Ok</span>(<span class="ident">writer</span>)
 }
 
-<span class='doccomment'>/// Returns the size that an object would be if serialized using bincode.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// This is used internally as part of the check for encode_into, but it can</span>
-<span class='doccomment'>/// be useful for preallocating buffers if thats your style.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>serialized_size</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span><span class='op'>&gt;</span>(<span class='ident'>value</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='ident'>u64</span> 
-    <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>serde</span>::<span class='ident'>Serialize</span>
+<span class="doccomment">/// Returns the size that an object would be if serialized using bincode.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This is used internally as part of the check for encode_into, but it can</span>
+<span class="doccomment">/// be useful for preallocating buffers if thats your style.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialized_size</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> 
+    <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">serde</span>::<span class="ident">Serialize</span>
 {
-    <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>u64</span>::<span class='ident'>MAX</span>;
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>size_checker</span> <span class='op'>=</span> <span class='ident'>SizeChecker</span>::<span class='ident'>new</span>(<span class='ident'>MAX</span>);
-    <span class='ident'>value</span>.<span class='ident'>serialize</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>size_checker</span>).<span class='ident'>ok</span>();
-    <span class='ident'>size_checker</span>.<span class='ident'>written</span>
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">u64</span>::<span class="ident">MAX</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">size_checker</span> <span class="op">=</span> <span class="ident">SizeChecker</span>::<span class="ident">new</span>(<span class="ident">MAX</span>);
+    <span class="ident">value</span>.<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">size_checker</span>).<span class="ident">ok</span>();
+    <span class="ident">size_checker</span>.<span class="ident">written</span>
 }
 
-<span class='doccomment'>/// Given a maximum size limit, check how large an object would be if it</span>
-<span class='doccomment'>/// were to be serialized.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// If it can be serialized in `max` or fewer bytes, that number will be returned</span>
-<span class='doccomment'>/// inside `Some`.  If it goes over bounds, then None is returned.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>serialized_size_bounded</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span><span class='op'>&gt;</span>(<span class='ident'>value</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>, <span class='ident'>max</span>: <span class='ident'>u64</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>u64</span><span class='op'>&gt;</span> 
-    <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>serde</span>::<span class='ident'>Serialize</span>
+<span class="doccomment">/// Given a maximum size limit, check how large an object would be if it</span>
+<span class="doccomment">/// were to be serialized.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// If it can be serialized in `max` or fewer bytes, that number will be returned</span>
+<span class="doccomment">/// inside `Some`.  If it goes over bounds, then None is returned.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialized_size_bounded</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">max</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> 
+    <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">serde</span>::<span class="ident">Serialize</span>
 {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>size_checker</span> <span class='op'>=</span> <span class='ident'>SizeChecker</span>::<span class='ident'>new</span>(<span class='ident'>max</span>);
-    <span class='ident'>value</span>.<span class='ident'>serialize</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>size_checker</span>).<span class='ident'>ok</span>().<span class='ident'>map</span>(<span class='op'>|</span>_<span class='op'>|</span> <span class='ident'>size_checker</span>.<span class='ident'>written</span>)
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">size_checker</span> <span class="op">=</span> <span class="ident">SizeChecker</span>::<span class="ident">new</span>(<span class="ident">max</span>);
+    <span class="ident">value</span>.<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">size_checker</span>).<span class="ident">ok</span>().<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">size_checker</span>.<span class="ident">written</span>)
 }
 
-<span class='doccomment'>/// Deserializes an object directly from a `Buffer`ed Reader.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// If the provided `SizeLimit` is reached, the deserialization will bail immediately.</span>
-<span class='doccomment'>/// A SizeLimit can help prevent an attacker from flooding your server with</span>
-<span class='doccomment'>/// a neverending stream of values that runs your server out of memory.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// If this returns an `Error`, assume that the buffer that you passed</span>
-<span class='doccomment'>/// in is in an invalid state, as the error could be returned during any point</span>
-<span class='doccomment'>/// in the reading.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>deserialize_from</span><span class='op'>&lt;</span><span class='ident'>R</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span>, <span class='ident'>T</span><span class='op'>&gt;</span>(<span class='ident'>reader</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>R</span>, <span class='ident'>size_limit</span>: <span class='ident'>SizeLimit</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>R</span>: <span class='ident'>Read</span>,
-          <span class='ident'>T</span>: <span class='ident'>serde</span>::<span class='ident'>Deserialize</span>,
+<span class="doccomment">/// Deserializes an object directly from a `Buffer`ed Reader.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// If the provided `SizeLimit` is reached, the deserialization will bail immediately.</span>
+<span class="doccomment">/// A SizeLimit can help prevent an attacker from flooding your server with</span>
+<span class="doccomment">/// a neverending stream of values that runs your server out of memory.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// If this returns an `Error`, assume that the buffer that you passed</span>
+<span class="doccomment">/// in is in an invalid state, as the error could be returned during any point</span>
+<span class="doccomment">/// in the reading.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">deserialize_from</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="question-mark">?</span><span class="ident">Sized</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>, <span class="ident">size_limit</span>: <span class="ident">SizeLimit</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">R</span>: <span class="ident">Read</span>,
+          <span class="ident">T</span>: <span class="ident">serde</span>::<span class="ident">Deserialize</span>,
 {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>deserializer</span> <span class='op'>=</span> <span class='ident'>Deserializer</span>::<span class='ident'>new</span>(<span class='ident'>reader</span>, <span class='ident'>size_limit</span>);
-    <span class='ident'>serde</span>::<span class='ident'>Deserialize</span>::<span class='ident'>deserialize</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>deserializer</span>)
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">deserializer</span> <span class="op">=</span> <span class="ident">Deserializer</span>::<span class="ident">new</span>(<span class="ident">reader</span>, <span class="ident">size_limit</span>);
+    <span class="ident">serde</span>::<span class="ident">Deserialize</span>::<span class="ident">deserialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">deserializer</span>)
 }
 
-<span class='doccomment'>/// Deserializes a slice of bytes into an object.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// This method does not have a size-limit because if you already have the bytes</span>
-<span class='doccomment'>/// in memory, then you don&#39;t gain anything by having a limiter.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>deserialize</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(<span class='ident'>bytes</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>]) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>serde</span>::<span class='ident'>Deserialize</span>,
+<span class="doccomment">/// Deserializes a slice of bytes into an object.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This method does not have a size-limit because if you already have the bytes</span>
+<span class="doccomment">/// in memory, then you don&#39;t gain anything by having a limiter.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">serde</span>::<span class="ident">Deserialize</span>,
 {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>reader</span> <span class='op'>=</span> <span class='ident'>bytes</span>;
-    <span class='ident'>deserialize_from</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>reader</span>, <span class='ident'>SizeLimit</span>::<span class='ident'>Infinite</span>)
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">bytes</span>;
+    <span class="ident">deserialize_from</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">reader</span>, <span class="ident">SizeLimit</span>::<span class="ident">Infinite</span>)
 }
 </pre>
 </section>

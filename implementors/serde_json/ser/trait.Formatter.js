@@ -1,6 +1,5 @@
 (function() {var implementors = {};
 implementors["layout_thread"] = [];
-implementors["net"] = [];
 implementors["serde_json"] = [];
 implementors["servo"] = [];
 

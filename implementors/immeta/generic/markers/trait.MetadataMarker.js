@@ -1,5 +1,4 @@
 (function() {var implementors = {};
-implementors["net"] = [];
 implementors["servo"] = [];
 
             if (window.register_implementors) {

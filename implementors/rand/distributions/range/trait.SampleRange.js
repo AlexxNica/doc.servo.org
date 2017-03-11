@@ -4,7 +4,6 @@ implementors["glutin"] = [];
 implementors["image"] = [];
 implementors["ipc_channel"] = [];
 implementors["layout_thread"] = [];
-implementors["net"] = [];
 implementors["net_traits"] = [];
 implementors["rand"] = [];
 implementors["script"] = [];

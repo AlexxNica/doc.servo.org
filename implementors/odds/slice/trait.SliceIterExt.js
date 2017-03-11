@@ -1,6 +1,5 @@
 (function() {var implementors = {};
 implementors["arrayvec"] = [];
-implementors["net"] = [];
 implementors["odds"] = [];
 implementors["servo"] = [];
 

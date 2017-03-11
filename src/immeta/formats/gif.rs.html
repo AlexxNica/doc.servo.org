@@ -630,591 +630,591 @@
 <span id="585">585</span>
 <span id="586">586</span>
 <span id="587">587</span>
-</pre><pre class='rust '>
-<span class='doccomment'>//! Metadata of GIF images.</span>
+</pre><pre class="rust ">
+<span class="doccomment">//! Metadata of GIF images.</span>
 
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::<span class='ident'>BufRead</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>Cow</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>str</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">BufRead</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>;
 
-<span class='kw'>use</span> <span class='ident'>byteorder</span>::{<span class='ident'>ReadBytesExt</span>, <span class='ident'>LittleEndian</span>};
+<span class="kw">use</span> <span class="ident">byteorder</span>::{<span class="ident">ReadBytesExt</span>, <span class="ident">LittleEndian</span>};
 
-<span class='kw'>use</span> <span class='ident'>types</span>::{<span class='prelude-ty'>Result</span>, <span class='ident'>Dimensions</span>};
-<span class='kw'>use</span> <span class='ident'>traits</span>::<span class='ident'>LoadableMetadata</span>;
-<span class='kw'>use</span> <span class='ident'>utils</span>::<span class='ident'>BufReadExt</span>;
+<span class="kw">use</span> <span class="ident">types</span>::{<span class="prelude-ty">Result</span>, <span class="ident">Dimensions</span>};
+<span class="kw">use</span> <span class="ident">traits</span>::<span class="ident">LoadableMetadata</span>;
+<span class="kw">use</span> <span class="ident">utils</span>::<span class="ident">BufReadExt</span>;
 
-<span class='doccomment'>/// GIF file version number.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>Version</span> {
-    <span class='ident'>V87a</span>,
-    <span class='ident'>V89a</span>
+<span class="doccomment">/// GIF file version number.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Version</span> {
+    <span class="ident">V87a</span>,
+    <span class="ident">V89a</span>
 }
 
-<span class='kw'>impl</span> <span class='ident'>Version</span> {
-    <span class='kw'>fn</span> <span class='ident'>from_bytes</span>(<span class='ident'>b</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>]) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Version</span><span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='ident'>b</span> {
-            <span class='string'>b&quot;87a&quot;</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>Version</span>::<span class='ident'>V87a</span>),
-            <span class='string'>b&quot;89a&quot;</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>Version</span>::<span class='ident'>V89a</span>),
-            _      <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>
+<span class="kw">impl</span> <span class="ident">Version</span> {
+    <span class="kw">fn</span> <span class="ident">from_bytes</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Version</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="ident">b</span> {
+            <span class="string">b&quot;87a&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Version</span>::<span class="ident">V87a</span>),
+            <span class="string">b&quot;89a&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Version</span>::<span class="ident">V89a</span>),
+            _      <span class="op">=&gt;</span> <span class="prelude-val">None</span>
         }
     }
 }
 
-<span class='doccomment'>/// Represents various kinds of blocks which can be used in a GIF image.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>Block</span> {
-    <span class='doccomment'>/// An image descriptor (image contents for one frame).</span>
-    <span class='ident'>ImageDescriptor</span>(<span class='ident'>ImageDescriptor</span>),
-    <span class='doccomment'>/// Graphics control metadata block (e.g. frame delay or transparency).</span>
-    <span class='ident'>GraphicControlExtension</span>(<span class='ident'>GraphicControlExtension</span>),
-    <span class='doccomment'>/// Plain text block (textual data that can be displayed as an image).</span>
-    <span class='ident'>PlainTextExtension</span>(<span class='ident'>PlainTextExtension</span>),
-    <span class='doccomment'>/// Application information block (contains information about application which created the</span>
-    <span class='doccomment'>/// image).</span>
-    <span class='ident'>ApplicationExtension</span>(<span class='ident'>ApplicationExtension</span>),
-    <span class='doccomment'>/// Comment block (contains commentary data which is not displayed in the image).</span>
-    <span class='ident'>CommentExtension</span>(<span class='ident'>CommentExtension</span>)
+<span class="doccomment">/// Represents various kinds of blocks which can be used in a GIF image.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Block</span> {
+    <span class="doccomment">/// An image descriptor (image contents for one frame).</span>
+    <span class="ident">ImageDescriptor</span>(<span class="ident">ImageDescriptor</span>),
+    <span class="doccomment">/// Graphics control metadata block (e.g. frame delay or transparency).</span>
+    <span class="ident">GraphicControlExtension</span>(<span class="ident">GraphicControlExtension</span>),
+    <span class="doccomment">/// Plain text block (textual data that can be displayed as an image).</span>
+    <span class="ident">PlainTextExtension</span>(<span class="ident">PlainTextExtension</span>),
+    <span class="doccomment">/// Application information block (contains information about application which created the</span>
+    <span class="doccomment">/// image).</span>
+    <span class="ident">ApplicationExtension</span>(<span class="ident">ApplicationExtension</span>),
+    <span class="doccomment">/// Comment block (contains commentary data which is not displayed in the image).</span>
+    <span class="ident">CommentExtension</span>(<span class="ident">CommentExtension</span>)
 }
 
-<span class='kw'>fn</span> <span class='ident'>skip_blocks</span><span class='op'>&lt;</span><span class='ident'>R</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span> <span class='op'>+</span> <span class='ident'>BufRead</span>, <span class='ident'>F</span><span class='op'>&gt;</span>(<span class='ident'>r</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>R</span>, <span class='ident'>on_eof</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>Fn</span>() <span class='op'>-&gt;</span> <span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;static</span>, <span class='ident'>str</span><span class='op'>&gt;</span>
+<span class="kw">fn</span> <span class="ident">skip_blocks</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">BufRead</span>, <span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">r</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>, <span class="ident">on_eof</span>: <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">Fn</span>() <span class="op">-&gt;</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="ident">str</span><span class="op">&gt;</span>
 {
-    <span class='kw'>loop</span> {
-        <span class='kw'>let</span> <span class='ident'>n</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_u8</span>(), <span class='ident'>on_eof</span>()) <span class='kw'>as</span> <span class='ident'>u64</span>;
-        <span class='kw'>if</span> <span class='ident'>n</span> <span class='op'>==</span> <span class='number'>0</span> { <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(()); }
-        <span class='kw'>if</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>skip_exact</span>(<span class='ident'>n</span>)) <span class='op'>!=</span> <span class='ident'>n</span> {
-            <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='macro'>unexpected_eof</span><span class='macro'>!</span>(<span class='ident'>on_eof</span>()));
+    <span class="kw">loop</span> {
+        <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_u8</span>(), <span class="ident">on_eof</span>()) <span class="kw">as</span> <span class="ident">u64</span>;
+        <span class="kw">if</span> <span class="ident">n</span> <span class="op">==</span> <span class="number">0</span> { <span class="kw">return</span> <span class="prelude-val">Ok</span>(()); }
+        <span class="kw">if</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">skip_exact</span>(<span class="ident">n</span>)) <span class="op">!=</span> <span class="ident">n</span> {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">unexpected_eof</span><span class="macro">!</span>(<span class="ident">on_eof</span>()));
         }
     }
 }
 
-<span class='doccomment'>/// Contains information about a color table (global or local).</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ColorTable</span> {
-    <span class='doccomment'>/// Color table size, between 2 and 256.</span>
-    <span class='kw'>pub</span> <span class='ident'>size</span>: <span class='ident'>u16</span>,
-    <span class='doccomment'>/// Whether the color table is sorted. Quoting from GIF spec:</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// &gt; If the flag is set, the [..] Color Table is sorted, in order of</span>
-    <span class='doccomment'>/// decreasing importance. Typically, the order would be decreasing frequency, with most </span>
-    <span class='doccomment'>/// frequent color first. This assists a decoder, with fewer available colors, in choosing </span>
-    <span class='doccomment'>/// the best subset of colors; the decoder may use an initial segment of the </span>
-    <span class='doccomment'>/// table to render the graphic.</span>
-    <span class='kw'>pub</span> <span class='ident'>sorted</span>: <span class='ident'>bool</span>,
+<span class="doccomment">/// Contains information about a color table (global or local).</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ColorTable</span> {
+    <span class="doccomment">/// Color table size, between 2 and 256.</span>
+    <span class="kw">pub</span> <span class="ident">size</span>: <span class="ident">u16</span>,
+    <span class="doccomment">/// Whether the color table is sorted. Quoting from GIF spec:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// &gt; If the flag is set, the [..] Color Table is sorted, in order of</span>
+    <span class="doccomment">/// decreasing importance. Typically, the order would be decreasing frequency, with most </span>
+    <span class="doccomment">/// frequent color first. This assists a decoder, with fewer available colors, in choosing </span>
+    <span class="doccomment">/// the best subset of colors; the decoder may use an initial segment of the </span>
+    <span class="doccomment">/// table to render the graphic.</span>
+    <span class="kw">pub</span> <span class="ident">sorted</span>: <span class="ident">bool</span>,
 }
 
-<span class='doccomment'>/// Contains metadata about an image block, i.e. a single frame of a GIF image.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ImageDescriptor</span> {
-    <span class='doccomment'>/// Offset of the image data from the left boundary of the logical screen.</span>
-    <span class='kw'>pub</span> <span class='ident'>left</span>: <span class='ident'>u16</span>,
-    <span class='doccomment'>/// Offset of the image data from the top boundary of the logical screen.</span>
-    <span class='kw'>pub</span> <span class='ident'>top</span>: <span class='ident'>u16</span>,
-    <span class='doccomment'>/// Width of the image data.</span>
-    <span class='kw'>pub</span> <span class='ident'>width</span>: <span class='ident'>u16</span>,
-    <span class='doccomment'>/// Height of the image data.</span>
-    <span class='kw'>pub</span> <span class='ident'>height</span>: <span class='ident'>u16</span>,
+<span class="doccomment">/// Contains metadata about an image block, i.e. a single frame of a GIF image.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ImageDescriptor</span> {
+    <span class="doccomment">/// Offset of the image data from the left boundary of the logical screen.</span>
+    <span class="kw">pub</span> <span class="ident">left</span>: <span class="ident">u16</span>,
+    <span class="doccomment">/// Offset of the image data from the top boundary of the logical screen.</span>
+    <span class="kw">pub</span> <span class="ident">top</span>: <span class="ident">u16</span>,
+    <span class="doccomment">/// Width of the image data.</span>
+    <span class="kw">pub</span> <span class="ident">width</span>: <span class="ident">u16</span>,
+    <span class="doccomment">/// Height of the image data.</span>
+    <span class="kw">pub</span> <span class="ident">height</span>: <span class="ident">u16</span>,
 
-    <span class='doccomment'>/// Information about local color table, if it is present.</span>
-    <span class='kw'>pub</span> <span class='ident'>local_color_table</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ColorTable</span><span class='op'>&gt;</span>,
+    <span class="doccomment">/// Information about local color table, if it is present.</span>
+    <span class="kw">pub</span> <span class="ident">local_color_table</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ColorTable</span><span class="op">&gt;</span>,
 
-    <span class='doccomment'>/// Whether the image is interlaced.</span>
-    <span class='kw'>pub</span> <span class='ident'>interlace</span>: <span class='ident'>bool</span>
+    <span class="doccomment">/// Whether the image is interlaced.</span>
+    <span class="kw">pub</span> <span class="ident">interlace</span>: <span class="ident">bool</span>
 }
 
-<span class='kw'>impl</span> <span class='ident'>ImageDescriptor</span> {
-    <span class='kw'>fn</span> <span class='ident'>load</span><span class='op'>&lt;</span><span class='ident'>R</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span> <span class='op'>+</span> <span class='ident'>BufRead</span><span class='op'>&gt;</span>(<span class='ident'>index</span>: <span class='ident'>usize</span>, <span class='ident'>r</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>R</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ImageDescriptor</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>left</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(
-            <span class='ident'>r</span>.<span class='ident'>read_u16</span>::<span class='op'>&lt;</span><span class='ident'>LittleEndian</span><span class='op'>&gt;</span>(), 
-            <span class='string'>&quot;when reading left offset of image block {}&quot;</span>, <span class='ident'>index</span>
+<span class="kw">impl</span> <span class="ident">ImageDescriptor</span> {
+    <span class="kw">fn</span> <span class="ident">load</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">BufRead</span><span class="op">&gt;</span>(<span class="ident">index</span>: <span class="ident">usize</span>, <span class="ident">r</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ImageDescriptor</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(
+            <span class="ident">r</span>.<span class="ident">read_u16</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>(), 
+            <span class="string">&quot;when reading left offset of image block {}&quot;</span>, <span class="ident">index</span>
         );
-        <span class='kw'>let</span> <span class='ident'>top</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(
-            <span class='ident'>r</span>.<span class='ident'>read_u16</span>::<span class='op'>&lt;</span><span class='ident'>LittleEndian</span><span class='op'>&gt;</span>(),
-            <span class='string'>&quot;when reading top offset of image block {}&quot;</span>, <span class='ident'>index</span>
+        <span class="kw">let</span> <span class="ident">top</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(
+            <span class="ident">r</span>.<span class="ident">read_u16</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>(),
+            <span class="string">&quot;when reading top offset of image block {}&quot;</span>, <span class="ident">index</span>
         );
-        <span class='kw'>let</span> <span class='ident'>width</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(
-            <span class='ident'>r</span>.<span class='ident'>read_u16</span>::<span class='op'>&lt;</span><span class='ident'>LittleEndian</span><span class='op'>&gt;</span>(),
-            <span class='string'>&quot;when reading width of image block {}&quot;</span>, <span class='ident'>index</span>
+        <span class="kw">let</span> <span class="ident">width</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(
+            <span class="ident">r</span>.<span class="ident">read_u16</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>(),
+            <span class="string">&quot;when reading width of image block {}&quot;</span>, <span class="ident">index</span>
         );
-        <span class='kw'>let</span> <span class='ident'>height</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(
-            <span class='ident'>r</span>.<span class='ident'>read_u16</span>::<span class='op'>&lt;</span><span class='ident'>LittleEndian</span><span class='op'>&gt;</span>(),
-            <span class='string'>&quot;when reading height of image block {}&quot;</span>, <span class='ident'>index</span>
+        <span class="kw">let</span> <span class="ident">height</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(
+            <span class="ident">r</span>.<span class="ident">read_u16</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>(),
+            <span class="string">&quot;when reading height of image block {}&quot;</span>, <span class="ident">index</span>
         );
 
-        <span class='kw'>let</span> <span class='ident'>packed_flags</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_u8</span>(), <span class='string'>&quot;when reading flags of image block {}&quot;</span>, <span class='ident'>index</span>);
-        <span class='kw'>let</span> <span class='ident'>local_color_table</span>        <span class='op'>=</span> (<span class='number'>0b10000000</span> <span class='op'>&amp;</span> <span class='ident'>packed_flags</span>) <span class='op'>&gt;</span> <span class='number'>0</span>;
-        <span class='kw'>let</span> <span class='ident'>interlace</span>                <span class='op'>=</span> (<span class='number'>0b01000000</span> <span class='op'>&amp;</span> <span class='ident'>packed_flags</span>) <span class='op'>&gt;</span> <span class='number'>0</span>;
-        <span class='kw'>let</span> <span class='ident'>local_color_table_sorted</span> <span class='op'>=</span> (<span class='number'>0b00100000</span> <span class='op'>&amp;</span> <span class='ident'>packed_flags</span>) <span class='op'>&gt;</span> <span class='number'>0</span>;
-        <span class='kw'>let</span> <span class='ident'>local_color_table_size_p</span> <span class='op'>=</span> (<span class='number'>0b00000111</span> <span class='op'>&amp;</span> <span class='ident'>packed_flags</span>) <span class='op'>&gt;&gt;</span> <span class='number'>0</span>;  
+        <span class="kw">let</span> <span class="ident">packed_flags</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_u8</span>(), <span class="string">&quot;when reading flags of image block {}&quot;</span>, <span class="ident">index</span>);
+        <span class="kw">let</span> <span class="ident">local_color_table</span>        <span class="op">=</span> (<span class="number">0b10000000</span> <span class="op">&amp;</span> <span class="ident">packed_flags</span>) <span class="op">&gt;</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="ident">interlace</span>                <span class="op">=</span> (<span class="number">0b01000000</span> <span class="op">&amp;</span> <span class="ident">packed_flags</span>) <span class="op">&gt;</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="ident">local_color_table_sorted</span> <span class="op">=</span> (<span class="number">0b00100000</span> <span class="op">&amp;</span> <span class="ident">packed_flags</span>) <span class="op">&gt;</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="ident">local_color_table_size_p</span> <span class="op">=</span> (<span class="number">0b00000111</span> <span class="op">&amp;</span> <span class="ident">packed_flags</span>) <span class="op">&gt;&gt;</span> <span class="number">0</span>;  
 
-        <span class='kw'>let</span> <span class='ident'>local_color_table_size</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>local_color_table</span> {
-            <span class='number'>1u16</span> <span class='op'>&lt;&lt;</span> (<span class='ident'>local_color_table_size_p</span><span class='op'>+</span><span class='number'>1</span>)
-        } <span class='kw'>else</span> {
-            <span class='number'>0</span>
+        <span class="kw">let</span> <span class="ident">local_color_table_size</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">local_color_table</span> {
+            <span class="number">1u16</span> <span class="op">&lt;&lt;</span> (<span class="ident">local_color_table_size_p</span><span class="op">+</span><span class="number">1</span>)
+        } <span class="kw">else</span> {
+            <span class="number">0</span>
         };
 
-        <span class='kw'>if</span> <span class='ident'>local_color_table</span> {
-            <span class='kw'>let</span> <span class='ident'>skip_size</span> <span class='op'>=</span> <span class='ident'>local_color_table_size</span> <span class='kw'>as</span> <span class='ident'>u64</span> <span class='op'>*</span> <span class='number'>3</span>;
-            <span class='kw'>if</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>skip_exact</span>(<span class='ident'>skip_size</span>)) <span class='op'>!=</span> <span class='ident'>skip_size</span> {
-                <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='macro'>unexpected_eof</span><span class='macro'>!</span>(<span class='string'>&quot;when reading color table of image block {}&quot;</span>, <span class='ident'>index</span>));
+        <span class="kw">if</span> <span class="ident">local_color_table</span> {
+            <span class="kw">let</span> <span class="ident">skip_size</span> <span class="op">=</span> <span class="ident">local_color_table_size</span> <span class="kw">as</span> <span class="ident">u64</span> <span class="op">*</span> <span class="number">3</span>;
+            <span class="kw">if</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">skip_exact</span>(<span class="ident">skip_size</span>)) <span class="op">!=</span> <span class="ident">skip_size</span> {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">unexpected_eof</span><span class="macro">!</span>(<span class="string">&quot;when reading color table of image block {}&quot;</span>, <span class="ident">index</span>));
             }
         }
 
-        <span class='kw'>let</span> _ <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_u8</span>(), <span class='string'>&quot;when reading LZW minimum code size of image block {}&quot;</span>, <span class='ident'>index</span>);
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>skip_blocks</span>(<span class='ident'>r</span>, <span class='op'>||</span> <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;when reading image data of image block {}&quot;</span>, <span class='ident'>index</span>).<span class='ident'>into</span>()));
+        <span class="kw">let</span> _ <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_u8</span>(), <span class="string">&quot;when reading LZW minimum code size of image block {}&quot;</span>, <span class="ident">index</span>);
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">skip_blocks</span>(<span class="ident">r</span>, <span class="op">||</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;when reading image data of image block {}&quot;</span>, <span class="ident">index</span>).<span class="ident">into</span>()));
 
-        <span class='prelude-val'>Ok</span>(<span class='ident'>ImageDescriptor</span> {
-            <span class='ident'>left</span>: <span class='ident'>left</span>,
-            <span class='ident'>top</span>: <span class='ident'>top</span>,
-            <span class='ident'>width</span>: <span class='ident'>width</span>,
-            <span class='ident'>height</span>: <span class='ident'>height</span>,
+        <span class="prelude-val">Ok</span>(<span class="ident">ImageDescriptor</span> {
+            <span class="ident">left</span>: <span class="ident">left</span>,
+            <span class="ident">top</span>: <span class="ident">top</span>,
+            <span class="ident">width</span>: <span class="ident">width</span>,
+            <span class="ident">height</span>: <span class="ident">height</span>,
 
-            <span class='ident'>local_color_table</span>: <span class='kw'>if</span> <span class='ident'>local_color_table</span> {
-                <span class='prelude-val'>Some</span>(<span class='ident'>ColorTable</span> {
-                    <span class='ident'>size</span>: <span class='ident'>local_color_table_size</span>,
-                    <span class='ident'>sorted</span>: <span class='ident'>local_color_table_sorted</span>
+            <span class="ident">local_color_table</span>: <span class="kw">if</span> <span class="ident">local_color_table</span> {
+                <span class="prelude-val">Some</span>(<span class="ident">ColorTable</span> {
+                    <span class="ident">size</span>: <span class="ident">local_color_table_size</span>,
+                    <span class="ident">sorted</span>: <span class="ident">local_color_table_sorted</span>
                 })
-            } <span class='kw'>else</span> { <span class='prelude-val'>None</span> },
+            } <span class="kw">else</span> { <span class="prelude-val">None</span> },
 
-            <span class='ident'>interlace</span>: <span class='ident'>interlace</span>
+            <span class="ident">interlace</span>: <span class="ident">interlace</span>
         })
     }
 }
 
-<span class='doccomment'>/// Contains metadata for a graphic control extension block.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// This block usually leads an image descriptor block and contains information on how this</span>
-<span class='doccomment'>/// image should be displayed. It is especially important for animated GIF images because</span>
-<span class='doccomment'>/// it contains delay and disposal method flags.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>GraphicControlExtension</span> {
-    <span class='doccomment'>/// Indicates how the graphic should be treated after it is displayed.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// See `DisposalMethod` enum documentation for more information.</span>
-    <span class='kw'>pub</span> <span class='ident'>disposal_method</span>: <span class='ident'>DisposalMethod</span>,
-    <span class='doccomment'>/// Whether or not user input is required before continuing.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// How this flag is treated depends on a application.</span>
-    <span class='kw'>pub</span> <span class='ident'>user_input</span>: <span class='ident'>bool</span>,
+<span class="doccomment">/// Contains metadata for a graphic control extension block.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This block usually leads an image descriptor block and contains information on how this</span>
+<span class="doccomment">/// image should be displayed. It is especially important for animated GIF images because</span>
+<span class="doccomment">/// it contains delay and disposal method flags.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GraphicControlExtension</span> {
+    <span class="doccomment">/// Indicates how the graphic should be treated after it is displayed.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// See `DisposalMethod` enum documentation for more information.</span>
+    <span class="kw">pub</span> <span class="ident">disposal_method</span>: <span class="ident">DisposalMethod</span>,
+    <span class="doccomment">/// Whether or not user input is required before continuing.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// How this flag is treated depends on a application.</span>
+    <span class="kw">pub</span> <span class="ident">user_input</span>: <span class="ident">bool</span>,
 
-    <span class='doccomment'>/// Specifies &quot;transparent&quot; color in a color table, if available.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// &quot;Transparent&quot; color makes the decoder ignore a pixel and go on to the next one.</span>
-    <span class='kw'>pub</span> <span class='ident'>transparent_color_index</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>,
+    <span class="doccomment">/// Specifies &quot;transparent&quot; color in a color table, if available.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// &quot;Transparent&quot; color makes the decoder ignore a pixel and go on to the next one.</span>
+    <span class="kw">pub</span> <span class="ident">transparent_color_index</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
 
-    <span class='doccomment'>/// Defines the delay before processing the rest of the GIF stream.</span>
-    <span class='doccomment'>/// </span>
-    <span class='doccomment'>/// The value is specified in one hundredths of a second. Use `delay_time_ms()` method</span>
-    <span class='doccomment'>/// to obtain a more conventional time representation.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// If zero, it means that there is no delay time.</span>
-    <span class='kw'>pub</span> <span class='ident'>delay_time</span>: <span class='ident'>u16</span>
+    <span class="doccomment">/// Defines the delay before processing the rest of the GIF stream.</span>
+    <span class="doccomment">/// </span>
+    <span class="doccomment">/// The value is specified in one hundredths of a second. Use `delay_time_ms()` method</span>
+    <span class="doccomment">/// to obtain a more conventional time representation.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If zero, it means that there is no delay time.</span>
+    <span class="kw">pub</span> <span class="ident">delay_time</span>: <span class="ident">u16</span>
 }
 
-<span class='kw'>impl</span> <span class='ident'>GraphicControlExtension</span> {
-    <span class='doccomment'>/// Returns delay time in milliseconds.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// See `delay_time` field description.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>delay_time_ms</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>u32</span> {
-        <span class='self'>self</span>.<span class='ident'>delay_time</span> <span class='kw'>as</span> <span class='ident'>u32</span> <span class='op'>*</span> <span class='number'>10</span>
+<span class="kw">impl</span> <span class="ident">GraphicControlExtension</span> {
+    <span class="doccomment">/// Returns delay time in milliseconds.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// See `delay_time` field description.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">delay_time_ms</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
+        <span class="self">self</span>.<span class="ident">delay_time</span> <span class="kw">as</span> <span class="ident">u32</span> <span class="op">*</span> <span class="number">10</span>
     }
 
-    <span class='kw'>fn</span> <span class='ident'>load</span><span class='op'>&lt;</span><span class='ident'>R</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span> <span class='op'>+</span> <span class='ident'>BufRead</span><span class='op'>&gt;</span>(<span class='ident'>index</span>: <span class='ident'>usize</span>, <span class='ident'>r</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>R</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>GraphicControlExtension</span><span class='op'>&gt;</span> {
-        <span class='kw'>const</span> <span class='ident'>NAME</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span> <span class='op'>=</span> <span class='string'>&quot;graphics control extension block&quot;</span>;
+    <span class="kw">fn</span> <span class="ident">load</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">BufRead</span><span class="op">&gt;</span>(<span class="ident">index</span>: <span class="ident">usize</span>, <span class="ident">r</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">GraphicControlExtension</span><span class="op">&gt;</span> {
+        <span class="kw">const</span> <span class="ident">NAME</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;graphics control extension block&quot;</span>;
 
-        <span class='kw'>let</span> <span class='ident'>block_size</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_u8</span>(), <span class='string'>&quot;when reading block size of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>);
-        <span class='kw'>if</span> <span class='ident'>block_size</span> <span class='op'>!=</span> <span class='number'>0x04</span> {
-            <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='macro'>invalid_format</span><span class='macro'>!</span>(<span class='string'>&quot;invalid block size in {} {}: {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>, <span class='ident'>block_size</span>));
+        <span class="kw">let</span> <span class="ident">block_size</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_u8</span>(), <span class="string">&quot;when reading block size of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>);
+        <span class="kw">if</span> <span class="ident">block_size</span> <span class="op">!=</span> <span class="number">0x04</span> {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">invalid_format</span><span class="macro">!</span>(<span class="string">&quot;invalid block size in {} {}: {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>, <span class="ident">block_size</span>));
         }
 
-        <span class='kw'>let</span> <span class='ident'>packed_flags</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_u8</span>(), <span class='string'>&quot;when reading flags of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>);
-        <span class='kw'>let</span> <span class='ident'>disposal_method</span> <span class='op'>=</span>   (<span class='number'>0b00011100</span> <span class='op'>&amp;</span> <span class='ident'>packed_flags</span>) <span class='op'>&gt;&gt;</span> <span class='number'>2</span>;
-        <span class='kw'>let</span> <span class='ident'>user_input</span> <span class='op'>=</span>        (<span class='number'>0b00000010</span> <span class='op'>&amp;</span> <span class='ident'>packed_flags</span>) <span class='op'>&gt;</span> <span class='number'>0</span>;
-        <span class='kw'>let</span> <span class='ident'>transparent_color</span> <span class='op'>=</span> (<span class='number'>0b00000001</span> <span class='op'>&amp;</span> <span class='ident'>packed_flags</span>) <span class='op'>&gt;</span> <span class='number'>0</span>;
+        <span class="kw">let</span> <span class="ident">packed_flags</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_u8</span>(), <span class="string">&quot;when reading flags of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>);
+        <span class="kw">let</span> <span class="ident">disposal_method</span> <span class="op">=</span>   (<span class="number">0b00011100</span> <span class="op">&amp;</span> <span class="ident">packed_flags</span>) <span class="op">&gt;&gt;</span> <span class="number">2</span>;
+        <span class="kw">let</span> <span class="ident">user_input</span> <span class="op">=</span>        (<span class="number">0b00000010</span> <span class="op">&amp;</span> <span class="ident">packed_flags</span>) <span class="op">&gt;</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="ident">transparent_color</span> <span class="op">=</span> (<span class="number">0b00000001</span> <span class="op">&amp;</span> <span class="ident">packed_flags</span>) <span class="op">&gt;</span> <span class="number">0</span>;
 
-        <span class='kw'>let</span> <span class='ident'>delay_time</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(
-            <span class='ident'>r</span>.<span class='ident'>read_u16</span>::<span class='op'>&lt;</span><span class='ident'>LittleEndian</span><span class='op'>&gt;</span>(), 
-            <span class='string'>&quot;when reading delay time of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>
+        <span class="kw">let</span> <span class="ident">delay_time</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(
+            <span class="ident">r</span>.<span class="ident">read_u16</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>(), 
+            <span class="string">&quot;when reading delay time of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>
         );
 
-        <span class='kw'>let</span> <span class='ident'>transparent_color_index</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(
-            <span class='ident'>r</span>.<span class='ident'>read_u8</span>(),
-            <span class='string'>&quot;when reading transparent color index of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>
+        <span class="kw">let</span> <span class="ident">transparent_color_index</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(
+            <span class="ident">r</span>.<span class="ident">read_u8</span>(),
+            <span class="string">&quot;when reading transparent color index of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>
         );
 
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>skip_blocks</span>(<span class='ident'>r</span>, <span class='op'>||</span> <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;when reading block terminator of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>).<span class='ident'>into</span>()));
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">skip_blocks</span>(<span class="ident">r</span>, <span class="op">||</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;when reading block terminator of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>).<span class="ident">into</span>()));
 
-        <span class='prelude-val'>Ok</span>(<span class='ident'>GraphicControlExtension</span> {
-            <span class='ident'>disposal_method</span>: <span class='macro'>try</span><span class='macro'>!</span>(
-                <span class='ident'>DisposalMethod</span>::<span class='ident'>from_u8</span>(<span class='ident'>disposal_method</span>)
-                    .<span class='ident'>ok_or</span>(<span class='macro'>invalid_format</span><span class='macro'>!</span>(<span class='string'>&quot;invalid disposal method in {} {}: {}&quot;</span>, 
-                                           <span class='ident'>NAME</span>, <span class='ident'>index</span>, <span class='ident'>disposal_method</span>))
+        <span class="prelude-val">Ok</span>(<span class="ident">GraphicControlExtension</span> {
+            <span class="ident">disposal_method</span>: <span class="macro">try</span><span class="macro">!</span>(
+                <span class="ident">DisposalMethod</span>::<span class="ident">from_u8</span>(<span class="ident">disposal_method</span>)
+                    .<span class="ident">ok_or</span>(<span class="macro">invalid_format</span><span class="macro">!</span>(<span class="string">&quot;invalid disposal method in {} {}: {}&quot;</span>, 
+                                           <span class="ident">NAME</span>, <span class="ident">index</span>, <span class="ident">disposal_method</span>))
             ),
-            <span class='ident'>user_input</span>: <span class='ident'>user_input</span>,
-            <span class='ident'>transparent_color_index</span>: <span class='kw'>if</span> <span class='ident'>transparent_color</span> { 
-                <span class='prelude-val'>Some</span>(<span class='ident'>transparent_color_index</span>) 
-            } <span class='kw'>else</span> { 
-                <span class='prelude-val'>None</span>
+            <span class="ident">user_input</span>: <span class="ident">user_input</span>,
+            <span class="ident">transparent_color_index</span>: <span class="kw">if</span> <span class="ident">transparent_color</span> { 
+                <span class="prelude-val">Some</span>(<span class="ident">transparent_color_index</span>) 
+            } <span class="kw">else</span> { 
+                <span class="prelude-val">None</span>
             },
-            <span class='ident'>delay_time</span>: <span class='ident'>delay_time</span>
+            <span class="ident">delay_time</span>: <span class="ident">delay_time</span>
         })
     }
 }
 
-<span class='doccomment'>/// Describes disposal methods used for GIF image frames.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Disposal method defines how the graphic should be treated after being displayed. Descriptions</span>
-<span class='doccomment'>/// of enum variants come from GIF spec.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>DisposalMethod</span> {
-    <span class='doccomment'>/// The decoder is not required to take any action.</span>
-    <span class='prelude-val'>None</span>,
-    <span class='doccomment'>/// The graphic is to be left in place.</span>
-    <span class='ident'>DoNotDispose</span>,
-    <span class='doccomment'>/// The area used by the graphic must be restored to the background color.</span>
-    <span class='ident'>RestoreToBackgroundColor</span>,
-    <span class='doccomment'>/// The decoder is required to restore the area overwritten by the graphic with what</span>
-    <span class='doccomment'>/// was there prior to rendering the graphic.</span>
-    <span class='ident'>RestoreToPrevious</span>,
-    <span class='doccomment'>/// Unknown disposal method.</span>
-    <span class='ident'>Unknown</span>(<span class='ident'>u8</span>)
+<span class="doccomment">/// Describes disposal methods used for GIF image frames.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Disposal method defines how the graphic should be treated after being displayed. Descriptions</span>
+<span class="doccomment">/// of enum variants come from GIF spec.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">DisposalMethod</span> {
+    <span class="doccomment">/// The decoder is not required to take any action.</span>
+    <span class="prelude-val">None</span>,
+    <span class="doccomment">/// The graphic is to be left in place.</span>
+    <span class="ident">DoNotDispose</span>,
+    <span class="doccomment">/// The area used by the graphic must be restored to the background color.</span>
+    <span class="ident">RestoreToBackgroundColor</span>,
+    <span class="doccomment">/// The decoder is required to restore the area overwritten by the graphic with what</span>
+    <span class="doccomment">/// was there prior to rendering the graphic.</span>
+    <span class="ident">RestoreToPrevious</span>,
+    <span class="doccomment">/// Unknown disposal method.</span>
+    <span class="ident">Unknown</span>(<span class="ident">u8</span>)
 }
 
-<span class='kw'>impl</span> <span class='ident'>DisposalMethod</span> {
-    <span class='kw'>fn</span> <span class='ident'>from_u8</span>(<span class='ident'>n</span>: <span class='ident'>u8</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>DisposalMethod</span><span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='ident'>n</span> {
-            <span class='number'>0</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>DisposalMethod</span>::<span class='prelude-val'>None</span>),
-            <span class='number'>1</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>DisposalMethod</span>::<span class='ident'>DoNotDispose</span>),
-            <span class='number'>2</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>DisposalMethod</span>::<span class='ident'>RestoreToBackgroundColor</span>),
-            <span class='number'>3</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>DisposalMethod</span>::<span class='ident'>RestoreToPrevious</span>),
-            <span class='ident'>n</span> <span class='kw'>if</span> <span class='ident'>n</span> <span class='op'>&lt;</span> <span class='number'>8</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>DisposalMethod</span>::<span class='ident'>Unknown</span>(<span class='ident'>n</span>)),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>
+<span class="kw">impl</span> <span class="ident">DisposalMethod</span> {
+    <span class="kw">fn</span> <span class="ident">from_u8</span>(<span class="ident">n</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DisposalMethod</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="ident">n</span> {
+            <span class="number">0</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">DisposalMethod</span>::<span class="prelude-val">None</span>),
+            <span class="number">1</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">DisposalMethod</span>::<span class="ident">DoNotDispose</span>),
+            <span class="number">2</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">DisposalMethod</span>::<span class="ident">RestoreToBackgroundColor</span>),
+            <span class="number">3</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">DisposalMethod</span>::<span class="ident">RestoreToPrevious</span>),
+            <span class="ident">n</span> <span class="kw">if</span> <span class="ident">n</span> <span class="op">&lt;</span> <span class="number">8</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">DisposalMethod</span>::<span class="ident">Unknown</span>(<span class="ident">n</span>)),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>
         }
     }
 }
 
-<span class='doccomment'>/// Contains metadata for a plain text extension block.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Plain text blocks can be used to render texts represented as an actual textual data as</span>
-<span class='doccomment'>/// opposed to pre-rendered rasterized text. However, it seems that these blocks are not</span>
-<span class='doccomment'>/// well supported by the existing software.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>PlainTextExtension</span> {
-    <span class='doccomment'>/// Column number, in pixels, of the left edge of the text grid, with respect to </span>
-    <span class='doccomment'>/// the left edge of the logical screen.</span>
-    <span class='kw'>pub</span> <span class='ident'>left</span>: <span class='ident'>u16</span>,
-    <span class='doccomment'>/// Same as above, for the top edges.</span>
-    <span class='kw'>pub</span> <span class='ident'>top</span>: <span class='ident'>u16</span>,
-    <span class='doccomment'>/// Width of the text grid in pixels.</span>
-    <span class='kw'>pub</span> <span class='ident'>width</span>: <span class='ident'>u16</span>,
-    <span class='doccomment'>/// Height of the text grid in pixels.</span>
-    <span class='kw'>pub</span> <span class='ident'>height</span>: <span class='ident'>u16</span>,
+<span class="doccomment">/// Contains metadata for a plain text extension block.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Plain text blocks can be used to render texts represented as an actual textual data as</span>
+<span class="doccomment">/// opposed to pre-rendered rasterized text. However, it seems that these blocks are not</span>
+<span class="doccomment">/// well supported by the existing software.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PlainTextExtension</span> {
+    <span class="doccomment">/// Column number, in pixels, of the left edge of the text grid, with respect to </span>
+    <span class="doccomment">/// the left edge of the logical screen.</span>
+    <span class="kw">pub</span> <span class="ident">left</span>: <span class="ident">u16</span>,
+    <span class="doccomment">/// Same as above, for the top edges.</span>
+    <span class="kw">pub</span> <span class="ident">top</span>: <span class="ident">u16</span>,
+    <span class="doccomment">/// Width of the text grid in pixels.</span>
+    <span class="kw">pub</span> <span class="ident">width</span>: <span class="ident">u16</span>,
+    <span class="doccomment">/// Height of the text grid in pixels.</span>
+    <span class="kw">pub</span> <span class="ident">height</span>: <span class="ident">u16</span>,
 
-    <span class='doccomment'>/// Width in pixels of each cell in the text grid.</span>
-    <span class='kw'>pub</span> <span class='ident'>cell_width</span>: <span class='ident'>u8</span>,
-    <span class='doccomment'>/// Height in pixels of each cell in the text grid.</span>
-    <span class='kw'>pub</span> <span class='ident'>cell_height</span>: <span class='ident'>u8</span>,
+    <span class="doccomment">/// Width in pixels of each cell in the text grid.</span>
+    <span class="kw">pub</span> <span class="ident">cell_width</span>: <span class="ident">u8</span>,
+    <span class="doccomment">/// Height in pixels of each cell in the text grid.</span>
+    <span class="kw">pub</span> <span class="ident">cell_height</span>: <span class="ident">u8</span>,
 
-    <span class='doccomment'>/// Index of a foreground color in the global color table.</span>
-    <span class='kw'>pub</span> <span class='ident'>foreground_color_index</span>: <span class='ident'>u8</span>,
-    <span class='doccomment'>/// Index of a background color in the global color table.</span>
-    <span class='kw'>pub</span> <span class='ident'>background_color_index</span>: <span class='ident'>u8</span>
+    <span class="doccomment">/// Index of a foreground color in the global color table.</span>
+    <span class="kw">pub</span> <span class="ident">foreground_color_index</span>: <span class="ident">u8</span>,
+    <span class="doccomment">/// Index of a background color in the global color table.</span>
+    <span class="kw">pub</span> <span class="ident">background_color_index</span>: <span class="ident">u8</span>
 }
 
-<span class='kw'>impl</span> <span class='ident'>PlainTextExtension</span> {
-    <span class='kw'>fn</span> <span class='ident'>load</span><span class='op'>&lt;</span><span class='ident'>R</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span> <span class='op'>+</span> <span class='ident'>BufRead</span><span class='op'>&gt;</span>(<span class='ident'>index</span>: <span class='ident'>usize</span>, <span class='ident'>r</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>R</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>PlainTextExtension</span><span class='op'>&gt;</span> {
-        <span class='kw'>const</span> <span class='ident'>NAME</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span> <span class='op'>=</span> <span class='string'>&quot;plain text extension block&quot;</span>;
+<span class="kw">impl</span> <span class="ident">PlainTextExtension</span> {
+    <span class="kw">fn</span> <span class="ident">load</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">BufRead</span><span class="op">&gt;</span>(<span class="ident">index</span>: <span class="ident">usize</span>, <span class="ident">r</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">PlainTextExtension</span><span class="op">&gt;</span> {
+        <span class="kw">const</span> <span class="ident">NAME</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;plain text extension block&quot;</span>;
 
-        <span class='kw'>let</span> <span class='ident'>block_size</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_u8</span>(), <span class='string'>&quot;when reading block size of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>);
-        <span class='kw'>if</span> <span class='ident'>block_size</span> <span class='op'>!=</span> <span class='number'>0x0C</span> {
-            <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='macro'>invalid_format</span><span class='macro'>!</span>(<span class='string'>&quot;invalid block size in {} {}: {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>, <span class='ident'>block_size</span>));
+        <span class="kw">let</span> <span class="ident">block_size</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_u8</span>(), <span class="string">&quot;when reading block size of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>);
+        <span class="kw">if</span> <span class="ident">block_size</span> <span class="op">!=</span> <span class="number">0x0C</span> {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">invalid_format</span><span class="macro">!</span>(<span class="string">&quot;invalid block size in {} {}: {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>, <span class="ident">block_size</span>));
         }
 
-        <span class='kw'>let</span> <span class='ident'>left</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(
-            <span class='ident'>r</span>.<span class='ident'>read_u16</span>::<span class='op'>&lt;</span><span class='ident'>LittleEndian</span><span class='op'>&gt;</span>(), 
-            <span class='string'>&quot;when reading left offset of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>
+        <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(
+            <span class="ident">r</span>.<span class="ident">read_u16</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>(), 
+            <span class="string">&quot;when reading left offset of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>
         );
-        <span class='kw'>let</span> <span class='ident'>top</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(
-            <span class='ident'>r</span>.<span class='ident'>read_u16</span>::<span class='op'>&lt;</span><span class='ident'>LittleEndian</span><span class='op'>&gt;</span>(),
-            <span class='string'>&quot;when reading top offset of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>
+        <span class="kw">let</span> <span class="ident">top</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(
+            <span class="ident">r</span>.<span class="ident">read_u16</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>(),
+            <span class="string">&quot;when reading top offset of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>
         );
-        <span class='kw'>let</span> <span class='ident'>width</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(
-            <span class='ident'>r</span>.<span class='ident'>read_u16</span>::<span class='op'>&lt;</span><span class='ident'>LittleEndian</span><span class='op'>&gt;</span>(),
-            <span class='string'>&quot;when reading width of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>
+        <span class="kw">let</span> <span class="ident">width</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(
+            <span class="ident">r</span>.<span class="ident">read_u16</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>(),
+            <span class="string">&quot;when reading width of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>
         );
-        <span class='kw'>let</span> <span class='ident'>height</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(
-            <span class='ident'>r</span>.<span class='ident'>read_u16</span>::<span class='op'>&lt;</span><span class='ident'>LittleEndian</span><span class='op'>&gt;</span>(),
-            <span class='string'>&quot;when reading height of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>
-        );
-
-        <span class='kw'>let</span> <span class='ident'>cell_width</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(
-            <span class='ident'>r</span>.<span class='ident'>read_u8</span>(), 
-            <span class='string'>&quot;when reading character cell width of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>
-        );
-        <span class='kw'>let</span> <span class='ident'>cell_height</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(
-            <span class='ident'>r</span>.<span class='ident'>read_u8</span>(), 
-            <span class='string'>&quot;when reading character cell height of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>
+        <span class="kw">let</span> <span class="ident">height</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(
+            <span class="ident">r</span>.<span class="ident">read_u16</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>(),
+            <span class="string">&quot;when reading height of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>
         );
 
-        <span class='kw'>let</span> <span class='ident'>foreground_color_index</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(
-            <span class='ident'>r</span>.<span class='ident'>read_u8</span>(), 
-            <span class='string'>&quot;when reading foreground color index of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>
+        <span class="kw">let</span> <span class="ident">cell_width</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(
+            <span class="ident">r</span>.<span class="ident">read_u8</span>(), 
+            <span class="string">&quot;when reading character cell width of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>
         );
-        <span class='kw'>let</span> <span class='ident'>background_color_index</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(
-            <span class='ident'>r</span>.<span class='ident'>read_u8</span>(), 
-            <span class='string'>&quot;when reading background color index of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>
+        <span class="kw">let</span> <span class="ident">cell_height</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(
+            <span class="ident">r</span>.<span class="ident">read_u8</span>(), 
+            <span class="string">&quot;when reading character cell height of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>
         );
 
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>skip_blocks</span>(<span class='ident'>r</span>, <span class='op'>||</span> <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;when reading text data of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>).<span class='ident'>into</span>()));
+        <span class="kw">let</span> <span class="ident">foreground_color_index</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(
+            <span class="ident">r</span>.<span class="ident">read_u8</span>(), 
+            <span class="string">&quot;when reading foreground color index of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>
+        );
+        <span class="kw">let</span> <span class="ident">background_color_index</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(
+            <span class="ident">r</span>.<span class="ident">read_u8</span>(), 
+            <span class="string">&quot;when reading background color index of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>
+        );
 
-        <span class='prelude-val'>Ok</span>(<span class='ident'>PlainTextExtension</span> {
-            <span class='ident'>left</span>: <span class='ident'>left</span>,
-            <span class='ident'>top</span>: <span class='ident'>top</span>,
-            <span class='ident'>width</span>: <span class='ident'>width</span>,
-            <span class='ident'>height</span>: <span class='ident'>height</span>,
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">skip_blocks</span>(<span class="ident">r</span>, <span class="op">||</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;when reading text data of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>).<span class="ident">into</span>()));
 
-            <span class='ident'>cell_width</span>: <span class='ident'>cell_width</span>,
-            <span class='ident'>cell_height</span>: <span class='ident'>cell_height</span>,
+        <span class="prelude-val">Ok</span>(<span class="ident">PlainTextExtension</span> {
+            <span class="ident">left</span>: <span class="ident">left</span>,
+            <span class="ident">top</span>: <span class="ident">top</span>,
+            <span class="ident">width</span>: <span class="ident">width</span>,
+            <span class="ident">height</span>: <span class="ident">height</span>,
 
-            <span class='ident'>foreground_color_index</span>: <span class='ident'>foreground_color_index</span>,
-            <span class='ident'>background_color_index</span>: <span class='ident'>background_color_index</span>
+            <span class="ident">cell_width</span>: <span class="ident">cell_width</span>,
+            <span class="ident">cell_height</span>: <span class="ident">cell_height</span>,
+
+            <span class="ident">foreground_color_index</span>: <span class="ident">foreground_color_index</span>,
+            <span class="ident">background_color_index</span>: <span class="ident">background_color_index</span>
         })
     }
 }
 
-<span class='doccomment'>/// Contains metadata for application extension block.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// These blocks usually contain information about the application which was used to create</span>
-<span class='doccomment'>/// the image.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ApplicationExtension</span> {
-    <span class='doccomment'>/// Eight ASCII bytes of an application identifier.</span>
-    <span class='kw'>pub</span> <span class='ident'>application_identifier</span>: [<span class='ident'>u8</span>; <span class='number'>8</span>],
-    <span class='doccomment'>/// Three bytes of an application authentication code.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Citing the GIF spec:</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// &gt; Sequence of three bytes used to authenticate the Application Identifier. </span>
-    <span class='doccomment'>/// An Application program may use an algorithm to compute a binary code that uniquely</span>
-    <span class='doccomment'>/// identifies it as the application owning the Application Extension.</span>
-    <span class='kw'>pub</span> <span class='ident'>authentication_code</span>: [<span class='ident'>u8</span>; <span class='number'>3</span>]
+<span class="doccomment">/// Contains metadata for application extension block.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// These blocks usually contain information about the application which was used to create</span>
+<span class="doccomment">/// the image.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ApplicationExtension</span> {
+    <span class="doccomment">/// Eight ASCII bytes of an application identifier.</span>
+    <span class="kw">pub</span> <span class="ident">application_identifier</span>: [<span class="ident">u8</span>; <span class="number">8</span>],
+    <span class="doccomment">/// Three bytes of an application authentication code.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Citing the GIF spec:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// &gt; Sequence of three bytes used to authenticate the Application Identifier. </span>
+    <span class="doccomment">/// An Application program may use an algorithm to compute a binary code that uniquely</span>
+    <span class="doccomment">/// identifies it as the application owning the Application Extension.</span>
+    <span class="kw">pub</span> <span class="ident">authentication_code</span>: [<span class="ident">u8</span>; <span class="number">3</span>]
 }
 
-<span class='kw'>impl</span> <span class='ident'>ApplicationExtension</span> {
-    <span class='doccomment'>/// Returns application identifier as a UTF-8 string, if possible.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// For correct images this method should always return `Some`.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>application_identifier_str</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>str</span><span class='op'>&gt;</span> {
-        <span class='ident'>str</span>::<span class='ident'>from_utf8</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>application_identifier</span>).<span class='ident'>ok</span>()
+<span class="kw">impl</span> <span class="ident">ApplicationExtension</span> {
+    <span class="doccomment">/// Returns application identifier as a UTF-8 string, if possible.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For correct images this method should always return `Some`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">application_identifier_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
+        <span class="ident">str</span>::<span class="ident">from_utf8</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">application_identifier</span>).<span class="ident">ok</span>()
     }
 
-    <span class='doccomment'>/// Returns authentication code as a UTF-8 string, if possible.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>authentication_code_str</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>str</span><span class='op'>&gt;</span> {
-        <span class='ident'>str</span>::<span class='ident'>from_utf8</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>authentication_code</span>).<span class='ident'>ok</span>()
+    <span class="doccomment">/// Returns authentication code as a UTF-8 string, if possible.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">authentication_code_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
+        <span class="ident">str</span>::<span class="ident">from_utf8</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">authentication_code</span>).<span class="ident">ok</span>()
     }
 
-    <span class='kw'>fn</span> <span class='ident'>load</span><span class='op'>&lt;</span><span class='ident'>R</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span> <span class='op'>+</span> <span class='ident'>BufRead</span><span class='op'>&gt;</span>(<span class='ident'>index</span>: <span class='ident'>usize</span>, <span class='ident'>r</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>R</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ApplicationExtension</span><span class='op'>&gt;</span> {
-        <span class='kw'>const</span> <span class='ident'>NAME</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span> <span class='op'>=</span> <span class='string'>&quot;application extension block&quot;</span>;
+    <span class="kw">fn</span> <span class="ident">load</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">BufRead</span><span class="op">&gt;</span>(<span class="ident">index</span>: <span class="ident">usize</span>, <span class="ident">r</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ApplicationExtension</span><span class="op">&gt;</span> {
+        <span class="kw">const</span> <span class="ident">NAME</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;application extension block&quot;</span>;
 
-        <span class='kw'>let</span> <span class='ident'>block_size</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_u8</span>(), <span class='string'>&quot;when reading block size of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>);
-        <span class='kw'>if</span> <span class='ident'>block_size</span> <span class='op'>!=</span> <span class='number'>0x0B</span> {
-            <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='macro'>invalid_format</span><span class='macro'>!</span>(<span class='string'>&quot;invalid block size in {} {}: {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>, <span class='ident'>block_size</span>));
+        <span class="kw">let</span> <span class="ident">block_size</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_u8</span>(), <span class="string">&quot;when reading block size of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>);
+        <span class="kw">if</span> <span class="ident">block_size</span> <span class="op">!=</span> <span class="number">0x0B</span> {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">invalid_format</span><span class="macro">!</span>(<span class="string">&quot;invalid block size in {} {}: {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>, <span class="ident">block_size</span>));
         }
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>application_identifier</span> <span class='op'>=</span> [<span class='number'>0u8</span>; <span class='number'>8</span>];
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_exact</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>application_identifier</span>)
-             .<span class='ident'>map_err</span>(<span class='macro'>if_eof</span><span class='macro'>!</span>(<span class='ident'>std</span>, <span class='string'>&quot;while reading application identifier in {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>)));
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">application_identifier</span> <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">8</span>];
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_exact</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">application_identifier</span>)
+             .<span class="ident">map_err</span>(<span class="macro">if_eof</span><span class="macro">!</span>(<span class="ident">std</span>, <span class="string">&quot;while reading application identifier in {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>)));
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>authentication_code</span> <span class='op'>=</span> [<span class='number'>0u8</span>; <span class='number'>3</span>];
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_exact</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>authentication_code</span>)
-             .<span class='ident'>map_err</span>(<span class='macro'>if_eof</span><span class='macro'>!</span>(<span class='ident'>std</span>, <span class='string'>&quot;while reading authentication code in {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>)));
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">authentication_code</span> <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">3</span>];
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_exact</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">authentication_code</span>)
+             .<span class="ident">map_err</span>(<span class="macro">if_eof</span><span class="macro">!</span>(<span class="ident">std</span>, <span class="string">&quot;while reading authentication code in {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>)));
 
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>skip_blocks</span>(<span class='ident'>r</span>, <span class='op'>||</span> <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;when reading application data of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>).<span class='ident'>into</span>()));
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">skip_blocks</span>(<span class="ident">r</span>, <span class="op">||</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;when reading application data of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>).<span class="ident">into</span>()));
 
-        <span class='prelude-val'>Ok</span>(<span class='ident'>ApplicationExtension</span> {
-            <span class='ident'>application_identifier</span>: <span class='ident'>application_identifier</span>,
-            <span class='ident'>authentication_code</span>: <span class='ident'>authentication_code</span>
+        <span class="prelude-val">Ok</span>(<span class="ident">ApplicationExtension</span> {
+            <span class="ident">application_identifier</span>: <span class="ident">application_identifier</span>,
+            <span class="ident">authentication_code</span>: <span class="ident">authentication_code</span>
         })
     }
 }
 
-<span class='doccomment'>/// Represents a comment extension block.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Comment block does not contain any metadata, so this struct is used for uniformity</span>
-<span class='doccomment'>/// as a placeholder in the enum.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>CommentExtension</span>;
+<span class="doccomment">/// Represents a comment extension block.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Comment block does not contain any metadata, so this struct is used for uniformity</span>
+<span class="doccomment">/// as a placeholder in the enum.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CommentExtension</span>;
 
-<span class='kw'>impl</span> <span class='ident'>CommentExtension</span> {
-    <span class='kw'>fn</span> <span class='ident'>load</span><span class='op'>&lt;</span><span class='ident'>R</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span> <span class='op'>+</span> <span class='ident'>BufRead</span><span class='op'>&gt;</span>(<span class='ident'>index</span>: <span class='ident'>usize</span>, <span class='ident'>r</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>R</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>CommentExtension</span><span class='op'>&gt;</span> {
-        <span class='kw'>const</span> <span class='ident'>NAME</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span> <span class='op'>=</span> <span class='string'>&quot;comments extension block&quot;</span>;
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>skip_blocks</span>(<span class='ident'>r</span>, <span class='op'>||</span> <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;when reading comment data of {} {}&quot;</span>, <span class='ident'>NAME</span>, <span class='ident'>index</span>).<span class='ident'>into</span>()));
+<span class="kw">impl</span> <span class="ident">CommentExtension</span> {
+    <span class="kw">fn</span> <span class="ident">load</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">BufRead</span><span class="op">&gt;</span>(<span class="ident">index</span>: <span class="ident">usize</span>, <span class="ident">r</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CommentExtension</span><span class="op">&gt;</span> {
+        <span class="kw">const</span> <span class="ident">NAME</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;comments extension block&quot;</span>;
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">skip_blocks</span>(<span class="ident">r</span>, <span class="op">||</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;when reading comment data of {} {}&quot;</span>, <span class="ident">NAME</span>, <span class="ident">index</span>).<span class="ident">into</span>()));
 
-        <span class='prelude-val'>Ok</span>(<span class='ident'>CommentExtension</span>)
+        <span class="prelude-val">Ok</span>(<span class="ident">CommentExtension</span>)
     }
 }
 
-<span class='doccomment'>/// Contains metadata about the whole GIF image.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Metadata</span> {
-    <span class='doccomment'>/// GIF format version from the file header.</span>
-    <span class='kw'>pub</span> <span class='ident'>version</span>: <span class='ident'>Version</span>,
+<span class="doccomment">/// Contains metadata about the whole GIF image.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Metadata</span> {
+    <span class="doccomment">/// GIF format version from the file header.</span>
+    <span class="kw">pub</span> <span class="ident">version</span>: <span class="ident">Version</span>,
 
-    <span class='doccomment'>/// Logical screen dimensions of the image.</span>
-    <span class='kw'>pub</span> <span class='ident'>dimensions</span>: <span class='ident'>Dimensions</span>,
+    <span class="doccomment">/// Logical screen dimensions of the image.</span>
+    <span class="kw">pub</span> <span class="ident">dimensions</span>: <span class="ident">Dimensions</span>,
 
-    <span class='doccomment'>/// Information about global color table, if it is present.</span>
-    <span class='kw'>pub</span> <span class='ident'>global_color_table</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ColorTable</span><span class='op'>&gt;</span>,
+    <span class="doccomment">/// Information about global color table, if it is present.</span>
+    <span class="kw">pub</span> <span class="ident">global_color_table</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ColorTable</span><span class="op">&gt;</span>,
 
-    <span class='doccomment'>/// Number of colors available to the original image.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Quoting the GIF spec:</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// &gt; Number of bits per primary color available to the original image, minus 1. </span>
-    <span class='doccomment'>/// This value represents the size of the entire palette from which the colors in the </span>
-    <span class='doccomment'>/// graphic were selected, not the number of colors actually used in the graphic. </span>
-    <span class='doccomment'>/// For example, if the value in this field is 3, then the palette of the original image </span>
-    <span class='doccomment'>/// had 4 bits per primary color available to create the image. This value should be set</span>
-    <span class='doccomment'>/// to indicate the richness of the original palette, even if not every color from the whole</span>
-    <span class='doccomment'>/// palette is available on the source machine.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Note that the value in this structure is the number of *colors*, not the number of *bits*.</span>
-    <span class='kw'>pub</span> <span class='ident'>color_resolution</span>: <span class='ident'>u16</span>,
-    <span class='doccomment'>/// Index of the default background color in the global color table.</span>
-    <span class='kw'>pub</span> <span class='ident'>background_color_index</span>: <span class='ident'>u8</span>,
-    <span class='doccomment'>/// A factor which defines the aspect ration of a pixel in the original image.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Quoting from the GIF spec:</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// &gt; Factor used to compute an approximation of the aspect ratio of the pixel in the original </span>
-    <span class='doccomment'>/// image. If the value of the field is not 0, this approximation of the aspect ratio is </span>
-    <span class='doccomment'>/// computed based on the formula: </span>
-    <span class='doccomment'>/// &gt;</span>
-    <span class='doccomment'>/// &gt;    Aspect Ratio = (Pixel Aspect Ratio + 15) / 64</span>
-    <span class='doccomment'>/// &gt;</span>
-    <span class='doccomment'>/// &gt; The Pixel Aspect Ratio is defined to be the quotient of the pixel&#39;s width over its</span>
-    <span class='doccomment'>/// height. The value range in this field allows specification of the widest pixel of 4:1 to</span>
-    <span class='doccomment'>/// the tallest pixel of 1:4 in increments of 1/64th.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// If zero, no information about pixel aspect ratio is available.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// See also `pixel_aspect_ratio_approx()` method.</span>
-    <span class='kw'>pub</span> <span class='ident'>pixel_aspect_ratio</span>: <span class='ident'>u8</span>,
+    <span class="doccomment">/// Number of colors available to the original image.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Quoting the GIF spec:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// &gt; Number of bits per primary color available to the original image, minus 1. </span>
+    <span class="doccomment">/// This value represents the size of the entire palette from which the colors in the </span>
+    <span class="doccomment">/// graphic were selected, not the number of colors actually used in the graphic. </span>
+    <span class="doccomment">/// For example, if the value in this field is 3, then the palette of the original image </span>
+    <span class="doccomment">/// had 4 bits per primary color available to create the image. This value should be set</span>
+    <span class="doccomment">/// to indicate the richness of the original palette, even if not every color from the whole</span>
+    <span class="doccomment">/// palette is available on the source machine.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Note that the value in this structure is the number of *colors*, not the number of *bits*.</span>
+    <span class="kw">pub</span> <span class="ident">color_resolution</span>: <span class="ident">u16</span>,
+    <span class="doccomment">/// Index of the default background color in the global color table.</span>
+    <span class="kw">pub</span> <span class="ident">background_color_index</span>: <span class="ident">u8</span>,
+    <span class="doccomment">/// A factor which defines the aspect ration of a pixel in the original image.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Quoting from the GIF spec:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// &gt; Factor used to compute an approximation of the aspect ratio of the pixel in the original </span>
+    <span class="doccomment">/// image. If the value of the field is not 0, this approximation of the aspect ratio is </span>
+    <span class="doccomment">/// computed based on the formula: </span>
+    <span class="doccomment">/// &gt;</span>
+    <span class="doccomment">/// &gt;    Aspect Ratio = (Pixel Aspect Ratio + 15) / 64</span>
+    <span class="doccomment">/// &gt;</span>
+    <span class="doccomment">/// &gt; The Pixel Aspect Ratio is defined to be the quotient of the pixel&#39;s width over its</span>
+    <span class="doccomment">/// height. The value range in this field allows specification of the widest pixel of 4:1 to</span>
+    <span class="doccomment">/// the tallest pixel of 1:4 in increments of 1/64th.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If zero, no information about pixel aspect ratio is available.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// See also `pixel_aspect_ratio_approx()` method.</span>
+    <span class="kw">pub</span> <span class="ident">pixel_aspect_ratio</span>: <span class="ident">u8</span>,
 
-    <span class='doccomment'>/// Metadata for each block in the GIF image.</span>
-    <span class='kw'>pub</span> <span class='ident'>blocks</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Block</span><span class='op'>&gt;</span>
+    <span class="doccomment">/// Metadata for each block in the GIF image.</span>
+    <span class="kw">pub</span> <span class="ident">blocks</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Block</span><span class="op">&gt;</span>
 }
 
-<span class='kw'>impl</span> <span class='ident'>Metadata</span> {
-    <span class='doccomment'>/// Computes pixel aspect ratio approximation, if it is available.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// See `pixel_aspect_ration` field documentation.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>pixel_aspect_ratio_approx</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>f64</span><span class='op'>&gt;</span> {
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>pixel_aspect_ratio</span> <span class='op'>==</span> <span class='number'>0</span> {
-            <span class='prelude-val'>None</span>
-        } <span class='kw'>else</span> {
-            <span class='prelude-val'>Some</span>((<span class='self'>self</span>.<span class='ident'>pixel_aspect_ratio</span> <span class='kw'>as</span> <span class='ident'>f64</span> <span class='op'>+</span> <span class='number'>15.0</span>)<span class='op'>/</span><span class='number'>64.0</span>)
+<span class="kw">impl</span> <span class="ident">Metadata</span> {
+    <span class="doccomment">/// Computes pixel aspect ratio approximation, if it is available.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// See `pixel_aspect_ration` field documentation.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pixel_aspect_ratio_approx</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">pixel_aspect_ratio</span> <span class="op">==</span> <span class="number">0</span> {
+            <span class="prelude-val">None</span>
+        } <span class="kw">else</span> {
+            <span class="prelude-val">Some</span>((<span class="self">self</span>.<span class="ident">pixel_aspect_ratio</span> <span class="kw">as</span> <span class="ident">f64</span> <span class="op">+</span> <span class="number">15.0</span>)<span class="op">/</span><span class="number">64.0</span>)
         }
     }
 
-    <span class='doccomment'>/// Computes the number of frames, i.e. the number of image descriptor blocks.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>frames_number</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-        <span class='self'>self</span>.<span class='ident'>blocks</span>.<span class='ident'>iter</span>().<span class='ident'>filter</span>(<span class='op'>|</span><span class='ident'>b</span><span class='op'>|</span> <span class='kw'>match</span> <span class='kw-2'>*</span><span class='kw-2'>*</span><span class='ident'>b</span> {
-            <span class='ident'>Block</span>::<span class='ident'>ImageDescriptor</span>(_) <span class='op'>=&gt;</span> <span class='bool-val'>true</span>,
-            _ <span class='op'>=&gt;</span> <span class='bool-val'>false</span>
-        }).<span class='ident'>count</span>()
+    <span class="doccomment">/// Computes the number of frames, i.e. the number of image descriptor blocks.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">frames_number</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">blocks</span>.<span class="ident">iter</span>().<span class="ident">filter</span>(<span class="op">|</span><span class="ident">b</span><span class="op">|</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">b</span> {
+            <span class="ident">Block</span>::<span class="ident">ImageDescriptor</span>(_) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>
+        }).<span class="ident">count</span>()
     }
 
-    <span class='doccomment'>/// Returns `true` if the image is animated, `false` otherwise.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// This is currently decided based on the number of frames. If there are more than one frames,</span>
-    <span class='doccomment'>/// then the image is considered animated.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_animated</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='comment'>// TODO: is this right?</span>
-        <span class='self'>self</span>.<span class='ident'>frames_number</span>() <span class='op'>&gt;</span> <span class='number'>1</span>
+    <span class="doccomment">/// Returns `true` if the image is animated, `false` otherwise.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is currently decided based on the number of frames. If there are more than one frames,</span>
+    <span class="doccomment">/// then the image is considered animated.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_animated</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="comment">// TODO: is this right?</span>
+        <span class="self">self</span>.<span class="ident">frames_number</span>() <span class="op">&gt;</span> <span class="number">1</span>
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>LoadableMetadata</span> <span class='kw'>for</span> <span class='ident'>Metadata</span> {
-    <span class='kw'>fn</span> <span class='ident'>load</span><span class='op'>&lt;</span><span class='ident'>R</span>: <span class='question-mark'>?</span><span class='ident'>Sized</span> <span class='op'>+</span> <span class='ident'>BufRead</span><span class='op'>&gt;</span>(<span class='ident'>r</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>R</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Metadata</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>signature</span> <span class='op'>=</span> [<span class='number'>0u8</span>; <span class='number'>6</span>];
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_exact</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>signature</span>).<span class='ident'>map_err</span>(<span class='macro'>if_eof</span><span class='macro'>!</span>(<span class='ident'>std</span>, <span class='string'>&quot;when reading GIF signature&quot;</span>)));
+<span class="kw">impl</span> <span class="ident">LoadableMetadata</span> <span class="kw">for</span> <span class="ident">Metadata</span> {
+    <span class="kw">fn</span> <span class="ident">load</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">BufRead</span><span class="op">&gt;</span>(<span class="ident">r</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Metadata</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">signature</span> <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">6</span>];
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_exact</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">signature</span>).<span class="ident">map_err</span>(<span class="macro">if_eof</span><span class="macro">!</span>(<span class="ident">std</span>, <span class="string">&quot;when reading GIF signature&quot;</span>)));
 
-        <span class='kw'>let</span> <span class='ident'>version</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>Version</span>::<span class='ident'>from_bytes</span>(<span class='kw-2'>&amp;</span><span class='ident'>signature</span>[<span class='number'>3</span>..])
-            .<span class='ident'>ok_or</span>(<span class='macro'>invalid_format</span><span class='macro'>!</span>(<span class='string'>&quot;invalid GIF version: {:?}&quot;</span>, <span class='kw-2'>&amp;</span><span class='ident'>signature</span>[<span class='number'>3</span>..])));
+        <span class="kw">let</span> <span class="ident">version</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">Version</span>::<span class="ident">from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">signature</span>[<span class="number">3</span>..])
+            .<span class="ident">ok_or</span>(<span class="macro">invalid_format</span><span class="macro">!</span>(<span class="string">&quot;invalid GIF version: {:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">signature</span>[<span class="number">3</span>..])));
 
-        <span class='kw'>let</span> <span class='ident'>width</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_u16</span>::<span class='op'>&lt;</span><span class='ident'>LittleEndian</span><span class='op'>&gt;</span>(), <span class='string'>&quot;when reading logical width&quot;</span>);
-        <span class='kw'>let</span> <span class='ident'>height</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_u16</span>::<span class='op'>&lt;</span><span class='ident'>LittleEndian</span><span class='op'>&gt;</span>(), <span class='string'>&quot;when reading logical height&quot;</span>);
+        <span class="kw">let</span> <span class="ident">width</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_u16</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>(), <span class="string">&quot;when reading logical width&quot;</span>);
+        <span class="kw">let</span> <span class="ident">height</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_u16</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>(), <span class="string">&quot;when reading logical height&quot;</span>);
 
-        <span class='kw'>let</span> <span class='ident'>packed_flags</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_u8</span>(), <span class='string'>&quot;when reading global flags&quot;</span>);
+        <span class="kw">let</span> <span class="ident">packed_flags</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_u8</span>(), <span class="string">&quot;when reading global flags&quot;</span>);
 
-        <span class='kw'>let</span> <span class='ident'>global_color_table</span> <span class='op'>=</span>        (<span class='ident'>packed_flags</span> <span class='op'>&amp;</span> <span class='number'>0b10000000</span>) <span class='op'>&gt;</span> <span class='number'>0</span>;
-        <span class='kw'>let</span> <span class='ident'>color_resolution</span> <span class='op'>=</span>          (<span class='ident'>packed_flags</span> <span class='op'>&amp;</span> <span class='number'>0b01110000</span>) <span class='op'>&gt;&gt;</span> <span class='number'>4</span>;
-        <span class='kw'>let</span> <span class='ident'>global_color_table_sorted</span> <span class='op'>=</span> (<span class='ident'>packed_flags</span> <span class='op'>&amp;</span> <span class='number'>0b00001000</span>) <span class='op'>&gt;</span> <span class='number'>0</span>;
-        <span class='kw'>let</span> <span class='ident'>global_color_table_size_p</span> <span class='op'>=</span> (<span class='ident'>packed_flags</span> <span class='op'>&amp;</span> <span class='number'>0b00000111</span>) <span class='op'>&gt;&gt;</span> <span class='number'>0</span>;
+        <span class="kw">let</span> <span class="ident">global_color_table</span> <span class="op">=</span>        (<span class="ident">packed_flags</span> <span class="op">&amp;</span> <span class="number">0b10000000</span>) <span class="op">&gt;</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="ident">color_resolution</span> <span class="op">=</span>          (<span class="ident">packed_flags</span> <span class="op">&amp;</span> <span class="number">0b01110000</span>) <span class="op">&gt;&gt;</span> <span class="number">4</span>;
+        <span class="kw">let</span> <span class="ident">global_color_table_sorted</span> <span class="op">=</span> (<span class="ident">packed_flags</span> <span class="op">&amp;</span> <span class="number">0b00001000</span>) <span class="op">&gt;</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="ident">global_color_table_size_p</span> <span class="op">=</span> (<span class="ident">packed_flags</span> <span class="op">&amp;</span> <span class="number">0b00000111</span>) <span class="op">&gt;&gt;</span> <span class="number">0</span>;
 
-        <span class='kw'>let</span> <span class='ident'>global_color_table_size</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>global_color_table</span> {
-            <span class='number'>1u16</span> <span class='op'>&lt;&lt;</span> (<span class='ident'>global_color_table_size_p</span> <span class='op'>+</span> <span class='number'>1</span>) 
-        } <span class='kw'>else</span> {
-            <span class='number'>0</span>
+        <span class="kw">let</span> <span class="ident">global_color_table_size</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">global_color_table</span> {
+            <span class="number">1u16</span> <span class="op">&lt;&lt;</span> (<span class="ident">global_color_table_size_p</span> <span class="op">+</span> <span class="number">1</span>) 
+        } <span class="kw">else</span> {
+            <span class="number">0</span>
         };
-        <span class='kw'>let</span> <span class='ident'>background_color_index</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_u8</span>(), <span class='string'>&quot;when reading background color index&quot;</span>);
-        <span class='kw'>let</span> <span class='ident'>pixel_aspect_ratio</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_u8</span>(), <span class='string'>&quot;when reading pixel aspect ration&quot;</span>);
+        <span class="kw">let</span> <span class="ident">background_color_index</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_u8</span>(), <span class="string">&quot;when reading background color index&quot;</span>);
+        <span class="kw">let</span> <span class="ident">pixel_aspect_ratio</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_u8</span>(), <span class="string">&quot;when reading pixel aspect ration&quot;</span>);
 
-        <span class='kw'>if</span> <span class='ident'>global_color_table</span> {
-            <span class='kw'>let</span> <span class='ident'>skip_size</span> <span class='op'>=</span> <span class='ident'>global_color_table_size</span> <span class='kw'>as</span> <span class='ident'>u64</span> <span class='op'>*</span> <span class='number'>3</span>;
-            <span class='kw'>if</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>skip_exact</span>(<span class='ident'>skip_size</span>)) <span class='op'>!=</span> <span class='ident'>skip_size</span> {
-                <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='macro'>unexpected_eof</span><span class='macro'>!</span>(<span class='string'>&quot;when reading global color table&quot;</span>));
+        <span class="kw">if</span> <span class="ident">global_color_table</span> {
+            <span class="kw">let</span> <span class="ident">skip_size</span> <span class="op">=</span> <span class="ident">global_color_table_size</span> <span class="kw">as</span> <span class="ident">u64</span> <span class="op">*</span> <span class="number">3</span>;
+            <span class="kw">if</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">skip_exact</span>(<span class="ident">skip_size</span>)) <span class="op">!=</span> <span class="ident">skip_size</span> {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">unexpected_eof</span><span class="macro">!</span>(<span class="string">&quot;when reading global color table&quot;</span>));
             }
         }
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>blocks</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>index</span> <span class='op'>=</span> <span class='number'>0usize</span>;
-        <span class='kw'>loop</span> {
-            <span class='kw'>let</span> <span class='ident'>separator</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_u8</span>(), <span class='string'>&quot;when reading separator of block {}&quot;</span>, <span class='ident'>index</span>);
-            <span class='kw'>let</span> <span class='ident'>block</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>separator</span> {
-                <span class='number'>0x2c</span> <span class='op'>=&gt;</span> <span class='ident'>Block</span>::<span class='ident'>ImageDescriptor</span>(<span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>ImageDescriptor</span>::<span class='ident'>load</span>(<span class='ident'>index</span>, <span class='ident'>r</span>))),
-                <span class='number'>0x21</span> <span class='op'>=&gt;</span> {
-                    <span class='kw'>let</span> <span class='ident'>label</span> <span class='op'>=</span> <span class='macro'>try_if_eof</span><span class='macro'>!</span>(<span class='ident'>r</span>.<span class='ident'>read_u8</span>(), <span class='string'>&quot;when reading label of block {}&quot;</span>, <span class='ident'>index</span>);
-                    <span class='kw'>match</span> <span class='ident'>label</span> {
-                        <span class='number'>0x01</span> <span class='op'>=&gt;</span> <span class='ident'>Block</span>::<span class='ident'>PlainTextExtension</span>(<span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>PlainTextExtension</span>::<span class='ident'>load</span>(<span class='ident'>index</span>, <span class='ident'>r</span>))),
-                        <span class='number'>0xf9</span> <span class='op'>=&gt;</span> <span class='ident'>Block</span>::<span class='ident'>GraphicControlExtension</span>(<span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>GraphicControlExtension</span>::<span class='ident'>load</span>(<span class='ident'>index</span>, <span class='ident'>r</span>))),
-                        <span class='number'>0xfe</span> <span class='op'>=&gt;</span> <span class='ident'>Block</span>::<span class='ident'>CommentExtension</span>(<span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>CommentExtension</span>::<span class='ident'>load</span>(<span class='ident'>index</span>, <span class='ident'>r</span>))),
-                        <span class='number'>0xff</span> <span class='op'>=&gt;</span> <span class='ident'>Block</span>::<span class='ident'>ApplicationExtension</span>(<span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>ApplicationExtension</span>::<span class='ident'>load</span>(<span class='ident'>index</span>, <span class='ident'>r</span>))),
-                        _ <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='macro'>invalid_format</span><span class='macro'>!</span>(<span class='string'>&quot;unknown extension type of block {}: 0x{:X}&quot;</span>, <span class='ident'>index</span>, <span class='ident'>label</span>))
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">blocks</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index</span> <span class="op">=</span> <span class="number">0usize</span>;
+        <span class="kw">loop</span> {
+            <span class="kw">let</span> <span class="ident">separator</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_u8</span>(), <span class="string">&quot;when reading separator of block {}&quot;</span>, <span class="ident">index</span>);
+            <span class="kw">let</span> <span class="ident">block</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">separator</span> {
+                <span class="number">0x2c</span> <span class="op">=&gt;</span> <span class="ident">Block</span>::<span class="ident">ImageDescriptor</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">ImageDescriptor</span>::<span class="ident">load</span>(<span class="ident">index</span>, <span class="ident">r</span>))),
+                <span class="number">0x21</span> <span class="op">=&gt;</span> {
+                    <span class="kw">let</span> <span class="ident">label</span> <span class="op">=</span> <span class="macro">try_if_eof</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">read_u8</span>(), <span class="string">&quot;when reading label of block {}&quot;</span>, <span class="ident">index</span>);
+                    <span class="kw">match</span> <span class="ident">label</span> {
+                        <span class="number">0x01</span> <span class="op">=&gt;</span> <span class="ident">Block</span>::<span class="ident">PlainTextExtension</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">PlainTextExtension</span>::<span class="ident">load</span>(<span class="ident">index</span>, <span class="ident">r</span>))),
+                        <span class="number">0xf9</span> <span class="op">=&gt;</span> <span class="ident">Block</span>::<span class="ident">GraphicControlExtension</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">GraphicControlExtension</span>::<span class="ident">load</span>(<span class="ident">index</span>, <span class="ident">r</span>))),
+                        <span class="number">0xfe</span> <span class="op">=&gt;</span> <span class="ident">Block</span>::<span class="ident">CommentExtension</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">CommentExtension</span>::<span class="ident">load</span>(<span class="ident">index</span>, <span class="ident">r</span>))),
+                        <span class="number">0xff</span> <span class="op">=&gt;</span> <span class="ident">Block</span>::<span class="ident">ApplicationExtension</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">ApplicationExtension</span>::<span class="ident">load</span>(<span class="ident">index</span>, <span class="ident">r</span>))),
+                        _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">invalid_format</span><span class="macro">!</span>(<span class="string">&quot;unknown extension type of block {}: 0x{:X}&quot;</span>, <span class="ident">index</span>, <span class="ident">label</span>))
                     }
                 },
-                <span class='number'>0x3b</span> <span class='op'>=&gt;</span> <span class='kw'>break</span>,
-                _ <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='macro'>invalid_format</span><span class='macro'>!</span>(<span class='string'>&quot;unknown block type of block {}: 0x{:X}&quot;</span>, <span class='ident'>index</span>, <span class='ident'>separator</span>))
+                <span class="number">0x3b</span> <span class="op">=&gt;</span> <span class="kw">break</span>,
+                _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">invalid_format</span><span class="macro">!</span>(<span class="string">&quot;unknown block type of block {}: 0x{:X}&quot;</span>, <span class="ident">index</span>, <span class="ident">separator</span>))
             };
-            <span class='ident'>blocks</span>.<span class='ident'>push</span>(<span class='ident'>block</span>);
-            <span class='ident'>index</span> <span class='op'>+=</span> <span class='number'>1</span>;
+            <span class="ident">blocks</span>.<span class="ident">push</span>(<span class="ident">block</span>);
+            <span class="ident">index</span> <span class="op">+=</span> <span class="number">1</span>;
         }
 
-        <span class='prelude-val'>Ok</span>(<span class='ident'>Metadata</span> {
-            <span class='ident'>version</span>: <span class='ident'>version</span>,
+        <span class="prelude-val">Ok</span>(<span class="ident">Metadata</span> {
+            <span class="ident">version</span>: <span class="ident">version</span>,
 
-            <span class='ident'>dimensions</span>: (<span class='ident'>width</span>, <span class='ident'>height</span>).<span class='ident'>into</span>(),
+            <span class="ident">dimensions</span>: (<span class="ident">width</span>, <span class="ident">height</span>).<span class="ident">into</span>(),
 
-            <span class='ident'>global_color_table</span>: <span class='kw'>if</span> <span class='ident'>global_color_table</span> {
-                <span class='prelude-val'>Some</span>(<span class='ident'>ColorTable</span> {
-                    <span class='ident'>size</span>: <span class='ident'>global_color_table_size</span>,
-                    <span class='ident'>sorted</span>: <span class='ident'>global_color_table_sorted</span>
+            <span class="ident">global_color_table</span>: <span class="kw">if</span> <span class="ident">global_color_table</span> {
+                <span class="prelude-val">Some</span>(<span class="ident">ColorTable</span> {
+                    <span class="ident">size</span>: <span class="ident">global_color_table_size</span>,
+                    <span class="ident">sorted</span>: <span class="ident">global_color_table_sorted</span>
                 })
-            } <span class='kw'>else</span> {
-                <span class='prelude-val'>None</span>
+            } <span class="kw">else</span> {
+                <span class="prelude-val">None</span>
             },
 
-            <span class='ident'>color_resolution</span>: <span class='number'>1u16</span> <span class='op'>&lt;&lt;</span> (<span class='ident'>color_resolution</span> <span class='op'>+</span> <span class='number'>1</span>),
+            <span class="ident">color_resolution</span>: <span class="number">1u16</span> <span class="op">&lt;&lt;</span> (<span class="ident">color_resolution</span> <span class="op">+</span> <span class="number">1</span>),
 
-            <span class='ident'>background_color_index</span>: <span class='ident'>background_color_index</span>,
-            <span class='ident'>pixel_aspect_ratio</span>: <span class='ident'>pixel_aspect_ratio</span>,
+            <span class="ident">background_color_index</span>: <span class="ident">background_color_index</span>,
+            <span class="ident">pixel_aspect_ratio</span>: <span class="ident">pixel_aspect_ratio</span>,
 
-            <span class='ident'>blocks</span>: <span class='ident'>blocks</span>
+            <span class="ident">blocks</span>: <span class="ident">blocks</span>
         })
     }
 }

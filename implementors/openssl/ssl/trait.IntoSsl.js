@@ -2,7 +2,6 @@
 implementors["gfx"] = [];
 implementors["hyper"] = [];
 implementors["layout_thread"] = [];
-implementors["net"] = [];
 implementors["net_traits"] = [];
 implementors["openssl"] = [];
 implementors["script"] = [];

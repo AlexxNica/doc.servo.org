@@ -150,113 +150,113 @@
 <span id="105">105</span>
 <span id="106">106</span>
 <span id="107">107</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! A timer thread that composites near the end of the frame.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! This is useful when we need to composite next frame but we want to opportunistically give the</span>
-<span class='doccomment'>//! painting thread time to paint if it can.</span>
+<span class="doccomment">//! A timer thread that composites near the end of the frame.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! This is useful when we need to composite next frame but we want to opportunistically give the</span>
+<span class="doccomment">//! painting thread time to paint if it can.</span>
 
-<span class='kw'>use</span> <span class='ident'>compositor_thread</span>::{<span class='ident'>CompositorProxy</span>, <span class='ident'>Msg</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>mpsc</span>::{<span class='ident'>Receiver</span>, <span class='ident'>Sender</span>, <span class='ident'>channel</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>thread</span>::{<span class='self'>self</span>, <span class='ident'>Builder</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>time</span>::<span class='ident'>Duration</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>u32</span>;
-<span class='kw'>use</span> <span class='ident'>time</span>;
+<span class="kw">use</span> <span class="ident">compositor_thread</span>::{<span class="ident">CompositorProxy</span>, <span class="ident">Msg</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>::{<span class="ident">Receiver</span>, <span class="ident">Sender</span>, <span class="ident">channel</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>::{<span class="self">self</span>, <span class="ident">Builder</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::<span class="ident">Duration</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">u32</span>;
+<span class="kw">use</span> <span class="ident">time</span>;
 
-<span class='doccomment'>/// The amount of time in nanoseconds that we give to the painting thread to paint. When this</span>
-<span class='doccomment'>/// expires, we give up and composite anyway.</span>
-<span class='kw'>static</span> <span class='ident'>TIMEOUT</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='number'>12_000_000</span>;
+<span class="doccomment">/// The amount of time in nanoseconds that we give to the painting thread to paint. When this</span>
+<span class="doccomment">/// expires, we give up and composite anyway.</span>
+<span class="kw">static</span> <span class="ident">TIMEOUT</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">12_000_000</span>;
 
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>DelayedCompositionTimerProxy</span> {
-    <span class='ident'>sender</span>: <span class='ident'>Sender</span><span class='op'>&lt;</span><span class='ident'>ToDelayedCompositionTimerMsg</span><span class='op'>&gt;</span>,
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DelayedCompositionTimerProxy</span> {
+    <span class="ident">sender</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">ToDelayedCompositionTimerMsg</span><span class="op">&gt;</span>,
 }
 
-<span class='kw'>struct</span> <span class='ident'>DelayedCompositionTimer</span> {
-    <span class='ident'>compositor_proxy</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>CompositorProxy</span><span class='op'>&gt;</span>,
-    <span class='ident'>receiver</span>: <span class='ident'>Receiver</span><span class='op'>&lt;</span><span class='ident'>ToDelayedCompositionTimerMsg</span><span class='op'>&gt;</span>,
+<span class="kw">struct</span> <span class="ident">DelayedCompositionTimer</span> {
+    <span class="ident">compositor_proxy</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">CompositorProxy</span><span class="op">&gt;</span>,
+    <span class="ident">receiver</span>: <span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">ToDelayedCompositionTimerMsg</span><span class="op">&gt;</span>,
 }
 
-<span class='kw'>enum</span> <span class='ident'>ToDelayedCompositionTimerMsg</span> {
-    <span class='ident'>Exit</span>,
-    <span class='ident'>ScheduleComposite</span>(<span class='ident'>u64</span>),
+<span class="kw">enum</span> <span class="ident">ToDelayedCompositionTimerMsg</span> {
+    <span class="ident">Exit</span>,
+    <span class="ident">ScheduleComposite</span>(<span class="ident">u64</span>),
 }
 
-<span class='kw'>impl</span> <span class='ident'>DelayedCompositionTimerProxy</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>compositor_proxy</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>CompositorProxy</span> <span class='op'>+</span> <span class='ident'>Send</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>DelayedCompositionTimerProxy</span> {
-        <span class='kw'>let</span> (<span class='ident'>to_timer_sender</span>, <span class='ident'>to_timer_receiver</span>) <span class='op'>=</span> <span class='ident'>channel</span>();
-        <span class='ident'>Builder</span>::<span class='ident'>new</span>().<span class='ident'>spawn</span>(<span class='kw'>move</span> <span class='op'>||</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>timer</span> <span class='op'>=</span> <span class='ident'>DelayedCompositionTimer</span> {
-                <span class='ident'>compositor_proxy</span>: <span class='ident'>compositor_proxy</span>,
-                <span class='ident'>receiver</span>: <span class='ident'>to_timer_receiver</span>,
+<span class="kw">impl</span> <span class="ident">DelayedCompositionTimerProxy</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">compositor_proxy</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">CompositorProxy</span> <span class="op">+</span> <span class="ident">Send</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">DelayedCompositionTimerProxy</span> {
+        <span class="kw">let</span> (<span class="ident">to_timer_sender</span>, <span class="ident">to_timer_receiver</span>) <span class="op">=</span> <span class="ident">channel</span>();
+        <span class="ident">Builder</span>::<span class="ident">new</span>().<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">||</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">timer</span> <span class="op">=</span> <span class="ident">DelayedCompositionTimer</span> {
+                <span class="ident">compositor_proxy</span>: <span class="ident">compositor_proxy</span>,
+                <span class="ident">receiver</span>: <span class="ident">to_timer_receiver</span>,
             };
-            <span class='ident'>timer</span>.<span class='ident'>run</span>();
-        }).<span class='ident'>unwrap</span>();
-        <span class='ident'>DelayedCompositionTimerProxy</span> {
-            <span class='ident'>sender</span>: <span class='ident'>to_timer_sender</span>,
+            <span class="ident">timer</span>.<span class="ident">run</span>();
+        }).<span class="ident">unwrap</span>();
+        <span class="ident">DelayedCompositionTimerProxy</span> {
+            <span class="ident">sender</span>: <span class="ident">to_timer_sender</span>,
         }
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>schedule_composite</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>timestamp</span>: <span class='ident'>u64</span>) {
-        <span class='self'>self</span>.<span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='ident'>ToDelayedCompositionTimerMsg</span>::<span class='ident'>ScheduleComposite</span>(<span class='ident'>timestamp</span>)).<span class='ident'>unwrap</span>()
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">schedule_composite</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">timestamp</span>: <span class="ident">u64</span>) {
+        <span class="self">self</span>.<span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">ToDelayedCompositionTimerMsg</span>::<span class="ident">ScheduleComposite</span>(<span class="ident">timestamp</span>)).<span class="ident">unwrap</span>()
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>shutdown</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>sender</span>.<span class='ident'>send</span>(<span class='ident'>ToDelayedCompositionTimerMsg</span>::<span class='ident'>Exit</span>).<span class='ident'>unwrap</span>()
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">shutdown</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">ToDelayedCompositionTimerMsg</span>::<span class="ident">Exit</span>).<span class="ident">unwrap</span>()
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>DelayedCompositionTimer</span> {
-    <span class='kw'>fn</span> <span class='ident'>run</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='lifetime'>&#39;outer</span>: <span class='kw'>loop</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>timestamp</span>;
-            <span class='kw'>loop</span> {
-                <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>receiver</span>.<span class='ident'>recv</span>() {
-                    <span class='prelude-val'>Ok</span>(<span class='ident'>ToDelayedCompositionTimerMsg</span>::<span class='ident'>ScheduleComposite</span>(<span class='ident'>this_timestamp</span>)) <span class='op'>=&gt;</span> {
-                        <span class='ident'>timestamp</span> <span class='op'>=</span> <span class='ident'>this_timestamp</span>;
-                        <span class='kw'>break</span>
+<span class="kw">impl</span> <span class="ident">DelayedCompositionTimer</span> {
+    <span class="kw">fn</span> <span class="ident">run</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="lifetime">&#39;outer</span>: <span class="kw">loop</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">timestamp</span>;
+            <span class="kw">loop</span> {
+                <span class="kw">match</span> <span class="self">self</span>.<span class="ident">receiver</span>.<span class="ident">recv</span>() {
+                    <span class="prelude-val">Ok</span>(<span class="ident">ToDelayedCompositionTimerMsg</span>::<span class="ident">ScheduleComposite</span>(<span class="ident">this_timestamp</span>)) <span class="op">=&gt;</span> {
+                        <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">this_timestamp</span>;
+                        <span class="kw">break</span>
                     }
-                    <span class='prelude-val'>Ok</span>(<span class='ident'>ToDelayedCompositionTimerMsg</span>::<span class='ident'>Exit</span>) <span class='op'>=&gt;</span> <span class='kw'>break</span> <span class='lifetime'>&#39;outer</span>,
-                    _ <span class='op'>=&gt;</span> <span class='kw'>break</span> <span class='lifetime'>&#39;outer</span>,
+                    <span class="prelude-val">Ok</span>(<span class="ident">ToDelayedCompositionTimerMsg</span>::<span class="ident">Exit</span>) <span class="op">=&gt;</span> <span class="kw">break</span> <span class="lifetime">&#39;outer</span>,
+                    _ <span class="op">=&gt;</span> <span class="kw">break</span> <span class="lifetime">&#39;outer</span>,
                 }
             }
 
-            <span class='comment'>// Drain all messages from the queue.</span>
-            <span class='kw'>loop</span> {
-                <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>receiver</span>.<span class='ident'>try_recv</span>() {
-                    <span class='prelude-val'>Ok</span>(<span class='ident'>ToDelayedCompositionTimerMsg</span>::<span class='ident'>ScheduleComposite</span>(<span class='ident'>this_timestamp</span>)) <span class='op'>=&gt;</span> {
-                        <span class='ident'>timestamp</span> <span class='op'>=</span> <span class='ident'>this_timestamp</span>;
-                        <span class='kw'>break</span>
+            <span class="comment">// Drain all messages from the queue.</span>
+            <span class="kw">loop</span> {
+                <span class="kw">match</span> <span class="self">self</span>.<span class="ident">receiver</span>.<span class="ident">try_recv</span>() {
+                    <span class="prelude-val">Ok</span>(<span class="ident">ToDelayedCompositionTimerMsg</span>::<span class="ident">ScheduleComposite</span>(<span class="ident">this_timestamp</span>)) <span class="op">=&gt;</span> {
+                        <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">this_timestamp</span>;
+                        <span class="kw">break</span>
                     }
-                    _ <span class='op'>=&gt;</span> <span class='kw'>break</span>,
+                    _ <span class="op">=&gt;</span> <span class="kw">break</span>,
                 }
             }
 
-            <span class='kw'>let</span> <span class='ident'>target</span> <span class='op'>=</span> <span class='ident'>timestamp</span> <span class='op'>+</span> <span class='ident'>TIMEOUT</span>;
-            <span class='kw'>let</span> <span class='ident'>now</span> <span class='op'>=</span> <span class='ident'>time</span>::<span class='ident'>precise_time_ns</span>();
-            <span class='kw'>if</span> <span class='ident'>target</span> <span class='op'>&gt;</span> <span class='ident'>now</span> {
-                <span class='kw'>let</span> <span class='ident'>delta_ns</span> <span class='op'>=</span> <span class='ident'>target</span> <span class='op'>-</span> <span class='ident'>now</span>;
-                <span class='ident'>thread</span>::<span class='ident'>sleep</span>(<span class='ident'>duration_from_nanoseconds</span>(<span class='ident'>delta_ns</span>));
+            <span class="kw">let</span> <span class="ident">target</span> <span class="op">=</span> <span class="ident">timestamp</span> <span class="op">+</span> <span class="ident">TIMEOUT</span>;
+            <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident">time</span>::<span class="ident">precise_time_ns</span>();
+            <span class="kw">if</span> <span class="ident">target</span> <span class="op">&gt;</span> <span class="ident">now</span> {
+                <span class="kw">let</span> <span class="ident">delta_ns</span> <span class="op">=</span> <span class="ident">target</span> <span class="op">-</span> <span class="ident">now</span>;
+                <span class="ident">thread</span>::<span class="ident">sleep</span>(<span class="ident">duration_from_nanoseconds</span>(<span class="ident">delta_ns</span>));
             }
-            <span class='self'>self</span>.<span class='ident'>compositor_proxy</span>.<span class='ident'>send</span>(<span class='ident'>Msg</span>::<span class='ident'>DelayedCompositionTimeout</span>(<span class='ident'>timestamp</span>));
+            <span class="self">self</span>.<span class="ident">compositor_proxy</span>.<span class="ident">send</span>(<span class="ident">Msg</span>::<span class="ident">DelayedCompositionTimeout</span>(<span class="ident">timestamp</span>));
         }
     }
 }
 
-<span class='kw'>fn</span> <span class='ident'>duration_from_nanoseconds</span>(<span class='ident'>nanos</span>: <span class='ident'>u64</span>) <span class='op'>-&gt;</span> <span class='ident'>Duration</span> {
-    <span class='kw'>pub</span> <span class='kw'>const</span> <span class='ident'>NANOS_PER_SEC</span>: <span class='ident'>u32</span> <span class='op'>=</span> <span class='number'>1_000_000_000</span>;
+<span class="kw">fn</span> <span class="ident">duration_from_nanoseconds</span>(<span class="ident">nanos</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">NANOS_PER_SEC</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1_000_000_000</span>;
 
-    <span class='comment'>// Get number of seconds.</span>
-    <span class='kw'>let</span> <span class='ident'>secs</span> <span class='op'>=</span> <span class='ident'>nanos</span> <span class='op'>/</span> <span class='ident'>NANOS_PER_SEC</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
+    <span class="comment">// Get number of seconds.</span>
+    <span class="kw">let</span> <span class="ident">secs</span> <span class="op">=</span> <span class="ident">nanos</span> <span class="op">/</span> <span class="ident">NANOS_PER_SEC</span> <span class="kw">as</span> <span class="ident">u64</span>;
 
-    <span class='comment'>// Get number of extra nanoseconds. This should always fit in a u32, but check anyway.</span>
-    <span class='kw'>let</span> <span class='ident'>subsec_nanos</span> <span class='op'>=</span> <span class='ident'>nanos</span> <span class='op'>%</span> <span class='ident'>NANOS_PER_SEC</span> <span class='kw'>as</span> <span class='ident'>u64</span>;
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>subsec_nanos</span> <span class='op'>&lt;=</span> <span class='ident'>u32</span>::<span class='ident'>MAX</span> <span class='kw'>as</span> <span class='ident'>u64</span>);
+    <span class="comment">// Get number of extra nanoseconds. This should always fit in a u32, but check anyway.</span>
+    <span class="kw">let</span> <span class="ident">subsec_nanos</span> <span class="op">=</span> <span class="ident">nanos</span> <span class="op">%</span> <span class="ident">NANOS_PER_SEC</span> <span class="kw">as</span> <span class="ident">u64</span>;
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">subsec_nanos</span> <span class="op">&lt;=</span> <span class="ident">u32</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">u64</span>);
 
-    <span class='ident'>Duration</span>::<span class='ident'>new</span>(<span class='ident'>secs</span>, <span class='ident'>subsec_nanos</span> <span class='kw'>as</span> <span class='ident'>u32</span>)
+    <span class="ident">Duration</span>::<span class="ident">new</span>(<span class="ident">secs</span>, <span class="ident">subsec_nanos</span> <span class="kw">as</span> <span class="ident">u32</span>)
 }
 </pre>
 </section>

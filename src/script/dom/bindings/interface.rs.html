@@ -519,482 +519,482 @@
 <span id="474">474</span>
 <span id="475">475</span>
 <span id="476">476</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! Machinery to initialise interface prototype objects and interface objects.</span>
+<span class="doccomment">//! Machinery to initialise interface prototype objects and interface objects.</span>
 
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>codegen</span>::<span class='ident'>InterfaceObjectMap</span>::<span class='ident'>Globals</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>codegen</span>::<span class='ident'>PrototypeList</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>constant</span>::{<span class='ident'>ConstantSpec</span>, <span class='ident'>define_constants</span>};
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>conversions</span>::{<span class='ident'>DOM_OBJECT_SLOT</span>, <span class='ident'>get_dom_class</span>};
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>guard</span>::<span class='ident'>Guard</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>utils</span>::{<span class='ident'>DOM_PROTOTYPE_SLOT</span>, <span class='ident'>ProtoOrIfaceArray</span>, <span class='ident'>get_proto_or_iface_array</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>error</span>::<span class='ident'>throw_type_error</span>;
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>glue</span>::{<span class='ident'>RUST_SYMBOL_TO_JSID</span>, <span class='ident'>UncheckedUnwrapObject</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>Class</span>, <span class='ident'>ClassOps</span>, <span class='ident'>CompartmentOptions</span>, <span class='ident'>GetGlobalForObjectCrossCompartment</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>GetWellKnownSymbol</span>, <span class='ident'>HandleObject</span>, <span class='ident'>HandleValue</span>, <span class='ident'>JSAutoCompartment</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>JSClass</span>, <span class='ident'>JSContext</span>, <span class='ident'>JSFUN_CONSTRUCTOR</span>, <span class='ident'>JSFunctionSpec</span>, <span class='ident'>JSObject</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>JSPROP_PERMANENT</span>, <span class='ident'>JSPROP_READONLY</span>, <span class='ident'>JSPROP_RESOLVING</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>JSPropertySpec</span>, <span class='ident'>JSString</span>, <span class='ident'>JSTracer</span>, <span class='ident'>JSVersion</span>, <span class='ident'>JS_AtomizeAndPinString</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>JS_DefineProperty</span>, <span class='ident'>JS_DefineProperty1</span>, <span class='ident'>JS_DefineProperty2</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>JS_DefineProperty4</span>, <span class='ident'>JS_DefinePropertyById3</span>, <span class='ident'>JS_FireOnNewGlobalObject</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>JS_GetFunctionObject</span>, <span class='ident'>JS_GetPrototype</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>JS_LinkConstructorAndPrototype</span>, <span class='ident'>JS_NewFunction</span>, <span class='ident'>JS_NewGlobalObject</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>JS_NewObject</span>, <span class='ident'>JS_NewObjectWithUniqueType</span>, <span class='ident'>JS_NewPlainObject</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>JS_NewStringCopyN</span>, <span class='ident'>JS_SetReservedSlot</span>, <span class='ident'>MutableHandleObject</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>MutableHandleValue</span>, <span class='ident'>ObjectOps</span>, <span class='ident'>OnNewGlobalHookOption</span>, <span class='ident'>SymbolCode</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>TrueHandleValue</span>, <span class='ident'>Value</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsval</span>::{<span class='ident'>JSVal</span>, <span class='ident'>PrivateValue</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>rust</span>::{<span class='ident'>define_methods</span>, <span class='ident'>define_properties</span>, <span class='ident'>get_object_class</span>};
-<span class='kw'>use</span> <span class='ident'>libc</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ptr</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">codegen</span>::<span class="ident">InterfaceObjectMap</span>::<span class="ident">Globals</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">codegen</span>::<span class="ident">PrototypeList</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">constant</span>::{<span class="ident">ConstantSpec</span>, <span class="ident">define_constants</span>};
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">conversions</span>::{<span class="ident">DOM_OBJECT_SLOT</span>, <span class="ident">get_dom_class</span>};
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">guard</span>::<span class="ident">Guard</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">utils</span>::{<span class="ident">DOM_PROTOTYPE_SLOT</span>, <span class="ident">ProtoOrIfaceArray</span>, <span class="ident">get_proto_or_iface_array</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">error</span>::<span class="ident">throw_type_error</span>;
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">glue</span>::{<span class="ident">RUST_SYMBOL_TO_JSID</span>, <span class="ident">UncheckedUnwrapObject</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">Class</span>, <span class="ident">ClassOps</span>, <span class="ident">CompartmentOptions</span>, <span class="ident">GetGlobalForObjectCrossCompartment</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">GetWellKnownSymbol</span>, <span class="ident">HandleObject</span>, <span class="ident">HandleValue</span>, <span class="ident">JSAutoCompartment</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">JSClass</span>, <span class="ident">JSContext</span>, <span class="ident">JSFUN_CONSTRUCTOR</span>, <span class="ident">JSFunctionSpec</span>, <span class="ident">JSObject</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">JSPROP_PERMANENT</span>, <span class="ident">JSPROP_READONLY</span>, <span class="ident">JSPROP_RESOLVING</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">JSPropertySpec</span>, <span class="ident">JSString</span>, <span class="ident">JSTracer</span>, <span class="ident">JSVersion</span>, <span class="ident">JS_AtomizeAndPinString</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">JS_DefineProperty</span>, <span class="ident">JS_DefineProperty1</span>, <span class="ident">JS_DefineProperty2</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">JS_DefineProperty4</span>, <span class="ident">JS_DefinePropertyById3</span>, <span class="ident">JS_FireOnNewGlobalObject</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">JS_GetFunctionObject</span>, <span class="ident">JS_GetPrototype</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">JS_LinkConstructorAndPrototype</span>, <span class="ident">JS_NewFunction</span>, <span class="ident">JS_NewGlobalObject</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">JS_NewObject</span>, <span class="ident">JS_NewObjectWithUniqueType</span>, <span class="ident">JS_NewPlainObject</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">JS_NewStringCopyN</span>, <span class="ident">JS_SetReservedSlot</span>, <span class="ident">MutableHandleObject</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">MutableHandleValue</span>, <span class="ident">ObjectOps</span>, <span class="ident">OnNewGlobalHookOption</span>, <span class="ident">SymbolCode</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">TrueHandleValue</span>, <span class="ident">Value</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsval</span>::{<span class="ident">JSVal</span>, <span class="ident">PrivateValue</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">rust</span>::{<span class="ident">define_methods</span>, <span class="ident">define_properties</span>, <span class="ident">get_object_class</span>};
+<span class="kw">use</span> <span class="ident">libc</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
 
-<span class='doccomment'>/// The class of a non-callback interface object.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>NonCallbackInterfaceObjectClass</span> {
-    <span class='doccomment'>/// The SpiderMonkey Class structure.</span>
-    <span class='kw'>pub</span> <span class='ident'>class</span>: <span class='ident'>Class</span>,
-    <span class='doccomment'>/// The prototype id of that interface, used in the hasInstance hook.</span>
-    <span class='kw'>pub</span> <span class='ident'>proto_id</span>: <span class='ident'>PrototypeList</span>::<span class='ident'>ID</span>,
-    <span class='doccomment'>/// The prototype depth of that interface, used in the hasInstance hook.</span>
-    <span class='kw'>pub</span> <span class='ident'>proto_depth</span>: <span class='ident'>u16</span>,
-    <span class='doccomment'>/// The string representation of the object.</span>
-    <span class='kw'>pub</span> <span class='ident'>representation</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> [<span class='ident'>u8</span>],
+<span class="doccomment">/// The class of a non-callback interface object.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NonCallbackInterfaceObjectClass</span> {
+    <span class="doccomment">/// The SpiderMonkey Class structure.</span>
+    <span class="kw">pub</span> <span class="ident">class</span>: <span class="ident">Class</span>,
+    <span class="doccomment">/// The prototype id of that interface, used in the hasInstance hook.</span>
+    <span class="kw">pub</span> <span class="ident">proto_id</span>: <span class="ident">PrototypeList</span>::<span class="ident">ID</span>,
+    <span class="doccomment">/// The prototype depth of that interface, used in the hasInstance hook.</span>
+    <span class="kw">pub</span> <span class="ident">proto_depth</span>: <span class="ident">u16</span>,
+    <span class="doccomment">/// The string representation of the object.</span>
+    <span class="kw">pub</span> <span class="ident">representation</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">u8</span>],
 }
 
-<span class='kw'>unsafe</span> <span class='kw'>impl</span> <span class='ident'>Sync</span> <span class='kw'>for</span> <span class='ident'>NonCallbackInterfaceObjectClass</span> {}
+<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Sync</span> <span class="kw">for</span> <span class="ident">NonCallbackInterfaceObjectClass</span> {}
 
-<span class='kw'>impl</span> <span class='ident'>NonCallbackInterfaceObjectClass</span> {
-    <span class='doccomment'>/// Create a new `NonCallbackInterfaceObjectClass` structure.</span>
-    <span class='kw'>pub</span> <span class='kw'>const</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>constructor_behavior</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>InterfaceConstructorBehavior</span>,
-                     <span class='ident'>string_rep</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> [<span class='ident'>u8</span>],
-                     <span class='ident'>proto_id</span>: <span class='ident'>PrototypeList</span>::<span class='ident'>ID</span>,
-                     <span class='ident'>proto_depth</span>: <span class='ident'>u16</span>)
-                     <span class='op'>-&gt;</span> <span class='ident'>NonCallbackInterfaceObjectClass</span> {
-        <span class='ident'>NonCallbackInterfaceObjectClass</span> {
-            <span class='ident'>class</span>: <span class='ident'>Class</span> {
-                <span class='ident'>name</span>: <span class='string'>b&quot;Function\0&quot;</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> _ <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>,
-                <span class='ident'>flags</span>: <span class='number'>0</span>,
-                <span class='ident'>cOps</span>: <span class='kw-2'>&amp;</span><span class='ident'>constructor_behavior</span>.<span class='number'>0</span>,
-                <span class='ident'>spec</span>: <span class='ident'>ptr</span>::<span class='ident'>null</span>(),
-                <span class='ident'>ext</span>: <span class='ident'>ptr</span>::<span class='ident'>null</span>(),
-                <span class='ident'>oOps</span>: <span class='kw-2'>&amp;</span><span class='ident'>OBJECT_OPS</span>,
+<span class="kw">impl</span> <span class="ident">NonCallbackInterfaceObjectClass</span> {
+    <span class="doccomment">/// Create a new `NonCallbackInterfaceObjectClass` structure.</span>
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">constructor_behavior</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">InterfaceConstructorBehavior</span>,
+                     <span class="ident">string_rep</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">u8</span>],
+                     <span class="ident">proto_id</span>: <span class="ident">PrototypeList</span>::<span class="ident">ID</span>,
+                     <span class="ident">proto_depth</span>: <span class="ident">u16</span>)
+                     <span class="op">-&gt;</span> <span class="ident">NonCallbackInterfaceObjectClass</span> {
+        <span class="ident">NonCallbackInterfaceObjectClass</span> {
+            <span class="ident">class</span>: <span class="ident">Class</span> {
+                <span class="ident">name</span>: <span class="string">b&quot;Function\0&quot;</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>,
+                <span class="ident">flags</span>: <span class="number">0</span>,
+                <span class="ident">cOps</span>: <span class="kw-2">&amp;</span><span class="ident">constructor_behavior</span>.<span class="number">0</span>,
+                <span class="ident">spec</span>: <span class="ident">ptr</span>::<span class="ident">null</span>(),
+                <span class="ident">ext</span>: <span class="ident">ptr</span>::<span class="ident">null</span>(),
+                <span class="ident">oOps</span>: <span class="kw-2">&amp;</span><span class="ident">OBJECT_OPS</span>,
             },
-            <span class='ident'>proto_id</span>: <span class='ident'>proto_id</span>,
-            <span class='ident'>proto_depth</span>: <span class='ident'>proto_depth</span>,
-            <span class='ident'>representation</span>: <span class='ident'>string_rep</span>,
+            <span class="ident">proto_id</span>: <span class="ident">proto_id</span>,
+            <span class="ident">proto_depth</span>: <span class="ident">proto_depth</span>,
+            <span class="ident">representation</span>: <span class="ident">string_rep</span>,
         }
     }
 
-    <span class='doccomment'>/// cast own reference to `JSClass` reference</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>as_jsclass</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>JSClass</span> {
-        <span class='kw'>unsafe</span> {
-            <span class='kw-2'>&amp;</span><span class='kw-2'>*</span>(<span class='self'>self</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> _ <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>JSClass</span>)
+    <span class="doccomment">/// cast own reference to `JSClass` reference</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_jsclass</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">JSClass</span> {
+        <span class="kw">unsafe</span> {
+            <span class="kw-2">&amp;</span><span class="kw-2">*</span>(<span class="self">self</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">JSClass</span>)
         }
     }
 }
 
-<span class='doccomment'>/// A constructor class hook.</span>
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>ConstructorClassHook</span> <span class='op'>=</span>
-    <span class='kw'>unsafe</span> <span class='kw'>extern</span> <span class='string'>&quot;C&quot;</span> <span class='kw'>fn</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>argc</span>: <span class='ident'>u32</span>, <span class='ident'>vp</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>Value</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
+<span class="doccomment">/// A constructor class hook.</span>
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">ConstructorClassHook</span> <span class="op">=</span>
+    <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">argc</span>: <span class="ident">u32</span>, <span class="ident">vp</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">Value</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>;
 
-<span class='doccomment'>/// The constructor behavior of a non-callback interface object.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>InterfaceConstructorBehavior</span>(<span class='ident'>ClassOps</span>);
+<span class="doccomment">/// The constructor behavior of a non-callback interface object.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">InterfaceConstructorBehavior</span>(<span class="ident">ClassOps</span>);
 
-<span class='kw'>impl</span> <span class='ident'>InterfaceConstructorBehavior</span> {
-    <span class='doccomment'>/// An interface constructor that unconditionally throws a type error.</span>
-    <span class='kw'>pub</span> <span class='kw'>const</span> <span class='kw'>fn</span> <span class='ident'>throw</span>() <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='ident'>InterfaceConstructorBehavior</span>(<span class='ident'>ClassOps</span> {
-            <span class='ident'>addProperty</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>delProperty</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>getProperty</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>setProperty</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>enumerate</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>resolve</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>mayResolve</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>finalize</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>call</span>: <span class='prelude-val'>Some</span>(<span class='ident'>invalid_constructor</span>),
-            <span class='ident'>construct</span>: <span class='prelude-val'>Some</span>(<span class='ident'>invalid_constructor</span>),
-            <span class='ident'>hasInstance</span>: <span class='prelude-val'>Some</span>(<span class='ident'>has_instance_hook</span>),
-            <span class='ident'>trace</span>: <span class='prelude-val'>None</span>,
+<span class="kw">impl</span> <span class="ident">InterfaceConstructorBehavior</span> {
+    <span class="doccomment">/// An interface constructor that unconditionally throws a type error.</span>
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">throw</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">InterfaceConstructorBehavior</span>(<span class="ident">ClassOps</span> {
+            <span class="ident">addProperty</span>: <span class="prelude-val">None</span>,
+            <span class="ident">delProperty</span>: <span class="prelude-val">None</span>,
+            <span class="ident">getProperty</span>: <span class="prelude-val">None</span>,
+            <span class="ident">setProperty</span>: <span class="prelude-val">None</span>,
+            <span class="ident">enumerate</span>: <span class="prelude-val">None</span>,
+            <span class="ident">resolve</span>: <span class="prelude-val">None</span>,
+            <span class="ident">mayResolve</span>: <span class="prelude-val">None</span>,
+            <span class="ident">finalize</span>: <span class="prelude-val">None</span>,
+            <span class="ident">call</span>: <span class="prelude-val">Some</span>(<span class="ident">invalid_constructor</span>),
+            <span class="ident">construct</span>: <span class="prelude-val">Some</span>(<span class="ident">invalid_constructor</span>),
+            <span class="ident">hasInstance</span>: <span class="prelude-val">Some</span>(<span class="ident">has_instance_hook</span>),
+            <span class="ident">trace</span>: <span class="prelude-val">None</span>,
         })
     }
 
-    <span class='doccomment'>/// An interface constructor that calls a native Rust function.</span>
-    <span class='kw'>pub</span> <span class='kw'>const</span> <span class='kw'>fn</span> <span class='ident'>call</span>(<span class='ident'>hook</span>: <span class='ident'>ConstructorClassHook</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='ident'>InterfaceConstructorBehavior</span>(<span class='ident'>ClassOps</span> {
-            <span class='ident'>addProperty</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>delProperty</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>getProperty</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>setProperty</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>enumerate</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>resolve</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>mayResolve</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>finalize</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>call</span>: <span class='prelude-val'>Some</span>(<span class='ident'>non_new_constructor</span>),
-            <span class='ident'>construct</span>: <span class='prelude-val'>Some</span>(<span class='ident'>hook</span>),
-            <span class='ident'>hasInstance</span>: <span class='prelude-val'>Some</span>(<span class='ident'>has_instance_hook</span>),
-            <span class='ident'>trace</span>: <span class='prelude-val'>None</span>,
+    <span class="doccomment">/// An interface constructor that calls a native Rust function.</span>
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">call</span>(<span class="ident">hook</span>: <span class="ident">ConstructorClassHook</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">InterfaceConstructorBehavior</span>(<span class="ident">ClassOps</span> {
+            <span class="ident">addProperty</span>: <span class="prelude-val">None</span>,
+            <span class="ident">delProperty</span>: <span class="prelude-val">None</span>,
+            <span class="ident">getProperty</span>: <span class="prelude-val">None</span>,
+            <span class="ident">setProperty</span>: <span class="prelude-val">None</span>,
+            <span class="ident">enumerate</span>: <span class="prelude-val">None</span>,
+            <span class="ident">resolve</span>: <span class="prelude-val">None</span>,
+            <span class="ident">mayResolve</span>: <span class="prelude-val">None</span>,
+            <span class="ident">finalize</span>: <span class="prelude-val">None</span>,
+            <span class="ident">call</span>: <span class="prelude-val">Some</span>(<span class="ident">non_new_constructor</span>),
+            <span class="ident">construct</span>: <span class="prelude-val">Some</span>(<span class="ident">hook</span>),
+            <span class="ident">hasInstance</span>: <span class="prelude-val">Some</span>(<span class="ident">has_instance_hook</span>),
+            <span class="ident">trace</span>: <span class="prelude-val">None</span>,
         })
     }
 }
 
-<span class='doccomment'>/// A trace hook.</span>
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>TraceHook</span> <span class='op'>=</span>
-    <span class='kw'>unsafe</span> <span class='kw'>extern</span> <span class='string'>&quot;C&quot;</span> <span class='kw'>fn</span>(<span class='ident'>trc</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSTracer</span>, <span class='ident'>obj</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSObject</span>);
+<span class="doccomment">/// A trace hook.</span>
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">TraceHook</span> <span class="op">=</span>
+    <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span>(<span class="ident">trc</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSTracer</span>, <span class="ident">obj</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSObject</span>);
 
-<span class='doccomment'>/// Create a global object with the given class.</span>
-<span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>create_global_object</span>(
-        <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-        <span class='ident'>class</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>JSClass</span>,
-        <span class='ident'>private</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>,
-        <span class='ident'>trace</span>: <span class='ident'>TraceHook</span>,
-        <span class='ident'>rval</span>: <span class='ident'>MutableHandleObject</span>) {
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>rval</span>.<span class='ident'>is_null</span>());
+<span class="doccomment">/// Create a global object with the given class.</span>
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">create_global_object</span>(
+        <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+        <span class="ident">class</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">JSClass</span>,
+        <span class="ident">private</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_void</span>,
+        <span class="ident">trace</span>: <span class="ident">TraceHook</span>,
+        <span class="ident">rval</span>: <span class="ident">MutableHandleObject</span>) {
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">rval</span>.<span class="ident">is_null</span>());
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>options</span> <span class='op'>=</span> <span class='ident'>CompartmentOptions</span>::<span class='ident'>default</span>();
-    <span class='ident'>options</span>.<span class='ident'>behaviors_</span>.<span class='ident'>version_</span> <span class='op'>=</span> <span class='ident'>JSVersion</span>::<span class='ident'>JSVERSION_ECMA_5</span>;
-    <span class='ident'>options</span>.<span class='ident'>creationOptions_</span>.<span class='ident'>traceGlobal_</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>trace</span>);
-    <span class='ident'>options</span>.<span class='ident'>creationOptions_</span>.<span class='ident'>sharedMemoryAndAtomics_</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">options</span> <span class="op">=</span> <span class="ident">CompartmentOptions</span>::<span class="ident">default</span>();
+    <span class="ident">options</span>.<span class="ident">behaviors_</span>.<span class="ident">version_</span> <span class="op">=</span> <span class="ident">JSVersion</span>::<span class="ident">JSVERSION_ECMA_5</span>;
+    <span class="ident">options</span>.<span class="ident">creationOptions_</span>.<span class="ident">traceGlobal_</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">trace</span>);
+    <span class="ident">options</span>.<span class="ident">creationOptions_</span>.<span class="ident">sharedMemoryAndAtomics_</span> <span class="op">=</span> <span class="bool-val">true</span>;
 
-    <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>JS_NewGlobalObject</span>(<span class='ident'>cx</span>,
-                                <span class='ident'>class</span>,
-                                <span class='ident'>ptr</span>::<span class='ident'>null_mut</span>(),
-                                <span class='ident'>OnNewGlobalHookOption</span>::<span class='ident'>DontFireOnNewGlobalHook</span>,
-                                <span class='kw-2'>&amp;</span><span class='ident'>options</span>));
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>rval</span>.<span class='ident'>is_null</span>());
+    <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">JS_NewGlobalObject</span>(<span class="ident">cx</span>,
+                                <span class="ident">class</span>,
+                                <span class="ident">ptr</span>::<span class="ident">null_mut</span>(),
+                                <span class="ident">OnNewGlobalHookOption</span>::<span class="ident">DontFireOnNewGlobalHook</span>,
+                                <span class="kw-2">&amp;</span><span class="ident">options</span>));
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">rval</span>.<span class="ident">is_null</span>());
 
-    <span class='comment'>// Initialize the reserved slots before doing anything that can GC, to</span>
-    <span class='comment'>// avoid getting trace hooks called on a partially initialized object.</span>
-    <span class='ident'>JS_SetReservedSlot</span>(<span class='ident'>rval</span>.<span class='ident'>get</span>(), <span class='ident'>DOM_OBJECT_SLOT</span>, <span class='ident'>PrivateValue</span>(<span class='ident'>private</span>));
-    <span class='kw'>let</span> <span class='ident'>proto_array</span>: <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>ProtoOrIfaceArray</span><span class='op'>&gt;</span> <span class='op'>=</span>
-        <span class='kw'>box</span> [<span class='number'>0</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSObject</span>; <span class='ident'>PrototypeList</span>::<span class='ident'>PROTO_OR_IFACE_LENGTH</span>];
-    <span class='ident'>JS_SetReservedSlot</span>(<span class='ident'>rval</span>.<span class='ident'>get</span>(),
-                       <span class='ident'>DOM_PROTOTYPE_SLOT</span>,
-                       <span class='ident'>PrivateValue</span>(<span class='ident'>Box</span>::<span class='ident'>into_raw</span>(<span class='ident'>proto_array</span>) <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_void</span>));
+    <span class="comment">// Initialize the reserved slots before doing anything that can GC, to</span>
+    <span class="comment">// avoid getting trace hooks called on a partially initialized object.</span>
+    <span class="ident">JS_SetReservedSlot</span>(<span class="ident">rval</span>.<span class="ident">get</span>(), <span class="ident">DOM_OBJECT_SLOT</span>, <span class="ident">PrivateValue</span>(<span class="ident">private</span>));
+    <span class="kw">let</span> <span class="ident">proto_array</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ProtoOrIfaceArray</span><span class="op">&gt;</span> <span class="op">=</span>
+        <span class="kw">box</span> [<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSObject</span>; <span class="ident">PrototypeList</span>::<span class="ident">PROTO_OR_IFACE_LENGTH</span>];
+    <span class="ident">JS_SetReservedSlot</span>(<span class="ident">rval</span>.<span class="ident">get</span>(),
+                       <span class="ident">DOM_PROTOTYPE_SLOT</span>,
+                       <span class="ident">PrivateValue</span>(<span class="ident">Box</span>::<span class="ident">into_raw</span>(<span class="ident">proto_array</span>) <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_void</span>));
 
-    <span class='kw'>let</span> <span class='ident'>_ac</span> <span class='op'>=</span> <span class='ident'>JSAutoCompartment</span>::<span class='ident'>new</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>.<span class='ident'>get</span>());
-    <span class='ident'>JS_FireOnNewGlobalObject</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>.<span class='ident'>handle</span>());
+    <span class="kw">let</span> <span class="ident">_ac</span> <span class="op">=</span> <span class="ident">JSAutoCompartment</span>::<span class="ident">new</span>(<span class="ident">cx</span>, <span class="ident">rval</span>.<span class="ident">get</span>());
+    <span class="ident">JS_FireOnNewGlobalObject</span>(<span class="ident">cx</span>, <span class="ident">rval</span>.<span class="ident">handle</span>());
 }
 
-<span class='doccomment'>/// Create and define the interface object of a callback interface.</span>
-<span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>create_callback_interface_object</span>(
-        <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-        <span class='ident'>global</span>: <span class='ident'>HandleObject</span>,
-        <span class='ident'>constants</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Guard</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span>[<span class='ident'>ConstantSpec</span>]<span class='op'>&gt;</span>],
-        <span class='ident'>name</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>],
-        <span class='ident'>rval</span>: <span class='ident'>MutableHandleObject</span>) {
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>constants</span>.<span class='ident'>is_empty</span>());
-    <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>JS_NewObject</span>(<span class='ident'>cx</span>, <span class='ident'>ptr</span>::<span class='ident'>null</span>()));
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>rval</span>.<span class='ident'>ptr</span>.<span class='ident'>is_null</span>());
-    <span class='ident'>define_guarded_constants</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>.<span class='ident'>handle</span>(), <span class='ident'>constants</span>);
-    <span class='ident'>define_name</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>.<span class='ident'>handle</span>(), <span class='ident'>name</span>);
-    <span class='ident'>define_on_global_object</span>(<span class='ident'>cx</span>, <span class='ident'>global</span>, <span class='ident'>name</span>, <span class='ident'>rval</span>.<span class='ident'>handle</span>());
+<span class="doccomment">/// Create and define the interface object of a callback interface.</span>
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">create_callback_interface_object</span>(
+        <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+        <span class="ident">global</span>: <span class="ident">HandleObject</span>,
+        <span class="ident">constants</span>: <span class="kw-2">&amp;</span>[<span class="ident">Guard</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">ConstantSpec</span>]<span class="op">&gt;</span>],
+        <span class="ident">name</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+        <span class="ident">rval</span>: <span class="ident">MutableHandleObject</span>) {
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">constants</span>.<span class="ident">is_empty</span>());
+    <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">JS_NewObject</span>(<span class="ident">cx</span>, <span class="ident">ptr</span>::<span class="ident">null</span>()));
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">rval</span>.<span class="ident">ptr</span>.<span class="ident">is_null</span>());
+    <span class="ident">define_guarded_constants</span>(<span class="ident">cx</span>, <span class="ident">rval</span>.<span class="ident">handle</span>(), <span class="ident">constants</span>);
+    <span class="ident">define_name</span>(<span class="ident">cx</span>, <span class="ident">rval</span>.<span class="ident">handle</span>(), <span class="ident">name</span>);
+    <span class="ident">define_on_global_object</span>(<span class="ident">cx</span>, <span class="ident">global</span>, <span class="ident">name</span>, <span class="ident">rval</span>.<span class="ident">handle</span>());
 }
 
-<span class='doccomment'>/// Create the interface prototype object of a non-callback interface.</span>
-<span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>create_interface_prototype_object</span>(
-        <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-        <span class='ident'>proto</span>: <span class='ident'>HandleObject</span>,
-        <span class='ident'>class</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>JSClass</span>,
-        <span class='ident'>regular_methods</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Guard</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> [<span class='ident'>JSFunctionSpec</span>]<span class='op'>&gt;</span>],
-        <span class='ident'>regular_properties</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Guard</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> [<span class='ident'>JSPropertySpec</span>]<span class='op'>&gt;</span>],
-        <span class='ident'>constants</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Guard</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span>[<span class='ident'>ConstantSpec</span>]<span class='op'>&gt;</span>],
-        <span class='ident'>unscopable_names</span>: <span class='kw-2'>&amp;</span>[<span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>]],
-        <span class='ident'>rval</span>: <span class='ident'>MutableHandleObject</span>) {
-    <span class='ident'>create_object</span>(<span class='ident'>cx</span>, <span class='ident'>proto</span>, <span class='ident'>class</span>, <span class='ident'>regular_methods</span>, <span class='ident'>regular_properties</span>, <span class='ident'>constants</span>, <span class='ident'>rval</span>);
+<span class="doccomment">/// Create the interface prototype object of a non-callback interface.</span>
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">create_interface_prototype_object</span>(
+        <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+        <span class="ident">proto</span>: <span class="ident">HandleObject</span>,
+        <span class="ident">class</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">JSClass</span>,
+        <span class="ident">regular_methods</span>: <span class="kw-2">&amp;</span>[<span class="ident">Guard</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">JSFunctionSpec</span>]<span class="op">&gt;</span>],
+        <span class="ident">regular_properties</span>: <span class="kw-2">&amp;</span>[<span class="ident">Guard</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">JSPropertySpec</span>]<span class="op">&gt;</span>],
+        <span class="ident">constants</span>: <span class="kw-2">&amp;</span>[<span class="ident">Guard</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">ConstantSpec</span>]<span class="op">&gt;</span>],
+        <span class="ident">unscopable_names</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[<span class="ident">u8</span>]],
+        <span class="ident">rval</span>: <span class="ident">MutableHandleObject</span>) {
+    <span class="ident">create_object</span>(<span class="ident">cx</span>, <span class="ident">proto</span>, <span class="ident">class</span>, <span class="ident">regular_methods</span>, <span class="ident">regular_properties</span>, <span class="ident">constants</span>, <span class="ident">rval</span>);
 
-    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>unscopable_names</span>.<span class='ident'>is_empty</span>() {
-        <span class='macro'>rooted</span><span class='macro'>!</span>(<span class='kw'>in</span>(<span class='ident'>cx</span>) <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>unscopable_obj</span> <span class='op'>=</span> <span class='ident'>ptr</span>::<span class='ident'>null_mut</span>());
-        <span class='ident'>create_unscopable_object</span>(<span class='ident'>cx</span>, <span class='ident'>unscopable_names</span>, <span class='ident'>unscopable_obj</span>.<span class='ident'>handle_mut</span>());
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">unscopable_names</span>.<span class="ident">is_empty</span>() {
+        <span class="macro">rooted</span><span class="macro">!</span>(<span class="kw">in</span>(<span class="ident">cx</span>) <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unscopable_obj</span> <span class="op">=</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>());
+        <span class="ident">create_unscopable_object</span>(<span class="ident">cx</span>, <span class="ident">unscopable_names</span>, <span class="ident">unscopable_obj</span>.<span class="ident">handle_mut</span>());
 
-        <span class='kw'>let</span> <span class='ident'>unscopable_symbol</span> <span class='op'>=</span> <span class='ident'>GetWellKnownSymbol</span>(<span class='ident'>cx</span>, <span class='ident'>SymbolCode</span>::<span class='ident'>unscopables</span>);
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>unscopable_symbol</span>.<span class='ident'>is_null</span>());
+        <span class="kw">let</span> <span class="ident">unscopable_symbol</span> <span class="op">=</span> <span class="ident">GetWellKnownSymbol</span>(<span class="ident">cx</span>, <span class="ident">SymbolCode</span>::<span class="ident">unscopables</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">unscopable_symbol</span>.<span class="ident">is_null</span>());
 
-        <span class='macro'>rooted</span><span class='macro'>!</span>(<span class='kw'>in</span>(<span class='ident'>cx</span>) <span class='kw'>let</span> <span class='ident'>unscopable_id</span> <span class='op'>=</span> <span class='ident'>RUST_SYMBOL_TO_JSID</span>(<span class='ident'>unscopable_symbol</span>));
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>JS_DefinePropertyById3</span>(
-            <span class='ident'>cx</span>, <span class='ident'>rval</span>.<span class='ident'>handle</span>(), <span class='ident'>unscopable_id</span>.<span class='ident'>handle</span>(), <span class='ident'>unscopable_obj</span>.<span class='ident'>handle</span>(),
-            <span class='ident'>JSPROP_READONLY</span>, <span class='prelude-val'>None</span>, <span class='prelude-val'>None</span>))
+        <span class="macro">rooted</span><span class="macro">!</span>(<span class="kw">in</span>(<span class="ident">cx</span>) <span class="kw">let</span> <span class="ident">unscopable_id</span> <span class="op">=</span> <span class="ident">RUST_SYMBOL_TO_JSID</span>(<span class="ident">unscopable_symbol</span>));
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">JS_DefinePropertyById3</span>(
+            <span class="ident">cx</span>, <span class="ident">rval</span>.<span class="ident">handle</span>(), <span class="ident">unscopable_id</span>.<span class="ident">handle</span>(), <span class="ident">unscopable_obj</span>.<span class="ident">handle</span>(),
+            <span class="ident">JSPROP_READONLY</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>))
     }
 }
 
-<span class='doccomment'>/// Create and define the interface object of a non-callback interface.</span>
-<span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>create_noncallback_interface_object</span>(
-        <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-        <span class='ident'>global</span>: <span class='ident'>HandleObject</span>,
-        <span class='ident'>proto</span>: <span class='ident'>HandleObject</span>,
-        <span class='ident'>class</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>NonCallbackInterfaceObjectClass</span>,
-        <span class='ident'>static_methods</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Guard</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> [<span class='ident'>JSFunctionSpec</span>]<span class='op'>&gt;</span>],
-        <span class='ident'>static_properties</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Guard</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> [<span class='ident'>JSPropertySpec</span>]<span class='op'>&gt;</span>],
-        <span class='ident'>constants</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Guard</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span>[<span class='ident'>ConstantSpec</span>]<span class='op'>&gt;</span>],
-        <span class='ident'>interface_prototype_object</span>: <span class='ident'>HandleObject</span>,
-        <span class='ident'>name</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>],
-        <span class='ident'>length</span>: <span class='ident'>u32</span>,
-        <span class='ident'>rval</span>: <span class='ident'>MutableHandleObject</span>) {
-    <span class='ident'>create_object</span>(<span class='ident'>cx</span>,
-                  <span class='ident'>proto</span>,
-                  <span class='ident'>class</span>.<span class='ident'>as_jsclass</span>(),
-                  <span class='ident'>static_methods</span>,
-                  <span class='ident'>static_properties</span>,
-                  <span class='ident'>constants</span>,
-                  <span class='ident'>rval</span>);
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>JS_LinkConstructorAndPrototype</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>.<span class='ident'>handle</span>(), <span class='ident'>interface_prototype_object</span>));
-    <span class='ident'>define_name</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>.<span class='ident'>handle</span>(), <span class='ident'>name</span>);
-    <span class='ident'>define_length</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>.<span class='ident'>handle</span>(), <span class='ident'>length</span>);
-    <span class='ident'>define_on_global_object</span>(<span class='ident'>cx</span>, <span class='ident'>global</span>, <span class='ident'>name</span>, <span class='ident'>rval</span>.<span class='ident'>handle</span>());
+<span class="doccomment">/// Create and define the interface object of a non-callback interface.</span>
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">create_noncallback_interface_object</span>(
+        <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+        <span class="ident">global</span>: <span class="ident">HandleObject</span>,
+        <span class="ident">proto</span>: <span class="ident">HandleObject</span>,
+        <span class="ident">class</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">NonCallbackInterfaceObjectClass</span>,
+        <span class="ident">static_methods</span>: <span class="kw-2">&amp;</span>[<span class="ident">Guard</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">JSFunctionSpec</span>]<span class="op">&gt;</span>],
+        <span class="ident">static_properties</span>: <span class="kw-2">&amp;</span>[<span class="ident">Guard</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">JSPropertySpec</span>]<span class="op">&gt;</span>],
+        <span class="ident">constants</span>: <span class="kw-2">&amp;</span>[<span class="ident">Guard</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">ConstantSpec</span>]<span class="op">&gt;</span>],
+        <span class="ident">interface_prototype_object</span>: <span class="ident">HandleObject</span>,
+        <span class="ident">name</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+        <span class="ident">length</span>: <span class="ident">u32</span>,
+        <span class="ident">rval</span>: <span class="ident">MutableHandleObject</span>) {
+    <span class="ident">create_object</span>(<span class="ident">cx</span>,
+                  <span class="ident">proto</span>,
+                  <span class="ident">class</span>.<span class="ident">as_jsclass</span>(),
+                  <span class="ident">static_methods</span>,
+                  <span class="ident">static_properties</span>,
+                  <span class="ident">constants</span>,
+                  <span class="ident">rval</span>);
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">JS_LinkConstructorAndPrototype</span>(<span class="ident">cx</span>, <span class="ident">rval</span>.<span class="ident">handle</span>(), <span class="ident">interface_prototype_object</span>));
+    <span class="ident">define_name</span>(<span class="ident">cx</span>, <span class="ident">rval</span>.<span class="ident">handle</span>(), <span class="ident">name</span>);
+    <span class="ident">define_length</span>(<span class="ident">cx</span>, <span class="ident">rval</span>.<span class="ident">handle</span>(), <span class="ident">length</span>);
+    <span class="ident">define_on_global_object</span>(<span class="ident">cx</span>, <span class="ident">global</span>, <span class="ident">name</span>, <span class="ident">rval</span>.<span class="ident">handle</span>());
 }
 
-<span class='doccomment'>/// Create and define the named constructors of a non-callback interface.</span>
-<span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>create_named_constructors</span>(
-        <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-        <span class='ident'>global</span>: <span class='ident'>HandleObject</span>,
-        <span class='ident'>named_constructors</span>: <span class='kw-2'>&amp;</span>[(<span class='ident'>ConstructorClassHook</span>, <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>], <span class='ident'>u32</span>)],
-        <span class='ident'>interface_prototype_object</span>: <span class='ident'>HandleObject</span>) {
-    <span class='macro'>rooted</span><span class='macro'>!</span>(<span class='kw'>in</span>(<span class='ident'>cx</span>) <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>constructor</span> <span class='op'>=</span> <span class='ident'>ptr</span>::<span class='ident'>null_mut</span>());
+<span class="doccomment">/// Create and define the named constructors of a non-callback interface.</span>
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">create_named_constructors</span>(
+        <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+        <span class="ident">global</span>: <span class="ident">HandleObject</span>,
+        <span class="ident">named_constructors</span>: <span class="kw-2">&amp;</span>[(<span class="ident">ConstructorClassHook</span>, <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">u32</span>)],
+        <span class="ident">interface_prototype_object</span>: <span class="ident">HandleObject</span>) {
+    <span class="macro">rooted</span><span class="macro">!</span>(<span class="kw">in</span>(<span class="ident">cx</span>) <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">constructor</span> <span class="op">=</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>());
 
-    <span class='kw'>for</span> <span class='kw-2'>&amp;</span>(<span class='ident'>native</span>, <span class='ident'>name</span>, <span class='ident'>arity</span>) <span class='kw'>in</span> <span class='ident'>named_constructors</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='kw-2'>*</span><span class='ident'>name</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>() <span class='op'>==</span> <span class='string'>b&#39;\0&#39;</span>);
+    <span class="kw">for</span> <span class="kw-2">&amp;</span>(<span class="ident">native</span>, <span class="ident">name</span>, <span class="ident">arity</span>) <span class="kw">in</span> <span class="ident">named_constructors</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">name</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>() <span class="op">==</span> <span class="string">b&#39;\0&#39;</span>);
 
-        <span class='kw'>let</span> <span class='ident'>fun</span> <span class='op'>=</span> <span class='ident'>JS_NewFunction</span>(<span class='ident'>cx</span>,
-                                 <span class='prelude-val'>Some</span>(<span class='ident'>native</span>),
-                                 <span class='ident'>arity</span>,
-                                 <span class='ident'>JSFUN_CONSTRUCTOR</span>,
-                                 <span class='ident'>name</span>.<span class='ident'>as_ptr</span>() <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>);
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>fun</span>.<span class='ident'>is_null</span>());
-        <span class='ident'>constructor</span>.<span class='ident'>set</span>(<span class='ident'>JS_GetFunctionObject</span>(<span class='ident'>fun</span>));
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>constructor</span>.<span class='ident'>is_null</span>());
+        <span class="kw">let</span> <span class="ident">fun</span> <span class="op">=</span> <span class="ident">JS_NewFunction</span>(<span class="ident">cx</span>,
+                                 <span class="prelude-val">Some</span>(<span class="ident">native</span>),
+                                 <span class="ident">arity</span>,
+                                 <span class="ident">JSFUN_CONSTRUCTOR</span>,
+                                 <span class="ident">name</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">fun</span>.<span class="ident">is_null</span>());
+        <span class="ident">constructor</span>.<span class="ident">set</span>(<span class="ident">JS_GetFunctionObject</span>(<span class="ident">fun</span>));
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">constructor</span>.<span class="ident">is_null</span>());
 
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>JS_DefineProperty1</span>(<span class='ident'>cx</span>,
-                                   <span class='ident'>constructor</span>.<span class='ident'>handle</span>(),
-                                   <span class='string'>b&quot;prototype\0&quot;</span>.<span class='ident'>as_ptr</span>() <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>,
-                                   <span class='ident'>interface_prototype_object</span>,
-                                   <span class='ident'>JSPROP_PERMANENT</span> <span class='op'>|</span> <span class='ident'>JSPROP_READONLY</span>,
-                                   <span class='prelude-val'>None</span>,
-                                   <span class='prelude-val'>None</span>));
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">JS_DefineProperty1</span>(<span class="ident">cx</span>,
+                                   <span class="ident">constructor</span>.<span class="ident">handle</span>(),
+                                   <span class="string">b&quot;prototype\0&quot;</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>,
+                                   <span class="ident">interface_prototype_object</span>,
+                                   <span class="ident">JSPROP_PERMANENT</span> <span class="op">|</span> <span class="ident">JSPROP_READONLY</span>,
+                                   <span class="prelude-val">None</span>,
+                                   <span class="prelude-val">None</span>));
 
-        <span class='ident'>define_on_global_object</span>(<span class='ident'>cx</span>, <span class='ident'>global</span>, <span class='ident'>name</span>, <span class='ident'>constructor</span>.<span class='ident'>handle</span>());
+        <span class="ident">define_on_global_object</span>(<span class="ident">cx</span>, <span class="ident">global</span>, <span class="ident">name</span>, <span class="ident">constructor</span>.<span class="ident">handle</span>());
     }
 }
 
-<span class='doccomment'>/// Create a new object with a unique type.</span>
-<span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>create_object</span>(
-        <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-        <span class='ident'>proto</span>: <span class='ident'>HandleObject</span>,
-        <span class='ident'>class</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>JSClass</span>,
-        <span class='ident'>methods</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Guard</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> [<span class='ident'>JSFunctionSpec</span>]<span class='op'>&gt;</span>],
-        <span class='ident'>properties</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Guard</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> [<span class='ident'>JSPropertySpec</span>]<span class='op'>&gt;</span>],
-        <span class='ident'>constants</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Guard</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span>[<span class='ident'>ConstantSpec</span>]<span class='op'>&gt;</span>],
-        <span class='ident'>rval</span>: <span class='ident'>MutableHandleObject</span>) {
-    <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>JS_NewObjectWithUniqueType</span>(<span class='ident'>cx</span>, <span class='ident'>class</span>, <span class='ident'>proto</span>));
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>rval</span>.<span class='ident'>ptr</span>.<span class='ident'>is_null</span>());
-    <span class='ident'>define_guarded_methods</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>.<span class='ident'>handle</span>(), <span class='ident'>methods</span>);
-    <span class='ident'>define_guarded_properties</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>.<span class='ident'>handle</span>(), <span class='ident'>properties</span>);
-    <span class='ident'>define_guarded_constants</span>(<span class='ident'>cx</span>, <span class='ident'>rval</span>.<span class='ident'>handle</span>(), <span class='ident'>constants</span>);
+<span class="doccomment">/// Create a new object with a unique type.</span>
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">create_object</span>(
+        <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+        <span class="ident">proto</span>: <span class="ident">HandleObject</span>,
+        <span class="ident">class</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">JSClass</span>,
+        <span class="ident">methods</span>: <span class="kw-2">&amp;</span>[<span class="ident">Guard</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">JSFunctionSpec</span>]<span class="op">&gt;</span>],
+        <span class="ident">properties</span>: <span class="kw-2">&amp;</span>[<span class="ident">Guard</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">JSPropertySpec</span>]<span class="op">&gt;</span>],
+        <span class="ident">constants</span>: <span class="kw-2">&amp;</span>[<span class="ident">Guard</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">ConstantSpec</span>]<span class="op">&gt;</span>],
+        <span class="ident">rval</span>: <span class="ident">MutableHandleObject</span>) {
+    <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">JS_NewObjectWithUniqueType</span>(<span class="ident">cx</span>, <span class="ident">class</span>, <span class="ident">proto</span>));
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">rval</span>.<span class="ident">ptr</span>.<span class="ident">is_null</span>());
+    <span class="ident">define_guarded_methods</span>(<span class="ident">cx</span>, <span class="ident">rval</span>.<span class="ident">handle</span>(), <span class="ident">methods</span>);
+    <span class="ident">define_guarded_properties</span>(<span class="ident">cx</span>, <span class="ident">rval</span>.<span class="ident">handle</span>(), <span class="ident">properties</span>);
+    <span class="ident">define_guarded_constants</span>(<span class="ident">cx</span>, <span class="ident">rval</span>.<span class="ident">handle</span>(), <span class="ident">constants</span>);
 }
 
-<span class='doccomment'>/// Conditionally define constants on an object.</span>
-<span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>define_guarded_constants</span>(
-        <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-        <span class='ident'>obj</span>: <span class='ident'>HandleObject</span>,
-        <span class='ident'>constants</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Guard</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span>[<span class='ident'>ConstantSpec</span>]<span class='op'>&gt;</span>]) {
-    <span class='kw'>for</span> <span class='ident'>guard</span> <span class='kw'>in</span> <span class='ident'>constants</span> {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>specs</span>) <span class='op'>=</span> <span class='ident'>guard</span>.<span class='ident'>expose</span>(<span class='ident'>cx</span>, <span class='ident'>obj</span>) {
-            <span class='ident'>define_constants</span>(<span class='ident'>cx</span>, <span class='ident'>obj</span>, <span class='ident'>specs</span>);
+<span class="doccomment">/// Conditionally define constants on an object.</span>
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">define_guarded_constants</span>(
+        <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+        <span class="ident">obj</span>: <span class="ident">HandleObject</span>,
+        <span class="ident">constants</span>: <span class="kw-2">&amp;</span>[<span class="ident">Guard</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">ConstantSpec</span>]<span class="op">&gt;</span>]) {
+    <span class="kw">for</span> <span class="ident">guard</span> <span class="kw">in</span> <span class="ident">constants</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">specs</span>) <span class="op">=</span> <span class="ident">guard</span>.<span class="ident">expose</span>(<span class="ident">cx</span>, <span class="ident">obj</span>) {
+            <span class="ident">define_constants</span>(<span class="ident">cx</span>, <span class="ident">obj</span>, <span class="ident">specs</span>);
         }
     }
 }
 
-<span class='doccomment'>/// Conditionally define methods on an object.</span>
-<span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>define_guarded_methods</span>(
-        <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-        <span class='ident'>obj</span>: <span class='ident'>HandleObject</span>,
-        <span class='ident'>methods</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Guard</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> [<span class='ident'>JSFunctionSpec</span>]<span class='op'>&gt;</span>]) {
-    <span class='kw'>for</span> <span class='ident'>guard</span> <span class='kw'>in</span> <span class='ident'>methods</span> {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>specs</span>) <span class='op'>=</span> <span class='ident'>guard</span>.<span class='ident'>expose</span>(<span class='ident'>cx</span>, <span class='ident'>obj</span>) {
-            <span class='ident'>define_methods</span>(<span class='ident'>cx</span>, <span class='ident'>obj</span>, <span class='ident'>specs</span>).<span class='ident'>unwrap</span>();
+<span class="doccomment">/// Conditionally define methods on an object.</span>
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">define_guarded_methods</span>(
+        <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+        <span class="ident">obj</span>: <span class="ident">HandleObject</span>,
+        <span class="ident">methods</span>: <span class="kw-2">&amp;</span>[<span class="ident">Guard</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">JSFunctionSpec</span>]<span class="op">&gt;</span>]) {
+    <span class="kw">for</span> <span class="ident">guard</span> <span class="kw">in</span> <span class="ident">methods</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">specs</span>) <span class="op">=</span> <span class="ident">guard</span>.<span class="ident">expose</span>(<span class="ident">cx</span>, <span class="ident">obj</span>) {
+            <span class="ident">define_methods</span>(<span class="ident">cx</span>, <span class="ident">obj</span>, <span class="ident">specs</span>).<span class="ident">unwrap</span>();
         }
     }
 }
 
-<span class='doccomment'>/// Conditionally define properties on an object.</span>
-<span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>define_guarded_properties</span>(
-        <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-        <span class='ident'>obj</span>: <span class='ident'>HandleObject</span>,
-        <span class='ident'>properties</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Guard</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> [<span class='ident'>JSPropertySpec</span>]<span class='op'>&gt;</span>]) {
-    <span class='kw'>for</span> <span class='ident'>guard</span> <span class='kw'>in</span> <span class='ident'>properties</span> {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>specs</span>) <span class='op'>=</span> <span class='ident'>guard</span>.<span class='ident'>expose</span>(<span class='ident'>cx</span>, <span class='ident'>obj</span>) {
-            <span class='ident'>define_properties</span>(<span class='ident'>cx</span>, <span class='ident'>obj</span>, <span class='ident'>specs</span>).<span class='ident'>unwrap</span>();
+<span class="doccomment">/// Conditionally define properties on an object.</span>
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">define_guarded_properties</span>(
+        <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+        <span class="ident">obj</span>: <span class="ident">HandleObject</span>,
+        <span class="ident">properties</span>: <span class="kw-2">&amp;</span>[<span class="ident">Guard</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">JSPropertySpec</span>]<span class="op">&gt;</span>]) {
+    <span class="kw">for</span> <span class="ident">guard</span> <span class="kw">in</span> <span class="ident">properties</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">specs</span>) <span class="op">=</span> <span class="ident">guard</span>.<span class="ident">expose</span>(<span class="ident">cx</span>, <span class="ident">obj</span>) {
+            <span class="ident">define_properties</span>(<span class="ident">cx</span>, <span class="ident">obj</span>, <span class="ident">specs</span>).<span class="ident">unwrap</span>();
         }
     }
 }
 
-<span class='doccomment'>/// Returns whether an interface with exposure set given by `globals` should</span>
-<span class='doccomment'>/// be exposed in the global object `obj`.</span>
-<span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>is_exposed_in</span>(<span class='ident'>object</span>: <span class='ident'>HandleObject</span>, <span class='ident'>globals</span>: <span class='ident'>Globals</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-    <span class='kw'>let</span> <span class='ident'>unwrapped</span> <span class='op'>=</span> <span class='ident'>UncheckedUnwrapObject</span>(<span class='ident'>object</span>.<span class='ident'>get</span>(), <span class='comment'>/* stopAtWindowProxy = */</span> <span class='number'>0</span>);
-    <span class='kw'>let</span> <span class='ident'>dom_class</span> <span class='op'>=</span> <span class='ident'>get_dom_class</span>(<span class='ident'>unwrapped</span>).<span class='ident'>unwrap</span>();
-    <span class='ident'>globals</span>.<span class='ident'>contains</span>(<span class='ident'>dom_class</span>.<span class='ident'>global</span>)
+<span class="doccomment">/// Returns whether an interface with exposure set given by `globals` should</span>
+<span class="doccomment">/// be exposed in the global object `obj`.</span>
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">is_exposed_in</span>(<span class="ident">object</span>: <span class="ident">HandleObject</span>, <span class="ident">globals</span>: <span class="ident">Globals</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">let</span> <span class="ident">unwrapped</span> <span class="op">=</span> <span class="ident">UncheckedUnwrapObject</span>(<span class="ident">object</span>.<span class="ident">get</span>(), <span class="comment">/* stopAtWindowProxy = */</span> <span class="number">0</span>);
+    <span class="kw">let</span> <span class="ident">dom_class</span> <span class="op">=</span> <span class="ident">get_dom_class</span>(<span class="ident">unwrapped</span>).<span class="ident">unwrap</span>();
+    <span class="ident">globals</span>.<span class="ident">contains</span>(<span class="ident">dom_class</span>.<span class="ident">global</span>)
 }
 
-<span class='doccomment'>/// Define a property with a given name on the global object. Should be called</span>
-<span class='doccomment'>/// through the resolve hook.</span>
-<span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>define_on_global_object</span>(
-        <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-        <span class='ident'>global</span>: <span class='ident'>HandleObject</span>,
-        <span class='ident'>name</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>],
-        <span class='ident'>obj</span>: <span class='ident'>HandleObject</span>) {
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='kw-2'>*</span><span class='ident'>name</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>() <span class='op'>==</span> <span class='string'>b&#39;\0&#39;</span>);
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>JS_DefineProperty1</span>(<span class='ident'>cx</span>,
-                               <span class='ident'>global</span>,
-                               <span class='ident'>name</span>.<span class='ident'>as_ptr</span>() <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>,
-                               <span class='ident'>obj</span>,
-                               <span class='ident'>JSPROP_RESOLVING</span>,
-                               <span class='prelude-val'>None</span>, <span class='prelude-val'>None</span>));
+<span class="doccomment">/// Define a property with a given name on the global object. Should be called</span>
+<span class="doccomment">/// through the resolve hook.</span>
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">define_on_global_object</span>(
+        <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+        <span class="ident">global</span>: <span class="ident">HandleObject</span>,
+        <span class="ident">name</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+        <span class="ident">obj</span>: <span class="ident">HandleObject</span>) {
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">name</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>() <span class="op">==</span> <span class="string">b&#39;\0&#39;</span>);
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">JS_DefineProperty1</span>(<span class="ident">cx</span>,
+                               <span class="ident">global</span>,
+                               <span class="ident">name</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>,
+                               <span class="ident">obj</span>,
+                               <span class="ident">JSPROP_RESOLVING</span>,
+                               <span class="prelude-val">None</span>, <span class="prelude-val">None</span>));
 }
 
-<span class='kw'>const</span> <span class='ident'>OBJECT_OPS</span>: <span class='ident'>ObjectOps</span> <span class='op'>=</span> <span class='ident'>ObjectOps</span> {
-    <span class='ident'>lookupProperty</span>: <span class='prelude-val'>None</span>,
-    <span class='ident'>defineProperty</span>: <span class='prelude-val'>None</span>,
-    <span class='ident'>hasProperty</span>: <span class='prelude-val'>None</span>,
-    <span class='ident'>getProperty</span>: <span class='prelude-val'>None</span>,
-    <span class='ident'>setProperty</span>: <span class='prelude-val'>None</span>,
-    <span class='ident'>getOwnPropertyDescriptor</span>: <span class='prelude-val'>None</span>,
-    <span class='ident'>deleteProperty</span>: <span class='prelude-val'>None</span>,
-    <span class='ident'>watch</span>: <span class='prelude-val'>None</span>,
-    <span class='ident'>unwatch</span>: <span class='prelude-val'>None</span>,
-    <span class='ident'>getElements</span>: <span class='prelude-val'>None</span>,
-    <span class='ident'>enumerate</span>: <span class='prelude-val'>None</span>,
-    <span class='ident'>funToString</span>: <span class='prelude-val'>Some</span>(<span class='ident'>fun_to_string_hook</span>),
+<span class="kw">const</span> <span class="ident">OBJECT_OPS</span>: <span class="ident">ObjectOps</span> <span class="op">=</span> <span class="ident">ObjectOps</span> {
+    <span class="ident">lookupProperty</span>: <span class="prelude-val">None</span>,
+    <span class="ident">defineProperty</span>: <span class="prelude-val">None</span>,
+    <span class="ident">hasProperty</span>: <span class="prelude-val">None</span>,
+    <span class="ident">getProperty</span>: <span class="prelude-val">None</span>,
+    <span class="ident">setProperty</span>: <span class="prelude-val">None</span>,
+    <span class="ident">getOwnPropertyDescriptor</span>: <span class="prelude-val">None</span>,
+    <span class="ident">deleteProperty</span>: <span class="prelude-val">None</span>,
+    <span class="ident">watch</span>: <span class="prelude-val">None</span>,
+    <span class="ident">unwatch</span>: <span class="prelude-val">None</span>,
+    <span class="ident">getElements</span>: <span class="prelude-val">None</span>,
+    <span class="ident">enumerate</span>: <span class="prelude-val">None</span>,
+    <span class="ident">funToString</span>: <span class="prelude-val">Some</span>(<span class="ident">fun_to_string_hook</span>),
 };
 
-<span class='kw'>unsafe</span> <span class='kw'>extern</span> <span class='string'>&quot;C&quot;</span> <span class='kw'>fn</span> <span class='ident'>fun_to_string_hook</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-                                        <span class='ident'>obj</span>: <span class='ident'>HandleObject</span>,
-                                        <span class='ident'>_indent</span>: <span class='ident'>u32</span>)
-                                        <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSString</span> {
-    <span class='kw'>let</span> <span class='ident'>js_class</span> <span class='op'>=</span> <span class='ident'>get_object_class</span>(<span class='ident'>obj</span>.<span class='ident'>get</span>());
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>js_class</span>.<span class='ident'>is_null</span>());
-    <span class='kw'>let</span> <span class='ident'>repr</span> <span class='op'>=</span> (<span class='kw-2'>*</span>(<span class='ident'>js_class</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>NonCallbackInterfaceObjectClass</span>)).<span class='ident'>representation</span>;
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>repr</span>.<span class='ident'>is_empty</span>());
-    <span class='kw'>let</span> <span class='ident'>ret</span> <span class='op'>=</span> <span class='ident'>JS_NewStringCopyN</span>(<span class='ident'>cx</span>, <span class='ident'>repr</span>.<span class='ident'>as_ptr</span>() <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>, <span class='ident'>repr</span>.<span class='ident'>len</span>());
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>ret</span>.<span class='ident'>is_null</span>());
-    <span class='ident'>ret</span>
+<span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">fun_to_string_hook</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+                                        <span class="ident">obj</span>: <span class="ident">HandleObject</span>,
+                                        <span class="ident">_indent</span>: <span class="ident">u32</span>)
+                                        <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSString</span> {
+    <span class="kw">let</span> <span class="ident">js_class</span> <span class="op">=</span> <span class="ident">get_object_class</span>(<span class="ident">obj</span>.<span class="ident">get</span>());
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">js_class</span>.<span class="ident">is_null</span>());
+    <span class="kw">let</span> <span class="ident">repr</span> <span class="op">=</span> (<span class="kw-2">*</span>(<span class="ident">js_class</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">NonCallbackInterfaceObjectClass</span>)).<span class="ident">representation</span>;
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">repr</span>.<span class="ident">is_empty</span>());
+    <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">JS_NewStringCopyN</span>(<span class="ident">cx</span>, <span class="ident">repr</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>, <span class="ident">repr</span>.<span class="ident">len</span>());
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">ret</span>.<span class="ident">is_null</span>());
+    <span class="ident">ret</span>
 }
 
-<span class='doccomment'>/// Hook for instanceof on interface objects.</span>
-<span class='kw'>unsafe</span> <span class='kw'>extern</span> <span class='string'>&quot;C&quot;</span> <span class='kw'>fn</span> <span class='ident'>has_instance_hook</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-        <span class='ident'>obj</span>: <span class='ident'>HandleObject</span>,
-        <span class='ident'>value</span>: <span class='ident'>MutableHandleValue</span>,
-        <span class='ident'>rval</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-    <span class='kw'>match</span> <span class='ident'>has_instance</span>(<span class='ident'>cx</span>, <span class='ident'>obj</span>, <span class='ident'>value</span>.<span class='ident'>handle</span>()) {
-        <span class='prelude-val'>Ok</span>(<span class='ident'>result</span>) <span class='op'>=&gt;</span> {
-            <span class='kw-2'>*</span><span class='ident'>rval</span> <span class='op'>=</span> <span class='ident'>result</span>;
-            <span class='bool-val'>true</span>
+<span class="doccomment">/// Hook for instanceof on interface objects.</span>
+<span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">has_instance_hook</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+        <span class="ident">obj</span>: <span class="ident">HandleObject</span>,
+        <span class="ident">value</span>: <span class="ident">MutableHandleValue</span>,
+        <span class="ident">rval</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">match</span> <span class="ident">has_instance</span>(<span class="ident">cx</span>, <span class="ident">obj</span>, <span class="ident">value</span>.<span class="ident">handle</span>()) {
+        <span class="prelude-val">Ok</span>(<span class="ident">result</span>) <span class="op">=&gt;</span> {
+            <span class="kw-2">*</span><span class="ident">rval</span> <span class="op">=</span> <span class="ident">result</span>;
+            <span class="bool-val">true</span>
         }
-        <span class='prelude-val'>Err</span>(()) <span class='op'>=&gt;</span> <span class='bool-val'>false</span>,
+        <span class="prelude-val">Err</span>(()) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
     }
 }
 
-<span class='doccomment'>/// Return whether a value is an instance of a given prototype.</span>
-<span class='doccomment'>/// http://heycam.github.io/webidl/#es-interface-hasinstance</span>
-<span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>has_instance</span>(
-        <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-        <span class='ident'>interface_object</span>: <span class='ident'>HandleObject</span>,
-        <span class='ident'>value</span>: <span class='ident'>HandleValue</span>)
-        <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>bool</span>, ()<span class='op'>&gt;</span> {
-    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>value</span>.<span class='ident'>is_object</span>() {
-        <span class='comment'>// Step 1.</span>
-        <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='bool-val'>false</span>);
+<span class="doccomment">/// Return whether a value is an instance of a given prototype.</span>
+<span class="doccomment">/// http://heycam.github.io/webidl/#es-interface-hasinstance</span>
+<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">has_instance</span>(
+        <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+        <span class="ident">interface_object</span>: <span class="ident">HandleObject</span>,
+        <span class="ident">value</span>: <span class="ident">HandleValue</span>)
+        <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span>, ()<span class="op">&gt;</span> {
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">value</span>.<span class="ident">is_object</span>() {
+        <span class="comment">// Step 1.</span>
+        <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
     }
-    <span class='macro'>rooted</span><span class='macro'>!</span>(<span class='kw'>in</span>(<span class='ident'>cx</span>) <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>value</span> <span class='op'>=</span> <span class='ident'>value</span>.<span class='ident'>to_object</span>());
+    <span class="macro">rooted</span><span class="macro">!</span>(<span class="kw">in</span>(<span class="ident">cx</span>) <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">value</span>.<span class="ident">to_object</span>());
 
-    <span class='kw'>let</span> <span class='ident'>js_class</span> <span class='op'>=</span> <span class='ident'>get_object_class</span>(<span class='ident'>interface_object</span>.<span class='ident'>get</span>());
-    <span class='kw'>let</span> <span class='ident'>object_class</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>*</span>(<span class='ident'>js_class</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>NonCallbackInterfaceObjectClass</span>);
+    <span class="kw">let</span> <span class="ident">js_class</span> <span class="op">=</span> <span class="ident">get_object_class</span>(<span class="ident">interface_object</span>.<span class="ident">get</span>());
+    <span class="kw">let</span> <span class="ident">object_class</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span>(<span class="ident">js_class</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">NonCallbackInterfaceObjectClass</span>);
 
-    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>dom_class</span>) <span class='op'>=</span> <span class='ident'>get_dom_class</span>(<span class='ident'>UncheckedUnwrapObject</span>(<span class='ident'>value</span>.<span class='ident'>get</span>(),
-                                                               <span class='comment'>/* stopAtWindowProxy = */</span> <span class='number'>0</span>)) {
-        <span class='kw'>if</span> <span class='ident'>dom_class</span>.<span class='ident'>interface_chain</span>[<span class='ident'>object_class</span>.<span class='ident'>proto_depth</span> <span class='kw'>as</span> <span class='ident'>usize</span>] <span class='op'>==</span> <span class='ident'>object_class</span>.<span class='ident'>proto_id</span> {
-            <span class='comment'>// Step 4.</span>
-            <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='bool-val'>true</span>);
-        }
-    }
-
-    <span class='comment'>// Step 2.</span>
-    <span class='kw'>let</span> <span class='ident'>global</span> <span class='op'>=</span> <span class='ident'>GetGlobalForObjectCrossCompartment</span>(<span class='ident'>interface_object</span>.<span class='ident'>get</span>());
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>global</span>.<span class='ident'>is_null</span>());
-    <span class='kw'>let</span> <span class='ident'>proto_or_iface_array</span> <span class='op'>=</span> <span class='ident'>get_proto_or_iface_array</span>(<span class='ident'>global</span>);
-    <span class='macro'>rooted</span><span class='macro'>!</span>(<span class='kw'>in</span>(<span class='ident'>cx</span>) <span class='kw'>let</span> <span class='ident'>prototype</span> <span class='op'>=</span> (<span class='kw-2'>*</span><span class='ident'>proto_or_iface_array</span>)[<span class='ident'>object_class</span>.<span class='ident'>proto_id</span> <span class='kw'>as</span> <span class='ident'>usize</span>]);
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>prototype</span>.<span class='ident'>is_null</span>());
-    <span class='comment'>// Step 3 only concern legacy callback interface objects (i.e. NodeFilter).</span>
-
-    <span class='kw'>while</span> <span class='ident'>JS_GetPrototype</span>(<span class='ident'>cx</span>, <span class='ident'>value</span>.<span class='ident'>handle</span>(), <span class='ident'>value</span>.<span class='ident'>handle_mut</span>()) {
-        <span class='kw'>if</span> <span class='ident'>value</span>.<span class='ident'>is_null</span>() {
-            <span class='comment'>// Step 5.2.</span>
-            <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='bool-val'>false</span>);
-        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>value</span>.<span class='ident'>get</span>() <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> _ <span class='op'>==</span> <span class='ident'>prototype</span>.<span class='ident'>get</span>() {
-            <span class='comment'>// Step 5.3.</span>
-            <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='bool-val'>true</span>);
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">dom_class</span>) <span class="op">=</span> <span class="ident">get_dom_class</span>(<span class="ident">UncheckedUnwrapObject</span>(<span class="ident">value</span>.<span class="ident">get</span>(),
+                                                               <span class="comment">/* stopAtWindowProxy = */</span> <span class="number">0</span>)) {
+        <span class="kw">if</span> <span class="ident">dom_class</span>.<span class="ident">interface_chain</span>[<span class="ident">object_class</span>.<span class="ident">proto_depth</span> <span class="kw">as</span> <span class="ident">usize</span>] <span class="op">==</span> <span class="ident">object_class</span>.<span class="ident">proto_id</span> {
+            <span class="comment">// Step 4.</span>
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>);
         }
     }
-    <span class='comment'>// JS_GetPrototype threw an exception.</span>
-    <span class='prelude-val'>Err</span>(())
+
+    <span class="comment">// Step 2.</span>
+    <span class="kw">let</span> <span class="ident">global</span> <span class="op">=</span> <span class="ident">GetGlobalForObjectCrossCompartment</span>(<span class="ident">interface_object</span>.<span class="ident">get</span>());
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">global</span>.<span class="ident">is_null</span>());
+    <span class="kw">let</span> <span class="ident">proto_or_iface_array</span> <span class="op">=</span> <span class="ident">get_proto_or_iface_array</span>(<span class="ident">global</span>);
+    <span class="macro">rooted</span><span class="macro">!</span>(<span class="kw">in</span>(<span class="ident">cx</span>) <span class="kw">let</span> <span class="ident">prototype</span> <span class="op">=</span> (<span class="kw-2">*</span><span class="ident">proto_or_iface_array</span>)[<span class="ident">object_class</span>.<span class="ident">proto_id</span> <span class="kw">as</span> <span class="ident">usize</span>]);
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">prototype</span>.<span class="ident">is_null</span>());
+    <span class="comment">// Step 3 only concern legacy callback interface objects (i.e. NodeFilter).</span>
+
+    <span class="kw">while</span> <span class="ident">JS_GetPrototype</span>(<span class="ident">cx</span>, <span class="ident">value</span>.<span class="ident">handle</span>(), <span class="ident">value</span>.<span class="ident">handle_mut</span>()) {
+        <span class="kw">if</span> <span class="ident">value</span>.<span class="ident">is_null</span>() {
+            <span class="comment">// Step 5.2.</span>
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">value</span>.<span class="ident">get</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _ <span class="op">==</span> <span class="ident">prototype</span>.<span class="ident">get</span>() {
+            <span class="comment">// Step 5.3.</span>
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>);
+        }
+    }
+    <span class="comment">// JS_GetPrototype threw an exception.</span>
+    <span class="prelude-val">Err</span>(())
 }
 
-<span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>create_unscopable_object</span>(
-        <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-        <span class='ident'>names</span>: <span class='kw-2'>&amp;</span>[<span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>]],
-        <span class='ident'>rval</span>: <span class='ident'>MutableHandleObject</span>) {
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>names</span>.<span class='ident'>is_empty</span>());
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>rval</span>.<span class='ident'>is_null</span>());
-    <span class='ident'>rval</span>.<span class='ident'>set</span>(<span class='ident'>JS_NewPlainObject</span>(<span class='ident'>cx</span>));
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>rval</span>.<span class='ident'>ptr</span>.<span class='ident'>is_null</span>());
-    <span class='kw'>for</span> <span class='kw-2'>&amp;</span><span class='ident'>name</span> <span class='kw'>in</span> <span class='ident'>names</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='kw-2'>*</span><span class='ident'>name</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>() <span class='op'>==</span> <span class='string'>b&#39;\0&#39;</span>);
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>JS_DefineProperty</span>(
-            <span class='ident'>cx</span>, <span class='ident'>rval</span>.<span class='ident'>handle</span>(), <span class='ident'>name</span>.<span class='ident'>as_ptr</span>() <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>, <span class='ident'>TrueHandleValue</span>,
-            <span class='ident'>JSPROP_READONLY</span>, <span class='prelude-val'>None</span>, <span class='prelude-val'>None</span>));
+<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">create_unscopable_object</span>(
+        <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+        <span class="ident">names</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[<span class="ident">u8</span>]],
+        <span class="ident">rval</span>: <span class="ident">MutableHandleObject</span>) {
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">names</span>.<span class="ident">is_empty</span>());
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">rval</span>.<span class="ident">is_null</span>());
+    <span class="ident">rval</span>.<span class="ident">set</span>(<span class="ident">JS_NewPlainObject</span>(<span class="ident">cx</span>));
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">rval</span>.<span class="ident">ptr</span>.<span class="ident">is_null</span>());
+    <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">name</span> <span class="kw">in</span> <span class="ident">names</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">name</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>() <span class="op">==</span> <span class="string">b&#39;\0&#39;</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">JS_DefineProperty</span>(
+            <span class="ident">cx</span>, <span class="ident">rval</span>.<span class="ident">handle</span>(), <span class="ident">name</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>, <span class="ident">TrueHandleValue</span>,
+            <span class="ident">JSPROP_READONLY</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>));
     }
 }
 
-<span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>define_name</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>obj</span>: <span class='ident'>HandleObject</span>, <span class='ident'>name</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>]) {
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='kw-2'>*</span><span class='ident'>name</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>() <span class='op'>==</span> <span class='string'>b&#39;\0&#39;</span>);
-    <span class='macro'>rooted</span><span class='macro'>!</span>(<span class='kw'>in</span>(<span class='ident'>cx</span>) <span class='kw'>let</span> <span class='ident'>name</span> <span class='op'>=</span> <span class='ident'>JS_AtomizeAndPinString</span>(<span class='ident'>cx</span>, <span class='ident'>name</span>.<span class='ident'>as_ptr</span>() <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>));
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>name</span>.<span class='ident'>is_null</span>());
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>JS_DefineProperty2</span>(<span class='ident'>cx</span>,
-                               <span class='ident'>obj</span>,
-                               <span class='string'>b&quot;name\0&quot;</span>.<span class='ident'>as_ptr</span>() <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>,
-                               <span class='ident'>name</span>.<span class='ident'>handle</span>(),
-                               <span class='ident'>JSPROP_READONLY</span>,
-                               <span class='prelude-val'>None</span>, <span class='prelude-val'>None</span>));
+<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">define_name</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">obj</span>: <span class="ident">HandleObject</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) {
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">name</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>() <span class="op">==</span> <span class="string">b&#39;\0&#39;</span>);
+    <span class="macro">rooted</span><span class="macro">!</span>(<span class="kw">in</span>(<span class="ident">cx</span>) <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">JS_AtomizeAndPinString</span>(<span class="ident">cx</span>, <span class="ident">name</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>));
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">name</span>.<span class="ident">is_null</span>());
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">JS_DefineProperty2</span>(<span class="ident">cx</span>,
+                               <span class="ident">obj</span>,
+                               <span class="string">b&quot;name\0&quot;</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>,
+                               <span class="ident">name</span>.<span class="ident">handle</span>(),
+                               <span class="ident">JSPROP_READONLY</span>,
+                               <span class="prelude-val">None</span>, <span class="prelude-val">None</span>));
 }
 
-<span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>define_length</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>obj</span>: <span class='ident'>HandleObject</span>, <span class='ident'>length</span>: <span class='ident'>u32</span>) {
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>JS_DefineProperty4</span>(<span class='ident'>cx</span>,
-                               <span class='ident'>obj</span>,
-                               <span class='string'>b&quot;length\0&quot;</span>.<span class='ident'>as_ptr</span>() <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>libc</span>::<span class='ident'>c_char</span>,
-                               <span class='ident'>length</span>,
-                               <span class='ident'>JSPROP_READONLY</span>,
-                               <span class='prelude-val'>None</span>, <span class='prelude-val'>None</span>));
+<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">define_length</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">obj</span>: <span class="ident">HandleObject</span>, <span class="ident">length</span>: <span class="ident">u32</span>) {
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">JS_DefineProperty4</span>(<span class="ident">cx</span>,
+                               <span class="ident">obj</span>,
+                               <span class="string">b&quot;length\0&quot;</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">c_char</span>,
+                               <span class="ident">length</span>,
+                               <span class="ident">JSPROP_READONLY</span>,
+                               <span class="prelude-val">None</span>, <span class="prelude-val">None</span>));
 }
 
-<span class='kw'>unsafe</span> <span class='kw'>extern</span> <span class='string'>&quot;C&quot;</span> <span class='kw'>fn</span> <span class='ident'>invalid_constructor</span>(
-        <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-        <span class='ident'>_argc</span>: <span class='ident'>libc</span>::<span class='ident'>c_uint</span>,
-        <span class='ident'>_vp</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSVal</span>)
-        <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-    <span class='ident'>throw_type_error</span>(<span class='ident'>cx</span>, <span class='string'>&quot;Illegal constructor.&quot;</span>);
-    <span class='bool-val'>false</span>
+<span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">invalid_constructor</span>(
+        <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+        <span class="ident">_argc</span>: <span class="ident">libc</span>::<span class="ident">c_uint</span>,
+        <span class="ident">_vp</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSVal</span>)
+        <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="ident">throw_type_error</span>(<span class="ident">cx</span>, <span class="string">&quot;Illegal constructor.&quot;</span>);
+    <span class="bool-val">false</span>
 }
 
-<span class='kw'>unsafe</span> <span class='kw'>extern</span> <span class='string'>&quot;C&quot;</span> <span class='kw'>fn</span> <span class='ident'>non_new_constructor</span>(
-        <span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>,
-        <span class='ident'>_argc</span>: <span class='ident'>libc</span>::<span class='ident'>c_uint</span>,
-        <span class='ident'>_vp</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSVal</span>)
-        <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-    <span class='ident'>throw_type_error</span>(<span class='ident'>cx</span>, <span class='string'>&quot;This constructor needs to be called with `new`.&quot;</span>);
-    <span class='bool-val'>false</span>
+<span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">non_new_constructor</span>(
+        <span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>,
+        <span class="ident">_argc</span>: <span class="ident">libc</span>::<span class="ident">c_uint</span>,
+        <span class="ident">_vp</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSVal</span>)
+        <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="ident">throw_type_error</span>(<span class="ident">cx</span>, <span class="string">&quot;This constructor needs to be called with `new`.&quot;</span>);
+    <span class="bool-val">false</span>
 }
 </pre>
 </section>

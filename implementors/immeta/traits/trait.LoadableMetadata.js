@@ -1,6 +1,5 @@
 (function() {var implementors = {};
 implementors["immeta"] = [];
-implementors["net"] = [];
 implementors["servo"] = [];
 
             if (window.register_implementors) {

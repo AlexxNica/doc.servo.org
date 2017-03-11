@@ -261,223 +261,223 @@
 <span id="216">216</span>
 <span id="217">217</span>
 <span id="218">218</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! [@supports rules](https://drafts.csswg.org/css-conditional-3/#at-supports)</span>
+<span class="doccomment">//! [@supports rules](https://drafts.csswg.org/css-conditional-3/#at-supports)</span>
 
-<span class='kw'>use</span> <span class='ident'>cssparser</span>::{<span class='ident'>parse_important</span>, <span class='ident'>Parser</span>, <span class='ident'>Token</span>};
-<span class='kw'>use</span> <span class='ident'>parser</span>::<span class='ident'>ParserContext</span>;
-<span class='kw'>use</span> <span class='ident'>properties</span>::{<span class='ident'>PropertyId</span>, <span class='ident'>ParsedDeclaration</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fmt</span>;
-<span class='kw'>use</span> <span class='ident'>style_traits</span>::<span class='ident'>ToCss</span>;
+<span class="kw">use</span> <span class="ident">cssparser</span>::{<span class="ident">parse_important</span>, <span class="ident">Parser</span>, <span class="ident">Token</span>};
+<span class="kw">use</span> <span class="ident">parser</span>::<span class="ident">ParserContext</span>;
+<span class="kw">use</span> <span class="ident">properties</span>::{<span class="ident">PropertyId</span>, <span class="ident">ParsedDeclaration</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
+<span class="kw">use</span> <span class="ident">style_traits</span>::<span class="ident">ToCss</span>;
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
-<span class='doccomment'>/// An @supports condition</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// https://drafts.csswg.org/css-conditional-3/#at-supports</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>SupportsCondition</span> {
-    <span class='doccomment'>/// `not (condition)`</span>
-    <span class='ident'>Not</span>(<span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>SupportsCondition</span><span class='op'>&gt;</span>),
-    <span class='doccomment'>/// `(condition)`</span>
-    <span class='ident'>Parenthesized</span>(<span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>SupportsCondition</span><span class='op'>&gt;</span>),
-    <span class='doccomment'>/// `(condition) and (condition) and (condition) ..`</span>
-    <span class='ident'>And</span>(<span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>SupportsCondition</span><span class='op'>&gt;</span>),
-    <span class='doccomment'>/// `(condition) or (condition) or (condition) ..`</span>
-    <span class='ident'>Or</span>(<span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>SupportsCondition</span><span class='op'>&gt;</span>),
-    <span class='doccomment'>/// `property-ident: value` (value can be any tokens)</span>
-    <span class='ident'>Declaration</span>(<span class='ident'>Declaration</span>),
-    <span class='doccomment'>/// `(any tokens)` or `func(any tokens)`</span>
-    <span class='ident'>FutureSyntax</span>(<span class='ident'>String</span>),
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="doccomment">/// An @supports condition</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// https://drafts.csswg.org/css-conditional-3/#at-supports</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">SupportsCondition</span> {
+    <span class="doccomment">/// `not (condition)`</span>
+    <span class="ident">Not</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">SupportsCondition</span><span class="op">&gt;</span>),
+    <span class="doccomment">/// `(condition)`</span>
+    <span class="ident">Parenthesized</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">SupportsCondition</span><span class="op">&gt;</span>),
+    <span class="doccomment">/// `(condition) and (condition) and (condition) ..`</span>
+    <span class="ident">And</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SupportsCondition</span><span class="op">&gt;</span>),
+    <span class="doccomment">/// `(condition) or (condition) or (condition) ..`</span>
+    <span class="ident">Or</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SupportsCondition</span><span class="op">&gt;</span>),
+    <span class="doccomment">/// `property-ident: value` (value can be any tokens)</span>
+    <span class="ident">Declaration</span>(<span class="ident">Declaration</span>),
+    <span class="doccomment">/// `(any tokens)` or `func(any tokens)`</span>
+    <span class="ident">FutureSyntax</span>(<span class="ident">String</span>),
 }
 
-<span class='kw'>impl</span> <span class='ident'>SupportsCondition</span> {
-    <span class='doccomment'>/// Parse a condition</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// https://drafts.csswg.org/css-conditional/#supports_condition</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>SupportsCondition</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(_) <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>try</span>(<span class='op'>|</span><span class='ident'>i</span><span class='op'>|</span> <span class='ident'>i</span>.<span class='ident'>expect_ident_matching</span>(<span class='string'>&quot;not&quot;</span>)) {
-            <span class='kw'>let</span> <span class='ident'>inner</span> <span class='op'>=</span> <span class='ident'>SupportsCondition</span>::<span class='ident'>parse_in_parens</span>(<span class='ident'>input</span>)<span class='question-mark'>?</span>;
-            <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='ident'>SupportsCondition</span>::<span class='ident'>Not</span>(<span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>inner</span>)));
+<span class="kw">impl</span> <span class="ident">SupportsCondition</span> {
+    <span class="doccomment">/// Parse a condition</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// https://drafts.csswg.org/css-conditional/#supports_condition</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SupportsCondition</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(_) <span class="op">=</span> <span class="ident">input</span>.<span class="ident">try</span>(<span class="op">|</span><span class="ident">i</span><span class="op">|</span> <span class="ident">i</span>.<span class="ident">expect_ident_matching</span>(<span class="string">&quot;not&quot;</span>)) {
+            <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="ident">SupportsCondition</span>::<span class="ident">parse_in_parens</span>(<span class="ident">input</span>)<span class="question-mark">?</span>;
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">SupportsCondition</span>::<span class="ident">Not</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">inner</span>)));
         }
 
-        <span class='kw'>let</span> <span class='ident'>in_parens</span> <span class='op'>=</span> <span class='ident'>SupportsCondition</span>::<span class='ident'>parse_in_parens</span>(<span class='ident'>input</span>)<span class='question-mark'>?</span>;
+        <span class="kw">let</span> <span class="ident">in_parens</span> <span class="op">=</span> <span class="ident">SupportsCondition</span>::<span class="ident">parse_in_parens</span>(<span class="ident">input</span>)<span class="question-mark">?</span>;
 
-        <span class='kw'>let</span> (<span class='ident'>keyword</span>, <span class='ident'>wrapper</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>input</span>.<span class='ident'>next</span>() {
-            <span class='prelude-val'>Err</span>(()) <span class='op'>=&gt;</span> {
-                <span class='comment'>// End of input</span>
-                <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='ident'>in_parens</span>)
+        <span class="kw">let</span> (<span class="ident">keyword</span>, <span class="ident">wrapper</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">input</span>.<span class="ident">next</span>() {
+            <span class="prelude-val">Err</span>(()) <span class="op">=&gt;</span> {
+                <span class="comment">// End of input</span>
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">in_parens</span>)
             }
-            <span class='prelude-val'>Ok</span>(<span class='ident'>Token</span>::<span class='ident'>Ident</span>(<span class='ident'>ident</span>)) <span class='op'>=&gt;</span> {
-                <span class='macro'>match_ignore_ascii_case</span><span class='macro'>!</span> { <span class='kw-2'>&amp;</span><span class='ident'>ident</span>,
-                    <span class='string'>&quot;and&quot;</span> <span class='op'>=&gt;</span> (<span class='string'>&quot;and&quot;</span>, <span class='ident'>SupportsCondition</span>::<span class='ident'>And</span> <span class='kw'>as</span> <span class='kw'>fn</span>(_) <span class='op'>-&gt;</span> _),
-                    <span class='string'>&quot;or&quot;</span> <span class='op'>=&gt;</span> (<span class='string'>&quot;or&quot;</span>, <span class='ident'>SupportsCondition</span>::<span class='ident'>Or</span> <span class='kw'>as</span> <span class='kw'>fn</span>(_) <span class='op'>-&gt;</span> _),
-                    _ <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Err</span>(())
+            <span class="prelude-val">Ok</span>(<span class="ident">Token</span>::<span class="ident">Ident</span>(<span class="ident">ident</span>)) <span class="op">=&gt;</span> {
+                <span class="macro">match_ignore_ascii_case</span><span class="macro">!</span> { <span class="kw-2">&amp;</span><span class="ident">ident</span>,
+                    <span class="string">&quot;and&quot;</span> <span class="op">=&gt;</span> (<span class="string">&quot;and&quot;</span>, <span class="ident">SupportsCondition</span>::<span class="ident">And</span> <span class="kw">as</span> <span class="kw">fn</span>(_) <span class="op">-&gt;</span> _),
+                    <span class="string">&quot;or&quot;</span> <span class="op">=&gt;</span> (<span class="string">&quot;or&quot;</span>, <span class="ident">SupportsCondition</span>::<span class="ident">Or</span> <span class="kw">as</span> <span class="kw">fn</span>(_) <span class="op">-&gt;</span> _),
+                    _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(())
                 }
             }
-            _ <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Err</span>(())
+            _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(())
         };
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>conditions</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>with_capacity</span>(<span class='number'>2</span>);
-        <span class='ident'>conditions</span>.<span class='ident'>push</span>(<span class='ident'>in_parens</span>);
-        <span class='kw'>loop</span> {
-            <span class='ident'>conditions</span>.<span class='ident'>push</span>(<span class='ident'>SupportsCondition</span>::<span class='ident'>parse_in_parens</span>(<span class='ident'>input</span>)<span class='question-mark'>?</span>);
-            <span class='kw'>if</span> <span class='ident'>input</span>.<span class='ident'>try</span>(<span class='op'>|</span><span class='ident'>input</span><span class='op'>|</span> <span class='ident'>input</span>.<span class='ident'>expect_ident_matching</span>(<span class='ident'>keyword</span>)).<span class='ident'>is_err</span>() {
-                <span class='comment'>// Did not find the expected keyword.</span>
-                <span class='comment'>// If we found some other token,</span>
-                <span class='comment'>// it will be rejected by `Parser::parse_entirely` somewhere up the stack.</span>
-                <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='ident'>wrapper</span>(<span class='ident'>conditions</span>))
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">conditions</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">2</span>);
+        <span class="ident">conditions</span>.<span class="ident">push</span>(<span class="ident">in_parens</span>);
+        <span class="kw">loop</span> {
+            <span class="ident">conditions</span>.<span class="ident">push</span>(<span class="ident">SupportsCondition</span>::<span class="ident">parse_in_parens</span>(<span class="ident">input</span>)<span class="question-mark">?</span>);
+            <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">try</span>(<span class="op">|</span><span class="ident">input</span><span class="op">|</span> <span class="ident">input</span>.<span class="ident">expect_ident_matching</span>(<span class="ident">keyword</span>)).<span class="ident">is_err</span>() {
+                <span class="comment">// Did not find the expected keyword.</span>
+                <span class="comment">// If we found some other token,</span>
+                <span class="comment">// it will be rejected by `Parser::parse_entirely` somewhere up the stack.</span>
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">wrapper</span>(<span class="ident">conditions</span>))
             }
         }
     }
 
-    <span class='doccomment'>/// https://drafts.csswg.org/css-conditional-3/#supports_condition_in_parens</span>
-    <span class='kw'>fn</span> <span class='ident'>parse_in_parens</span>(<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>SupportsCondition</span>, ()<span class='op'>&gt;</span> {
-        <span class='comment'>// Whitespace is normally taken care of in `Parser::next`,</span>
-        <span class='comment'>// but we want to not include it in `pos` for the SupportsCondition::FutureSyntax cases.</span>
-        <span class='kw'>while</span> <span class='ident'>input</span>.<span class='ident'>try</span>(<span class='ident'>Parser</span>::<span class='ident'>expect_whitespace</span>).<span class='ident'>is_ok</span>() {}
-        <span class='kw'>let</span> <span class='ident'>pos</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>position</span>();
-        <span class='kw'>match</span> <span class='ident'>input</span>.<span class='ident'>next</span>()<span class='question-mark'>?</span> {
-            <span class='ident'>Token</span>::<span class='ident'>ParenthesisBlock</span> <span class='op'>=&gt;</span> {
-                <span class='ident'>input</span>.<span class='ident'>parse_nested_block</span>(<span class='op'>|</span><span class='ident'>input</span><span class='op'>|</span> {
-                    <span class='comment'>// `input.try()` not needed here since the alternative uses `consume_all()`.</span>
-                    <span class='ident'>parse_condition_or_declaration</span>(<span class='ident'>input</span>).<span class='ident'>or_else</span>(<span class='op'>|</span>()<span class='op'>|</span> {
-                        <span class='ident'>consume_all</span>(<span class='ident'>input</span>);
-                        <span class='prelude-val'>Ok</span>(<span class='ident'>SupportsCondition</span>::<span class='ident'>FutureSyntax</span>(<span class='ident'>input</span>.<span class='ident'>slice_from</span>(<span class='ident'>pos</span>).<span class='ident'>to_owned</span>()))
+    <span class="doccomment">/// https://drafts.csswg.org/css-conditional-3/#supports_condition_in_parens</span>
+    <span class="kw">fn</span> <span class="ident">parse_in_parens</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SupportsCondition</span>, ()<span class="op">&gt;</span> {
+        <span class="comment">// Whitespace is normally taken care of in `Parser::next`,</span>
+        <span class="comment">// but we want to not include it in `pos` for the SupportsCondition::FutureSyntax cases.</span>
+        <span class="kw">while</span> <span class="ident">input</span>.<span class="ident">try</span>(<span class="ident">Parser</span>::<span class="ident">expect_whitespace</span>).<span class="ident">is_ok</span>() {}
+        <span class="kw">let</span> <span class="ident">pos</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">position</span>();
+        <span class="kw">match</span> <span class="ident">input</span>.<span class="ident">next</span>()<span class="question-mark">?</span> {
+            <span class="ident">Token</span>::<span class="ident">ParenthesisBlock</span> <span class="op">=&gt;</span> {
+                <span class="ident">input</span>.<span class="ident">parse_nested_block</span>(<span class="op">|</span><span class="ident">input</span><span class="op">|</span> {
+                    <span class="comment">// `input.try()` not needed here since the alternative uses `consume_all()`.</span>
+                    <span class="ident">parse_condition_or_declaration</span>(<span class="ident">input</span>).<span class="ident">or_else</span>(<span class="op">|</span>()<span class="op">|</span> {
+                        <span class="ident">consume_all</span>(<span class="ident">input</span>);
+                        <span class="prelude-val">Ok</span>(<span class="ident">SupportsCondition</span>::<span class="ident">FutureSyntax</span>(<span class="ident">input</span>.<span class="ident">slice_from</span>(<span class="ident">pos</span>).<span class="ident">to_owned</span>()))
                     })
                 })
             }
-            <span class='ident'>Token</span>::<span class='ident'>Function</span>(_) <span class='op'>=&gt;</span> {
-                <span class='ident'>input</span>.<span class='ident'>parse_nested_block</span>(<span class='op'>|</span><span class='ident'>i</span><span class='op'>|</span> <span class='prelude-val'>Ok</span>(<span class='ident'>consume_all</span>(<span class='ident'>i</span>))).<span class='ident'>unwrap</span>();
-                <span class='prelude-val'>Ok</span>(<span class='ident'>SupportsCondition</span>::<span class='ident'>FutureSyntax</span>(<span class='ident'>input</span>.<span class='ident'>slice_from</span>(<span class='ident'>pos</span>).<span class='ident'>to_owned</span>()))
+            <span class="ident">Token</span>::<span class="ident">Function</span>(_) <span class="op">=&gt;</span> {
+                <span class="ident">input</span>.<span class="ident">parse_nested_block</span>(<span class="op">|</span><span class="ident">i</span><span class="op">|</span> <span class="prelude-val">Ok</span>(<span class="ident">consume_all</span>(<span class="ident">i</span>))).<span class="ident">unwrap</span>();
+                <span class="prelude-val">Ok</span>(<span class="ident">SupportsCondition</span>::<span class="ident">FutureSyntax</span>(<span class="ident">input</span>.<span class="ident">slice_from</span>(<span class="ident">pos</span>).<span class="ident">to_owned</span>()))
             }
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Evaluate a supports condition</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>eval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='kw-2'>&amp;</span><span class='ident'>ParserContext</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='self'>self</span> {
-            <span class='ident'>SupportsCondition</span>::<span class='ident'>Not</span>(<span class='kw-2'>ref</span> <span class='ident'>cond</span>) <span class='op'>=&gt;</span> <span class='op'>!</span><span class='ident'>cond</span>.<span class='ident'>eval</span>(<span class='ident'>cx</span>),
-            <span class='ident'>SupportsCondition</span>::<span class='ident'>Parenthesized</span>(<span class='kw-2'>ref</span> <span class='ident'>cond</span>) <span class='op'>=&gt;</span> <span class='ident'>cond</span>.<span class='ident'>eval</span>(<span class='ident'>cx</span>),
-            <span class='ident'>SupportsCondition</span>::<span class='ident'>And</span>(<span class='kw-2'>ref</span> <span class='ident'>vec</span>) <span class='op'>=&gt;</span> <span class='ident'>vec</span>.<span class='ident'>iter</span>().<span class='ident'>all</span>(<span class='op'>|</span><span class='ident'>c</span><span class='op'>|</span> <span class='ident'>c</span>.<span class='ident'>eval</span>(<span class='ident'>cx</span>)),
-            <span class='ident'>SupportsCondition</span>::<span class='ident'>Or</span>(<span class='kw-2'>ref</span> <span class='ident'>vec</span>) <span class='op'>=&gt;</span> <span class='ident'>vec</span>.<span class='ident'>iter</span>().<span class='ident'>any</span>(<span class='op'>|</span><span class='ident'>c</span><span class='op'>|</span> <span class='ident'>c</span>.<span class='ident'>eval</span>(<span class='ident'>cx</span>)),
-            <span class='ident'>SupportsCondition</span>::<span class='ident'>Declaration</span>(<span class='kw-2'>ref</span> <span class='ident'>decl</span>) <span class='op'>=&gt;</span> <span class='ident'>decl</span>.<span class='ident'>eval</span>(<span class='ident'>cx</span>),
-            <span class='ident'>SupportsCondition</span>::<span class='ident'>FutureSyntax</span>(_) <span class='op'>=&gt;</span> <span class='bool-val'>false</span>
+    <span class="doccomment">/// Evaluate a supports condition</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">eval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">ParserContext</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">SupportsCondition</span>::<span class="ident">Not</span>(<span class="kw-2">ref</span> <span class="ident">cond</span>) <span class="op">=&gt;</span> <span class="op">!</span><span class="ident">cond</span>.<span class="ident">eval</span>(<span class="ident">cx</span>),
+            <span class="ident">SupportsCondition</span>::<span class="ident">Parenthesized</span>(<span class="kw-2">ref</span> <span class="ident">cond</span>) <span class="op">=&gt;</span> <span class="ident">cond</span>.<span class="ident">eval</span>(<span class="ident">cx</span>),
+            <span class="ident">SupportsCondition</span>::<span class="ident">And</span>(<span class="kw-2">ref</span> <span class="ident">vec</span>) <span class="op">=&gt;</span> <span class="ident">vec</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">eval</span>(<span class="ident">cx</span>)),
+            <span class="ident">SupportsCondition</span>::<span class="ident">Or</span>(<span class="kw-2">ref</span> <span class="ident">vec</span>) <span class="op">=&gt;</span> <span class="ident">vec</span>.<span class="ident">iter</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">eval</span>(<span class="ident">cx</span>)),
+            <span class="ident">SupportsCondition</span>::<span class="ident">Declaration</span>(<span class="kw-2">ref</span> <span class="ident">decl</span>) <span class="op">=&gt;</span> <span class="ident">decl</span>.<span class="ident">eval</span>(<span class="ident">cx</span>),
+            <span class="ident">SupportsCondition</span>::<span class="ident">FutureSyntax</span>(_) <span class="op">=&gt;</span> <span class="bool-val">false</span>
         }
     }
 }
 
-<span class='doccomment'>/// supports_condition | declaration</span>
-<span class='doccomment'>/// https://drafts.csswg.org/css-conditional/#dom-css-supports-conditiontext-conditiontext</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_condition_or_declaration</span>(<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>SupportsCondition</span>, ()<span class='op'>&gt;</span> {
-    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>condition</span>) <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>try</span>(<span class='ident'>SupportsCondition</span>::<span class='ident'>parse</span>) {
-        <span class='prelude-val'>Ok</span>(<span class='ident'>SupportsCondition</span>::<span class='ident'>Parenthesized</span>(<span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>condition</span>)))
-    } <span class='kw'>else</span> {
-        <span class='ident'>Declaration</span>::<span class='ident'>parse</span>(<span class='ident'>input</span>).<span class='ident'>map</span>(<span class='ident'>SupportsCondition</span>::<span class='ident'>Declaration</span>)
+<span class="doccomment">/// supports_condition | declaration</span>
+<span class="doccomment">/// https://drafts.csswg.org/css-conditional/#dom-css-supports-conditiontext-conditiontext</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_condition_or_declaration</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SupportsCondition</span>, ()<span class="op">&gt;</span> {
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">condition</span>) <span class="op">=</span> <span class="ident">input</span>.<span class="ident">try</span>(<span class="ident">SupportsCondition</span>::<span class="ident">parse</span>) {
+        <span class="prelude-val">Ok</span>(<span class="ident">SupportsCondition</span>::<span class="ident">Parenthesized</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">condition</span>)))
+    } <span class="kw">else</span> {
+        <span class="ident">Declaration</span>::<span class="ident">parse</span>(<span class="ident">input</span>).<span class="ident">map</span>(<span class="ident">SupportsCondition</span>::<span class="ident">Declaration</span>)
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>ToCss</span> <span class='kw'>for</span> <span class='ident'>SupportsCondition</span> {
-    <span class='kw'>fn</span> <span class='ident'>to_css</span><span class='op'>&lt;</span><span class='ident'>W</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>dest</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>W</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span>
-        <span class='kw'>where</span> <span class='ident'>W</span>: <span class='ident'>fmt</span>::<span class='ident'>Write</span> {
-        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='self'>self</span> {
-            <span class='ident'>SupportsCondition</span>::<span class='ident'>Not</span>(<span class='kw-2'>ref</span> <span class='ident'>cond</span>) <span class='op'>=&gt;</span> {
-                <span class='ident'>dest</span>.<span class='ident'>write_str</span>(<span class='string'>&quot;not &quot;</span>)<span class='question-mark'>?</span>;
-                <span class='ident'>cond</span>.<span class='ident'>to_css</span>(<span class='ident'>dest</span>)
+<span class="kw">impl</span> <span class="ident">ToCss</span> <span class="kw">for</span> <span class="ident">SupportsCondition</span> {
+    <span class="kw">fn</span> <span class="ident">to_css</span><span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">dest</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span>
+        <span class="kw">where</span> <span class="ident">W</span>: <span class="ident">fmt</span>::<span class="ident">Write</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">SupportsCondition</span>::<span class="ident">Not</span>(<span class="kw-2">ref</span> <span class="ident">cond</span>) <span class="op">=&gt;</span> {
+                <span class="ident">dest</span>.<span class="ident">write_str</span>(<span class="string">&quot;not &quot;</span>)<span class="question-mark">?</span>;
+                <span class="ident">cond</span>.<span class="ident">to_css</span>(<span class="ident">dest</span>)
             }
-            <span class='ident'>SupportsCondition</span>::<span class='ident'>Parenthesized</span>(<span class='kw-2'>ref</span> <span class='ident'>cond</span>) <span class='op'>=&gt;</span> {
-                <span class='ident'>dest</span>.<span class='ident'>write_str</span>(<span class='string'>&quot;(&quot;</span>)<span class='question-mark'>?</span>;
-                <span class='ident'>cond</span>.<span class='ident'>to_css</span>(<span class='ident'>dest</span>)<span class='question-mark'>?</span>;
-                <span class='ident'>dest</span>.<span class='ident'>write_str</span>(<span class='string'>&quot;)&quot;</span>)
+            <span class="ident">SupportsCondition</span>::<span class="ident">Parenthesized</span>(<span class="kw-2">ref</span> <span class="ident">cond</span>) <span class="op">=&gt;</span> {
+                <span class="ident">dest</span>.<span class="ident">write_str</span>(<span class="string">&quot;(&quot;</span>)<span class="question-mark">?</span>;
+                <span class="ident">cond</span>.<span class="ident">to_css</span>(<span class="ident">dest</span>)<span class="question-mark">?</span>;
+                <span class="ident">dest</span>.<span class="ident">write_str</span>(<span class="string">&quot;)&quot;</span>)
             }
-            <span class='ident'>SupportsCondition</span>::<span class='ident'>And</span>(<span class='kw-2'>ref</span> <span class='ident'>vec</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>first</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
-                <span class='kw'>for</span> <span class='ident'>cond</span> <span class='kw'>in</span> <span class='ident'>vec</span> {
-                    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>first</span> {
-                        <span class='ident'>dest</span>.<span class='ident'>write_str</span>(<span class='string'>&quot; and &quot;</span>)<span class='question-mark'>?</span>;
+            <span class="ident">SupportsCondition</span>::<span class="ident">And</span>(<span class="kw-2">ref</span> <span class="ident">vec</span>) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">first</span> <span class="op">=</span> <span class="bool-val">true</span>;
+                <span class="kw">for</span> <span class="ident">cond</span> <span class="kw">in</span> <span class="ident">vec</span> {
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">first</span> {
+                        <span class="ident">dest</span>.<span class="ident">write_str</span>(<span class="string">&quot; and &quot;</span>)<span class="question-mark">?</span>;
                     }
-                    <span class='ident'>first</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-                    <span class='ident'>cond</span>.<span class='ident'>to_css</span>(<span class='ident'>dest</span>)<span class='question-mark'>?</span>;
+                    <span class="ident">first</span> <span class="op">=</span> <span class="bool-val">false</span>;
+                    <span class="ident">cond</span>.<span class="ident">to_css</span>(<span class="ident">dest</span>)<span class="question-mark">?</span>;
                 }
-                <span class='prelude-val'>Ok</span>(())
+                <span class="prelude-val">Ok</span>(())
             }
-            <span class='ident'>SupportsCondition</span>::<span class='ident'>Or</span>(<span class='kw-2'>ref</span> <span class='ident'>vec</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>first</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
-                <span class='kw'>for</span> <span class='ident'>cond</span> <span class='kw'>in</span> <span class='ident'>vec</span> {
-                    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>first</span> {
-                        <span class='ident'>dest</span>.<span class='ident'>write_str</span>(<span class='string'>&quot; or &quot;</span>)<span class='question-mark'>?</span>;
+            <span class="ident">SupportsCondition</span>::<span class="ident">Or</span>(<span class="kw-2">ref</span> <span class="ident">vec</span>) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">first</span> <span class="op">=</span> <span class="bool-val">true</span>;
+                <span class="kw">for</span> <span class="ident">cond</span> <span class="kw">in</span> <span class="ident">vec</span> {
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">first</span> {
+                        <span class="ident">dest</span>.<span class="ident">write_str</span>(<span class="string">&quot; or &quot;</span>)<span class="question-mark">?</span>;
                     }
-                    <span class='ident'>first</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-                    <span class='ident'>cond</span>.<span class='ident'>to_css</span>(<span class='ident'>dest</span>)<span class='question-mark'>?</span>;
+                    <span class="ident">first</span> <span class="op">=</span> <span class="bool-val">false</span>;
+                    <span class="ident">cond</span>.<span class="ident">to_css</span>(<span class="ident">dest</span>)<span class="question-mark">?</span>;
                 }
-                <span class='prelude-val'>Ok</span>(())
+                <span class="prelude-val">Ok</span>(())
             }
-            <span class='ident'>SupportsCondition</span>::<span class='ident'>Declaration</span>(<span class='kw-2'>ref</span> <span class='ident'>decl</span>) <span class='op'>=&gt;</span> {
-                <span class='ident'>dest</span>.<span class='ident'>write_str</span>(<span class='string'>&quot;(&quot;</span>)<span class='question-mark'>?</span>;
-                <span class='ident'>decl</span>.<span class='ident'>to_css</span>(<span class='ident'>dest</span>)<span class='question-mark'>?</span>;
-                <span class='ident'>dest</span>.<span class='ident'>write_str</span>(<span class='string'>&quot;)&quot;</span>)
+            <span class="ident">SupportsCondition</span>::<span class="ident">Declaration</span>(<span class="kw-2">ref</span> <span class="ident">decl</span>) <span class="op">=&gt;</span> {
+                <span class="ident">dest</span>.<span class="ident">write_str</span>(<span class="string">&quot;(&quot;</span>)<span class="question-mark">?</span>;
+                <span class="ident">decl</span>.<span class="ident">to_css</span>(<span class="ident">dest</span>)<span class="question-mark">?</span>;
+                <span class="ident">dest</span>.<span class="ident">write_str</span>(<span class="string">&quot;)&quot;</span>)
             }
-            <span class='ident'>SupportsCondition</span>::<span class='ident'>FutureSyntax</span>(<span class='kw-2'>ref</span> <span class='ident'>s</span>) <span class='op'>=&gt;</span> <span class='ident'>dest</span>.<span class='ident'>write_str</span>(<span class='kw-2'>&amp;</span><span class='ident'>s</span>),
+            <span class="ident">SupportsCondition</span>::<span class="ident">FutureSyntax</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">dest</span>.<span class="ident">write_str</span>(<span class="kw-2">&amp;</span><span class="ident">s</span>),
         }
     }
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
-<span class='doccomment'>/// A possibly-invalid property declaration</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Declaration</span> {
-    <span class='doccomment'>/// The property name</span>
-    <span class='kw'>pub</span> <span class='ident'>prop</span>: <span class='ident'>String</span>,
-    <span class='doccomment'>/// The property value</span>
-    <span class='kw'>pub</span> <span class='ident'>val</span>: <span class='ident'>String</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="doccomment">/// A possibly-invalid property declaration</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Declaration</span> {
+    <span class="doccomment">/// The property name</span>
+    <span class="kw">pub</span> <span class="ident">prop</span>: <span class="ident">String</span>,
+    <span class="doccomment">/// The property value</span>
+    <span class="kw">pub</span> <span class="ident">val</span>: <span class="ident">String</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>ToCss</span> <span class='kw'>for</span> <span class='ident'>Declaration</span> {
-    <span class='kw'>fn</span> <span class='ident'>to_css</span><span class='op'>&lt;</span><span class='ident'>W</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>dest</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>W</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span>
-        <span class='kw'>where</span> <span class='ident'>W</span>: <span class='ident'>fmt</span>::<span class='ident'>Write</span> {
-        <span class='ident'>dest</span>.<span class='ident'>write_str</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>prop</span>)<span class='question-mark'>?</span>;
-        <span class='ident'>dest</span>.<span class='ident'>write_str</span>(<span class='string'>&quot;:&quot;</span>)<span class='question-mark'>?</span>;
-        <span class='comment'>// no space, the `val` already contains any possible spaces</span>
-        <span class='ident'>dest</span>.<span class='ident'>write_str</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>val</span>)
+<span class="kw">impl</span> <span class="ident">ToCss</span> <span class="kw">for</span> <span class="ident">Declaration</span> {
+    <span class="kw">fn</span> <span class="ident">to_css</span><span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">dest</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span>
+        <span class="kw">where</span> <span class="ident">W</span>: <span class="ident">fmt</span>::<span class="ident">Write</span> {
+        <span class="ident">dest</span>.<span class="ident">write_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">prop</span>)<span class="question-mark">?</span>;
+        <span class="ident">dest</span>.<span class="ident">write_str</span>(<span class="string">&quot;:&quot;</span>)<span class="question-mark">?</span>;
+        <span class="comment">// no space, the `val` already contains any possible spaces</span>
+        <span class="ident">dest</span>.<span class="ident">write_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">val</span>)
     }
 }
 
-<span class='doccomment'>/// Slurps up input till exhausted, return string from source position</span>
-<span class='kw'>fn</span> <span class='ident'>parse_anything</span>(<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>) <span class='op'>-&gt;</span> <span class='ident'>String</span> {
-    <span class='kw'>let</span> <span class='ident'>pos</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>position</span>();
-    <span class='ident'>consume_all</span>(<span class='ident'>input</span>);
-    <span class='ident'>input</span>.<span class='ident'>slice_from</span>(<span class='ident'>pos</span>).<span class='ident'>to_owned</span>()
+<span class="doccomment">/// Slurps up input till exhausted, return string from source position</span>
+<span class="kw">fn</span> <span class="ident">parse_anything</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>) <span class="op">-&gt;</span> <span class="ident">String</span> {
+    <span class="kw">let</span> <span class="ident">pos</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">position</span>();
+    <span class="ident">consume_all</span>(<span class="ident">input</span>);
+    <span class="ident">input</span>.<span class="ident">slice_from</span>(<span class="ident">pos</span>).<span class="ident">to_owned</span>()
 }
 
-<span class='doccomment'>/// consume input till done</span>
-<span class='kw'>fn</span> <span class='ident'>consume_all</span>(<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>) {
-    <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(_) <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>next</span>() {}
+<span class="doccomment">/// consume input till done</span>
+<span class="kw">fn</span> <span class="ident">consume_all</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>) {
+    <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(_) <span class="op">=</span> <span class="ident">input</span>.<span class="ident">next</span>() {}
 }
 
-<span class='kw'>impl</span> <span class='ident'>Declaration</span> {
-    <span class='doccomment'>/// Parse a declaration</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Declaration</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>prop</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>expect_ident</span>()<span class='question-mark'>?</span>.<span class='ident'>into_owned</span>();
-        <span class='ident'>input</span>.<span class='ident'>expect_colon</span>()<span class='question-mark'>?</span>;
-        <span class='kw'>let</span> <span class='ident'>val</span> <span class='op'>=</span> <span class='ident'>parse_anything</span>(<span class='ident'>input</span>);
-        <span class='prelude-val'>Ok</span>(<span class='ident'>Declaration</span> { <span class='ident'>prop</span>: <span class='ident'>prop</span>, <span class='ident'>val</span>: <span class='ident'>val</span> })
+<span class="kw">impl</span> <span class="ident">Declaration</span> {
+    <span class="doccomment">/// Parse a declaration</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Declaration</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">prop</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">expect_ident</span>()<span class="question-mark">?</span>.<span class="ident">into_owned</span>();
+        <span class="ident">input</span>.<span class="ident">expect_colon</span>()<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="ident">parse_anything</span>(<span class="ident">input</span>);
+        <span class="prelude-val">Ok</span>(<span class="ident">Declaration</span> { <span class="ident">prop</span>: <span class="ident">prop</span>, <span class="ident">val</span>: <span class="ident">val</span> })
     }
 
-    <span class='doccomment'>/// Determine if a declaration parses</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// https://drafts.csswg.org/css-conditional-3/#support-definition</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>eval</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cx</span>: <span class='kw-2'>&amp;</span><span class='ident'>ParserContext</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>let</span> <span class='ident'>id</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>id</span>) <span class='op'>=</span> <span class='ident'>PropertyId</span>::<span class='ident'>parse</span>((<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>prop</span>).<span class='ident'>into</span>()) {
-            <span class='ident'>id</span>
-        } <span class='kw'>else</span> {
-            <span class='kw'>return</span> <span class='bool-val'>false</span>
+    <span class="doccomment">/// Determine if a declaration parses</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// https://drafts.csswg.org/css-conditional-3/#support-definition</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">eval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">ParserContext</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">id</span>) <span class="op">=</span> <span class="ident">PropertyId</span>::<span class="ident">parse</span>((<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">prop</span>).<span class="ident">into</span>()) {
+            <span class="ident">id</span>
+        } <span class="kw">else</span> {
+            <span class="kw">return</span> <span class="bool-val">false</span>
         };
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>input</span> <span class='op'>=</span> <span class='ident'>Parser</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>val</span>);
-        <span class='kw'>let</span> <span class='ident'>res</span> <span class='op'>=</span> <span class='ident'>ParsedDeclaration</span>::<span class='ident'>parse</span>(<span class='ident'>id</span>, <span class='ident'>cx</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>input</span>, <span class='comment'>/* in_keyframe */</span> <span class='bool-val'>false</span>);
-        <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>try</span>(<span class='ident'>parse_important</span>);
-        <span class='ident'>res</span>.<span class='ident'>is_ok</span>() <span class='op'>&amp;&amp;</span> <span class='ident'>input</span>.<span class='ident'>is_exhausted</span>()
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">input</span> <span class="op">=</span> <span class="ident">Parser</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">val</span>);
+        <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">ParsedDeclaration</span>::<span class="ident">parse</span>(<span class="ident">id</span>, <span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">input</span>, <span class="comment">/* in_keyframe */</span> <span class="bool-val">false</span>);
+        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">input</span>.<span class="ident">try</span>(<span class="ident">parse_important</span>);
+        <span class="ident">res</span>.<span class="ident">is_ok</span>() <span class="op">&amp;&amp;</span> <span class="ident">input</span>.<span class="ident">is_exhausted</span>()
     }
 }
 </pre>

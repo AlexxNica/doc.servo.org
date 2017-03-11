@@ -753,714 +753,714 @@
 <span id="708">708</span>
 <span id="709">709</span>
 <span id="710">710</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ops</span>::<span class='ident'>Range</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ascii</span>::<span class='ident'>AsciiExt</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ops</span>::<span class='ident'>BitOr</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>Cow</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ops</span>;
-<span class='kw'>use</span> <span class='ident'>tokenizer</span>::{<span class='self'>self</span>, <span class='ident'>Token</span>, <span class='ident'>NumericValue</span>, <span class='ident'>PercentageValue</span>, <span class='ident'>Tokenizer</span>, <span class='ident'>SourceLocation</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Range</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ascii</span>::<span class="ident">AsciiExt</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">BitOr</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>;
+<span class="kw">use</span> <span class="ident">tokenizer</span>::{<span class="self">self</span>, <span class="ident">Token</span>, <span class="ident">NumericValue</span>, <span class="ident">PercentageValue</span>, <span class="ident">Tokenizer</span>, <span class="ident">SourceLocation</span>};
 
 
-<span class='doccomment'>/// A capture of the internal state of a `Parser` (including the position within the input),</span>
-<span class='doccomment'>/// obtained from the `Parser::position` method.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Can be used with the `Parser::reset` method to restore that state.</span>
-<span class='doccomment'>/// Should only be used with the `Parser` instance it came from.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Debug</span>, <span class='ident'>Clone</span>, <span class='ident'>Copy</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>SourcePosition</span> {
-    <span class='ident'>position</span>: <span class='ident'>tokenizer</span>::<span class='ident'>SourcePosition</span>,
-    <span class='ident'>at_start_of</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>BlockType</span><span class='op'>&gt;</span>,
+<span class="doccomment">/// A capture of the internal state of a `Parser` (including the position within the input),</span>
+<span class="doccomment">/// obtained from the `Parser::position` method.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Can be used with the `Parser::reset` method to restore that state.</span>
+<span class="doccomment">/// Should only be used with the `Parser` instance it came from.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SourcePosition</span> {
+    <span class="ident">position</span>: <span class="ident">tokenizer</span>::<span class="ident">SourcePosition</span>,
+    <span class="ident">at_start_of</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BlockType</span><span class="op">&gt;</span>,
 }
 
 
-<span class='doccomment'>/// Like std::borrow::Cow, except the borrowed variant contains a mutable</span>
-<span class='doccomment'>/// reference.</span>
-<span class='kw'>enum</span> <span class='ident'>MaybeOwned</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span>: <span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='ident'>Owned</span>(<span class='ident'>T</span>),
-    <span class='ident'>Borrowed</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>T</span>),
+<span class="doccomment">/// Like std::borrow::Cow, except the borrowed variant contains a mutable</span>
+<span class="doccomment">/// reference.</span>
+<span class="kw">enum</span> <span class="ident">MaybeOwned</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span>: <span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="ident">Owned</span>(<span class="ident">T</span>),
+    <span class="ident">Borrowed</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">T</span>),
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>ops</span>::<span class='ident'>Deref</span> <span class='kw'>for</span> <span class='ident'>MaybeOwned</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Target</span> <span class='op'>=</span> <span class='ident'>T</span>;
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">ops</span>::<span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">MaybeOwned</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">T</span>;
 
-    <span class='kw'>fn</span> <span class='ident'>deref</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='ident'>T</span> {
-        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='self'>self</span> {
-            <span class='ident'>MaybeOwned</span>::<span class='ident'>Owned</span>(<span class='kw-2'>ref</span> <span class='ident'>t</span>) <span class='op'>=&gt;</span> <span class='ident'>t</span>,
-            <span class='ident'>MaybeOwned</span>::<span class='ident'>Borrowed</span>(<span class='kw-2'>ref</span> <span class='ident'>pointer</span>) <span class='op'>=&gt;</span> <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='kw-2'>*</span><span class='ident'>pointer</span>,
+    <span class="kw">fn</span> <span class="ident">deref</span><span class="op">&lt;</span><span class="lifetime">&#39;b</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;b</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;b</span> <span class="ident">T</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">MaybeOwned</span>::<span class="ident">Owned</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>,
+            <span class="ident">MaybeOwned</span>::<span class="ident">Borrowed</span>(<span class="kw-2">ref</span> <span class="ident">pointer</span>) <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">pointer</span>,
         }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>ops</span>::<span class='ident'>DerefMut</span> <span class='kw'>for</span> <span class='ident'>MaybeOwned</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>deref_mut</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='kw-2'>mut</span> <span class='ident'>T</span> {
-        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='self'>self</span> {
-            <span class='ident'>MaybeOwned</span>::<span class='ident'>Owned</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>t</span>) <span class='op'>=&gt;</span> <span class='ident'>t</span>,
-            <span class='ident'>MaybeOwned</span>::<span class='ident'>Borrowed</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>pointer</span>) <span class='op'>=&gt;</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='kw-2'>*</span><span class='ident'>pointer</span>,
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">ops</span>::<span class="ident">DerefMut</span> <span class="kw">for</span> <span class="ident">MaybeOwned</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">deref_mut</span><span class="op">&lt;</span><span class="lifetime">&#39;b</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;b</span> <span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;b</span> <span class="kw-2">mut</span> <span class="ident">T</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">MaybeOwned</span>::<span class="ident">Owned</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>,
+            <span class="ident">MaybeOwned</span>::<span class="ident">Borrowed</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">pointer</span>) <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">pointer</span>,
         }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Clone</span> <span class='kw'>for</span> <span class='ident'>MaybeOwned</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>T</span>: <span class='ident'>Clone</span> {
-    <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>MaybeOwned</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> {
-        <span class='ident'>MaybeOwned</span>::<span class='ident'>Owned</span>((<span class='kw-2'>*</span><span class='kw-2'>*</span><span class='self'>self</span>).<span class='ident'>clone</span>())
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Clone</span> <span class="kw">for</span> <span class="ident">MaybeOwned</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Clone</span> {
+    <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">MaybeOwned</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="ident">MaybeOwned</span>::<span class="ident">Owned</span>((<span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>).<span class="ident">clone</span>())
     }
 }
 
 
-<span class='doccomment'>/// A CSS parser that borrows its `&amp;str` input,</span>
-<span class='doccomment'>/// yields `Token`s,</span>
-<span class='doccomment'>/// and keeps track of nested blocks and functions.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>: <span class='lifetime'>&#39;t</span>, <span class='lifetime'>&#39;t</span><span class='op'>&gt;</span> {
-    <span class='ident'>tokenizer</span>: <span class='ident'>MaybeOwned</span><span class='op'>&lt;</span><span class='lifetime'>&#39;t</span>, <span class='ident'>Tokenizer</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span><span class='op'>&gt;&gt;</span>,
-    <span class='doccomment'>/// If `Some(_)`, .parse_nested_block() can be called.</span>
-    <span class='ident'>at_start_of</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>BlockType</span><span class='op'>&gt;</span>,
-    <span class='doccomment'>/// For parsers from `parse_until` or `parse_nested_block`</span>
-    <span class='ident'>stop_before</span>: <span class='ident'>Delimiters</span>,
+<span class="doccomment">/// A CSS parser that borrows its `&amp;str` input,</span>
+<span class="doccomment">/// yields `Token`s,</span>
+<span class="doccomment">/// and keeps track of nested blocks and functions.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Parser</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>: <span class="lifetime">&#39;t</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+    <span class="ident">tokenizer</span>: <span class="ident">MaybeOwned</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span>, <span class="ident">Tokenizer</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span><span class="op">&gt;&gt;</span>,
+    <span class="doccomment">/// If `Some(_)`, .parse_nested_block() can be called.</span>
+    <span class="ident">at_start_of</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BlockType</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// For parsers from `parse_until` or `parse_nested_block`</span>
+    <span class="ident">stop_before</span>: <span class="ident">Delimiters</span>,
 }
 
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>enum</span> <span class='ident'>BlockType</span> {
-    <span class='ident'>Parenthesis</span>,
-    <span class='ident'>SquareBracket</span>,
-    <span class='ident'>CurlyBracket</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">enum</span> <span class="ident">BlockType</span> {
+    <span class="ident">Parenthesis</span>,
+    <span class="ident">SquareBracket</span>,
+    <span class="ident">CurlyBracket</span>,
 }
 
 
-<span class='kw'>impl</span> <span class='ident'>BlockType</span> {
-    <span class='kw'>fn</span> <span class='ident'>opening</span>(<span class='ident'>token</span>: <span class='kw-2'>&amp;</span><span class='ident'>Token</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>BlockType</span><span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>token</span> {
-            <span class='ident'>Token</span>::<span class='ident'>Function</span>(_) <span class='op'>|</span>
-            <span class='ident'>Token</span>::<span class='ident'>ParenthesisBlock</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>BlockType</span>::<span class='ident'>Parenthesis</span>),
-            <span class='ident'>Token</span>::<span class='ident'>SquareBracketBlock</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>BlockType</span>::<span class='ident'>SquareBracket</span>),
-            <span class='ident'>Token</span>::<span class='ident'>CurlyBracketBlock</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>BlockType</span>::<span class='ident'>CurlyBracket</span>),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>
+<span class="kw">impl</span> <span class="ident">BlockType</span> {
+    <span class="kw">fn</span> <span class="ident">opening</span>(<span class="ident">token</span>: <span class="kw-2">&amp;</span><span class="ident">Token</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BlockType</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">token</span> {
+            <span class="ident">Token</span>::<span class="ident">Function</span>(_) <span class="op">|</span>
+            <span class="ident">Token</span>::<span class="ident">ParenthesisBlock</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">BlockType</span>::<span class="ident">Parenthesis</span>),
+            <span class="ident">Token</span>::<span class="ident">SquareBracketBlock</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">BlockType</span>::<span class="ident">SquareBracket</span>),
+            <span class="ident">Token</span>::<span class="ident">CurlyBracketBlock</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">BlockType</span>::<span class="ident">CurlyBracket</span>),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>closing</span>(<span class='ident'>token</span>: <span class='kw-2'>&amp;</span><span class='ident'>Token</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>BlockType</span><span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>token</span> {
-            <span class='ident'>Token</span>::<span class='ident'>CloseParenthesis</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>BlockType</span>::<span class='ident'>Parenthesis</span>),
-            <span class='ident'>Token</span>::<span class='ident'>CloseSquareBracket</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>BlockType</span>::<span class='ident'>SquareBracket</span>),
-            <span class='ident'>Token</span>::<span class='ident'>CloseCurlyBracket</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Some</span>(<span class='ident'>BlockType</span>::<span class='ident'>CurlyBracket</span>),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>
-        }
-    }
-}
-
-
-<span class='doccomment'>/// A set of characters, to be used with the `Parser::parse_until*` methods.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// The union of two sets can be obtained with the `|` operator. Example:</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// ```{rust,ignore}</span>
-<span class='doccomment'>/// input.parse_until_before(Delimiter::CurlyBracketBlock | Delimiter::Semicolon)</span>
-<span class='doccomment'>/// ```</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Delimiters</span> {
-    <span class='ident'>bits</span>: <span class='ident'>u8</span>,
-}
-
-<span class='doccomment'>/// `Delimiters` constants.</span>
-<span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>non_upper_case_globals</span>, <span class='ident'>non_snake_case</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>Delimiter</span> {
-    <span class='kw'>use</span> <span class='kw'>super</span>::<span class='ident'>Delimiters</span>;
-
-    <span class='doccomment'>/// The empty delimiter set</span>
-    <span class='kw'>pub</span> <span class='kw'>const</span> <span class='prelude-val'>None</span>: <span class='ident'>Delimiters</span> <span class='op'>=</span> <span class='ident'>Delimiters</span> { <span class='ident'>bits</span>: <span class='number'>0</span> };
-    <span class='doccomment'>/// The delimiter set with only the `{` opening curly bracket</span>
-    <span class='kw'>pub</span> <span class='kw'>const</span> <span class='ident'>CurlyBracketBlock</span>: <span class='ident'>Delimiters</span> <span class='op'>=</span> <span class='ident'>Delimiters</span> { <span class='ident'>bits</span>: <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>1</span> };
-    <span class='doccomment'>/// The delimiter set with only the `;` semicolon</span>
-    <span class='kw'>pub</span> <span class='kw'>const</span> <span class='ident'>Semicolon</span>: <span class='ident'>Delimiters</span> <span class='op'>=</span> <span class='ident'>Delimiters</span> { <span class='ident'>bits</span>: <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>2</span> };
-    <span class='doccomment'>/// The delimiter set with only the `!` exclamation point</span>
-    <span class='kw'>pub</span> <span class='kw'>const</span> <span class='ident'>Bang</span>: <span class='ident'>Delimiters</span> <span class='op'>=</span> <span class='ident'>Delimiters</span> { <span class='ident'>bits</span>: <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>3</span> };
-    <span class='doccomment'>/// The delimiter set with only the `,` comma</span>
-    <span class='kw'>pub</span> <span class='kw'>const</span> <span class='ident'>Comma</span>: <span class='ident'>Delimiters</span> <span class='op'>=</span> <span class='ident'>Delimiters</span> { <span class='ident'>bits</span>: <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>4</span> };
-}
-
-<span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>non_upper_case_globals</span>, <span class='ident'>non_snake_case</span>)]</span>
-<span class='kw'>mod</span> <span class='ident'>ClosingDelimiter</span> {
-    <span class='kw'>use</span> <span class='kw'>super</span>::<span class='ident'>Delimiters</span>;
-
-    <span class='kw'>pub</span> <span class='kw'>const</span> <span class='ident'>CloseCurlyBracket</span>: <span class='ident'>Delimiters</span> <span class='op'>=</span> <span class='ident'>Delimiters</span> { <span class='ident'>bits</span>: <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>5</span> };
-    <span class='kw'>pub</span> <span class='kw'>const</span> <span class='ident'>CloseSquareBracket</span>: <span class='ident'>Delimiters</span> <span class='op'>=</span> <span class='ident'>Delimiters</span> { <span class='ident'>bits</span>: <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>6</span> };
-    <span class='kw'>pub</span> <span class='kw'>const</span> <span class='ident'>CloseParenthesis</span>: <span class='ident'>Delimiters</span> <span class='op'>=</span> <span class='ident'>Delimiters</span> { <span class='ident'>bits</span>: <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>7</span> };
-}
-
-<span class='kw'>impl</span> <span class='ident'>BitOr</span><span class='op'>&lt;</span><span class='ident'>Delimiters</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Delimiters</span> {
-    <span class='kw'>type</span> <span class='ident'>Output</span> <span class='op'>=</span> <span class='ident'>Delimiters</span>;
-
-    <span class='kw'>fn</span> <span class='ident'>bitor</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>Delimiters</span>) <span class='op'>-&gt;</span> <span class='ident'>Delimiters</span> {
-        <span class='ident'>Delimiters</span> { <span class='ident'>bits</span>: <span class='self'>self</span>.<span class='ident'>bits</span> <span class='op'>|</span> <span class='ident'>other</span>.<span class='ident'>bits</span> }
-    }
-}
-
-<span class='kw'>impl</span> <span class='ident'>Delimiters</span> {
-    <span class='kw'>fn</span> <span class='ident'>contains</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>Delimiters</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        (<span class='self'>self</span>.<span class='ident'>bits</span> <span class='op'>&amp;</span> <span class='ident'>other</span>.<span class='ident'>bits</span>) <span class='op'>!=</span> <span class='number'>0</span>
-    }
-
-    <span class='kw'>fn</span> <span class='ident'>from_byte</span>(<span class='ident'>byte</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>Delimiters</span> {
-        <span class='kw'>match</span> <span class='ident'>byte</span> {
-            <span class='prelude-val'>Some</span>(<span class='string'>b&#39;;&#39;</span>) <span class='op'>=&gt;</span> <span class='ident'>Delimiter</span>::<span class='ident'>Semicolon</span>,
-            <span class='prelude-val'>Some</span>(<span class='string'>b&#39;!&#39;</span>) <span class='op'>=&gt;</span> <span class='ident'>Delimiter</span>::<span class='ident'>Bang</span>,
-            <span class='prelude-val'>Some</span>(<span class='string'>b&#39;,&#39;</span>) <span class='op'>=&gt;</span> <span class='ident'>Delimiter</span>::<span class='ident'>Comma</span>,
-            <span class='prelude-val'>Some</span>(<span class='string'>b&#39;{&#39;</span>) <span class='op'>=&gt;</span> <span class='ident'>Delimiter</span>::<span class='ident'>CurlyBracketBlock</span>,
-            <span class='prelude-val'>Some</span>(<span class='string'>b&#39;}&#39;</span>) <span class='op'>=&gt;</span> <span class='ident'>ClosingDelimiter</span>::<span class='ident'>CloseCurlyBracket</span>,
-            <span class='prelude-val'>Some</span>(<span class='string'>b&#39;]&#39;</span>) <span class='op'>=&gt;</span> <span class='ident'>ClosingDelimiter</span>::<span class='ident'>CloseSquareBracket</span>,
-            <span class='prelude-val'>Some</span>(<span class='string'>b&#39;)&#39;</span>) <span class='op'>=&gt;</span> <span class='ident'>ClosingDelimiter</span>::<span class='ident'>CloseParenthesis</span>,
-            _ <span class='op'>=&gt;</span> <span class='ident'>Delimiter</span>::<span class='prelude-val'>None</span>,
+    <span class="kw">fn</span> <span class="ident">closing</span>(<span class="ident">token</span>: <span class="kw-2">&amp;</span><span class="ident">Token</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BlockType</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">token</span> {
+            <span class="ident">Token</span>::<span class="ident">CloseParenthesis</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">BlockType</span>::<span class="ident">Parenthesis</span>),
+            <span class="ident">Token</span>::<span class="ident">CloseSquareBracket</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">BlockType</span>::<span class="ident">SquareBracket</span>),
+            <span class="ident">Token</span>::<span class="ident">CloseCurlyBracket</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">BlockType</span>::<span class="ident">CurlyBracket</span>),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>
         }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;t</span><span class='op'>&gt;</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;t</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Create a new parser</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;i</span> <span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;i</span><span class='op'>&gt;</span> {
-        <span class='ident'>Parser</span> {
-            <span class='ident'>tokenizer</span>: <span class='ident'>MaybeOwned</span>::<span class='ident'>Owned</span>(<span class='ident'>Tokenizer</span>::<span class='ident'>new</span>(<span class='ident'>input</span>)),
-            <span class='ident'>at_start_of</span>: <span class='prelude-val'>None</span>,
-            <span class='ident'>stop_before</span>: <span class='ident'>Delimiter</span>::<span class='prelude-val'>None</span>,
+
+<span class="doccomment">/// A set of characters, to be used with the `Parser::parse_until*` methods.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The union of two sets can be obtained with the `|` operator. Example:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// ```{rust,ignore}</span>
+<span class="doccomment">/// input.parse_until_before(Delimiter::CurlyBracketBlock | Delimiter::Semicolon)</span>
+<span class="doccomment">/// ```</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Delimiters</span> {
+    <span class="ident">bits</span>: <span class="ident">u8</span>,
+}
+
+<span class="doccomment">/// `Delimiters` constants.</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_upper_case_globals</span>, <span class="ident">non_snake_case</span>)]</span>
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">Delimiter</span> {
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">Delimiters</span>;
+
+    <span class="doccomment">/// The empty delimiter set</span>
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="prelude-val">None</span>: <span class="ident">Delimiters</span> <span class="op">=</span> <span class="ident">Delimiters</span> { <span class="ident">bits</span>: <span class="number">0</span> };
+    <span class="doccomment">/// The delimiter set with only the `{` opening curly bracket</span>
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">CurlyBracketBlock</span>: <span class="ident">Delimiters</span> <span class="op">=</span> <span class="ident">Delimiters</span> { <span class="ident">bits</span>: <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">1</span> };
+    <span class="doccomment">/// The delimiter set with only the `;` semicolon</span>
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">Semicolon</span>: <span class="ident">Delimiters</span> <span class="op">=</span> <span class="ident">Delimiters</span> { <span class="ident">bits</span>: <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">2</span> };
+    <span class="doccomment">/// The delimiter set with only the `!` exclamation point</span>
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">Bang</span>: <span class="ident">Delimiters</span> <span class="op">=</span> <span class="ident">Delimiters</span> { <span class="ident">bits</span>: <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">3</span> };
+    <span class="doccomment">/// The delimiter set with only the `,` comma</span>
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">Comma</span>: <span class="ident">Delimiters</span> <span class="op">=</span> <span class="ident">Delimiters</span> { <span class="ident">bits</span>: <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">4</span> };
+}
+
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_upper_case_globals</span>, <span class="ident">non_snake_case</span>)]</span>
+<span class="kw">mod</span> <span class="ident">ClosingDelimiter</span> {
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">Delimiters</span>;
+
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">CloseCurlyBracket</span>: <span class="ident">Delimiters</span> <span class="op">=</span> <span class="ident">Delimiters</span> { <span class="ident">bits</span>: <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">5</span> };
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">CloseSquareBracket</span>: <span class="ident">Delimiters</span> <span class="op">=</span> <span class="ident">Delimiters</span> { <span class="ident">bits</span>: <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">6</span> };
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">CloseParenthesis</span>: <span class="ident">Delimiters</span> <span class="op">=</span> <span class="ident">Delimiters</span> { <span class="ident">bits</span>: <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">7</span> };
+}
+
+<span class="kw">impl</span> <span class="ident">BitOr</span><span class="op">&lt;</span><span class="ident">Delimiters</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Delimiters</span> {
+    <span class="kw">type</span> <span class="ident">Output</span> <span class="op">=</span> <span class="ident">Delimiters</span>;
+
+    <span class="kw">fn</span> <span class="ident">bitor</span>(<span class="self">self</span>, <span class="ident">other</span>: <span class="ident">Delimiters</span>) <span class="op">-&gt;</span> <span class="ident">Delimiters</span> {
+        <span class="ident">Delimiters</span> { <span class="ident">bits</span>: <span class="self">self</span>.<span class="ident">bits</span> <span class="op">|</span> <span class="ident">other</span>.<span class="ident">bits</span> }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Delimiters</span> {
+    <span class="kw">fn</span> <span class="ident">contains</span>(<span class="self">self</span>, <span class="ident">other</span>: <span class="ident">Delimiters</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        (<span class="self">self</span>.<span class="ident">bits</span> <span class="op">&amp;</span> <span class="ident">other</span>.<span class="ident">bits</span>) <span class="op">!=</span> <span class="number">0</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">from_byte</span>(<span class="ident">byte</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Delimiters</span> {
+        <span class="kw">match</span> <span class="ident">byte</span> {
+            <span class="prelude-val">Some</span>(<span class="string">b&#39;;&#39;</span>) <span class="op">=&gt;</span> <span class="ident">Delimiter</span>::<span class="ident">Semicolon</span>,
+            <span class="prelude-val">Some</span>(<span class="string">b&#39;!&#39;</span>) <span class="op">=&gt;</span> <span class="ident">Delimiter</span>::<span class="ident">Bang</span>,
+            <span class="prelude-val">Some</span>(<span class="string">b&#39;,&#39;</span>) <span class="op">=&gt;</span> <span class="ident">Delimiter</span>::<span class="ident">Comma</span>,
+            <span class="prelude-val">Some</span>(<span class="string">b&#39;{&#39;</span>) <span class="op">=&gt;</span> <span class="ident">Delimiter</span>::<span class="ident">CurlyBracketBlock</span>,
+            <span class="prelude-val">Some</span>(<span class="string">b&#39;}&#39;</span>) <span class="op">=&gt;</span> <span class="ident">ClosingDelimiter</span>::<span class="ident">CloseCurlyBracket</span>,
+            <span class="prelude-val">Some</span>(<span class="string">b&#39;]&#39;</span>) <span class="op">=&gt;</span> <span class="ident">ClosingDelimiter</span>::<span class="ident">CloseSquareBracket</span>,
+            <span class="prelude-val">Some</span>(<span class="string">b&#39;)&#39;</span>) <span class="op">=&gt;</span> <span class="ident">ClosingDelimiter</span>::<span class="ident">CloseParenthesis</span>,
+            _ <span class="op">=&gt;</span> <span class="ident">Delimiter</span>::<span class="prelude-val">None</span>,
+        }
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> <span class="ident">Parser</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Create a new parser</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;i</span> <span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">Parser</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;i</span><span class="op">&gt;</span> {
+        <span class="ident">Parser</span> {
+            <span class="ident">tokenizer</span>: <span class="ident">MaybeOwned</span>::<span class="ident">Owned</span>(<span class="ident">Tokenizer</span>::<span class="ident">new</span>(<span class="ident">input</span>)),
+            <span class="ident">at_start_of</span>: <span class="prelude-val">None</span>,
+            <span class="ident">stop_before</span>: <span class="ident">Delimiter</span>::<span class="prelude-val">None</span>,
         }
     }
 
-    <span class='doccomment'>/// Check whether the input is exhausted. That is, if `.next()` would return a token.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// This ignores whitespace and comments.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_exhausted</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>expect_exhausted</span>().<span class='ident'>is_ok</span>()
+    <span class="doccomment">/// Check whether the input is exhausted. That is, if `.next()` would return a token.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This ignores whitespace and comments.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_exhausted</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">expect_exhausted</span>().<span class="ident">is_ok</span>()
     }
 
-    <span class='doccomment'>/// Check whether the input is exhausted. That is, if `.next()` would return a token.</span>
-    <span class='doccomment'>/// Return a `Result` so that the `try!` macro can be used: `try!(input.expect_exhausted())`</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// This ignores whitespace and comments.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_exhausted</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>start_position</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>position</span>();
-        <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>next</span>() {
-            <span class='prelude-val'>Err</span>(()) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(()),
-            <span class='prelude-val'>Ok</span>(_) <span class='op'>=&gt;</span> {
-                <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Check whether the input is exhausted. That is, if `.next()` would return a token.</span>
+    <span class="doccomment">/// Return a `Result` so that the `try!` macro can be used: `try!(input.expect_exhausted())`</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This ignores whitespace and comments.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_exhausted</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">start_position</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">position</span>();
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">next</span>() {
+            <span class="prelude-val">Err</span>(()) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> {
+                <span class="prelude-val">Err</span>(())
             }
         };
-        <span class='self'>self</span>.<span class='ident'>reset</span>(<span class='ident'>start_position</span>);
-        <span class='ident'>result</span>
+        <span class="self">self</span>.<span class="ident">reset</span>(<span class="ident">start_position</span>);
+        <span class="ident">result</span>
     }
 
-    <span class='doccomment'>/// Return the current internal state of the parser (including position within the input).</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// This state can later be restored with the `Parser::reset` method.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>position</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>SourcePosition</span> {
-        <span class='ident'>SourcePosition</span> {
-            <span class='ident'>position</span>: <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>position</span>(),
-            <span class='ident'>at_start_of</span>: <span class='self'>self</span>.<span class='ident'>at_start_of</span>,
+    <span class="doccomment">/// Return the current internal state of the parser (including position within the input).</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This state can later be restored with the `Parser::reset` method.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">position</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">SourcePosition</span> {
+        <span class="ident">SourcePosition</span> {
+            <span class="ident">position</span>: <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">position</span>(),
+            <span class="ident">at_start_of</span>: <span class="self">self</span>.<span class="ident">at_start_of</span>,
         }
     }
 
-    <span class='doccomment'>/// Restore the internal state of the parser (including position within the input)</span>
-    <span class='doccomment'>/// to what was previously saved by the `Parser::position` method.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Should only be used with `SourcePosition` values from the same `Parser` instance.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>reset</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>new_position</span>: <span class='ident'>SourcePosition</span>) {
-        <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>reset</span>(<span class='ident'>new_position</span>.<span class='ident'>position</span>);
-        <span class='self'>self</span>.<span class='ident'>at_start_of</span> <span class='op'>=</span> <span class='ident'>new_position</span>.<span class='ident'>at_start_of</span>;
+    <span class="doccomment">/// Restore the internal state of the parser (including position within the input)</span>
+    <span class="doccomment">/// to what was previously saved by the `Parser::position` method.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Should only be used with `SourcePosition` values from the same `Parser` instance.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">new_position</span>: <span class="ident">SourcePosition</span>) {
+        <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">reset</span>(<span class="ident">new_position</span>.<span class="ident">position</span>);
+        <span class="self">self</span>.<span class="ident">at_start_of</span> <span class="op">=</span> <span class="ident">new_position</span>.<span class="ident">at_start_of</span>;
     }
 
-    <span class='doccomment'>/// Start looking for `var()` functions. (See the `.seen_var_functions()` method.)</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>look_for_var_functions</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>look_for_var_functions</span>()
+    <span class="doccomment">/// Start looking for `var()` functions. (See the `.seen_var_functions()` method.)</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">look_for_var_functions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">look_for_var_functions</span>()
     }
 
-    <span class='doccomment'>/// Return whether a `var()` function has been seen by the tokenizer since</span>
-    <span class='doccomment'>/// either `look_for_var_functions` was called, and stop looking.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>seen_var_functions</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>seen_var_functions</span>()
+    <span class="doccomment">/// Return whether a `var()` function has been seen by the tokenizer since</span>
+    <span class="doccomment">/// either `look_for_var_functions` was called, and stop looking.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">seen_var_functions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">seen_var_functions</span>()
     }
 
-    <span class='doccomment'>/// Start looking for viewport percentage lengths. (See the `seen_viewport_percentages`</span>
-    <span class='doccomment'>/// method.)</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>look_for_viewport_percentages</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>look_for_viewport_percentages</span>()
+    <span class="doccomment">/// Start looking for viewport percentage lengths. (See the `seen_viewport_percentages`</span>
+    <span class="doccomment">/// method.)</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">look_for_viewport_percentages</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">look_for_viewport_percentages</span>()
     }
 
-    <span class='doccomment'>/// Return whether a `vh`, `vw`, `vmin`, or `vmax` dimension has been seen by the tokenizer</span>
-    <span class='doccomment'>/// since `look_for_viewport_percentages` was called, and stop looking.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>seen_viewport_percentages</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>seen_viewport_percentages</span>()
+    <span class="doccomment">/// Return whether a `vh`, `vw`, `vmin`, or `vmax` dimension has been seen by the tokenizer</span>
+    <span class="doccomment">/// since `look_for_viewport_percentages` was called, and stop looking.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">seen_viewport_percentages</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">seen_viewport_percentages</span>()
     }
 
-    <span class='doccomment'>/// Execute the given closure, passing it the parser.</span>
-    <span class='doccomment'>/// If the result (returned unchanged) is `Err`,</span>
-    <span class='doccomment'>/// the internal state of the parser  (including position within the input)</span>
-    <span class='doccomment'>/// is restored to what it was before the call.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>try</span><span class='op'>&lt;</span><span class='ident'>F</span>, <span class='ident'>T</span>, <span class='ident'>E</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>thing</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>, <span class='ident'>E</span><span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>FnOnce</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;t</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>, <span class='ident'>E</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>start_position</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>position</span>();
-        <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>thing</span>(<span class='self'>self</span>);
-        <span class='kw'>if</span> <span class='ident'>result</span>.<span class='ident'>is_err</span>() {
-            <span class='self'>self</span>.<span class='ident'>reset</span>(<span class='ident'>start_position</span>)
+    <span class="doccomment">/// Execute the given closure, passing it the parser.</span>
+    <span class="doccomment">/// If the result (returned unchanged) is `Err`,</span>
+    <span class="doccomment">/// the internal state of the parser  (including position within the input)</span>
+    <span class="doccomment">/// is restored to what it was before the call.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">try</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">thing</span>: <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">start_position</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">position</span>();
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">thing</span>(<span class="self">self</span>);
+        <span class="kw">if</span> <span class="ident">result</span>.<span class="ident">is_err</span>() {
+            <span class="self">self</span>.<span class="ident">reset</span>(<span class="ident">start_position</span>)
         }
-        <span class='ident'>result</span>
+        <span class="ident">result</span>
     }
 
-    <span class='doccomment'>/// Return a slice of the CSS input</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>slice</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>range</span>: <span class='ident'>Range</span><span class='op'>&lt;</span><span class='ident'>SourcePosition</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;i</span> <span class='ident'>str</span> {
-        <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>slice</span>(<span class='ident'>range</span>.<span class='ident'>start</span>.<span class='ident'>position</span>..<span class='ident'>range</span>.<span class='ident'>end</span>.<span class='ident'>position</span>)
+    <span class="doccomment">/// Return a slice of the CSS input</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">slice</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">range</span>: <span class="ident">Range</span><span class="op">&lt;</span><span class="ident">SourcePosition</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;i</span> <span class="ident">str</span> {
+        <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">slice</span>(<span class="ident">range</span>.<span class="ident">start</span>.<span class="ident">position</span>..<span class="ident">range</span>.<span class="ident">end</span>.<span class="ident">position</span>)
     }
 
-    <span class='doccomment'>/// Return a slice of the CSS input, from the given position to the current one.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>slice_from</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>start_position</span>: <span class='ident'>SourcePosition</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;i</span> <span class='ident'>str</span> {
-        <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>slice_from</span>(<span class='ident'>start_position</span>.<span class='ident'>position</span>)
+    <span class="doccomment">/// Return a slice of the CSS input, from the given position to the current one.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">slice_from</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">start_position</span>: <span class="ident">SourcePosition</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;i</span> <span class="ident">str</span> {
+        <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">slice_from</span>(<span class="ident">start_position</span>.<span class="ident">position</span>)
     }
 
-    <span class='doccomment'>/// Return the line and column number within the input for the current position.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>current_source_location</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>SourceLocation</span> {
-        <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>current_source_location</span>()
+    <span class="doccomment">/// Return the line and column number within the input for the current position.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">current_source_location</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">SourceLocation</span> {
+        <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">current_source_location</span>()
     }
 
-    <span class='doccomment'>/// Return the line and column number within the input for the given position.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>source_location</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>target</span>: <span class='ident'>SourcePosition</span>) <span class='op'>-&gt;</span> <span class='ident'>SourceLocation</span> {
-        <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>source_location</span>(<span class='ident'>target</span>.<span class='ident'>position</span>)
+    <span class="doccomment">/// Return the line and column number within the input for the given position.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">source_location</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">target</span>: <span class="ident">SourcePosition</span>) <span class="op">-&gt;</span> <span class="ident">SourceLocation</span> {
+        <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">source_location</span>(<span class="ident">target</span>.<span class="ident">position</span>)
     }
 
-    <span class='doccomment'>/// Return the next token in the input that is neither whitespace or a comment,</span>
-    <span class='doccomment'>/// and advance the position accordingly.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// After returning a `Function`, `ParenthesisBlock`,</span>
-    <span class='doccomment'>/// `CurlyBracketBlock`, or `SquareBracketBlock` token,</span>
-    <span class='doccomment'>/// the next call will skip until after the matching `CloseParenthesis`,</span>
-    <span class='doccomment'>/// `CloseCurlyBracket`, or `CloseSquareBracket` token.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// See the `Parser::parse_nested_block` method to parse the content of functions or blocks.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// This only returns a closing token when it is unmatched (and therefore an error).</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>next</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Token</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>loop</span> {
-            <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>next_including_whitespace_and_comments</span>() {
-                <span class='prelude-val'>Ok</span>(<span class='ident'>Token</span>::<span class='ident'>WhiteSpace</span>(_)) <span class='op'>|</span> <span class='prelude-val'>Ok</span>(<span class='ident'>Token</span>::<span class='ident'>Comment</span>(_)) <span class='op'>=&gt;</span> {},
-                <span class='ident'>result</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='ident'>result</span>
+    <span class="doccomment">/// Return the next token in the input that is neither whitespace or a comment,</span>
+    <span class="doccomment">/// and advance the position accordingly.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// After returning a `Function`, `ParenthesisBlock`,</span>
+    <span class="doccomment">/// `CurlyBracketBlock`, or `SquareBracketBlock` token,</span>
+    <span class="doccomment">/// the next call will skip until after the matching `CloseParenthesis`,</span>
+    <span class="doccomment">/// `CloseCurlyBracket`, or `CloseSquareBracket` token.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// See the `Parser::parse_nested_block` method to parse the content of functions or blocks.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This only returns a closing token when it is unmatched (and therefore an error).</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Token</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">loop</span> {
+            <span class="kw">match</span> <span class="self">self</span>.<span class="ident">next_including_whitespace_and_comments</span>() {
+                <span class="prelude-val">Ok</span>(<span class="ident">Token</span>::<span class="ident">WhiteSpace</span>(_)) <span class="op">|</span> <span class="prelude-val">Ok</span>(<span class="ident">Token</span>::<span class="ident">Comment</span>(_)) <span class="op">=&gt;</span> {},
+                <span class="ident">result</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">result</span>
             }
         }
     }
 
-    <span class='doccomment'>/// Same as `Parser::next`, but does not skip whitespace tokens.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>next_including_whitespace</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Token</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>loop</span> {
-            <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>next_including_whitespace_and_comments</span>() {
-                <span class='prelude-val'>Ok</span>(<span class='ident'>Token</span>::<span class='ident'>Comment</span>(_)) <span class='op'>=&gt;</span> {},
-                <span class='ident'>result</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='ident'>result</span>
+    <span class="doccomment">/// Same as `Parser::next`, but does not skip whitespace tokens.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">next_including_whitespace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Token</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">loop</span> {
+            <span class="kw">match</span> <span class="self">self</span>.<span class="ident">next_including_whitespace_and_comments</span>() {
+                <span class="prelude-val">Ok</span>(<span class="ident">Token</span>::<span class="ident">Comment</span>(_)) <span class="op">=&gt;</span> {},
+                <span class="ident">result</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">result</span>
             }
         }
     }
 
-    <span class='doccomment'>/// Same as `Parser::next`, but does not skip whitespace or comment tokens.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// **Note**: This should only be used in contexts like a CSS pre-processor</span>
-    <span class='doccomment'>/// where comments are preserved.</span>
-    <span class='doccomment'>/// When parsing higher-level values, per the CSS Syntax specification,</span>
-    <span class='doccomment'>/// comments should always be ignored between tokens.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>next_including_whitespace_and_comments</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Token</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>block_type</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>at_start_of</span>.<span class='ident'>take</span>() {
-            <span class='ident'>consume_until_end_of_block</span>(<span class='ident'>block_type</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>tokenizer</span>);
+    <span class="doccomment">/// Same as `Parser::next`, but does not skip whitespace or comment tokens.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// **Note**: This should only be used in contexts like a CSS pre-processor</span>
+    <span class="doccomment">/// where comments are preserved.</span>
+    <span class="doccomment">/// When parsing higher-level values, per the CSS Syntax specification,</span>
+    <span class="doccomment">/// comments should always be ignored between tokens.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">next_including_whitespace_and_comments</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Token</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">block_type</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">at_start_of</span>.<span class="ident">take</span>() {
+            <span class="ident">consume_until_end_of_block</span>(<span class="ident">block_type</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">tokenizer</span>);
         }
-        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>stop_before</span>.<span class='ident'>contains</span>(<span class='ident'>Delimiters</span>::<span class='ident'>from_byte</span>(<span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>next_byte</span>())) {
-            <span class='kw'>return</span> <span class='prelude-val'>Err</span>(())
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">stop_before</span>.<span class="ident">contains</span>(<span class="ident">Delimiters</span>::<span class="ident">from_byte</span>(<span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">next_byte</span>())) {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(())
         }
-        <span class='kw'>let</span> <span class='ident'>token</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>next</span>());
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>block_type</span>) <span class='op'>=</span> <span class='ident'>BlockType</span>::<span class='ident'>opening</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>) {
-            <span class='self'>self</span>.<span class='ident'>at_start_of</span> <span class='op'>=</span> <span class='prelude-val'>Some</span>(<span class='ident'>block_type</span>);
+        <span class="kw">let</span> <span class="ident">token</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">next</span>());
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">block_type</span>) <span class="op">=</span> <span class="ident">BlockType</span>::<span class="ident">opening</span>(<span class="kw-2">&amp;</span><span class="ident">token</span>) {
+            <span class="self">self</span>.<span class="ident">at_start_of</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">block_type</span>);
         }
-        <span class='prelude-val'>Ok</span>(<span class='ident'>token</span>)
+        <span class="prelude-val">Ok</span>(<span class="ident">token</span>)
     }
 
-    <span class='doccomment'>/// Have the given closure parse something, then check the the input is exhausted.</span>
-    <span class='doccomment'>/// The result is overridden to `Err(())` if some input remains.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// This can help tell e.g. `color: green;` from `color: green 4px;`</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_entirely</span><span class='op'>&lt;</span><span class='ident'>F</span>, <span class='ident'>T</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>parse</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>, ()<span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>FnOnce</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;t</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>parse</span>(<span class='self'>self</span>);
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>expect_exhausted</span>());
-        <span class='ident'>result</span>
+    <span class="doccomment">/// Have the given closure parse something, then check the the input is exhausted.</span>
+    <span class="doccomment">/// The result is overridden to `Err(())` if some input remains.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This can help tell e.g. `color: green;` from `color: green 4px;`</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_entirely</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">parse</span>: <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, ()<span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;t</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">parse</span>(<span class="self">self</span>);
+        <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">expect_exhausted</span>());
+        <span class="ident">result</span>
     }
 
-    <span class='doccomment'>/// Parse a list of comma-separated values, all with the same syntax.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// The given closure is called repeatedly with a &quot;delimited&quot; parser</span>
-    <span class='doccomment'>/// (see the `Parser::parse_until_before` method)</span>
-    <span class='doccomment'>/// so that it can over consume the input past a comma at this block/function nesting level.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Successful results are accumulated in a vector.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// This method retuns `Err(())` the first time that a closure call does,</span>
-    <span class='doccomment'>/// or if a closure call leaves some input before the next comma or the end of the input.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_comma_separated</span><span class='op'>&lt;</span><span class='ident'>F</span>, <span class='ident'>T</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>parse_one</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>FnMut</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>values</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
-        <span class='kw'>loop</span> {
-            <span class='ident'>values</span>.<span class='ident'>push</span>(<span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_until_before</span>(<span class='ident'>Delimiter</span>::<span class='ident'>Comma</span>, <span class='op'>|</span><span class='ident'>parser</span><span class='op'>|</span> <span class='ident'>parse_one</span>(<span class='ident'>parser</span>))));
-            <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>next</span>() {
-                <span class='prelude-val'>Err</span>(()) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(<span class='ident'>values</span>),
-                <span class='prelude-val'>Ok</span>(<span class='ident'>Token</span>::<span class='ident'>Comma</span>) <span class='op'>=&gt;</span> <span class='kw'>continue</span>,
-                <span class='prelude-val'>Ok</span>(_) <span class='op'>=&gt;</span> <span class='macro'>unreachable</span><span class='macro'>!</span>(),
+    <span class="doccomment">/// Parse a list of comma-separated values, all with the same syntax.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The given closure is called repeatedly with a &quot;delimited&quot; parser</span>
+    <span class="doccomment">/// (see the `Parser::parse_until_before` method)</span>
+    <span class="doccomment">/// so that it can over consume the input past a comma at this block/function nesting level.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Successful results are accumulated in a vector.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This method retuns `Err(())` the first time that a closure call does,</span>
+    <span class="doccomment">/// or if a closure call leaves some input before the next comma or the end of the input.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_comma_separated</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">parse_one</span>: <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">values</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+        <span class="kw">loop</span> {
+            <span class="ident">values</span>.<span class="ident">push</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_until_before</span>(<span class="ident">Delimiter</span>::<span class="ident">Comma</span>, <span class="op">|</span><span class="ident">parser</span><span class="op">|</span> <span class="ident">parse_one</span>(<span class="ident">parser</span>))));
+            <span class="kw">match</span> <span class="self">self</span>.<span class="ident">next</span>() {
+                <span class="prelude-val">Err</span>(()) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">values</span>),
+                <span class="prelude-val">Ok</span>(<span class="ident">Token</span>::<span class="ident">Comma</span>) <span class="op">=&gt;</span> <span class="kw">continue</span>,
+                <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
             }
         }
     }
 
-    <span class='doccomment'>/// Parse the content of a block or function.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// This method panics if the last token yielded by this parser</span>
-    <span class='doccomment'>/// (from one of the `next*` methods)</span>
-    <span class='doccomment'>/// is not a on that marks the start of a block or function:</span>
-    <span class='doccomment'>/// a `Function`, `ParenthesisBlock`, `CurlyBracketBlock`, or `SquareBracketBlock`.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// The given closure is called with a &quot;delimited&quot; parser</span>
-    <span class='doccomment'>/// that stops at the end of the block or function (at the matching closing token).</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// The result is overridden to `Err(())` if the closure leaves some input before that point.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_nested_block</span><span class='op'>&lt;</span><span class='ident'>F</span>, <span class='ident'>T</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>parse</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span> <span class='op'>&lt;</span><span class='ident'>T</span>, ()<span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>F</span>: <span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;tt</span><span class='op'>&gt;</span> <span class='ident'>FnOnce</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;tt</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>block_type</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>at_start_of</span>.<span class='ident'>take</span>().<span class='ident'>expect</span>(<span class='string'>&quot;\
+    <span class="doccomment">/// Parse the content of a block or function.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This method panics if the last token yielded by this parser</span>
+    <span class="doccomment">/// (from one of the `next*` methods)</span>
+    <span class="doccomment">/// is not a on that marks the start of a block or function:</span>
+    <span class="doccomment">/// a `Function`, `ParenthesisBlock`, `CurlyBracketBlock`, or `SquareBracketBlock`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The given closure is called with a &quot;delimited&quot; parser</span>
+    <span class="doccomment">/// that stops at the end of the block or function (at the matching closing token).</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The result is overridden to `Err(())` if the closure leaves some input before that point.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_nested_block</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">parse</span>: <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span> <span class="op">&lt;</span><span class="ident">T</span>, ()<span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">F</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;tt</span><span class="op">&gt;</span> <span class="ident">FnOnce</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;tt</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">block_type</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">at_start_of</span>.<span class="ident">take</span>().<span class="ident">expect</span>(<span class="string">&quot;\
             A nested parser can only be created when a Function, \
             ParenthesisBlock, SquareBracketBlock, or CurlyBracketBlock \
             token was just consumed.\
         &quot;</span>);
-        <span class='kw'>let</span> <span class='ident'>closing_delimiter</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>block_type</span> {
-            <span class='ident'>BlockType</span>::<span class='ident'>CurlyBracket</span> <span class='op'>=&gt;</span> <span class='ident'>ClosingDelimiter</span>::<span class='ident'>CloseCurlyBracket</span>,
-            <span class='ident'>BlockType</span>::<span class='ident'>SquareBracket</span> <span class='op'>=&gt;</span> <span class='ident'>ClosingDelimiter</span>::<span class='ident'>CloseSquareBracket</span>,
-            <span class='ident'>BlockType</span>::<span class='ident'>Parenthesis</span> <span class='op'>=&gt;</span> <span class='ident'>ClosingDelimiter</span>::<span class='ident'>CloseParenthesis</span>,
+        <span class="kw">let</span> <span class="ident">closing_delimiter</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">block_type</span> {
+            <span class="ident">BlockType</span>::<span class="ident">CurlyBracket</span> <span class="op">=&gt;</span> <span class="ident">ClosingDelimiter</span>::<span class="ident">CloseCurlyBracket</span>,
+            <span class="ident">BlockType</span>::<span class="ident">SquareBracket</span> <span class="op">=&gt;</span> <span class="ident">ClosingDelimiter</span>::<span class="ident">CloseSquareBracket</span>,
+            <span class="ident">BlockType</span>::<span class="ident">Parenthesis</span> <span class="op">=&gt;</span> <span class="ident">ClosingDelimiter</span>::<span class="ident">CloseParenthesis</span>,
         };
-        <span class='kw'>let</span> <span class='ident'>result</span>;
-        <span class='comment'>// Introduce a new scope to limit duration of nested_parser’s borrow</span>
+        <span class="kw">let</span> <span class="ident">result</span>;
+        <span class="comment">// Introduce a new scope to limit duration of nested_parser’s borrow</span>
         {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>nested_parser</span> <span class='op'>=</span> <span class='ident'>Parser</span> {
-                <span class='ident'>tokenizer</span>: <span class='ident'>MaybeOwned</span>::<span class='ident'>Borrowed</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>tokenizer</span>),
-                <span class='ident'>at_start_of</span>: <span class='prelude-val'>None</span>,
-                <span class='ident'>stop_before</span>: <span class='ident'>closing_delimiter</span>,
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">nested_parser</span> <span class="op">=</span> <span class="ident">Parser</span> {
+                <span class="ident">tokenizer</span>: <span class="ident">MaybeOwned</span>::<span class="ident">Borrowed</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">tokenizer</span>),
+                <span class="ident">at_start_of</span>: <span class="prelude-val">None</span>,
+                <span class="ident">stop_before</span>: <span class="ident">closing_delimiter</span>,
             };
-            <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>nested_parser</span>.<span class='ident'>parse_entirely</span>(<span class='ident'>parse</span>);
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>block_type</span>) <span class='op'>=</span> <span class='ident'>nested_parser</span>.<span class='ident'>at_start_of</span> {
-                <span class='ident'>consume_until_end_of_block</span>(<span class='ident'>block_type</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='ident'>nested_parser</span>.<span class='ident'>tokenizer</span>);
+            <span class="ident">result</span> <span class="op">=</span> <span class="ident">nested_parser</span>.<span class="ident">parse_entirely</span>(<span class="ident">parse</span>);
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">block_type</span>) <span class="op">=</span> <span class="ident">nested_parser</span>.<span class="ident">at_start_of</span> {
+                <span class="ident">consume_until_end_of_block</span>(<span class="ident">block_type</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="ident">nested_parser</span>.<span class="ident">tokenizer</span>);
             }
         }
-        <span class='ident'>consume_until_end_of_block</span>(<span class='ident'>block_type</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>tokenizer</span>);
-        <span class='ident'>result</span>
+        <span class="ident">consume_until_end_of_block</span>(<span class="ident">block_type</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">tokenizer</span>);
+        <span class="ident">result</span>
     }
 
-    <span class='doccomment'>/// Limit parsing to until a given delimiter. (E.g. a semicolon for a property value.)</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// The given closure is called with a &quot;delimited&quot; parser</span>
-    <span class='doccomment'>/// that stops before the first character at this block/function nesting level</span>
-    <span class='doccomment'>/// that matches the given set of delimiters.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// The result is overridden to `Err(())` if the closure leaves some input before that point.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_until_before</span><span class='op'>&lt;</span><span class='ident'>F</span>, <span class='ident'>T</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>delimiters</span>: <span class='ident'>Delimiters</span>, <span class='ident'>parse</span>: <span class='ident'>F</span>)
-                                    <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span> <span class='op'>&lt;</span><span class='ident'>T</span>, ()<span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>F</span>: <span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;tt</span><span class='op'>&gt;</span> <span class='ident'>FnOnce</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;tt</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>delimiters</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>stop_before</span> <span class='op'>|</span> <span class='ident'>delimiters</span>;
-        <span class='kw'>let</span> <span class='ident'>result</span>;
-        <span class='comment'>// Introduce a new scope to limit duration of nested_parser’s borrow</span>
+    <span class="doccomment">/// Limit parsing to until a given delimiter. (E.g. a semicolon for a property value.)</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The given closure is called with a &quot;delimited&quot; parser</span>
+    <span class="doccomment">/// that stops before the first character at this block/function nesting level</span>
+    <span class="doccomment">/// that matches the given set of delimiters.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The result is overridden to `Err(())` if the closure leaves some input before that point.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_until_before</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">delimiters</span>: <span class="ident">Delimiters</span>, <span class="ident">parse</span>: <span class="ident">F</span>)
+                                    <span class="op">-&gt;</span> <span class="prelude-ty">Result</span> <span class="op">&lt;</span><span class="ident">T</span>, ()<span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">F</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;tt</span><span class="op">&gt;</span> <span class="ident">FnOnce</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;tt</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">delimiters</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">stop_before</span> <span class="op">|</span> <span class="ident">delimiters</span>;
+        <span class="kw">let</span> <span class="ident">result</span>;
+        <span class="comment">// Introduce a new scope to limit duration of nested_parser’s borrow</span>
         {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>delimited_parser</span> <span class='op'>=</span> <span class='ident'>Parser</span> {
-                <span class='ident'>tokenizer</span>: <span class='ident'>MaybeOwned</span>::<span class='ident'>Borrowed</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>tokenizer</span>),
-                <span class='ident'>at_start_of</span>: <span class='self'>self</span>.<span class='ident'>at_start_of</span>.<span class='ident'>take</span>(),
-                <span class='ident'>stop_before</span>: <span class='ident'>delimiters</span>,
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">delimited_parser</span> <span class="op">=</span> <span class="ident">Parser</span> {
+                <span class="ident">tokenizer</span>: <span class="ident">MaybeOwned</span>::<span class="ident">Borrowed</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">tokenizer</span>),
+                <span class="ident">at_start_of</span>: <span class="self">self</span>.<span class="ident">at_start_of</span>.<span class="ident">take</span>(),
+                <span class="ident">stop_before</span>: <span class="ident">delimiters</span>,
             };
-            <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>delimited_parser</span>.<span class='ident'>parse_entirely</span>(<span class='ident'>parse</span>);
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>block_type</span>) <span class='op'>=</span> <span class='ident'>delimited_parser</span>.<span class='ident'>at_start_of</span> {
-                <span class='ident'>consume_until_end_of_block</span>(<span class='ident'>block_type</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='ident'>delimited_parser</span>.<span class='ident'>tokenizer</span>);
+            <span class="ident">result</span> <span class="op">=</span> <span class="ident">delimited_parser</span>.<span class="ident">parse_entirely</span>(<span class="ident">parse</span>);
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">block_type</span>) <span class="op">=</span> <span class="ident">delimited_parser</span>.<span class="ident">at_start_of</span> {
+                <span class="ident">consume_until_end_of_block</span>(<span class="ident">block_type</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="ident">delimited_parser</span>.<span class="ident">tokenizer</span>);
             }
         }
-        <span class='comment'>// FIXME: have a special-purpose tokenizer method for this that does less work.</span>
-        <span class='kw'>loop</span> {
-            <span class='kw'>if</span> <span class='ident'>delimiters</span>.<span class='ident'>contains</span>(<span class='ident'>Delimiters</span>::<span class='ident'>from_byte</span>(<span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>next_byte</span>())) {
-                <span class='kw'>break</span>
+        <span class="comment">// FIXME: have a special-purpose tokenizer method for this that does less work.</span>
+        <span class="kw">loop</span> {
+            <span class="kw">if</span> <span class="ident">delimiters</span>.<span class="ident">contains</span>(<span class="ident">Delimiters</span>::<span class="ident">from_byte</span>(<span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">next_byte</span>())) {
+                <span class="kw">break</span>
             }
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='ident'>token</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>next</span>() {
-                <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>block_type</span>) <span class='op'>=</span> <span class='ident'>BlockType</span>::<span class='ident'>opening</span>(<span class='kw-2'>&amp;</span><span class='ident'>token</span>) {
-                    <span class='ident'>consume_until_end_of_block</span>(<span class='ident'>block_type</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>tokenizer</span>);
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">token</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">next</span>() {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">block_type</span>) <span class="op">=</span> <span class="ident">BlockType</span>::<span class="ident">opening</span>(<span class="kw-2">&amp;</span><span class="ident">token</span>) {
+                    <span class="ident">consume_until_end_of_block</span>(<span class="ident">block_type</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">tokenizer</span>);
                 }
-            } <span class='kw'>else</span> {
-                <span class='kw'>break</span>
+            } <span class="kw">else</span> {
+                <span class="kw">break</span>
             }
         }
-        <span class='ident'>result</span>
+        <span class="ident">result</span>
     }
 
-    <span class='doccomment'>/// Like `parse_until_before`, but also consume the delimiter token.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// This can be useful when you don’t need to know which delimiter it was</span>
-    <span class='doccomment'>/// (e.g. if these is only one in the given set)</span>
-    <span class='doccomment'>/// or if it was there at all (as opposed to reaching the end of the input).</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_until_after</span><span class='op'>&lt;</span><span class='ident'>F</span>, <span class='ident'>T</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>delimiters</span>: <span class='ident'>Delimiters</span>, <span class='ident'>parse</span>: <span class='ident'>F</span>)
-                                   <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span> <span class='op'>&lt;</span><span class='ident'>T</span>, ()<span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>F</span>: <span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;tt</span><span class='op'>&gt;</span> <span class='ident'>FnOnce</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='lifetime'>&#39;tt</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>T</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>parse_until_before</span>(<span class='ident'>delimiters</span>, <span class='ident'>parse</span>);
-        <span class='kw'>let</span> <span class='ident'>next_byte</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>next_byte</span>();
-        <span class='kw'>if</span> <span class='ident'>next_byte</span>.<span class='ident'>is_some</span>() <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>stop_before</span>.<span class='ident'>contains</span>(<span class='ident'>Delimiters</span>::<span class='ident'>from_byte</span>(<span class='ident'>next_byte</span>)) {
-            <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>delimiters</span>.<span class='ident'>contains</span>(<span class='ident'>Delimiters</span>::<span class='ident'>from_byte</span>(<span class='ident'>next_byte</span>)));
-            <span class='self'>self</span>.<span class='ident'>tokenizer</span>.<span class='ident'>advance</span>(<span class='number'>1</span>);
-            <span class='kw'>if</span> <span class='ident'>next_byte</span> <span class='op'>==</span> <span class='prelude-val'>Some</span>(<span class='string'>b&#39;{&#39;</span>) {
-                <span class='ident'>consume_until_end_of_block</span>(<span class='ident'>BlockType</span>::<span class='ident'>CurlyBracket</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>tokenizer</span>);
+    <span class="doccomment">/// Like `parse_until_before`, but also consume the delimiter token.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This can be useful when you don’t need to know which delimiter it was</span>
+    <span class="doccomment">/// (e.g. if these is only one in the given set)</span>
+    <span class="doccomment">/// or if it was there at all (as opposed to reaching the end of the input).</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_until_after</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">delimiters</span>: <span class="ident">Delimiters</span>, <span class="ident">parse</span>: <span class="ident">F</span>)
+                                   <span class="op">-&gt;</span> <span class="prelude-ty">Result</span> <span class="op">&lt;</span><span class="ident">T</span>, ()<span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">F</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;tt</span><span class="op">&gt;</span> <span class="ident">FnOnce</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="lifetime">&#39;tt</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">parse_until_before</span>(<span class="ident">delimiters</span>, <span class="ident">parse</span>);
+        <span class="kw">let</span> <span class="ident">next_byte</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">next_byte</span>();
+        <span class="kw">if</span> <span class="ident">next_byte</span>.<span class="ident">is_some</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">stop_before</span>.<span class="ident">contains</span>(<span class="ident">Delimiters</span>::<span class="ident">from_byte</span>(<span class="ident">next_byte</span>)) {
+            <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">delimiters</span>.<span class="ident">contains</span>(<span class="ident">Delimiters</span>::<span class="ident">from_byte</span>(<span class="ident">next_byte</span>)));
+            <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">advance</span>(<span class="number">1</span>);
+            <span class="kw">if</span> <span class="ident">next_byte</span> <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="string">b&#39;{&#39;</span>) {
+                <span class="ident">consume_until_end_of_block</span>(<span class="ident">BlockType</span>::<span class="ident">CurlyBracket</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">tokenizer</span>);
             }
         }
-        <span class='ident'>result</span>
+        <span class="ident">result</span>
     }
 
-    <span class='doccomment'>/// Parse a &lt;whitespace-token&gt; and return its value.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_whitespace</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;i</span> <span class='ident'>str</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next_including_whitespace</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>WhiteSpace</span>(<span class='ident'>value</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>value</span>),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a &lt;whitespace-token&gt; and return its value.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_whitespace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;i</span> <span class="ident">str</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next_including_whitespace</span>()) {
+            <span class="ident">Token</span>::<span class="ident">WhiteSpace</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">value</span>),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a &lt;ident-token&gt; and return the unescaped value.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_ident</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='ident'>str</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>Ident</span>(<span class='ident'>value</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>value</span>),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a &lt;ident-token&gt; and return the unescaped value.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_ident</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="ident">str</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">Ident</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">value</span>),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a &lt;ident-token&gt; whose unescaped value is an ASCII-insensitive match for the given value.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_ident_matching</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>expected_value</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>Ident</span>(<span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='kw'>if</span> <span class='ident'>value</span>.<span class='ident'>eq_ignore_ascii_case</span>(<span class='ident'>expected_value</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(()),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a &lt;ident-token&gt; whose unescaped value is an ASCII-insensitive match for the given value.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_ident_matching</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">expected_value</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">Ident</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="kw">if</span> <span class="ident">value</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="ident">expected_value</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a &lt;string-token&gt; and return the unescaped value.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_string</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='ident'>str</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>QuotedString</span>(<span class='ident'>value</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>value</span>),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a &lt;string-token&gt; and return the unescaped value.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_string</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="ident">str</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">QuotedString</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">value</span>),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse either a &lt;ident-token&gt; or a &lt;string-token&gt;, and return the unescaped value.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_ident_or_string</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='ident'>str</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>Ident</span>(<span class='ident'>value</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>value</span>),
-            <span class='ident'>Token</span>::<span class='ident'>QuotedString</span>(<span class='ident'>value</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>value</span>),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse either a &lt;ident-token&gt; or a &lt;string-token&gt;, and return the unescaped value.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_ident_or_string</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="ident">str</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">Ident</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">value</span>),
+            <span class="ident">Token</span>::<span class="ident">QuotedString</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">value</span>),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a &lt;url-token&gt; and return the unescaped value.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_url</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='ident'>str</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>UnquotedUrl</span>(<span class='ident'>value</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>value</span>),
-            <span class='ident'>Token</span>::<span class='ident'>Function</span>(<span class='kw-2'>ref</span> <span class='ident'>name</span>) <span class='kw'>if</span> <span class='ident'>name</span>.<span class='ident'>eq_ignore_ascii_case</span>(<span class='string'>&quot;url&quot;</span>) <span class='op'>=&gt;</span> {
-                <span class='self'>self</span>.<span class='ident'>parse_nested_block</span>(<span class='op'>|</span><span class='ident'>input</span><span class='op'>|</span> <span class='ident'>input</span>.<span class='ident'>expect_string</span>())
+    <span class="doccomment">/// Parse a &lt;url-token&gt; and return the unescaped value.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_url</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="ident">str</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">UnquotedUrl</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">value</span>),
+            <span class="ident">Token</span>::<span class="ident">Function</span>(<span class="kw-2">ref</span> <span class="ident">name</span>) <span class="kw">if</span> <span class="ident">name</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="string">&quot;url&quot;</span>) <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">parse_nested_block</span>(<span class="op">|</span><span class="ident">input</span><span class="op">|</span> <span class="ident">input</span>.<span class="ident">expect_string</span>())
             },
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse either a &lt;url-token&gt; or a &lt;string-token&gt;, and return the unescaped value.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_url_or_string</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='ident'>str</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>UnquotedUrl</span>(<span class='ident'>value</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>value</span>),
-            <span class='ident'>Token</span>::<span class='ident'>QuotedString</span>(<span class='ident'>value</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>value</span>),
-            <span class='ident'>Token</span>::<span class='ident'>Function</span>(<span class='kw-2'>ref</span> <span class='ident'>name</span>) <span class='kw'>if</span> <span class='ident'>name</span>.<span class='ident'>eq_ignore_ascii_case</span>(<span class='string'>&quot;url&quot;</span>) <span class='op'>=&gt;</span> {
-                <span class='self'>self</span>.<span class='ident'>parse_nested_block</span>(<span class='op'>|</span><span class='ident'>input</span><span class='op'>|</span> <span class='ident'>input</span>.<span class='ident'>expect_string</span>())
+    <span class="doccomment">/// Parse either a &lt;url-token&gt; or a &lt;string-token&gt;, and return the unescaped value.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_url_or_string</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="ident">str</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">UnquotedUrl</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">value</span>),
+            <span class="ident">Token</span>::<span class="ident">QuotedString</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">value</span>),
+            <span class="ident">Token</span>::<span class="ident">Function</span>(<span class="kw-2">ref</span> <span class="ident">name</span>) <span class="kw">if</span> <span class="ident">name</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="string">&quot;url&quot;</span>) <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">parse_nested_block</span>(<span class="op">|</span><span class="ident">input</span><span class="op">|</span> <span class="ident">input</span>.<span class="ident">expect_string</span>())
             },
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a &lt;number-token&gt; and return the integer value.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_number</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>f32</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>Number</span>(<span class='ident'>NumericValue</span> { <span class='ident'>value</span>, .. }) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>value</span>),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a &lt;number-token&gt; and return the integer value.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_number</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">f32</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">Number</span>(<span class="ident">NumericValue</span> { <span class="ident">value</span>, .. }) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">value</span>),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a &lt;number-token&gt; that does not have a fractional part, and return the integer value.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_integer</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>i32</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>Number</span>(<span class='ident'>NumericValue</span> { <span class='ident'>int_value</span>, .. }) <span class='op'>=&gt;</span> <span class='ident'>int_value</span>.<span class='ident'>ok_or</span>(()),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a &lt;number-token&gt; that does not have a fractional part, and return the integer value.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_integer</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">i32</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">Number</span>(<span class="ident">NumericValue</span> { <span class="ident">int_value</span>, .. }) <span class="op">=&gt;</span> <span class="ident">int_value</span>.<span class="ident">ok_or</span>(()),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a &lt;percentage-token&gt; and return the value.</span>
-    <span class='doccomment'>/// `0%` and `100%` map to `0.0` and `1.0` (not `100.0`), respectively.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_percentage</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>f32</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>Percentage</span>(<span class='ident'>PercentageValue</span> { <span class='ident'>unit_value</span>, .. }) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>unit_value</span>),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a &lt;percentage-token&gt; and return the value.</span>
+    <span class="doccomment">/// `0%` and `100%` map to `0.0` and `1.0` (not `100.0`), respectively.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_percentage</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">f32</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">Percentage</span>(<span class="ident">PercentageValue</span> { <span class="ident">unit_value</span>, .. }) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">unit_value</span>),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a `:` &lt;colon-token&gt;.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_colon</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>Colon</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(()),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a `:` &lt;colon-token&gt;.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_colon</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">Colon</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a `;` &lt;semicolon-token&gt;.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_semicolon</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>Semicolon</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(()),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a `;` &lt;semicolon-token&gt;.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_semicolon</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">Semicolon</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a `,` &lt;comma-token&gt;.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_comma</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>Comma</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(()),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a `,` &lt;comma-token&gt;.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_comma</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">Comma</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a &lt;delim-token&gt; with the given value.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_delim</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>expected_value</span>: <span class='ident'>char</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>Delim</span>(<span class='ident'>value</span>) <span class='kw'>if</span> <span class='ident'>value</span> <span class='op'>==</span> <span class='ident'>expected_value</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(()),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a &lt;delim-token&gt; with the given value.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_delim</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">expected_value</span>: <span class="ident">char</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">Delim</span>(<span class="ident">value</span>) <span class="kw">if</span> <span class="ident">value</span> <span class="op">==</span> <span class="ident">expected_value</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a `{ /* ... */ }` curly brackets block.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// If the result is `Ok`, you can then call the `Parser::parse_nested_block` method.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_curly_bracket_block</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>CurlyBracketBlock</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(()),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a `{ /* ... */ }` curly brackets block.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If the result is `Ok`, you can then call the `Parser::parse_nested_block` method.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_curly_bracket_block</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">CurlyBracketBlock</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a `[ /* ... */ ]` square brackets block.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// If the result is `Ok`, you can then call the `Parser::parse_nested_block` method.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_square_bracket_block</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>SquareBracketBlock</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(()),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a `[ /* ... */ ]` square brackets block.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If the result is `Ok`, you can then call the `Parser::parse_nested_block` method.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_square_bracket_block</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">SquareBracketBlock</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a `( /* ... */ )` parenthesis block.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// If the result is `Ok`, you can then call the `Parser::parse_nested_block` method.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_parenthesis_block</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>ParenthesisBlock</span> <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(()),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a `( /* ... */ )` parenthesis block.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If the result is `Ok`, you can then call the `Parser::parse_nested_block` method.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_parenthesis_block</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">ParenthesisBlock</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a &lt;function&gt; token and return its name.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// If the result is `Ok`, you can then call the `Parser::parse_nested_block` method.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_function</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Cow</span><span class='op'>&lt;</span><span class='lifetime'>&#39;i</span>, <span class='ident'>str</span><span class='op'>&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>Function</span>(<span class='ident'>name</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>name</span>),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a &lt;function&gt; token and return its name.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If the result is `Ok`, you can then call the `Parser::parse_nested_block` method.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_function</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;i</span>, <span class="ident">str</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">Function</span>(<span class="ident">name</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">name</span>),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse a &lt;function&gt; token whose name is an ASCII-insensitive match for the given value.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// If the result is `Ok`, you can then call the `Parser::parse_nested_block` method.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_function_matching</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>expected_name</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), ()<span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>next</span>()) {
-            <span class='ident'>Token</span>::<span class='ident'>Function</span>(<span class='kw-2'>ref</span> <span class='ident'>name</span>) <span class='kw'>if</span> <span class='ident'>name</span>.<span class='ident'>eq_ignore_ascii_case</span>(<span class='ident'>expected_name</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(()),
-            _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+    <span class="doccomment">/// Parse a &lt;function&gt; token whose name is an ASCII-insensitive match for the given value.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If the result is `Ok`, you can then call the `Parser::parse_nested_block` method.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_function_matching</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">expected_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next</span>()) {
+            <span class="ident">Token</span>::<span class="ident">Function</span>(<span class="kw-2">ref</span> <span class="ident">name</span>) <span class="kw">if</span> <span class="ident">name</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="ident">expected_name</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 
-    <span class='doccomment'>/// Parse the input until exhaustion and check that it contains no “error” token.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// See `Token::is_parse_error`. This also checks nested blocks and functions recursively.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>expect_no_error_token</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span>(), ()<span class='op'>&gt;</span> {
-        <span class='kw'>loop</span> {
-            <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>next_including_whitespace_and_comments</span>() {
-                <span class='prelude-val'>Ok</span>(<span class='ident'>Token</span>::<span class='ident'>Function</span>(_)) <span class='op'>|</span> <span class='prelude-val'>Ok</span>(<span class='ident'>Token</span>::<span class='ident'>ParenthesisBlock</span>) <span class='op'>|</span>
-                <span class='prelude-val'>Ok</span>(<span class='ident'>Token</span>::<span class='ident'>SquareBracketBlock</span>) <span class='op'>|</span> <span class='prelude-val'>Ok</span>(<span class='ident'>Token</span>::<span class='ident'>CurlyBracketBlock</span>) <span class='op'>=&gt;</span> {
-                    <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>parse_nested_block</span>(<span class='op'>|</span><span class='ident'>input</span><span class='op'>|</span> <span class='ident'>input</span>.<span class='ident'>expect_no_error_token</span>()))
+    <span class="doccomment">/// Parse the input until exhaustion and check that it contains no “error” token.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// See `Token::is_parse_error`. This also checks nested blocks and functions recursively.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expect_no_error_token</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+        <span class="kw">loop</span> {
+            <span class="kw">match</span> <span class="self">self</span>.<span class="ident">next_including_whitespace_and_comments</span>() {
+                <span class="prelude-val">Ok</span>(<span class="ident">Token</span>::<span class="ident">Function</span>(_)) <span class="op">|</span> <span class="prelude-val">Ok</span>(<span class="ident">Token</span>::<span class="ident">ParenthesisBlock</span>) <span class="op">|</span>
+                <span class="prelude-val">Ok</span>(<span class="ident">Token</span>::<span class="ident">SquareBracketBlock</span>) <span class="op">|</span> <span class="prelude-val">Ok</span>(<span class="ident">Token</span>::<span class="ident">CurlyBracketBlock</span>) <span class="op">=&gt;</span> {
+                    <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_nested_block</span>(<span class="op">|</span><span class="ident">input</span><span class="op">|</span> <span class="ident">input</span>.<span class="ident">expect_no_error_token</span>()))
                 }
-                <span class='prelude-val'>Ok</span>(<span class='ident'>token</span>) <span class='op'>=&gt;</span> {
-                    <span class='kw'>if</span> <span class='ident'>token</span>.<span class='ident'>is_parse_error</span>() {
-                        <span class='kw'>return</span> <span class='prelude-val'>Err</span>(())
+                <span class="prelude-val">Ok</span>(<span class="ident">token</span>) <span class="op">=&gt;</span> {
+                    <span class="kw">if</span> <span class="ident">token</span>.<span class="ident">is_parse_error</span>() {
+                        <span class="kw">return</span> <span class="prelude-val">Err</span>(())
                     }
                 }
-                <span class='prelude-val'>Err</span>(()) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Ok</span>(())
+                <span class="prelude-val">Err</span>(()) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(())
             }
         }
     }
 }
 
 
-<span class='kw'>fn</span> <span class='ident'>consume_until_end_of_block</span>(<span class='ident'>block_type</span>: <span class='ident'>BlockType</span>, <span class='ident'>tokenizer</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Tokenizer</span>) {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>stack</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[<span class='ident'>block_type</span>];
+<span class="kw">fn</span> <span class="ident">consume_until_end_of_block</span>(<span class="ident">block_type</span>: <span class="ident">BlockType</span>, <span class="ident">tokenizer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokenizer</span>) {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stack</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">block_type</span>];
 
-    <span class='comment'>// FIXME: have a special-purpose tokenizer method for this that does less work.</span>
-    <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Ok</span>(<span class='kw-2'>ref</span> <span class='ident'>token</span>) <span class='op'>=</span> <span class='ident'>tokenizer</span>.<span class='ident'>next</span>() {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>b</span>) <span class='op'>=</span> <span class='ident'>BlockType</span>::<span class='ident'>closing</span>(<span class='ident'>token</span>) {
-            <span class='kw'>if</span> <span class='kw-2'>*</span><span class='ident'>stack</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>() <span class='op'>==</span> <span class='ident'>b</span> {
-                <span class='ident'>stack</span>.<span class='ident'>pop</span>();
-                <span class='kw'>if</span> <span class='ident'>stack</span>.<span class='ident'>is_empty</span>() {
-                    <span class='kw'>return</span>;
+    <span class="comment">// FIXME: have a special-purpose tokenizer method for this that does less work.</span>
+    <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="kw-2">ref</span> <span class="ident">token</span>) <span class="op">=</span> <span class="ident">tokenizer</span>.<span class="ident">next</span>() {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">b</span>) <span class="op">=</span> <span class="ident">BlockType</span>::<span class="ident">closing</span>(<span class="ident">token</span>) {
+            <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">stack</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>() <span class="op">==</span> <span class="ident">b</span> {
+                <span class="ident">stack</span>.<span class="ident">pop</span>();
+                <span class="kw">if</span> <span class="ident">stack</span>.<span class="ident">is_empty</span>() {
+                    <span class="kw">return</span>;
                 }
             }
         }
 
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>block_type</span>) <span class='op'>=</span> <span class='ident'>BlockType</span>::<span class='ident'>opening</span>(<span class='ident'>token</span>) {
-            <span class='ident'>stack</span>.<span class='ident'>push</span>(<span class='ident'>block_type</span>);
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">block_type</span>) <span class="op">=</span> <span class="ident">BlockType</span>::<span class="ident">opening</span>(<span class="ident">token</span>) {
+            <span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">block_type</span>);
         }
     }
 }

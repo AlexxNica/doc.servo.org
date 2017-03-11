@@ -195,157 +195,157 @@
 <span id="150">150</span>
 <span id="151">151</span>
 <span id="152">152</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! Tracking of pending loads in a document.</span>
-<span class='doccomment'>//! https://html.spec.whatwg.org/multipage/#the-end</span>
+<span class="doccomment">//! Tracking of pending loads in a document.</span>
+<span class="doccomment">//! https://html.spec.whatwg.org/multipage/#the-end</span>
 
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>js</span>::<span class='ident'>JS</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>document</span>::<span class='ident'>Document</span>;
-<span class='kw'>use</span> <span class='ident'>ipc_channel</span>::<span class='ident'>ipc</span>::<span class='ident'>IpcSender</span>;
-<span class='kw'>use</span> <span class='ident'>net_traits</span>::{<span class='ident'>CoreResourceMsg</span>, <span class='ident'>FetchResponseMsg</span>, <span class='ident'>ResourceThreads</span>, <span class='ident'>IpcSend</span>};
-<span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>request</span>::<span class='ident'>RequestInit</span>;
-<span class='kw'>use</span> <span class='ident'>servo_url</span>::<span class='ident'>ServoUrl</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>thread</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">js</span>::<span class="ident">JS</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">document</span>::<span class="ident">Document</span>;
+<span class="kw">use</span> <span class="ident">ipc_channel</span>::<span class="ident">ipc</span>::<span class="ident">IpcSender</span>;
+<span class="kw">use</span> <span class="ident">net_traits</span>::{<span class="ident">CoreResourceMsg</span>, <span class="ident">FetchResponseMsg</span>, <span class="ident">ResourceThreads</span>, <span class="ident">IpcSend</span>};
+<span class="kw">use</span> <span class="ident">net_traits</span>::<span class="ident">request</span>::<span class="ident">RequestInit</span>;
+<span class="kw">use</span> <span class="ident">servo_url</span>::<span class="ident">ServoUrl</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>;
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>JSTraceable</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Clone</span>, <span class='ident'>Debug</span>, <span class='ident'>HeapSizeOf</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>LoadType</span> {
-    <span class='ident'>Image</span>(<span class='ident'>ServoUrl</span>),
-    <span class='ident'>Script</span>(<span class='ident'>ServoUrl</span>),
-    <span class='ident'>Subframe</span>(<span class='ident'>ServoUrl</span>),
-    <span class='ident'>Stylesheet</span>(<span class='ident'>ServoUrl</span>),
-    <span class='ident'>PageSource</span>(<span class='ident'>ServoUrl</span>),
-    <span class='ident'>Media</span>(<span class='ident'>ServoUrl</span>),
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">JSTraceable</span>, <span class="ident">PartialEq</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">HeapSizeOf</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">LoadType</span> {
+    <span class="ident">Image</span>(<span class="ident">ServoUrl</span>),
+    <span class="ident">Script</span>(<span class="ident">ServoUrl</span>),
+    <span class="ident">Subframe</span>(<span class="ident">ServoUrl</span>),
+    <span class="ident">Stylesheet</span>(<span class="ident">ServoUrl</span>),
+    <span class="ident">PageSource</span>(<span class="ident">ServoUrl</span>),
+    <span class="ident">Media</span>(<span class="ident">ServoUrl</span>),
 }
 
-<span class='kw'>impl</span> <span class='ident'>LoadType</span> {
-    <span class='kw'>fn</span> <span class='ident'>url</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>ServoUrl</span> {
-        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='self'>self</span> {
-            <span class='ident'>LoadType</span>::<span class='ident'>Image</span>(<span class='kw-2'>ref</span> <span class='ident'>url</span>) <span class='op'>|</span>
-            <span class='ident'>LoadType</span>::<span class='ident'>Script</span>(<span class='kw-2'>ref</span> <span class='ident'>url</span>) <span class='op'>|</span>
-            <span class='ident'>LoadType</span>::<span class='ident'>Subframe</span>(<span class='kw-2'>ref</span> <span class='ident'>url</span>) <span class='op'>|</span>
-            <span class='ident'>LoadType</span>::<span class='ident'>Stylesheet</span>(<span class='kw-2'>ref</span> <span class='ident'>url</span>) <span class='op'>|</span>
-            <span class='ident'>LoadType</span>::<span class='ident'>Media</span>(<span class='kw-2'>ref</span> <span class='ident'>url</span>) <span class='op'>|</span>
-            <span class='ident'>LoadType</span>::<span class='ident'>PageSource</span>(<span class='kw-2'>ref</span> <span class='ident'>url</span>) <span class='op'>=&gt;</span> <span class='ident'>url</span>,
+<span class="kw">impl</span> <span class="ident">LoadType</span> {
+    <span class="kw">fn</span> <span class="ident">url</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">ServoUrl</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">LoadType</span>::<span class="ident">Image</span>(<span class="kw-2">ref</span> <span class="ident">url</span>) <span class="op">|</span>
+            <span class="ident">LoadType</span>::<span class="ident">Script</span>(<span class="kw-2">ref</span> <span class="ident">url</span>) <span class="op">|</span>
+            <span class="ident">LoadType</span>::<span class="ident">Subframe</span>(<span class="kw-2">ref</span> <span class="ident">url</span>) <span class="op">|</span>
+            <span class="ident">LoadType</span>::<span class="ident">Stylesheet</span>(<span class="kw-2">ref</span> <span class="ident">url</span>) <span class="op">|</span>
+            <span class="ident">LoadType</span>::<span class="ident">Media</span>(<span class="kw-2">ref</span> <span class="ident">url</span>) <span class="op">|</span>
+            <span class="ident">LoadType</span>::<span class="ident">PageSource</span>(<span class="kw-2">ref</span> <span class="ident">url</span>) <span class="op">=&gt;</span> <span class="ident">url</span>,
         }
     }
 }
 
-<span class='doccomment'>/// Canary value ensuring that manually added blocking loads (ie. ones that weren&#39;t</span>
-<span class='doccomment'>/// created via DocumentLoader::fetch_async) are always removed by the time</span>
-<span class='doccomment'>/// that the owner is destroyed.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>JSTraceable</span>, <span class='ident'>HeapSizeOf</span>)]</span>
-<span class='attribute'>#[<span class='ident'>must_root</span>]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>LoadBlocker</span> {
-    <span class='doccomment'>/// The document whose load event is blocked by this object existing.</span>
-    <span class='ident'>doc</span>: <span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>Document</span><span class='op'>&gt;</span>,
-    <span class='doccomment'>/// The load that is blocking the document&#39;s load event.</span>
-    <span class='ident'>load</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>LoadType</span><span class='op'>&gt;</span>,
+<span class="doccomment">/// Canary value ensuring that manually added blocking loads (ie. ones that weren&#39;t</span>
+<span class="doccomment">/// created via DocumentLoader::fetch_async) are always removed by the time</span>
+<span class="doccomment">/// that the owner is destroyed.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">JSTraceable</span>, <span class="ident">HeapSizeOf</span>)]</span>
+<span class="attribute">#[<span class="ident">must_root</span>]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LoadBlocker</span> {
+    <span class="doccomment">/// The document whose load event is blocked by this object existing.</span>
+    <span class="ident">doc</span>: <span class="ident">JS</span><span class="op">&lt;</span><span class="ident">Document</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The load that is blocking the document&#39;s load event.</span>
+    <span class="ident">load</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">LoadType</span><span class="op">&gt;</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>LoadBlocker</span> {
-    <span class='doccomment'>/// Mark the document&#39;s load event as blocked on this new load.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>doc</span>: <span class='kw-2'>&amp;</span><span class='ident'>Document</span>, <span class='ident'>load</span>: <span class='ident'>LoadType</span>) <span class='op'>-&gt;</span> <span class='ident'>LoadBlocker</span> {
-        <span class='ident'>doc</span>.<span class='ident'>mut_loader</span>().<span class='ident'>add_blocking_load</span>(<span class='ident'>load</span>.<span class='ident'>clone</span>());
-        <span class='ident'>LoadBlocker</span> {
-            <span class='ident'>doc</span>: <span class='ident'>JS</span>::<span class='ident'>from_ref</span>(<span class='ident'>doc</span>),
-            <span class='ident'>load</span>: <span class='prelude-val'>Some</span>(<span class='ident'>load</span>),
+<span class="kw">impl</span> <span class="ident">LoadBlocker</span> {
+    <span class="doccomment">/// Mark the document&#39;s load event as blocked on this new load.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">doc</span>: <span class="kw-2">&amp;</span><span class="ident">Document</span>, <span class="ident">load</span>: <span class="ident">LoadType</span>) <span class="op">-&gt;</span> <span class="ident">LoadBlocker</span> {
+        <span class="ident">doc</span>.<span class="ident">mut_loader</span>().<span class="ident">add_blocking_load</span>(<span class="ident">load</span>.<span class="ident">clone</span>());
+        <span class="ident">LoadBlocker</span> {
+            <span class="ident">doc</span>: <span class="ident">JS</span>::<span class="ident">from_ref</span>(<span class="ident">doc</span>),
+            <span class="ident">load</span>: <span class="prelude-val">Some</span>(<span class="ident">load</span>),
         }
     }
 
-    <span class='doccomment'>/// Remove this load from the associated document&#39;s list of blocking loads.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>terminate</span>(<span class='ident'>blocker</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>LoadBlocker</span><span class='op'>&gt;</span>) {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>this</span>) <span class='op'>=</span> <span class='ident'>blocker</span>.<span class='ident'>as_mut</span>() {
-            <span class='ident'>this</span>.<span class='ident'>doc</span>.<span class='ident'>finish_load</span>(<span class='ident'>this</span>.<span class='ident'>load</span>.<span class='ident'>take</span>().<span class='ident'>unwrap</span>());
+    <span class="doccomment">/// Remove this load from the associated document&#39;s list of blocking loads.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">terminate</span>(<span class="ident">blocker</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">LoadBlocker</span><span class="op">&gt;</span>) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">this</span>) <span class="op">=</span> <span class="ident">blocker</span>.<span class="ident">as_mut</span>() {
+            <span class="ident">this</span>.<span class="ident">doc</span>.<span class="ident">finish_load</span>(<span class="ident">this</span>.<span class="ident">load</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>());
         }
-        <span class='kw-2'>*</span><span class='ident'>blocker</span> <span class='op'>=</span> <span class='prelude-val'>None</span>;
+        <span class="kw-2">*</span><span class="ident">blocker</span> <span class="op">=</span> <span class="prelude-val">None</span>;
     }
 
-    <span class='doccomment'>/// Return the url associated with this load.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>url</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>ServoUrl</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>load</span>.<span class='ident'>as_ref</span>().<span class='ident'>map</span>(<span class='ident'>LoadType</span>::<span class='ident'>url</span>)
+    <span class="doccomment">/// Return the url associated with this load.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">url</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">ServoUrl</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">load</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="ident">LoadType</span>::<span class="ident">url</span>)
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>Drop</span> <span class='kw'>for</span> <span class='ident'>LoadBlocker</span> {
-    <span class='kw'>fn</span> <span class='ident'>drop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>thread</span>::<span class='ident'>panicking</span>() {
-            <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>load</span>.<span class='ident'>is_none</span>());
+<span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">LoadBlocker</span> {
+    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">thread</span>::<span class="ident">panicking</span>() {
+            <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">load</span>.<span class="ident">is_none</span>());
         }
     }
 }
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>JSTraceable</span>, <span class='ident'>HeapSizeOf</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>DocumentLoader</span> {
-    <span class='ident'>resource_threads</span>: <span class='ident'>ResourceThreads</span>,
-    <span class='ident'>blocking_loads</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>LoadType</span><span class='op'>&gt;</span>,
-    <span class='ident'>events_inhibited</span>: <span class='ident'>bool</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">JSTraceable</span>, <span class="ident">HeapSizeOf</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DocumentLoader</span> {
+    <span class="ident">resource_threads</span>: <span class="ident">ResourceThreads</span>,
+    <span class="ident">blocking_loads</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">LoadType</span><span class="op">&gt;</span>,
+    <span class="ident">events_inhibited</span>: <span class="ident">bool</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>DocumentLoader</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>existing</span>: <span class='kw-2'>&amp;</span><span class='ident'>DocumentLoader</span>) <span class='op'>-&gt;</span> <span class='ident'>DocumentLoader</span> {
-        <span class='ident'>DocumentLoader</span>::<span class='ident'>new_with_threads</span>(<span class='ident'>existing</span>.<span class='ident'>resource_threads</span>.<span class='ident'>clone</span>(), <span class='prelude-val'>None</span>)
+<span class="kw">impl</span> <span class="ident">DocumentLoader</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">existing</span>: <span class="kw-2">&amp;</span><span class="ident">DocumentLoader</span>) <span class="op">-&gt;</span> <span class="ident">DocumentLoader</span> {
+        <span class="ident">DocumentLoader</span>::<span class="ident">new_with_threads</span>(<span class="ident">existing</span>.<span class="ident">resource_threads</span>.<span class="ident">clone</span>(), <span class="prelude-val">None</span>)
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new_with_threads</span>(<span class='ident'>resource_threads</span>: <span class='ident'>ResourceThreads</span>,
-                            <span class='ident'>initial_load</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>ServoUrl</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>DocumentLoader</span> {
-        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Initial blocking load {:?}.&quot;</span>, <span class='ident'>initial_load</span>);
-        <span class='kw'>let</span> <span class='ident'>initial_loads</span> <span class='op'>=</span> <span class='ident'>initial_load</span>.<span class='ident'>into_iter</span>().<span class='ident'>map</span>(<span class='ident'>LoadType</span>::<span class='ident'>PageSource</span>).<span class='ident'>collect</span>();
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_with_threads</span>(<span class="ident">resource_threads</span>: <span class="ident">ResourceThreads</span>,
+                            <span class="ident">initial_load</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ServoUrl</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">DocumentLoader</span> {
+        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Initial blocking load {:?}.&quot;</span>, <span class="ident">initial_load</span>);
+        <span class="kw">let</span> <span class="ident">initial_loads</span> <span class="op">=</span> <span class="ident">initial_load</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="ident">LoadType</span>::<span class="ident">PageSource</span>).<span class="ident">collect</span>();
 
-        <span class='ident'>DocumentLoader</span> {
-            <span class='ident'>resource_threads</span>: <span class='ident'>resource_threads</span>,
-            <span class='ident'>blocking_loads</span>: <span class='ident'>initial_loads</span>,
-            <span class='ident'>events_inhibited</span>: <span class='bool-val'>false</span>,
+        <span class="ident">DocumentLoader</span> {
+            <span class="ident">resource_threads</span>: <span class="ident">resource_threads</span>,
+            <span class="ident">blocking_loads</span>: <span class="ident">initial_loads</span>,
+            <span class="ident">events_inhibited</span>: <span class="bool-val">false</span>,
         }
     }
 
-    <span class='doccomment'>/// Add a load to the list of blocking loads.</span>
-    <span class='kw'>fn</span> <span class='ident'>add_blocking_load</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>load</span>: <span class='ident'>LoadType</span>) {
-        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Adding blocking load {:?} ({}).&quot;</span>, <span class='ident'>load</span>, <span class='self'>self</span>.<span class='ident'>blocking_loads</span>.<span class='ident'>len</span>());
-        <span class='self'>self</span>.<span class='ident'>blocking_loads</span>.<span class='ident'>push</span>(<span class='ident'>load</span>);
+    <span class="doccomment">/// Add a load to the list of blocking loads.</span>
+    <span class="kw">fn</span> <span class="ident">add_blocking_load</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">load</span>: <span class="ident">LoadType</span>) {
+        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Adding blocking load {:?} ({}).&quot;</span>, <span class="ident">load</span>, <span class="self">self</span>.<span class="ident">blocking_loads</span>.<span class="ident">len</span>());
+        <span class="self">self</span>.<span class="ident">blocking_loads</span>.<span class="ident">push</span>(<span class="ident">load</span>);
     }
 
-    <span class='doccomment'>/// Initiate a new fetch.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>fetch_async</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>,
-                       <span class='ident'>load</span>: <span class='ident'>LoadType</span>,
-                       <span class='ident'>request</span>: <span class='ident'>RequestInit</span>,
-                       <span class='ident'>fetch_target</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>FetchResponseMsg</span><span class='op'>&gt;</span>) {
-        <span class='self'>self</span>.<span class='ident'>add_blocking_load</span>(<span class='ident'>load</span>);
-        <span class='self'>self</span>.<span class='ident'>fetch_async_background</span>(<span class='ident'>request</span>, <span class='ident'>fetch_target</span>);
+    <span class="doccomment">/// Initiate a new fetch.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fetch_async</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+                       <span class="ident">load</span>: <span class="ident">LoadType</span>,
+                       <span class="ident">request</span>: <span class="ident">RequestInit</span>,
+                       <span class="ident">fetch_target</span>: <span class="ident">IpcSender</span><span class="op">&lt;</span><span class="ident">FetchResponseMsg</span><span class="op">&gt;</span>) {
+        <span class="self">self</span>.<span class="ident">add_blocking_load</span>(<span class="ident">load</span>);
+        <span class="self">self</span>.<span class="ident">fetch_async_background</span>(<span class="ident">request</span>, <span class="ident">fetch_target</span>);
     }
 
-    <span class='doccomment'>/// Initiate a new fetch that does not block the document load event.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>fetch_async_background</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
-                                  <span class='ident'>request</span>: <span class='ident'>RequestInit</span>,
-                                  <span class='ident'>fetch_target</span>: <span class='ident'>IpcSender</span><span class='op'>&lt;</span><span class='ident'>FetchResponseMsg</span><span class='op'>&gt;</span>) {
-        <span class='self'>self</span>.<span class='ident'>resource_threads</span>.<span class='ident'>sender</span>().<span class='ident'>send</span>(<span class='ident'>CoreResourceMsg</span>::<span class='ident'>Fetch</span>(<span class='ident'>request</span>, <span class='ident'>fetch_target</span>)).<span class='ident'>unwrap</span>();
+    <span class="doccomment">/// Initiate a new fetch that does not block the document load event.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fetch_async_background</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
+                                  <span class="ident">request</span>: <span class="ident">RequestInit</span>,
+                                  <span class="ident">fetch_target</span>: <span class="ident">IpcSender</span><span class="op">&lt;</span><span class="ident">FetchResponseMsg</span><span class="op">&gt;</span>) {
+        <span class="self">self</span>.<span class="ident">resource_threads</span>.<span class="ident">sender</span>().<span class="ident">send</span>(<span class="ident">CoreResourceMsg</span>::<span class="ident">Fetch</span>(<span class="ident">request</span>, <span class="ident">fetch_target</span>)).<span class="ident">unwrap</span>();
     }
 
-    <span class='doccomment'>/// Mark an in-progress network request complete.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>finish_load</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>load</span>: <span class='kw-2'>&amp;</span><span class='ident'>LoadType</span>) {
-        <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;Removing blocking load {:?} ({}).&quot;</span>, <span class='ident'>load</span>, <span class='self'>self</span>.<span class='ident'>blocking_loads</span>.<span class='ident'>len</span>());
-        <span class='kw'>let</span> <span class='ident'>idx</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>blocking_loads</span>.<span class='ident'>iter</span>().<span class='ident'>position</span>(<span class='op'>|</span><span class='ident'>unfinished</span><span class='op'>|</span> <span class='kw-2'>*</span><span class='ident'>unfinished</span> <span class='op'>==</span> <span class='kw-2'>*</span><span class='ident'>load</span>);
-        <span class='self'>self</span>.<span class='ident'>blocking_loads</span>.<span class='ident'>remove</span>(<span class='ident'>idx</span>.<span class='ident'>expect</span>(<span class='kw-2'>&amp;</span><span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;unknown completed load {:?}&quot;</span>, <span class='ident'>load</span>)));
+    <span class="doccomment">/// Mark an in-progress network request complete.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">finish_load</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">load</span>: <span class="kw-2">&amp;</span><span class="ident">LoadType</span>) {
+        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Removing blocking load {:?} ({}).&quot;</span>, <span class="ident">load</span>, <span class="self">self</span>.<span class="ident">blocking_loads</span>.<span class="ident">len</span>());
+        <span class="kw">let</span> <span class="ident">idx</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">blocking_loads</span>.<span class="ident">iter</span>().<span class="ident">position</span>(<span class="op">|</span><span class="ident">unfinished</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">unfinished</span> <span class="op">==</span> <span class="kw-2">*</span><span class="ident">load</span>);
+        <span class="self">self</span>.<span class="ident">blocking_loads</span>.<span class="ident">remove</span>(<span class="ident">idx</span>.<span class="ident">expect</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;unknown completed load {:?}&quot;</span>, <span class="ident">load</span>)));
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_blocked</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='comment'>// TODO: Ensure that we report blocked if parsing is still ongoing.</span>
-        <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>blocking_loads</span>.<span class='ident'>is_empty</span>()
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_blocked</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="comment">// TODO: Ensure that we report blocked if parsing is still ongoing.</span>
+        <span class="op">!</span><span class="self">self</span>.<span class="ident">blocking_loads</span>.<span class="ident">is_empty</span>()
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>inhibit_events</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>events_inhibited</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">inhibit_events</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">events_inhibited</span> <span class="op">=</span> <span class="bool-val">true</span>;
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>events_inhibited</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>events_inhibited</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">events_inhibited</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">events_inhibited</span>
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>resource_threads</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>ResourceThreads</span> {
-        <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>resource_threads</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">resource_threads</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">ResourceThreads</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">resource_threads</span>
     }
 }
 </pre>

@@ -810,772 +810,772 @@
 <span id="765">765</span>
 <span id="766">766</span>
 <span id="767">767</span>
-</pre><pre class='rust '>
-<span class='doccomment'>//! This module contains functionality for doing lz77 compression of data.</span>
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cmp</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ops</span>::<span class='ident'>Range</span>;
+</pre><pre class="rust ">
+<span class="doccomment">//! This module contains functionality for doing lz77 compression of data.</span>
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Range</span>;
 
-<span class='kw'>use</span> <span class='ident'>input_buffer</span>::<span class='ident'>InputBuffer</span>;
-<span class='kw'>use</span> <span class='ident'>matching</span>::<span class='ident'>longest_match</span>;
-<span class='kw'>use</span> <span class='ident'>lzvalue</span>::<span class='ident'>LZValue</span>;
-<span class='kw'>use</span> <span class='ident'>huffman_table</span>;
-<span class='kw'>use</span> <span class='ident'>chained_hash_table</span>::<span class='ident'>ChainedHashTable</span>;
-<span class='kw'>use</span> <span class='ident'>compression_options</span>::{<span class='ident'>HIGH_MAX_HASH_CHECKS</span>, <span class='ident'>HIGH_LAZY_IF_LESS_THAN</span>};
-<span class='kw'>use</span> <span class='ident'>output_writer</span>::{<span class='ident'>OutputWriter</span>, <span class='ident'>FixedWriter</span>};
-<span class='kw'>use</span> <span class='ident'>compress</span>::<span class='ident'>Flush</span>;
+<span class="kw">use</span> <span class="ident">input_buffer</span>::<span class="ident">InputBuffer</span>;
+<span class="kw">use</span> <span class="ident">matching</span>::<span class="ident">longest_match</span>;
+<span class="kw">use</span> <span class="ident">lzvalue</span>::<span class="ident">LZValue</span>;
+<span class="kw">use</span> <span class="ident">huffman_table</span>;
+<span class="kw">use</span> <span class="ident">chained_hash_table</span>::<span class="ident">ChainedHashTable</span>;
+<span class="kw">use</span> <span class="ident">compression_options</span>::{<span class="ident">HIGH_MAX_HASH_CHECKS</span>, <span class="ident">HIGH_LAZY_IF_LESS_THAN</span>};
+<span class="kw">use</span> <span class="ident">output_writer</span>::{<span class="ident">OutputWriter</span>, <span class="ident">FixedWriter</span>};
+<span class="kw">use</span> <span class="ident">compress</span>::<span class="ident">Flush</span>;
 
-<span class='kw'>const</span> <span class='ident'>MAX_MATCH</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='ident'>huffman_table</span>::<span class='ident'>MAX_MATCH</span> <span class='kw'>as</span> <span class='ident'>usize</span>;
-<span class='kw'>const</span> <span class='ident'>MIN_MATCH</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='ident'>huffman_table</span>::<span class='ident'>MIN_MATCH</span> <span class='kw'>as</span> <span class='ident'>usize</span>;
+<span class="kw">const</span> <span class="ident">MAX_MATCH</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">huffman_table</span>::<span class="ident">MAX_MATCH</span> <span class="kw">as</span> <span class="ident">usize</span>;
+<span class="kw">const</span> <span class="ident">MIN_MATCH</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">huffman_table</span>::<span class="ident">MIN_MATCH</span> <span class="kw">as</span> <span class="ident">usize</span>;
 
-<span class='doccomment'>/// An enum describing whether we use lazy or greedy matching.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>Copy</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>MatchingType</span> {
-    <span class='doccomment'>/// Use lazy matching: after finding a match, the next input byte is checked, to see</span>
-    <span class='doccomment'>/// if there is a better match starting at that byte.</span>
-    <span class='ident'>Lazy</span>,
-    <span class='doccomment'>/// Use greedy matching: the matching algorithm simply uses a match right away</span>
-    <span class='doccomment'>/// if found.</span>
-    <span class='ident'>Greedy</span>,
+<span class="doccomment">/// An enum describing whether we use lazy or greedy matching.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MatchingType</span> {
+    <span class="doccomment">/// Use lazy matching: after finding a match, the next input byte is checked, to see</span>
+    <span class="doccomment">/// if there is a better match starting at that byte.</span>
+    <span class="ident">Lazy</span>,
+    <span class="doccomment">/// Use greedy matching: the matching algorithm simply uses a match right away</span>
+    <span class="doccomment">/// if found.</span>
+    <span class="ident">Greedy</span>,
 }
 
-<span class='doccomment'>/// A struct that contains the hash table, and keeps track of where we are in the input data</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>LZ77State</span> {
-    <span class='doccomment'>/// Struct containing hash chains that will be used to find matches.</span>
-    <span class='ident'>hash_table</span>: <span class='ident'>ChainedHashTable</span>,
-    <span class='doccomment'>/// True if this is the first window that is being processed.</span>
-    <span class='ident'>is_first_window</span>: <span class='ident'>bool</span>,
-    <span class='doccomment'>/// Set to true when the last block has been processed.</span>
-    <span class='ident'>is_last_block</span>: <span class='ident'>bool</span>,
-    <span class='doccomment'>/// How many bytes the last match in the previous window extended into the current one.</span>
-    <span class='ident'>overlap</span>: <span class='ident'>usize</span>,
-    <span class='doccomment'>/// The maximum number of hash entries to search.</span>
-    <span class='ident'>max_hash_checks</span>: <span class='ident'>u16</span>,
-    <span class='doccomment'>/// Only lazy match if we have a match length less than this.</span>
-    <span class='ident'>lazy_if_less_than</span>: <span class='ident'>u16</span>,
-    <span class='doccomment'>/// Whether to use greedy or lazy parsing</span>
-    <span class='ident'>matching_type</span>: <span class='ident'>MatchingType</span>,
+<span class="doccomment">/// A struct that contains the hash table, and keeps track of where we are in the input data</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LZ77State</span> {
+    <span class="doccomment">/// Struct containing hash chains that will be used to find matches.</span>
+    <span class="ident">hash_table</span>: <span class="ident">ChainedHashTable</span>,
+    <span class="doccomment">/// True if this is the first window that is being processed.</span>
+    <span class="ident">is_first_window</span>: <span class="ident">bool</span>,
+    <span class="doccomment">/// Set to true when the last block has been processed.</span>
+    <span class="ident">is_last_block</span>: <span class="ident">bool</span>,
+    <span class="doccomment">/// How many bytes the last match in the previous window extended into the current one.</span>
+    <span class="ident">overlap</span>: <span class="ident">usize</span>,
+    <span class="doccomment">/// The maximum number of hash entries to search.</span>
+    <span class="ident">max_hash_checks</span>: <span class="ident">u16</span>,
+    <span class="doccomment">/// Only lazy match if we have a match length less than this.</span>
+    <span class="ident">lazy_if_less_than</span>: <span class="ident">u16</span>,
+    <span class="doccomment">/// Whether to use greedy or lazy parsing</span>
+    <span class="ident">matching_type</span>: <span class="ident">MatchingType</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>LZ77State</span> {
-    <span class='kw'>fn</span> <span class='ident'>from_starting_values</span>(<span class='ident'>b0</span>: <span class='ident'>u8</span>,
-                            <span class='ident'>b1</span>: <span class='ident'>u8</span>,
-                            <span class='ident'>max_hash_checks</span>: <span class='ident'>u16</span>,
-                            <span class='ident'>lazy_if_less_than</span>: <span class='ident'>u16</span>,
-                            <span class='ident'>matching_type</span>: <span class='ident'>MatchingType</span>)
-                            <span class='op'>-&gt;</span> <span class='ident'>LZ77State</span> {
-        <span class='ident'>LZ77State</span> {
-            <span class='ident'>hash_table</span>: <span class='ident'>ChainedHashTable</span>::<span class='ident'>from_starting_values</span>(<span class='ident'>b0</span>, <span class='ident'>b1</span>),
-            <span class='ident'>is_first_window</span>: <span class='bool-val'>true</span>,
-            <span class='ident'>is_last_block</span>: <span class='bool-val'>false</span>,
-            <span class='ident'>overlap</span>: <span class='number'>0</span>,
-            <span class='ident'>max_hash_checks</span>: <span class='ident'>max_hash_checks</span>,
-            <span class='ident'>lazy_if_less_than</span>: <span class='ident'>lazy_if_less_than</span>,
-            <span class='ident'>matching_type</span>: <span class='ident'>matching_type</span>,
+<span class="kw">impl</span> <span class="ident">LZ77State</span> {
+    <span class="kw">fn</span> <span class="ident">from_starting_values</span>(<span class="ident">b0</span>: <span class="ident">u8</span>,
+                            <span class="ident">b1</span>: <span class="ident">u8</span>,
+                            <span class="ident">max_hash_checks</span>: <span class="ident">u16</span>,
+                            <span class="ident">lazy_if_less_than</span>: <span class="ident">u16</span>,
+                            <span class="ident">matching_type</span>: <span class="ident">MatchingType</span>)
+                            <span class="op">-&gt;</span> <span class="ident">LZ77State</span> {
+        <span class="ident">LZ77State</span> {
+            <span class="ident">hash_table</span>: <span class="ident">ChainedHashTable</span>::<span class="ident">from_starting_values</span>(<span class="ident">b0</span>, <span class="ident">b1</span>),
+            <span class="ident">is_first_window</span>: <span class="bool-val">true</span>,
+            <span class="ident">is_last_block</span>: <span class="bool-val">false</span>,
+            <span class="ident">overlap</span>: <span class="number">0</span>,
+            <span class="ident">max_hash_checks</span>: <span class="ident">max_hash_checks</span>,
+            <span class="ident">lazy_if_less_than</span>: <span class="ident">lazy_if_less_than</span>,
+            <span class="ident">matching_type</span>: <span class="ident">matching_type</span>,
         }
     }
 
-    <span class='doccomment'>/// Creates a new LZ77 state, adding the first to bytes to the hash value</span>
-    <span class='doccomment'>/// to warm it up</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>_new_warmup</span>(<span class='ident'>data</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>],
-                       <span class='ident'>max_hash_checks</span>: <span class='ident'>u16</span>,
-                       <span class='ident'>lazy_if_less_than</span>: <span class='ident'>u16</span>,
-                       <span class='ident'>matching_type</span>: <span class='ident'>MatchingType</span>)
-                       <span class='op'>-&gt;</span> <span class='ident'>LZ77State</span> {
-        <span class='ident'>LZ77State</span>::<span class='ident'>from_starting_values</span>(<span class='ident'>data</span>[<span class='number'>0</span>],
-                                        <span class='ident'>data</span>[<span class='number'>1</span>],
-                                        <span class='ident'>max_hash_checks</span>,
-                                        <span class='ident'>lazy_if_less_than</span>,
-                                        <span class='ident'>matching_type</span>)
+    <span class="doccomment">/// Creates a new LZ77 state, adding the first to bytes to the hash value</span>
+    <span class="doccomment">/// to warm it up</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">_new_warmup</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+                       <span class="ident">max_hash_checks</span>: <span class="ident">u16</span>,
+                       <span class="ident">lazy_if_less_than</span>: <span class="ident">u16</span>,
+                       <span class="ident">matching_type</span>: <span class="ident">MatchingType</span>)
+                       <span class="op">-&gt;</span> <span class="ident">LZ77State</span> {
+        <span class="ident">LZ77State</span>::<span class="ident">from_starting_values</span>(<span class="ident">data</span>[<span class="number">0</span>],
+                                        <span class="ident">data</span>[<span class="number">1</span>],
+                                        <span class="ident">max_hash_checks</span>,
+                                        <span class="ident">lazy_if_less_than</span>,
+                                        <span class="ident">matching_type</span>)
     }
 
-    <span class='doccomment'>/// Creates a new LZ77 state</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>max_hash_checks</span>: <span class='ident'>u16</span>,
-               <span class='ident'>lazy_if_less_than</span>: <span class='ident'>u16</span>,
-               <span class='ident'>matching_type</span>: <span class='ident'>MatchingType</span>)
-               <span class='op'>-&gt;</span> <span class='ident'>LZ77State</span> {
-        <span class='ident'>LZ77State</span>::<span class='ident'>from_starting_values</span>(<span class='number'>55</span>, <span class='number'>23</span>, <span class='ident'>max_hash_checks</span>, <span class='ident'>lazy_if_less_than</span>, <span class='ident'>matching_type</span>)
+    <span class="doccomment">/// Creates a new LZ77 state</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">max_hash_checks</span>: <span class="ident">u16</span>,
+               <span class="ident">lazy_if_less_than</span>: <span class="ident">u16</span>,
+               <span class="ident">matching_type</span>: <span class="ident">MatchingType</span>)
+               <span class="op">-&gt;</span> <span class="ident">LZ77State</span> {
+        <span class="ident">LZ77State</span>::<span class="ident">from_starting_values</span>(<span class="number">55</span>, <span class="number">23</span>, <span class="ident">max_hash_checks</span>, <span class="ident">lazy_if_less_than</span>, <span class="ident">matching_type</span>)
     }
 
-    <span class='doccomment'>/// Resets the state excluding max_hash_checks and lazy_if_less_than</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>reset</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>hash_table</span>.<span class='ident'>reset</span>();
-        <span class='self'>self</span>.<span class='ident'>is_first_window</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
-        <span class='self'>self</span>.<span class='ident'>is_last_block</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-        <span class='self'>self</span>.<span class='ident'>overlap</span> <span class='op'>=</span> <span class='number'>0</span>;
+    <span class="doccomment">/// Resets the state excluding max_hash_checks and lazy_if_less_than</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">hash_table</span>.<span class="ident">reset</span>();
+        <span class="self">self</span>.<span class="ident">is_first_window</span> <span class="op">=</span> <span class="bool-val">true</span>;
+        <span class="self">self</span>.<span class="ident">is_last_block</span> <span class="op">=</span> <span class="bool-val">false</span>;
+        <span class="self">self</span>.<span class="ident">overlap</span> <span class="op">=</span> <span class="number">0</span>;
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set_last</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>is_last_block</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_last</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">is_last_block</span> <span class="op">=</span> <span class="bool-val">true</span>;
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_last_block</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>is_last_block</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_last_block</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">is_last_block</span>
     }
 
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_first_window</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>is_first_window</span>
-    }
-}
-
-<span class='kw'>const</span> <span class='ident'>DEFAULT_WINDOW_SIZE</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='number'>32768</span>;
-
-<span class='kw'>fn</span> <span class='ident'>process_chunk</span><span class='op'>&lt;</span><span class='ident'>W</span>: <span class='ident'>OutputWriter</span><span class='op'>&gt;</span>(<span class='ident'>data</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>],
-                                  <span class='ident'>iterated_data</span>: <span class='ident'>Range</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span>,
-                                  <span class='ident'>hash_table</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ChainedHashTable</span>,
-                                  <span class='ident'>writer</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>W</span>,
-                                  <span class='ident'>max_hash_checks</span>: <span class='ident'>u16</span>,
-                                  <span class='ident'>lazy_if_less_than</span>: <span class='ident'>usize</span>,
-                                  <span class='ident'>matching_type</span>: <span class='ident'>MatchingType</span>)
-                                  <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-    <span class='kw'>match</span> <span class='ident'>matching_type</span> {
-        <span class='ident'>MatchingType</span>::<span class='ident'>Greedy</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>process_chunk_greedy</span>(<span class='ident'>data</span>, <span class='ident'>iterated_data</span>, <span class='ident'>hash_table</span>, <span class='ident'>writer</span>, <span class='ident'>max_hash_checks</span>)
-        }
-        <span class='ident'>MatchingType</span>::<span class='ident'>Lazy</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>process_chunk_lazy</span>(<span class='ident'>data</span>,
-                               <span class='ident'>iterated_data</span>,
-                               <span class='ident'>hash_table</span>,
-                               <span class='ident'>writer</span>,
-                               <span class='ident'>max_hash_checks</span>,
-                               <span class='ident'>lazy_if_less_than</span>)
-        }
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_first_window</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">is_first_window</span>
     }
 }
 
-<span class='kw'>fn</span> <span class='ident'>process_chunk_lazy</span><span class='op'>&lt;</span><span class='ident'>W</span>: <span class='ident'>OutputWriter</span><span class='op'>&gt;</span>(<span class='ident'>data</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>],
-                                       <span class='ident'>iterated_data</span>: <span class='ident'>Range</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span>,
-                                       <span class='ident'>hash_table</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ChainedHashTable</span>,
-                                       <span class='ident'>writer</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>W</span>,
-                                       <span class='ident'>max_hash_checks</span>: <span class='ident'>u16</span>,
-                                       <span class='ident'>lazy_if_less_than</span>: <span class='ident'>usize</span>)
-                                       <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-    <span class='kw'>let</span> <span class='ident'>end</span> <span class='op'>=</span> <span class='ident'>cmp</span>::<span class='ident'>min</span>(<span class='ident'>data</span>.<span class='ident'>len</span>(), <span class='ident'>iterated_data</span>.<span class='ident'>end</span>);
-    <span class='kw'>let</span> <span class='ident'>start</span> <span class='op'>=</span> <span class='ident'>iterated_data</span>.<span class='ident'>start</span>;
-    <span class='kw'>let</span> <span class='ident'>current_chunk</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>data</span>[<span class='ident'>start</span>..<span class='ident'>end</span>];
+<span class="kw">const</span> <span class="ident">DEFAULT_WINDOW_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">32768</span>;
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>insert_it</span> <span class='op'>=</span> <span class='ident'>current_chunk</span>.<span class='ident'>iter</span>().<span class='ident'>enumerate</span>();
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>hash_it</span> <span class='op'>=</span> {
-        <span class='kw'>let</span> <span class='ident'>hash_start</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>end</span> <span class='op'>-</span> <span class='ident'>start</span> <span class='op'>&gt;</span> <span class='number'>2</span> {
-            <span class='ident'>start</span> <span class='op'>+</span> <span class='number'>2</span>
-        } <span class='kw'>else</span> {
-            <span class='ident'>data</span>.<span class='ident'>len</span>()
+<span class="kw">fn</span> <span class="ident">process_chunk</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">OutputWriter</span><span class="op">&gt;</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+                                  <span class="ident">iterated_data</span>: <span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
+                                  <span class="ident">hash_table</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ChainedHashTable</span>,
+                                  <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>,
+                                  <span class="ident">max_hash_checks</span>: <span class="ident">u16</span>,
+                                  <span class="ident">lazy_if_less_than</span>: <span class="ident">usize</span>,
+                                  <span class="ident">matching_type</span>: <span class="ident">MatchingType</span>)
+                                  <span class="op">-&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">match</span> <span class="ident">matching_type</span> {
+        <span class="ident">MatchingType</span>::<span class="ident">Greedy</span> <span class="op">=&gt;</span> {
+            <span class="ident">process_chunk_greedy</span>(<span class="ident">data</span>, <span class="ident">iterated_data</span>, <span class="ident">hash_table</span>, <span class="ident">writer</span>, <span class="ident">max_hash_checks</span>)
+        }
+        <span class="ident">MatchingType</span>::<span class="ident">Lazy</span> <span class="op">=&gt;</span> {
+            <span class="ident">process_chunk_lazy</span>(<span class="ident">data</span>,
+                               <span class="ident">iterated_data</span>,
+                               <span class="ident">hash_table</span>,
+                               <span class="ident">writer</span>,
+                               <span class="ident">max_hash_checks</span>,
+                               <span class="ident">lazy_if_less_than</span>)
+        }
+    }
+}
+
+<span class="kw">fn</span> <span class="ident">process_chunk_lazy</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">OutputWriter</span><span class="op">&gt;</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+                                       <span class="ident">iterated_data</span>: <span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
+                                       <span class="ident">hash_table</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ChainedHashTable</span>,
+                                       <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>,
+                                       <span class="ident">max_hash_checks</span>: <span class="ident">u16</span>,
+                                       <span class="ident">lazy_if_less_than</span>: <span class="ident">usize</span>)
+                                       <span class="op">-&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">data</span>.<span class="ident">len</span>(), <span class="ident">iterated_data</span>.<span class="ident">end</span>);
+    <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">iterated_data</span>.<span class="ident">start</span>;
+    <span class="kw">let</span> <span class="ident">current_chunk</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">data</span>[<span class="ident">start</span>..<span class="ident">end</span>];
+
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">insert_it</span> <span class="op">=</span> <span class="ident">current_chunk</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">hash_it</span> <span class="op">=</span> {
+        <span class="kw">let</span> <span class="ident">hash_start</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">end</span> <span class="op">-</span> <span class="ident">start</span> <span class="op">&gt;</span> <span class="number">2</span> {
+            <span class="ident">start</span> <span class="op">+</span> <span class="number">2</span>
+        } <span class="kw">else</span> {
+            <span class="ident">data</span>.<span class="ident">len</span>()
         };
-        (<span class='kw-2'>&amp;</span><span class='ident'>data</span>[<span class='ident'>hash_start</span>..]).<span class='ident'>iter</span>()
+        (<span class="kw-2">&amp;</span><span class="ident">data</span>[<span class="ident">hash_start</span>..]).<span class="ident">iter</span>()
     };
 
-    <span class='kw'>const</span> <span class='ident'>NO_LENGTH</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='ident'>MIN_MATCH</span> <span class='kw'>as</span> <span class='ident'>usize</span> <span class='op'>-</span> <span class='number'>1</span>;
+    <span class="kw">const</span> <span class="ident">NO_LENGTH</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">MIN_MATCH</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">-</span> <span class="number">1</span>;
 
-    <span class='comment'>// The byte before the currently read one in the stream.</span>
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>prev_byte</span> <span class='op'>=</span> <span class='number'>0u8</span>;
-    <span class='comment'>// The previous match length, if any.</span>
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>prev_length</span> <span class='op'>=</span> <span class='ident'>NO_LENGTH</span>;
-    <span class='comment'>// The distance of the previous match if any.</span>
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>prev_distance</span> <span class='op'>=</span> <span class='number'>0</span>;
-    <span class='comment'>// Whether prev_byte should be output if we move one byte forward to find a better match</span>
-    <span class='comment'>// (or at the end of the stream).</span>
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>add</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-    <span class='comment'>// The number of bytes past end that was added due to finding a match that extends into</span>
-    <span class='comment'>// the lookahead window.</span>
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>overlap</span> <span class='op'>=</span> <span class='number'>0</span>;
+    <span class="comment">// The byte before the currently read one in the stream.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prev_byte</span> <span class="op">=</span> <span class="number">0u8</span>;
+    <span class="comment">// The previous match length, if any.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prev_length</span> <span class="op">=</span> <span class="ident">NO_LENGTH</span>;
+    <span class="comment">// The distance of the previous match if any.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prev_distance</span> <span class="op">=</span> <span class="number">0</span>;
+    <span class="comment">// Whether prev_byte should be output if we move one byte forward to find a better match</span>
+    <span class="comment">// (or at the end of the stream).</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">add</span> <span class="op">=</span> <span class="bool-val">false</span>;
+    <span class="comment">// The number of bytes past end that was added due to finding a match that extends into</span>
+    <span class="comment">// the lookahead window.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">overlap</span> <span class="op">=</span> <span class="number">0</span>;
 
-    <span class='comment'>// Set to true if we found a match that is equal to or longer than `lazy_if_less_than`,</span>
-    <span class='comment'>// indicating that we won&#39;t lazy match (check for a better match at the next byte).</span>
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>ignore_next</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
+    <span class="comment">// Set to true if we found a match that is equal to or longer than `lazy_if_less_than`,</span>
+    <span class="comment">// indicating that we won&#39;t lazy match (check for a better match at the next byte).</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ignore_next</span> <span class="op">=</span> <span class="bool-val">false</span>;
 
-    <span class='comment'>// Iterate through the slice, adding literals or length/distance pairs</span>
-    <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>((<span class='ident'>n</span>, <span class='kw-2'>&amp;</span><span class='ident'>b</span>)) <span class='op'>=</span> <span class='ident'>insert_it</span>.<span class='ident'>next</span>() {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='ident'>hash_byte</span>) <span class='op'>=</span> <span class='ident'>hash_it</span>.<span class='ident'>next</span>() {
-            <span class='kw'>let</span> <span class='ident'>position</span> <span class='op'>=</span> <span class='ident'>n</span> <span class='op'>+</span> <span class='ident'>start</span>;
-            <span class='ident'>hash_table</span>.<span class='ident'>add_hash_value</span>(<span class='ident'>position</span>, <span class='ident'>hash_byte</span>);
+    <span class="comment">// Iterate through the slice, adding literals or length/distance pairs</span>
+    <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">n</span>, <span class="kw-2">&amp;</span><span class="ident">b</span>)) <span class="op">=</span> <span class="ident">insert_it</span>.<span class="ident">next</span>() {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">hash_byte</span>) <span class="op">=</span> <span class="ident">hash_it</span>.<span class="ident">next</span>() {
+            <span class="kw">let</span> <span class="ident">position</span> <span class="op">=</span> <span class="ident">n</span> <span class="op">+</span> <span class="ident">start</span>;
+            <span class="ident">hash_table</span>.<span class="ident">add_hash_value</span>(<span class="ident">position</span>, <span class="ident">hash_byte</span>);
 
-            <span class='comment'>// Only lazy match if we have a match shorter than a set value</span>
-            <span class='comment'>// TODO: This should be cleaned up a bit</span>
-            <span class='kw'>let</span> (<span class='ident'>match_len</span>, <span class='ident'>match_dist</span>) <span class='op'>=</span> <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>ignore_next</span> {
-                <span class='kw'>let</span> (<span class='ident'>match_len</span>, <span class='ident'>match_dist</span>) <span class='op'>=</span> {
-                    <span class='comment'>// If there already was a decent match at the previous byte</span>
-                    <span class='comment'>// and we are lazy matching, do less match checks in this step.</span>
-                    <span class='kw'>let</span> <span class='ident'>max_hash_checks</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>prev_length</span> <span class='op'>&gt;=</span> <span class='number'>32</span> {
-                        <span class='ident'>max_hash_checks</span> <span class='op'>&gt;&gt;</span> <span class='number'>2</span>
-                    } <span class='kw'>else</span> {
-                        <span class='ident'>max_hash_checks</span>
+            <span class="comment">// Only lazy match if we have a match shorter than a set value</span>
+            <span class="comment">// TODO: This should be cleaned up a bit</span>
+            <span class="kw">let</span> (<span class="ident">match_len</span>, <span class="ident">match_dist</span>) <span class="op">=</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">ignore_next</span> {
+                <span class="kw">let</span> (<span class="ident">match_len</span>, <span class="ident">match_dist</span>) <span class="op">=</span> {
+                    <span class="comment">// If there already was a decent match at the previous byte</span>
+                    <span class="comment">// and we are lazy matching, do less match checks in this step.</span>
+                    <span class="kw">let</span> <span class="ident">max_hash_checks</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">prev_length</span> <span class="op">&gt;=</span> <span class="number">32</span> {
+                        <span class="ident">max_hash_checks</span> <span class="op">&gt;&gt;</span> <span class="number">2</span>
+                    } <span class="kw">else</span> {
+                        <span class="ident">max_hash_checks</span>
                     };
 
-                    <span class='comment'>// Check if we can find a better match here than the one we had at</span>
-                    <span class='comment'>// the previous byte.</span>
-                    <span class='ident'>longest_match</span>(<span class='ident'>data</span>, <span class='ident'>hash_table</span>, <span class='ident'>position</span>, <span class='ident'>prev_length</span>, <span class='ident'>max_hash_checks</span>)
+                    <span class="comment">// Check if we can find a better match here than the one we had at</span>
+                    <span class="comment">// the previous byte.</span>
+                    <span class="ident">longest_match</span>(<span class="ident">data</span>, <span class="ident">hash_table</span>, <span class="ident">position</span>, <span class="ident">prev_length</span>, <span class="ident">max_hash_checks</span>)
                 };
-                <span class='kw'>if</span> <span class='ident'>match_len</span> <span class='op'>&gt;</span> <span class='ident'>lazy_if_less_than</span> {
-                    <span class='comment'>// We found a decent match, so we won&#39;t check for a better one at the next byte.</span>
-                    <span class='ident'>ignore_next</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
+                <span class="kw">if</span> <span class="ident">match_len</span> <span class="op">&gt;</span> <span class="ident">lazy_if_less_than</span> {
+                    <span class="comment">// We found a decent match, so we won&#39;t check for a better one at the next byte.</span>
+                    <span class="ident">ignore_next</span> <span class="op">=</span> <span class="bool-val">true</span>;
                 }
-                (<span class='ident'>match_len</span>, <span class='ident'>match_dist</span>)
-            } <span class='kw'>else</span> {
-                <span class='comment'>// We already had a decent match, so we don&#39;t bother checking for another one.</span>
-                (<span class='ident'>NO_LENGTH</span>, <span class='number'>0</span>)
+                (<span class="ident">match_len</span>, <span class="ident">match_dist</span>)
+            } <span class="kw">else</span> {
+                <span class="comment">// We already had a decent match, so we don&#39;t bother checking for another one.</span>
+                (<span class="ident">NO_LENGTH</span>, <span class="number">0</span>)
             };
 
-            <span class='kw'>if</span> <span class='ident'>prev_length</span> <span class='op'>&gt;=</span> <span class='ident'>match_len</span> <span class='op'>&amp;&amp;</span> <span class='ident'>prev_length</span> <span class='op'>&gt;=</span> <span class='ident'>MIN_MATCH</span> <span class='kw'>as</span> <span class='ident'>usize</span> <span class='op'>&amp;&amp;</span> <span class='ident'>prev_distance</span> <span class='op'>&gt;</span> <span class='number'>0</span> {
-                <span class='comment'>// The previous match was better so we add it</span>
-                <span class='comment'>// Casting note: length and distance is already bounded by the longest match</span>
-                <span class='comment'>// function. Usize is just used for convenience</span>
-                <span class='ident'>writer</span>.<span class='ident'>write_length_distance</span>(<span class='ident'>prev_length</span> <span class='kw'>as</span> <span class='ident'>u16</span>, <span class='ident'>prev_distance</span> <span class='kw'>as</span> <span class='ident'>u16</span>);
+            <span class="kw">if</span> <span class="ident">prev_length</span> <span class="op">&gt;=</span> <span class="ident">match_len</span> <span class="op">&amp;&amp;</span> <span class="ident">prev_length</span> <span class="op">&gt;=</span> <span class="ident">MIN_MATCH</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">&amp;&amp;</span> <span class="ident">prev_distance</span> <span class="op">&gt;</span> <span class="number">0</span> {
+                <span class="comment">// The previous match was better so we add it</span>
+                <span class="comment">// Casting note: length and distance is already bounded by the longest match</span>
+                <span class="comment">// function. Usize is just used for convenience</span>
+                <span class="ident">writer</span>.<span class="ident">write_length_distance</span>(<span class="ident">prev_length</span> <span class="kw">as</span> <span class="ident">u16</span>, <span class="ident">prev_distance</span> <span class="kw">as</span> <span class="ident">u16</span>);
 
-                <span class='comment'>// We add the bytes to the hash table and checksum.</span>
-                <span class='comment'>// Since we&#39;ve already added two of them, we need to add two less than</span>
-                <span class='comment'>// the length</span>
-                <span class='kw'>let</span> <span class='ident'>bytes_to_add</span> <span class='op'>=</span> <span class='ident'>prev_length</span> <span class='op'>-</span> <span class='number'>2</span>;
-                <span class='kw'>let</span> <span class='ident'>taker</span> <span class='op'>=</span> <span class='ident'>insert_it</span>.<span class='ident'>by_ref</span>().<span class='ident'>take</span>(<span class='ident'>bytes_to_add</span>);
-                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>hash_taker</span> <span class='op'>=</span> <span class='ident'>hash_it</span>.<span class='ident'>by_ref</span>().<span class='ident'>take</span>(<span class='ident'>bytes_to_add</span>);
+                <span class="comment">// We add the bytes to the hash table and checksum.</span>
+                <span class="comment">// Since we&#39;ve already added two of them, we need to add two less than</span>
+                <span class="comment">// the length</span>
+                <span class="kw">let</span> <span class="ident">bytes_to_add</span> <span class="op">=</span> <span class="ident">prev_length</span> <span class="op">-</span> <span class="number">2</span>;
+                <span class="kw">let</span> <span class="ident">taker</span> <span class="op">=</span> <span class="ident">insert_it</span>.<span class="ident">by_ref</span>().<span class="ident">take</span>(<span class="ident">bytes_to_add</span>);
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">hash_taker</span> <span class="op">=</span> <span class="ident">hash_it</span>.<span class="ident">by_ref</span>().<span class="ident">take</span>(<span class="ident">bytes_to_add</span>);
 
-                <span class='comment'>// Advance the iterators and add the bytes we jump over to the hash table and</span>
-                <span class='comment'>// checksum</span>
-                <span class='kw'>for</span> (<span class='ident'>ipos</span>, _) <span class='kw'>in</span> <span class='ident'>taker</span> {
-                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='ident'>i_hash_byte</span>) <span class='op'>=</span> <span class='ident'>hash_taker</span>.<span class='ident'>next</span>() {
-                        <span class='ident'>hash_table</span>.<span class='ident'>add_hash_value</span>(<span class='ident'>ipos</span> <span class='op'>+</span> <span class='ident'>start</span>, <span class='ident'>i_hash_byte</span>);
+                <span class="comment">// Advance the iterators and add the bytes we jump over to the hash table and</span>
+                <span class="comment">// checksum</span>
+                <span class="kw">for</span> (<span class="ident">ipos</span>, _) <span class="kw">in</span> <span class="ident">taker</span> {
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">i_hash_byte</span>) <span class="op">=</span> <span class="ident">hash_taker</span>.<span class="ident">next</span>() {
+                        <span class="ident">hash_table</span>.<span class="ident">add_hash_value</span>(<span class="ident">ipos</span> <span class="op">+</span> <span class="ident">start</span>, <span class="ident">i_hash_byte</span>);
                     }
                 }
 
-                <span class='comment'>// If the match is longer than the current window, we have note how many</span>
-                <span class='comment'>// bytes we overlap, since we don&#39;t need to do any matching on these bytes</span>
-                <span class='comment'>// in the next call of this function.</span>
-                <span class='kw'>if</span> <span class='ident'>position</span> <span class='op'>+</span> <span class='ident'>prev_length</span> <span class='op'>&gt;</span> <span class='ident'>end</span> {
-                    <span class='comment'>// We need to subtract 1 since the byte at pos is also included</span>
-                    <span class='ident'>overlap</span> <span class='op'>=</span> <span class='ident'>position</span> <span class='op'>+</span> <span class='ident'>prev_length</span> <span class='op'>-</span> <span class='ident'>end</span> <span class='op'>-</span> <span class='number'>1</span>;
+                <span class="comment">// If the match is longer than the current window, we have note how many</span>
+                <span class="comment">// bytes we overlap, since we don&#39;t need to do any matching on these bytes</span>
+                <span class="comment">// in the next call of this function.</span>
+                <span class="kw">if</span> <span class="ident">position</span> <span class="op">+</span> <span class="ident">prev_length</span> <span class="op">&gt;</span> <span class="ident">end</span> {
+                    <span class="comment">// We need to subtract 1 since the byte at pos is also included</span>
+                    <span class="ident">overlap</span> <span class="op">=</span> <span class="ident">position</span> <span class="op">+</span> <span class="ident">prev_length</span> <span class="op">-</span> <span class="ident">end</span> <span class="op">-</span> <span class="number">1</span>;
                 };
 
-                <span class='ident'>add</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-                <span class='ident'>ignore_next</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
+                <span class="ident">add</span> <span class="op">=</span> <span class="bool-val">false</span>;
+                <span class="ident">ignore_next</span> <span class="op">=</span> <span class="bool-val">false</span>;
 
-            } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>add</span> {
-                <span class='comment'>// We found a better match (or there was no previous match)</span>
-                <span class='comment'>// so output the previous byte</span>
-                <span class='ident'>writer</span>.<span class='ident'>write_literal</span>(<span class='ident'>prev_byte</span>);
-            } <span class='kw'>else</span> {
-                <span class='ident'>add</span> <span class='op'>=</span> <span class='bool-val'>true</span>
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">add</span> {
+                <span class="comment">// We found a better match (or there was no previous match)</span>
+                <span class="comment">// so output the previous byte</span>
+                <span class="ident">writer</span>.<span class="ident">write_literal</span>(<span class="ident">prev_byte</span>);
+            } <span class="kw">else</span> {
+                <span class="ident">add</span> <span class="op">=</span> <span class="bool-val">true</span>
             }
 
-            <span class='ident'>prev_length</span> <span class='op'>=</span> <span class='ident'>match_len</span>;
-            <span class='ident'>prev_distance</span> <span class='op'>=</span> <span class='ident'>match_dist</span>;
-            <span class='ident'>prev_byte</span> <span class='op'>=</span> <span class='ident'>b</span>;
-        } <span class='kw'>else</span> {
-            <span class='kw'>if</span> <span class='ident'>add</span> {
-                <span class='comment'>// We may still have a leftover byte at this point, so we add it here if needed.</span>
-                <span class='ident'>writer</span>.<span class='ident'>write_literal</span>(<span class='ident'>prev_byte</span>);
-                <span class='ident'>add</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
+            <span class="ident">prev_length</span> <span class="op">=</span> <span class="ident">match_len</span>;
+            <span class="ident">prev_distance</span> <span class="op">=</span> <span class="ident">match_dist</span>;
+            <span class="ident">prev_byte</span> <span class="op">=</span> <span class="ident">b</span>;
+        } <span class="kw">else</span> {
+            <span class="kw">if</span> <span class="ident">add</span> {
+                <span class="comment">// We may still have a leftover byte at this point, so we add it here if needed.</span>
+                <span class="ident">writer</span>.<span class="ident">write_literal</span>(<span class="ident">prev_byte</span>);
+                <span class="ident">add</span> <span class="op">=</span> <span class="bool-val">false</span>;
             }
-            <span class='comment'>// We are at the last two bytes we want to add, so there is no point</span>
-            <span class='comment'>// searching for matches here.</span>
-            <span class='ident'>writer</span>.<span class='ident'>write_literal</span>(<span class='ident'>b</span>);
+            <span class="comment">// We are at the last two bytes we want to add, so there is no point</span>
+            <span class="comment">// searching for matches here.</span>
+            <span class="ident">writer</span>.<span class="ident">write_literal</span>(<span class="ident">b</span>);
         }
     }
-    <span class='kw'>if</span> <span class='ident'>add</span> {
-        <span class='comment'>// We may still have a leftover byte at this point, so we add it here if needed.</span>
-        <span class='ident'>writer</span>.<span class='ident'>write_literal</span>(<span class='ident'>prev_byte</span>);
+    <span class="kw">if</span> <span class="ident">add</span> {
+        <span class="comment">// We may still have a leftover byte at this point, so we add it here if needed.</span>
+        <span class="ident">writer</span>.<span class="ident">write_literal</span>(<span class="ident">prev_byte</span>);
     }
-    <span class='ident'>overlap</span>
+    <span class="ident">overlap</span>
 }
 
-<span class='kw'>fn</span> <span class='ident'>process_chunk_greedy</span><span class='op'>&lt;</span><span class='ident'>W</span>: <span class='ident'>OutputWriter</span><span class='op'>&gt;</span>(<span class='ident'>data</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>],
-                                         <span class='ident'>iterated_data</span>: <span class='ident'>Range</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span>,
-                                         <span class='ident'>hash_table</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ChainedHashTable</span>,
-                                         <span class='ident'>writer</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>W</span>,
-                                         <span class='ident'>max_hash_checks</span>: <span class='ident'>u16</span>)
-                                         <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-    <span class='kw'>let</span> <span class='ident'>end</span> <span class='op'>=</span> <span class='ident'>cmp</span>::<span class='ident'>min</span>(<span class='ident'>data</span>.<span class='ident'>len</span>(), <span class='ident'>iterated_data</span>.<span class='ident'>end</span>);
-    <span class='kw'>let</span> <span class='ident'>start</span> <span class='op'>=</span> <span class='ident'>iterated_data</span>.<span class='ident'>start</span>;
-    <span class='kw'>let</span> <span class='ident'>current_chunk</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>data</span>[<span class='ident'>start</span>..<span class='ident'>end</span>];
+<span class="kw">fn</span> <span class="ident">process_chunk_greedy</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">OutputWriter</span><span class="op">&gt;</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+                                         <span class="ident">iterated_data</span>: <span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
+                                         <span class="ident">hash_table</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ChainedHashTable</span>,
+                                         <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>,
+                                         <span class="ident">max_hash_checks</span>: <span class="ident">u16</span>)
+                                         <span class="op">-&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">data</span>.<span class="ident">len</span>(), <span class="ident">iterated_data</span>.<span class="ident">end</span>);
+    <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">iterated_data</span>.<span class="ident">start</span>;
+    <span class="kw">let</span> <span class="ident">current_chunk</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">data</span>[<span class="ident">start</span>..<span class="ident">end</span>];
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>insert_it</span> <span class='op'>=</span> <span class='ident'>current_chunk</span>.<span class='ident'>iter</span>().<span class='ident'>enumerate</span>();
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>hash_it</span> <span class='op'>=</span> {
-        <span class='kw'>let</span> <span class='ident'>hash_start</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>end</span> <span class='op'>-</span> <span class='ident'>start</span> <span class='op'>&gt;</span> <span class='number'>2</span> {
-            <span class='ident'>start</span> <span class='op'>+</span> <span class='number'>2</span>
-        } <span class='kw'>else</span> {
-            <span class='ident'>data</span>.<span class='ident'>len</span>()
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">insert_it</span> <span class="op">=</span> <span class="ident">current_chunk</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">hash_it</span> <span class="op">=</span> {
+        <span class="kw">let</span> <span class="ident">hash_start</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">end</span> <span class="op">-</span> <span class="ident">start</span> <span class="op">&gt;</span> <span class="number">2</span> {
+            <span class="ident">start</span> <span class="op">+</span> <span class="number">2</span>
+        } <span class="kw">else</span> {
+            <span class="ident">data</span>.<span class="ident">len</span>()
         };
-        (<span class='kw-2'>&amp;</span><span class='ident'>data</span>[<span class='ident'>hash_start</span>..]).<span class='ident'>iter</span>()
+        (<span class="kw-2">&amp;</span><span class="ident">data</span>[<span class="ident">hash_start</span>..]).<span class="ident">iter</span>()
     };
 
-    <span class='kw'>const</span> <span class='ident'>NO_LENGTH</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='ident'>MIN_MATCH</span> <span class='kw'>as</span> <span class='ident'>usize</span> <span class='op'>-</span> <span class='number'>1</span>;
+    <span class="kw">const</span> <span class="ident">NO_LENGTH</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">MIN_MATCH</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">-</span> <span class="number">1</span>;
 
-    <span class='comment'>// The byte before the currently read one in the stream.</span>
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>prev_byte</span> <span class='op'>=</span> <span class='number'>0u8</span>;
-    <span class='comment'>// Whether prev_byte should be output if we move one byte forward to find a better match</span>
-    <span class='comment'>// (or at the end of the stream).</span>
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>add</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-    <span class='comment'>// The number of bytes past end that was added due to finding a match that extends into</span>
-    <span class='comment'>// the lookahead window.</span>
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>overlap</span> <span class='op'>=</span> <span class='number'>0</span>;
+    <span class="comment">// The byte before the currently read one in the stream.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prev_byte</span> <span class="op">=</span> <span class="number">0u8</span>;
+    <span class="comment">// Whether prev_byte should be output if we move one byte forward to find a better match</span>
+    <span class="comment">// (or at the end of the stream).</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">add</span> <span class="op">=</span> <span class="bool-val">false</span>;
+    <span class="comment">// The number of bytes past end that was added due to finding a match that extends into</span>
+    <span class="comment">// the lookahead window.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">overlap</span> <span class="op">=</span> <span class="number">0</span>;
 
-    <span class='comment'>// Iterate through the slice, adding literals or length/distance pairs</span>
-    <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>((<span class='ident'>n</span>, <span class='kw-2'>&amp;</span><span class='ident'>b</span>)) <span class='op'>=</span> <span class='ident'>insert_it</span>.<span class='ident'>next</span>() {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='ident'>hash_byte</span>) <span class='op'>=</span> <span class='ident'>hash_it</span>.<span class='ident'>next</span>() {
-            <span class='kw'>let</span> <span class='ident'>position</span> <span class='op'>=</span> <span class='ident'>n</span> <span class='op'>+</span> <span class='ident'>start</span>;
-            <span class='ident'>hash_table</span>.<span class='ident'>add_hash_value</span>(<span class='ident'>position</span>, <span class='ident'>hash_byte</span>);
+    <span class="comment">// Iterate through the slice, adding literals or length/distance pairs</span>
+    <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">n</span>, <span class="kw-2">&amp;</span><span class="ident">b</span>)) <span class="op">=</span> <span class="ident">insert_it</span>.<span class="ident">next</span>() {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">hash_byte</span>) <span class="op">=</span> <span class="ident">hash_it</span>.<span class="ident">next</span>() {
+            <span class="kw">let</span> <span class="ident">position</span> <span class="op">=</span> <span class="ident">n</span> <span class="op">+</span> <span class="ident">start</span>;
+            <span class="ident">hash_table</span>.<span class="ident">add_hash_value</span>(<span class="ident">position</span>, <span class="ident">hash_byte</span>);
 
-            <span class='comment'>// TODO: This should be cleaned up a bit</span>
-            <span class='kw'>let</span> (<span class='ident'>match_len</span>, <span class='ident'>match_dist</span>) <span class='op'>=</span> {
-                <span class='ident'>longest_match</span>(<span class='ident'>data</span>, <span class='ident'>hash_table</span>, <span class='ident'>position</span>, <span class='ident'>NO_LENGTH</span>, <span class='ident'>max_hash_checks</span>)
+            <span class="comment">// TODO: This should be cleaned up a bit</span>
+            <span class="kw">let</span> (<span class="ident">match_len</span>, <span class="ident">match_dist</span>) <span class="op">=</span> {
+                <span class="ident">longest_match</span>(<span class="ident">data</span>, <span class="ident">hash_table</span>, <span class="ident">position</span>, <span class="ident">NO_LENGTH</span>, <span class="ident">max_hash_checks</span>)
             };
 
-            <span class='kw'>if</span> <span class='ident'>match_len</span> <span class='op'>&gt;=</span> <span class='ident'>MIN_MATCH</span> <span class='kw'>as</span> <span class='ident'>usize</span> <span class='op'>&amp;&amp;</span> <span class='ident'>match_dist</span> <span class='op'>&gt;</span> <span class='number'>0</span> {
-                <span class='comment'>// Casting note: length and distance is already bounded by the longest match</span>
-                <span class='comment'>// function. Usize is just used for convenience</span>
-                <span class='ident'>writer</span>.<span class='ident'>write_length_distance</span>(<span class='ident'>match_len</span> <span class='kw'>as</span> <span class='ident'>u16</span>, <span class='ident'>match_dist</span> <span class='kw'>as</span> <span class='ident'>u16</span>);
+            <span class="kw">if</span> <span class="ident">match_len</span> <span class="op">&gt;=</span> <span class="ident">MIN_MATCH</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">&amp;&amp;</span> <span class="ident">match_dist</span> <span class="op">&gt;</span> <span class="number">0</span> {
+                <span class="comment">// Casting note: length and distance is already bounded by the longest match</span>
+                <span class="comment">// function. Usize is just used for convenience</span>
+                <span class="ident">writer</span>.<span class="ident">write_length_distance</span>(<span class="ident">match_len</span> <span class="kw">as</span> <span class="ident">u16</span>, <span class="ident">match_dist</span> <span class="kw">as</span> <span class="ident">u16</span>);
 
-                <span class='comment'>// We add the bytes to the hash table and checksum.</span>
-                <span class='comment'>// Since we&#39;ve already added one of them, we need to add one less than</span>
-                <span class='comment'>// the length</span>
-                <span class='kw'>let</span> <span class='ident'>bytes_to_add</span> <span class='op'>=</span> <span class='ident'>match_len</span> <span class='op'>-</span> <span class='number'>1</span>;
-                <span class='kw'>let</span> <span class='ident'>taker</span> <span class='op'>=</span> <span class='ident'>insert_it</span>.<span class='ident'>by_ref</span>().<span class='ident'>take</span>(<span class='ident'>bytes_to_add</span>);
-                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>hash_taker</span> <span class='op'>=</span> <span class='ident'>hash_it</span>.<span class='ident'>by_ref</span>().<span class='ident'>take</span>(<span class='ident'>bytes_to_add</span>);
+                <span class="comment">// We add the bytes to the hash table and checksum.</span>
+                <span class="comment">// Since we&#39;ve already added one of them, we need to add one less than</span>
+                <span class="comment">// the length</span>
+                <span class="kw">let</span> <span class="ident">bytes_to_add</span> <span class="op">=</span> <span class="ident">match_len</span> <span class="op">-</span> <span class="number">1</span>;
+                <span class="kw">let</span> <span class="ident">taker</span> <span class="op">=</span> <span class="ident">insert_it</span>.<span class="ident">by_ref</span>().<span class="ident">take</span>(<span class="ident">bytes_to_add</span>);
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">hash_taker</span> <span class="op">=</span> <span class="ident">hash_it</span>.<span class="ident">by_ref</span>().<span class="ident">take</span>(<span class="ident">bytes_to_add</span>);
 
-                <span class='comment'>// Advance the iterators and add the bytes we jump over to the hash table and</span>
-                <span class='comment'>// checksum</span>
-                <span class='kw'>for</span> (<span class='ident'>ipos</span>, _) <span class='kw'>in</span> <span class='ident'>taker</span> {
-                    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='ident'>i_hash_byte</span>) <span class='op'>=</span> <span class='ident'>hash_taker</span>.<span class='ident'>next</span>() {
-                        <span class='ident'>hash_table</span>.<span class='ident'>add_hash_value</span>(<span class='ident'>ipos</span> <span class='op'>+</span> <span class='ident'>start</span>, <span class='ident'>i_hash_byte</span>);
+                <span class="comment">// Advance the iterators and add the bytes we jump over to the hash table and</span>
+                <span class="comment">// checksum</span>
+                <span class="kw">for</span> (<span class="ident">ipos</span>, _) <span class="kw">in</span> <span class="ident">taker</span> {
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">i_hash_byte</span>) <span class="op">=</span> <span class="ident">hash_taker</span>.<span class="ident">next</span>() {
+                        <span class="ident">hash_table</span>.<span class="ident">add_hash_value</span>(<span class="ident">ipos</span> <span class="op">+</span> <span class="ident">start</span>, <span class="ident">i_hash_byte</span>);
                     }
                 }
 
-                <span class='comment'>// If the match is longer than the current window, we have note how many</span>
-                <span class='comment'>// bytes we overlap, since we don&#39;t need to do any matching on these bytes</span>
-                <span class='comment'>// in the next call of this function.</span>
-                <span class='kw'>if</span> <span class='ident'>position</span> <span class='op'>+</span> <span class='ident'>match_len</span> <span class='op'>&gt;</span> <span class='ident'>end</span> {
-                    <span class='comment'>// We need to subtract 1 since the byte at pos is also included</span>
-                    <span class='ident'>overlap</span> <span class='op'>=</span> <span class='ident'>position</span> <span class='op'>+</span> <span class='ident'>match_len</span> <span class='op'>-</span> <span class='ident'>end</span>;
+                <span class="comment">// If the match is longer than the current window, we have note how many</span>
+                <span class="comment">// bytes we overlap, since we don&#39;t need to do any matching on these bytes</span>
+                <span class="comment">// in the next call of this function.</span>
+                <span class="kw">if</span> <span class="ident">position</span> <span class="op">+</span> <span class="ident">match_len</span> <span class="op">&gt;</span> <span class="ident">end</span> {
+                    <span class="comment">// We need to subtract 1 since the byte at pos is also included</span>
+                    <span class="ident">overlap</span> <span class="op">=</span> <span class="ident">position</span> <span class="op">+</span> <span class="ident">match_len</span> <span class="op">-</span> <span class="ident">end</span>;
                 };
 
-                <span class='ident'>add</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-                <span class='comment'>// There was no match</span>
+                <span class="ident">add</span> <span class="op">=</span> <span class="bool-val">false</span>;
+                <span class="comment">// There was no match</span>
 
-            } <span class='kw'>else</span> {
-                <span class='ident'>writer</span>.<span class='ident'>write_literal</span>(<span class='ident'>b</span>);
+            } <span class="kw">else</span> {
+                <span class="ident">writer</span>.<span class="ident">write_literal</span>(<span class="ident">b</span>);
             }
-            <span class='ident'>prev_byte</span> <span class='op'>=</span> <span class='ident'>b</span>;
-        } <span class='kw'>else</span> {
-            <span class='kw'>if</span> <span class='ident'>add</span> {
-                <span class='comment'>// We may still have a leftover byte at this point, so we add it here if needed.</span>
-                <span class='ident'>writer</span>.<span class='ident'>write_literal</span>(<span class='ident'>prev_byte</span>);
-                <span class='ident'>add</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
+            <span class="ident">prev_byte</span> <span class="op">=</span> <span class="ident">b</span>;
+        } <span class="kw">else</span> {
+            <span class="kw">if</span> <span class="ident">add</span> {
+                <span class="comment">// We may still have a leftover byte at this point, so we add it here if needed.</span>
+                <span class="ident">writer</span>.<span class="ident">write_literal</span>(<span class="ident">prev_byte</span>);
+                <span class="ident">add</span> <span class="op">=</span> <span class="bool-val">false</span>;
             }
-            <span class='comment'>// We are at the last two bytes we want to add, so there is no point</span>
-            <span class='comment'>// searching for matches here.</span>
-            <span class='ident'>writer</span>.<span class='ident'>write_literal</span>(<span class='ident'>b</span>);
+            <span class="comment">// We are at the last two bytes we want to add, so there is no point</span>
+            <span class="comment">// searching for matches here.</span>
+            <span class="ident">writer</span>.<span class="ident">write_literal</span>(<span class="ident">b</span>);
         }
     }
-    <span class='kw'>if</span> <span class='ident'>add</span> {
-        <span class='comment'>// We may still have a leftover byte at this point, so we add it here if needed.</span>
-        <span class='ident'>writer</span>.<span class='ident'>write_literal</span>(<span class='ident'>prev_byte</span>);
+    <span class="kw">if</span> <span class="ident">add</span> {
+        <span class="comment">// We may still have a leftover byte at this point, so we add it here if needed.</span>
+        <span class="ident">writer</span>.<span class="ident">write_literal</span>(<span class="ident">prev_byte</span>);
     }
-    <span class='ident'>overlap</span>
+    <span class="ident">overlap</span>
 }
 
 
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Eq</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Clone</span>, <span class='ident'>Copy</span>, <span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>LZ77Status</span> {
-    <span class='ident'>NeedInput</span>,
-    <span class='ident'>EndBlock</span>,
-    <span class='ident'>Finished</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">LZ77Status</span> {
+    <span class="ident">NeedInput</span>,
+    <span class="ident">EndBlock</span>,
+    <span class="ident">Finished</span>,
 }
 
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>lz77_compress_block_finish</span><span class='op'>&lt;</span><span class='ident'>W</span>: <span class='ident'>OutputWriter</span><span class='op'>&gt;</span>(<span class='ident'>data</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>],
-                                                   <span class='ident'>state</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>LZ77State</span>,
-                                                   <span class='ident'>buffer</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>InputBuffer</span>,
-                                                   <span class='kw-2'>mut</span> <span class='ident'>writer</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>W</span>)
-                                                   <span class='op'>-&gt;</span> (<span class='ident'>usize</span>, <span class='ident'>LZ77Status</span>) {
-    <span class='ident'>lz77_compress_block</span>::<span class='op'>&lt;</span><span class='ident'>W</span><span class='op'>&gt;</span>(<span class='ident'>data</span>, <span class='ident'>state</span>, <span class='ident'>buffer</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>writer</span>, <span class='ident'>Flush</span>::<span class='ident'>Finish</span>)
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">lz77_compress_block_finish</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">OutputWriter</span><span class="op">&gt;</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+                                                   <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">LZ77State</span>,
+                                                   <span class="ident">buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">InputBuffer</span>,
+                                                   <span class="kw-2">mut</span> <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>)
+                                                   <span class="op">-&gt;</span> (<span class="ident">usize</span>, <span class="ident">LZ77Status</span>) {
+    <span class="ident">lz77_compress_block</span>::<span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span>(<span class="ident">data</span>, <span class="ident">state</span>, <span class="ident">buffer</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">writer</span>, <span class="ident">Flush</span>::<span class="ident">Finish</span>)
 }
 
-<span class='doccomment'>/// Compress a slice with lz77 compression.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// This function processes one window at a time, and returns when there is no input left,</span>
-<span class='doccomment'>/// or it determines it&#39;s time to end a block.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Returns the number of bytes of the input that were not processed, and a status describing</span>
-<span class='doccomment'>/// whether there is no input, it&#39;s time to finish, or it&#39;s time to end the block.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>lz77_compress_block</span><span class='op'>&lt;</span><span class='ident'>W</span>: <span class='ident'>OutputWriter</span><span class='op'>&gt;</span>(<span class='ident'>data</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>],
-                                            <span class='ident'>state</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>LZ77State</span>,
-                                            <span class='ident'>buffer</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>InputBuffer</span>,
-                                            <span class='kw-2'>mut</span> <span class='ident'>writer</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>W</span>,
-                                            <span class='ident'>flush</span>: <span class='ident'>Flush</span>)
-                                            <span class='op'>-&gt;</span> (<span class='ident'>usize</span>, <span class='ident'>LZ77Status</span>) {
-    <span class='comment'>// Currently we only support the maximum window size</span>
-    <span class='kw'>let</span> <span class='ident'>window_size</span> <span class='op'>=</span> <span class='ident'>DEFAULT_WINDOW_SIZE</span>;
+<span class="doccomment">/// Compress a slice with lz77 compression.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This function processes one window at a time, and returns when there is no input left,</span>
+<span class="doccomment">/// or it determines it&#39;s time to end a block.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Returns the number of bytes of the input that were not processed, and a status describing</span>
+<span class="doccomment">/// whether there is no input, it&#39;s time to finish, or it&#39;s time to end the block.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">lz77_compress_block</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">OutputWriter</span><span class="op">&gt;</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+                                            <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">LZ77State</span>,
+                                            <span class="ident">buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">InputBuffer</span>,
+                                            <span class="kw-2">mut</span> <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>,
+                                            <span class="ident">flush</span>: <span class="ident">Flush</span>)
+                                            <span class="op">-&gt;</span> (<span class="ident">usize</span>, <span class="ident">LZ77Status</span>) {
+    <span class="comment">// Currently we only support the maximum window size</span>
+    <span class="kw">let</span> <span class="ident">window_size</span> <span class="op">=</span> <span class="ident">DEFAULT_WINDOW_SIZE</span>;
 
-    <span class='kw'>let</span> <span class='ident'>finish</span> <span class='op'>=</span> <span class='ident'>flush</span> <span class='op'>==</span> <span class='ident'>Flush</span>::<span class='ident'>Finish</span> <span class='op'>||</span> <span class='ident'>flush</span> <span class='op'>==</span> <span class='ident'>Flush</span>::<span class='ident'>Sync</span>;
-    <span class='kw'>let</span> <span class='ident'>sync</span> <span class='op'>=</span> <span class='ident'>flush</span> <span class='op'>==</span> <span class='ident'>Flush</span>::<span class='ident'>Sync</span>;
+    <span class="kw">let</span> <span class="ident">finish</span> <span class="op">=</span> <span class="ident">flush</span> <span class="op">==</span> <span class="ident">Flush</span>::<span class="ident">Finish</span> <span class="op">||</span> <span class="ident">flush</span> <span class="op">==</span> <span class="ident">Flush</span>::<span class="ident">Sync</span>;
+    <span class="kw">let</span> <span class="ident">sync</span> <span class="op">=</span> <span class="ident">flush</span> <span class="op">==</span> <span class="ident">Flush</span>::<span class="ident">Sync</span>;
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>status</span> <span class='op'>=</span> <span class='ident'>LZ77Status</span>::<span class='ident'>EndBlock</span>;
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>remaining_data</span> <span class='op'>=</span> <span class='ident'>buffer</span>.<span class='ident'>add_data</span>(<span class='ident'>data</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">LZ77Status</span>::<span class="ident">EndBlock</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">remaining_data</span> <span class="op">=</span> <span class="ident">buffer</span>.<span class="ident">add_data</span>(<span class="ident">data</span>);
 
-    <span class='kw'>while</span> <span class='ident'>writer</span>.<span class='ident'>buffer_length</span>() <span class='op'>&lt;</span> (<span class='ident'>window_size</span> <span class='op'>*</span> <span class='number'>2</span>) {
-        <span class='kw'>if</span> <span class='ident'>state</span>.<span class='ident'>is_first_window</span> {
-            <span class='comment'>// Don&#39;t do anything until we are either flushing, or we have at least one window of</span>
-            <span class='comment'>// data.</span>
-            <span class='kw'>if</span> <span class='ident'>buffer</span>.<span class='ident'>current_end</span>() <span class='op'>&gt;=</span> (<span class='ident'>window_size</span> <span class='op'>*</span> <span class='number'>2</span>) <span class='op'>+</span> <span class='ident'>MAX_MATCH</span> <span class='op'>||</span> <span class='ident'>finish</span> {
+    <span class="kw">while</span> <span class="ident">writer</span>.<span class="ident">buffer_length</span>() <span class="op">&lt;</span> (<span class="ident">window_size</span> <span class="op">*</span> <span class="number">2</span>) {
+        <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">is_first_window</span> {
+            <span class="comment">// Don&#39;t do anything until we are either flushing, or we have at least one window of</span>
+            <span class="comment">// data.</span>
+            <span class="kw">if</span> <span class="ident">buffer</span>.<span class="ident">current_end</span>() <span class="op">&gt;=</span> (<span class="ident">window_size</span> <span class="op">*</span> <span class="number">2</span>) <span class="op">+</span> <span class="ident">MAX_MATCH</span> <span class="op">||</span> <span class="ident">finish</span> {
 
-                <span class='kw'>if</span> <span class='ident'>buffer</span>.<span class='ident'>get_buffer</span>().<span class='ident'>len</span>() <span class='op'>&gt;</span> <span class='number'>2</span> {
-                    <span class='kw'>let</span> <span class='ident'>b</span> <span class='op'>=</span> <span class='ident'>buffer</span>.<span class='ident'>get_buffer</span>();
-                    <span class='comment'>// Warm up the hash with the two first values, so we can match against</span>
-                    <span class='comment'>// index 0.</span>
-                    <span class='ident'>state</span>.<span class='ident'>hash_table</span>.<span class='ident'>add_initial_hash_values</span>(<span class='ident'>b</span>[<span class='number'>0</span>], <span class='ident'>b</span>[<span class='number'>1</span>]);
+                <span class="kw">if</span> <span class="ident">buffer</span>.<span class="ident">get_buffer</span>().<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">2</span> {
+                    <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="ident">buffer</span>.<span class="ident">get_buffer</span>();
+                    <span class="comment">// Warm up the hash with the two first values, so we can match against</span>
+                    <span class="comment">// index 0.</span>
+                    <span class="ident">state</span>.<span class="ident">hash_table</span>.<span class="ident">add_initial_hash_values</span>(<span class="ident">b</span>[<span class="number">0</span>], <span class="ident">b</span>[<span class="number">1</span>]);
                 }
 
-                <span class='kw'>let</span> <span class='ident'>first_chunk_end</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>finish</span> <span class='op'>&amp;&amp;</span> <span class='ident'>remaining_data</span>.<span class='ident'>is_none</span>() {
-                    <span class='comment'>// If we are finishing, make sure we include data in the lookahead area</span>
-                    <span class='ident'>buffer</span>.<span class='ident'>current_end</span>()
-                } <span class='kw'>else</span> {
-                    <span class='ident'>cmp</span>::<span class='ident'>min</span>(<span class='ident'>window_size</span>, <span class='ident'>buffer</span>.<span class='ident'>current_end</span>())
+                <span class="kw">let</span> <span class="ident">first_chunk_end</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">finish</span> <span class="op">&amp;&amp;</span> <span class="ident">remaining_data</span>.<span class="ident">is_none</span>() {
+                    <span class="comment">// If we are finishing, make sure we include data in the lookahead area</span>
+                    <span class="ident">buffer</span>.<span class="ident">current_end</span>()
+                } <span class="kw">else</span> {
+                    <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">window_size</span>, <span class="ident">buffer</span>.<span class="ident">current_end</span>())
                 };
 
-                <span class='ident'>state</span>.<span class='ident'>overlap</span> <span class='op'>=</span> <span class='ident'>process_chunk</span>::<span class='op'>&lt;</span><span class='ident'>W</span><span class='op'>&gt;</span>(<span class='ident'>buffer</span>.<span class='ident'>get_buffer</span>(),
-                                                   <span class='number'>0</span>..<span class='ident'>first_chunk_end</span>,
-                                                   <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>state</span>.<span class='ident'>hash_table</span>,
-                                                   <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>writer</span>,
-                                                   <span class='ident'>state</span>.<span class='ident'>max_hash_checks</span>,
-                                                   <span class='ident'>state</span>.<span class='ident'>lazy_if_less_than</span> <span class='kw'>as</span> <span class='ident'>usize</span>,
-                                                   <span class='ident'>state</span>.<span class='ident'>matching_type</span>);
+                <span class="ident">state</span>.<span class="ident">overlap</span> <span class="op">=</span> <span class="ident">process_chunk</span>::<span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span>(<span class="ident">buffer</span>.<span class="ident">get_buffer</span>(),
+                                                   <span class="number">0</span>..<span class="ident">first_chunk_end</span>,
+                                                   <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">hash_table</span>,
+                                                   <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">writer</span>,
+                                                   <span class="ident">state</span>.<span class="ident">max_hash_checks</span>,
+                                                   <span class="ident">state</span>.<span class="ident">lazy_if_less_than</span> <span class="kw">as</span> <span class="ident">usize</span>,
+                                                   <span class="ident">state</span>.<span class="ident">matching_type</span>);
 
-                <span class='comment'>// We are at the first window so we don&#39;t need to slide the hash table yet,</span>
+                <span class="comment">// We are at the first window so we don&#39;t need to slide the hash table yet,</span>
 
-                <span class='kw'>if</span> <span class='ident'>first_chunk_end</span> <span class='op'>&gt;=</span> <span class='ident'>data</span>.<span class='ident'>len</span>() <span class='op'>&amp;&amp;</span> <span class='ident'>finish</span> {
-                    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>sync</span> {
-                        <span class='ident'>state</span>.<span class='ident'>set_last</span>();
+                <span class="kw">if</span> <span class="ident">first_chunk_end</span> <span class="op">&gt;=</span> <span class="ident">data</span>.<span class="ident">len</span>() <span class="op">&amp;&amp;</span> <span class="ident">finish</span> {
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">sync</span> {
+                        <span class="ident">state</span>.<span class="ident">set_last</span>();
                     }
-                    <span class='ident'>status</span> <span class='op'>=</span> <span class='ident'>LZ77Status</span>::<span class='ident'>Finished</span>;
-                } <span class='kw'>else</span> {
-                    <span class='ident'>status</span> <span class='op'>=</span> <span class='ident'>LZ77Status</span>::<span class='ident'>EndBlock</span>;
+                    <span class="ident">status</span> <span class="op">=</span> <span class="ident">LZ77Status</span>::<span class="ident">Finished</span>;
+                } <span class="kw">else</span> {
+                    <span class="ident">status</span> <span class="op">=</span> <span class="ident">LZ77Status</span>::<span class="ident">EndBlock</span>;
                 }
-                <span class='ident'>state</span>.<span class='ident'>is_first_window</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-                <span class='kw'>break</span>;
-            } <span class='kw'>else</span> {
-                <span class='ident'>status</span> <span class='op'>=</span> <span class='ident'>LZ77Status</span>::<span class='ident'>NeedInput</span>;
-                <span class='kw'>break</span>;
+                <span class="ident">state</span>.<span class="ident">is_first_window</span> <span class="op">=</span> <span class="bool-val">false</span>;
+                <span class="kw">break</span>;
+            } <span class="kw">else</span> {
+                <span class="ident">status</span> <span class="op">=</span> <span class="ident">LZ77Status</span>::<span class="ident">NeedInput</span>;
+                <span class="kw">break</span>;
             }
-        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>buffer</span>.<span class='ident'>current_end</span>() <span class='op'>&gt;=</span> (<span class='ident'>window_size</span> <span class='op'>*</span> <span class='number'>2</span>) <span class='op'>+</span> <span class='ident'>MAX_MATCH</span> <span class='op'>||</span> <span class='ident'>finish</span> {
-            <span class='comment'>// This isn&#39;t the first chunk, so we start reading at one window in in them</span>
-            <span class='comment'>// buffer plus any additional overlap from earlier.</span>
-            <span class='kw'>let</span> <span class='ident'>start</span> <span class='op'>=</span> <span class='ident'>window_size</span> <span class='op'>+</span> <span class='ident'>state</span>.<span class='ident'>overlap</span>;
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">buffer</span>.<span class="ident">current_end</span>() <span class="op">&gt;=</span> (<span class="ident">window_size</span> <span class="op">*</span> <span class="number">2</span>) <span class="op">+</span> <span class="ident">MAX_MATCH</span> <span class="op">||</span> <span class="ident">finish</span> {
+            <span class="comment">// This isn&#39;t the first chunk, so we start reading at one window in in them</span>
+            <span class="comment">// buffer plus any additional overlap from earlier.</span>
+            <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">window_size</span> <span class="op">+</span> <span class="ident">state</span>.<span class="ident">overlap</span>;
 
-            <span class='comment'>// Determine where we have to stop iterating to slide the buffer and hash,</span>
-            <span class='comment'>// or stop because we are at the end of the input data.</span>
-            <span class='kw'>let</span> <span class='ident'>end</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>remaining_data</span>.<span class='ident'>is_none</span>() <span class='op'>&amp;&amp;</span> <span class='ident'>finish</span> {
-                <span class='comment'>// If we are finishing, make sure we include the lookahead data</span>
-                <span class='ident'>buffer</span>.<span class='ident'>current_end</span>()
-            } <span class='kw'>else</span> {
-                <span class='comment'>// Otherwise we process one window size of data.</span>
-                <span class='ident'>cmp</span>::<span class='ident'>min</span>(<span class='ident'>window_size</span> <span class='op'>*</span> <span class='number'>2</span>, <span class='ident'>buffer</span>.<span class='ident'>current_end</span>())
+            <span class="comment">// Determine where we have to stop iterating to slide the buffer and hash,</span>
+            <span class="comment">// or stop because we are at the end of the input data.</span>
+            <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">remaining_data</span>.<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">finish</span> {
+                <span class="comment">// If we are finishing, make sure we include the lookahead data</span>
+                <span class="ident">buffer</span>.<span class="ident">current_end</span>()
+            } <span class="kw">else</span> {
+                <span class="comment">// Otherwise we process one window size of data.</span>
+                <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">window_size</span> <span class="op">*</span> <span class="number">2</span>, <span class="ident">buffer</span>.<span class="ident">current_end</span>())
             };
 
-            <span class='ident'>state</span>.<span class='ident'>overlap</span> <span class='op'>=</span> <span class='ident'>process_chunk</span>::<span class='op'>&lt;</span><span class='ident'>W</span><span class='op'>&gt;</span>(<span class='ident'>buffer</span>.<span class='ident'>get_buffer</span>(),
-                                               <span class='ident'>start</span>..<span class='ident'>end</span>,
-                                               <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>state</span>.<span class='ident'>hash_table</span>,
-                                               <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>writer</span>,
-                                               <span class='ident'>state</span>.<span class='ident'>max_hash_checks</span>,
-                                               <span class='ident'>state</span>.<span class='ident'>lazy_if_less_than</span> <span class='kw'>as</span> <span class='ident'>usize</span>,
-                                               <span class='ident'>state</span>.<span class='ident'>matching_type</span>);
-            <span class='kw'>if</span> <span class='ident'>remaining_data</span>.<span class='ident'>is_none</span>() <span class='op'>&amp;&amp;</span> <span class='ident'>finish</span> {
-                <span class='comment'>// We stopped before or at the window size, so we are at the end.</span>
-                <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>sync</span> {
-                    <span class='ident'>state</span>.<span class='ident'>set_last</span>();
-                } <span class='kw'>else</span> {
-                    <span class='comment'>// For sync flushing we need to slide the buffer and the has chains so that the</span>
-                    <span class='comment'>// next call to this function starts at the right place.</span>
-                    <span class='ident'>state</span>.<span class='ident'>overlap</span> <span class='op'>=</span> <span class='number'>0</span>;
-                    <span class='kw'>let</span> <span class='ident'>n</span> <span class='op'>=</span> <span class='ident'>buffer</span>.<span class='ident'>move_down</span>();
-                    <span class='ident'>state</span>.<span class='ident'>hash_table</span>.<span class='ident'>slide</span>(<span class='ident'>n</span>);
+            <span class="ident">state</span>.<span class="ident">overlap</span> <span class="op">=</span> <span class="ident">process_chunk</span>::<span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span>(<span class="ident">buffer</span>.<span class="ident">get_buffer</span>(),
+                                               <span class="ident">start</span>..<span class="ident">end</span>,
+                                               <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">hash_table</span>,
+                                               <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">writer</span>,
+                                               <span class="ident">state</span>.<span class="ident">max_hash_checks</span>,
+                                               <span class="ident">state</span>.<span class="ident">lazy_if_less_than</span> <span class="kw">as</span> <span class="ident">usize</span>,
+                                               <span class="ident">state</span>.<span class="ident">matching_type</span>);
+            <span class="kw">if</span> <span class="ident">remaining_data</span>.<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">finish</span> {
+                <span class="comment">// We stopped before or at the window size, so we are at the end.</span>
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">sync</span> {
+                    <span class="ident">state</span>.<span class="ident">set_last</span>();
+                } <span class="kw">else</span> {
+                    <span class="comment">// For sync flushing we need to slide the buffer and the has chains so that the</span>
+                    <span class="comment">// next call to this function starts at the right place.</span>
+                    <span class="ident">state</span>.<span class="ident">overlap</span> <span class="op">=</span> <span class="number">0</span>;
+                    <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="ident">buffer</span>.<span class="ident">move_down</span>();
+                    <span class="ident">state</span>.<span class="ident">hash_table</span>.<span class="ident">slide</span>(<span class="ident">n</span>);
                 }
-                <span class='ident'>status</span> <span class='op'>=</span> <span class='ident'>LZ77Status</span>::<span class='ident'>Finished</span>;
-                <span class='kw'>break</span>;
-            } <span class='kw'>else</span> {
-                <span class='comment'>// We are not at the end, so slide and continue</span>
-                <span class='comment'>// We slide the hash table back to make space for new hash values</span>
-                <span class='comment'>// We only need to remember 32k bytes back (the maximum distance allowed by the</span>
-                <span class='comment'>// deflate spec)</span>
-                <span class='ident'>state</span>.<span class='ident'>hash_table</span>.<span class='ident'>slide</span>(<span class='ident'>window_size</span>);
+                <span class="ident">status</span> <span class="op">=</span> <span class="ident">LZ77Status</span>::<span class="ident">Finished</span>;
+                <span class="kw">break</span>;
+            } <span class="kw">else</span> {
+                <span class="comment">// We are not at the end, so slide and continue</span>
+                <span class="comment">// We slide the hash table back to make space for new hash values</span>
+                <span class="comment">// We only need to remember 32k bytes back (the maximum distance allowed by the</span>
+                <span class="comment">// deflate spec)</span>
+                <span class="ident">state</span>.<span class="ident">hash_table</span>.<span class="ident">slide</span>(<span class="ident">window_size</span>);
 
-                <span class='comment'>// Slide the buffer</span>
-                <span class='ident'>remaining_data</span> <span class='op'>=</span> <span class='ident'>buffer</span>.<span class='ident'>slide</span>(<span class='ident'>remaining_data</span>.<span class='ident'>unwrap_or</span>(<span class='kw-2'>&amp;</span>[]));
+                <span class="comment">// Slide the buffer</span>
+                <span class="ident">remaining_data</span> <span class="op">=</span> <span class="ident">buffer</span>.<span class="ident">slide</span>(<span class="ident">remaining_data</span>.<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span>[]));
 
-                <span class='ident'>status</span> <span class='op'>=</span> <span class='ident'>LZ77Status</span>::<span class='ident'>EndBlock</span>;
+                <span class="ident">status</span> <span class="op">=</span> <span class="ident">LZ77Status</span>::<span class="ident">EndBlock</span>;
             }
-        } <span class='kw'>else</span> {
-            <span class='ident'>status</span> <span class='op'>=</span> <span class='ident'>LZ77Status</span>::<span class='ident'>NeedInput</span>;
-            <span class='kw'>break</span>;
+        } <span class="kw">else</span> {
+            <span class="ident">status</span> <span class="op">=</span> <span class="ident">LZ77Status</span>::<span class="ident">NeedInput</span>;
+            <span class="kw">break</span>;
         }
 
     }
 
-    (<span class='ident'>data</span>.<span class='ident'>len</span>() <span class='op'>-</span> <span class='ident'>remaining_data</span>.<span class='ident'>unwrap_or</span>(<span class='kw-2'>&amp;</span>[]).<span class='ident'>len</span>(), <span class='ident'>status</span>)
+    (<span class="ident">data</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">remaining_data</span>.<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span>[]).<span class="ident">len</span>(), <span class="ident">status</span>)
 }
 
-<span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>TestStruct</span> {
-    <span class='ident'>state</span>: <span class='ident'>LZ77State</span>,
-    <span class='ident'>buffer</span>: <span class='ident'>InputBuffer</span>,
-    <span class='ident'>writer</span>: <span class='ident'>FixedWriter</span>,
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TestStruct</span> {
+    <span class="ident">state</span>: <span class="ident">LZ77State</span>,
+    <span class="ident">buffer</span>: <span class="ident">InputBuffer</span>,
+    <span class="ident">writer</span>: <span class="ident">FixedWriter</span>,
 }
 
-<span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>)]</span>
-<span class='kw'>impl</span> <span class='ident'>TestStruct</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>TestStruct</span> {
-        <span class='ident'>TestStruct</span> {
-            <span class='ident'>state</span>: <span class='ident'>LZ77State</span>::<span class='ident'>new</span>(<span class='ident'>HIGH_MAX_HASH_CHECKS</span>,
-                                  <span class='ident'>HIGH_LAZY_IF_LESS_THAN</span>,
-                                  <span class='ident'>MatchingType</span>::<span class='ident'>Lazy</span>),
-            <span class='ident'>buffer</span>: <span class='ident'>InputBuffer</span>::<span class='ident'>empty</span>(),
-            <span class='ident'>writer</span>: <span class='ident'>FixedWriter</span>::<span class='ident'>new</span>(),
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+<span class="kw">impl</span> <span class="ident">TestStruct</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">TestStruct</span> {
+        <span class="ident">TestStruct</span> {
+            <span class="ident">state</span>: <span class="ident">LZ77State</span>::<span class="ident">new</span>(<span class="ident">HIGH_MAX_HASH_CHECKS</span>,
+                                  <span class="ident">HIGH_LAZY_IF_LESS_THAN</span>,
+                                  <span class="ident">MatchingType</span>::<span class="ident">Lazy</span>),
+            <span class="ident">buffer</span>: <span class="ident">InputBuffer</span>::<span class="ident">empty</span>(),
+            <span class="ident">writer</span>: <span class="ident">FixedWriter</span>::<span class="ident">new</span>(),
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>compress_block</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>data</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>], <span class='ident'>flush</span>: <span class='ident'>bool</span>) <span class='op'>-&gt;</span> (<span class='ident'>usize</span>, <span class='ident'>LZ77Status</span>) {
-        <span class='ident'>lz77_compress_block</span>(<span class='ident'>data</span>,
-                            <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>state</span>,
-                            <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>buffer</span>,
-                            <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>writer</span>,
-                            <span class='kw'>if</span> <span class='ident'>flush</span> { <span class='ident'>Flush</span>::<span class='ident'>Finish</span> } <span class='kw'>else</span> { <span class='ident'>Flush</span>::<span class='prelude-val'>None</span> })
+    <span class="kw">fn</span> <span class="ident">compress_block</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">flush</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> (<span class="ident">usize</span>, <span class="ident">LZ77Status</span>) {
+        <span class="ident">lz77_compress_block</span>(<span class="ident">data</span>,
+                            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">state</span>,
+                            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">buffer</span>,
+                            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">writer</span>,
+                            <span class="kw">if</span> <span class="ident">flush</span> { <span class="ident">Flush</span>::<span class="ident">Finish</span> } <span class="kw">else</span> { <span class="ident">Flush</span>::<span class="prelude-val">None</span> })
     }
 }
 
-<span class='doccomment'>/// Compress a slice, not storing frequency information</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// This is a convenience function for compression with fixed huffman values</span>
-<span class='doccomment'>/// Only used in tests for now</span>
-<span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>dead_code</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>lz77_compress</span>(<span class='ident'>data</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>]) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>LZValue</span><span class='op'>&gt;&gt;</span> {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>test_boxed</span> <span class='op'>=</span> <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>TestStruct</span>::<span class='ident'>new</span>());
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>out</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='op'>&lt;</span><span class='ident'>LZValue</span><span class='op'>&gt;</span>::<span class='ident'>with_capacity</span>(<span class='ident'>data</span>.<span class='ident'>len</span>() <span class='op'>/</span> <span class='number'>3</span>);
+<span class="doccomment">/// Compress a slice, not storing frequency information</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This is a convenience function for compression with fixed huffman values</span>
+<span class="doccomment">/// Only used in tests for now</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">lz77_compress</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">LZValue</span><span class="op">&gt;&gt;</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">test_boxed</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">TestStruct</span>::<span class="ident">new</span>());
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">out</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="op">&lt;</span><span class="ident">LZValue</span><span class="op">&gt;</span>::<span class="ident">with_capacity</span>(<span class="ident">data</span>.<span class="ident">len</span>() <span class="op">/</span> <span class="number">3</span>);
     {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>test</span> <span class='op'>=</span> <span class='ident'>test_boxed</span>.<span class='ident'>as_mut</span>();
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>slice</span> <span class='op'>=</span> <span class='ident'>data</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">test</span> <span class="op">=</span> <span class="ident">test_boxed</span>.<span class="ident">as_mut</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">slice</span> <span class="op">=</span> <span class="ident">data</span>;
 
-        <span class='kw'>while</span> <span class='op'>!</span><span class='ident'>test</span>.<span class='ident'>state</span>.<span class='ident'>is_last_block</span> {
-            <span class='kw'>let</span> <span class='ident'>bytes_written</span> <span class='op'>=</span> <span class='ident'>lz77_compress_block_finish</span>(<span class='ident'>slice</span>,
-                                                           <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>test</span>.<span class='ident'>state</span>,
-                                                           <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>test</span>.<span class='ident'>buffer</span>,
-                                                           <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>test</span>.<span class='ident'>writer</span>)
-                .<span class='number'>0</span>;
-            <span class='ident'>slice</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>slice</span>[<span class='ident'>bytes_written</span>..];
-            <span class='ident'>out</span>.<span class='ident'>extend</span>(<span class='ident'>test</span>.<span class='ident'>writer</span>.<span class='ident'>get_buffer</span>());
-            <span class='ident'>test</span>.<span class='ident'>writer</span>.<span class='ident'>clear_buffer</span>();
+        <span class="kw">while</span> <span class="op">!</span><span class="ident">test</span>.<span class="ident">state</span>.<span class="ident">is_last_block</span> {
+            <span class="kw">let</span> <span class="ident">bytes_written</span> <span class="op">=</span> <span class="ident">lz77_compress_block_finish</span>(<span class="ident">slice</span>,
+                                                           <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test</span>.<span class="ident">state</span>,
+                                                           <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test</span>.<span class="ident">buffer</span>,
+                                                           <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test</span>.<span class="ident">writer</span>)
+                .<span class="number">0</span>;
+            <span class="ident">slice</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">slice</span>[<span class="ident">bytes_written</span>..];
+            <span class="ident">out</span>.<span class="ident">extend</span>(<span class="ident">test</span>.<span class="ident">writer</span>.<span class="ident">get_buffer</span>());
+            <span class="ident">test</span>.<span class="ident">writer</span>.<span class="ident">clear_buffer</span>();
         }
 
     }
 
-    <span class='prelude-val'>Some</span>(<span class='ident'>out</span>)
+    <span class="prelude-val">Some</span>(<span class="ident">out</span>)
 }
 
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>test</span>)]</span>
-<span class='kw'>mod</span> <span class='ident'>test</span> {
-    <span class='kw'>use</span> <span class='kw'>super</span>::<span class='kw-2'>*</span>;
-    <span class='kw'>use</span> <span class='ident'>lzvalue</span>::{<span class='ident'>LZValue</span>, <span class='ident'>LZType</span>};
-    <span class='kw'>use</span> <span class='ident'>chained_hash_table</span>::<span class='ident'>WINDOW_SIZE</span>;
-    <span class='kw'>use</span> <span class='ident'>compression_options</span>::<span class='ident'>DEFAULT_LAZY_IF_LESS_THAN</span>;
-    <span class='kw'>use</span> <span class='ident'>test_utils</span>::<span class='ident'>get_test_data</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">test</span> {
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">lzvalue</span>::{<span class="ident">LZValue</span>, <span class="ident">LZType</span>};
+    <span class="kw">use</span> <span class="ident">chained_hash_table</span>::<span class="ident">WINDOW_SIZE</span>;
+    <span class="kw">use</span> <span class="ident">compression_options</span>::<span class="ident">DEFAULT_LAZY_IF_LESS_THAN</span>;
+    <span class="kw">use</span> <span class="ident">test_utils</span>::<span class="ident">get_test_data</span>;
 
-    <span class='kw'>fn</span> <span class='ident'>decompress_lz77</span>(<span class='ident'>input</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>LZValue</span>]) <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>output</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
-        <span class='kw'>for</span> <span class='ident'>p</span> <span class='kw'>in</span> <span class='ident'>input</span> {
-            <span class='kw'>match</span> <span class='ident'>p</span>.<span class='ident'>value</span>() {
-                <span class='ident'>LZType</span>::<span class='ident'>Literal</span>(<span class='ident'>l</span>) <span class='op'>=&gt;</span> <span class='ident'>output</span>.<span class='ident'>push</span>(<span class='ident'>l</span>),
-                <span class='ident'>LZType</span>::<span class='ident'>StoredLengthDistance</span>(<span class='ident'>l</span>, <span class='ident'>d</span>) <span class='op'>=&gt;</span> {
-                    <span class='kw'>let</span> <span class='ident'>start</span> <span class='op'>=</span> <span class='ident'>output</span>.<span class='ident'>len</span>() <span class='op'>-</span> <span class='ident'>d</span> <span class='kw'>as</span> <span class='ident'>usize</span>;
-                    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>n</span> <span class='op'>=</span> <span class='number'>0</span>;
-                    <span class='kw'>while</span> <span class='ident'>n</span> <span class='op'>&lt;</span> <span class='ident'>l</span>.<span class='ident'>actual_length</span>() <span class='kw'>as</span> <span class='ident'>usize</span> {
-                        <span class='kw'>let</span> <span class='ident'>b</span> <span class='op'>=</span> <span class='ident'>output</span>[<span class='ident'>start</span> <span class='op'>+</span> <span class='ident'>n</span>];
-                        <span class='ident'>output</span>.<span class='ident'>push</span>(<span class='ident'>b</span>);
-                        <span class='ident'>n</span> <span class='op'>+=</span> <span class='number'>1</span>;
+    <span class="kw">fn</span> <span class="ident">decompress_lz77</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span>[<span class="ident">LZValue</span>]) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">output</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+        <span class="kw">for</span> <span class="ident">p</span> <span class="kw">in</span> <span class="ident">input</span> {
+            <span class="kw">match</span> <span class="ident">p</span>.<span class="ident">value</span>() {
+                <span class="ident">LZType</span>::<span class="ident">Literal</span>(<span class="ident">l</span>) <span class="op">=&gt;</span> <span class="ident">output</span>.<span class="ident">push</span>(<span class="ident">l</span>),
+                <span class="ident">LZType</span>::<span class="ident">StoredLengthDistance</span>(<span class="ident">l</span>, <span class="ident">d</span>) <span class="op">=&gt;</span> {
+                    <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">output</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">d</span> <span class="kw">as</span> <span class="ident">usize</span>;
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">n</span> <span class="op">=</span> <span class="number">0</span>;
+                    <span class="kw">while</span> <span class="ident">n</span> <span class="op">&lt;</span> <span class="ident">l</span>.<span class="ident">actual_length</span>() <span class="kw">as</span> <span class="ident">usize</span> {
+                        <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="ident">output</span>[<span class="ident">start</span> <span class="op">+</span> <span class="ident">n</span>];
+                        <span class="ident">output</span>.<span class="ident">push</span>(<span class="ident">b</span>);
+                        <span class="ident">n</span> <span class="op">+=</span> <span class="number">1</span>;
                     }
                 }
             }
         }
-        <span class='ident'>output</span>
+        <span class="ident">output</span>
     }
 
 
-    <span class='doccomment'>/// Helper function to print the output from the lz77 compression function</span>
-    <span class='kw'>fn</span> <span class='ident'>print_output</span>(<span class='ident'>input</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>LZValue</span>]) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>output</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
-        <span class='kw'>for</span> <span class='ident'>l</span> <span class='kw'>in</span> <span class='ident'>input</span> {
-            <span class='kw'>match</span> <span class='ident'>l</span>.<span class='ident'>value</span>() {
-                <span class='ident'>LZType</span>::<span class='ident'>Literal</span>(<span class='ident'>l</span>) <span class='op'>=&gt;</span> <span class='ident'>output</span>.<span class='ident'>push</span>(<span class='ident'>l</span>),
-                <span class='ident'>LZType</span>::<span class='ident'>StoredLengthDistance</span>(<span class='ident'>l</span>, <span class='ident'>d</span>) <span class='op'>=&gt;</span> {
-                    <span class='ident'>output</span>.<span class='ident'>extend</span>(<span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;&lt;L {}&gt;&quot;</span>, <span class='ident'>l</span>.<span class='ident'>actual_length</span>()).<span class='ident'>into_bytes</span>());
-                    <span class='ident'>output</span>.<span class='ident'>extend</span>(<span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;&lt;D {}&gt;&quot;</span>, <span class='ident'>d</span>).<span class='ident'>into_bytes</span>())
+    <span class="doccomment">/// Helper function to print the output from the lz77 compression function</span>
+    <span class="kw">fn</span> <span class="ident">print_output</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span>[<span class="ident">LZValue</span>]) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">output</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+        <span class="kw">for</span> <span class="ident">l</span> <span class="kw">in</span> <span class="ident">input</span> {
+            <span class="kw">match</span> <span class="ident">l</span>.<span class="ident">value</span>() {
+                <span class="ident">LZType</span>::<span class="ident">Literal</span>(<span class="ident">l</span>) <span class="op">=&gt;</span> <span class="ident">output</span>.<span class="ident">push</span>(<span class="ident">l</span>),
+                <span class="ident">LZType</span>::<span class="ident">StoredLengthDistance</span>(<span class="ident">l</span>, <span class="ident">d</span>) <span class="op">=&gt;</span> {
+                    <span class="ident">output</span>.<span class="ident">extend</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;&lt;L {}&gt;&quot;</span>, <span class="ident">l</span>.<span class="ident">actual_length</span>()).<span class="ident">into_bytes</span>());
+                    <span class="ident">output</span>.<span class="ident">extend</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;&lt;D {}&gt;&quot;</span>, <span class="ident">d</span>).<span class="ident">into_bytes</span>())
                 }
             }
         }
 
-        <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;\&quot;{}\&quot;&quot;</span>, <span class='ident'>String</span>::<span class='ident'>from_utf8</span>(<span class='ident'>output</span>).<span class='ident'>unwrap</span>());
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;\&quot;{}\&quot;&quot;</span>, <span class="ident">String</span>::<span class="ident">from_utf8</span>(<span class="ident">output</span>).<span class="ident">unwrap</span>());
     }
 
-    <span class='doccomment'>/// Test that a short string from an example on SO compresses correctly</span>
-    <span class='attribute'>#[<span class='ident'>test</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>compress_short</span>() {
-        <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>str</span>;
+    <span class="doccomment">/// Test that a short string from an example on SO compresses correctly</span>
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">compress_short</span>() {
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>;
 
-        <span class='kw'>let</span> <span class='ident'>test_bytes</span> <span class='op'>=</span> <span class='ident'>String</span>::<span class='ident'>from</span>(<span class='string'>&quot;Deflate late&quot;</span>).<span class='ident'>into_bytes</span>();
-        <span class='kw'>let</span> <span class='ident'>res</span> <span class='op'>=</span> <span class='ident'>lz77_compress</span>(<span class='kw-2'>&amp;</span><span class='ident'>test_bytes</span>).<span class='ident'>unwrap</span>();
-        <span class='comment'>// TODO: Check that compression is correct</span>
+        <span class="kw">let</span> <span class="ident">test_bytes</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">from</span>(<span class="string">&quot;Deflate late&quot;</span>).<span class="ident">into_bytes</span>();
+        <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">lz77_compress</span>(<span class="kw-2">&amp;</span><span class="ident">test_bytes</span>).<span class="ident">unwrap</span>();
+        <span class="comment">// TODO: Check that compression is correct</span>
 
-        <span class='kw'>let</span> <span class='ident'>decompressed</span> <span class='op'>=</span> <span class='ident'>decompress_lz77</span>(<span class='kw-2'>&amp;</span><span class='ident'>res</span>);
+        <span class="kw">let</span> <span class="ident">decompressed</span> <span class="op">=</span> <span class="ident">decompress_lz77</span>(<span class="kw-2">&amp;</span><span class="ident">res</span>);
 
-        <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>test_bytes</span>, <span class='ident'>decompressed</span>);
-        <span class='comment'>// assert_eq!(res[8],</span>
-        <span class='comment'>// LDPair::LengthDistance {</span>
-        <span class='comment'>// distance: 5,</span>
-        <span class='comment'>// length: 4,</span>
-        <span class='comment'>// });</span>
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">test_bytes</span>, <span class="ident">decompressed</span>);
+        <span class="comment">// assert_eq!(res[8],</span>
+        <span class="comment">// LDPair::LengthDistance {</span>
+        <span class="comment">// distance: 5,</span>
+        <span class="comment">// length: 4,</span>
+        <span class="comment">// });</span>
     }
 
-    <span class='doccomment'>/// Test that compression is working for a longer file</span>
-    <span class='attribute'>#[<span class='ident'>test</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>compress_long</span>() {
-        <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>str</span>;
-        <span class='kw'>let</span> <span class='ident'>input</span> <span class='op'>=</span> <span class='ident'>get_test_data</span>();
-        <span class='kw'>let</span> <span class='ident'>compressed</span> <span class='op'>=</span> <span class='ident'>lz77_compress</span>(<span class='kw-2'>&amp;</span><span class='ident'>input</span>).<span class='ident'>unwrap</span>();
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>compressed</span>.<span class='ident'>len</span>() <span class='op'>&lt;</span> <span class='ident'>input</span>.<span class='ident'>len</span>());
+    <span class="doccomment">/// Test that compression is working for a longer file</span>
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">compress_long</span>() {
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>;
+        <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="ident">get_test_data</span>();
+        <span class="kw">let</span> <span class="ident">compressed</span> <span class="op">=</span> <span class="ident">lz77_compress</span>(<span class="kw-2">&amp;</span><span class="ident">input</span>).<span class="ident">unwrap</span>();
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">compressed</span>.<span class="ident">len</span>() <span class="op">&lt;</span> <span class="ident">input</span>.<span class="ident">len</span>());
 
-        <span class='kw'>let</span> <span class='ident'>decompressed</span> <span class='op'>=</span> <span class='ident'>decompress_lz77</span>(<span class='kw-2'>&amp;</span><span class='ident'>compressed</span>);
+        <span class="kw">let</span> <span class="ident">decompressed</span> <span class="op">=</span> <span class="ident">decompress_lz77</span>(<span class="kw-2">&amp;</span><span class="ident">compressed</span>);
 
-        <span class='comment'>// This is to check where the compression fails, if it were to</span>
-        <span class='kw'>for</span> (<span class='ident'>n</span>, (<span class='kw-2'>&amp;</span><span class='ident'>a</span>, <span class='kw-2'>&amp;</span><span class='ident'>b</span>)) <span class='kw'>in</span> <span class='ident'>input</span>.<span class='ident'>iter</span>().<span class='ident'>zip</span>(<span class='ident'>decompressed</span>.<span class='ident'>iter</span>()).<span class='ident'>enumerate</span>() {
-            <span class='kw'>if</span> <span class='ident'>a</span> <span class='op'>!=</span> <span class='ident'>b</span> {
-                <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;First difference at {}, input: {}, output: {}&quot;</span>, <span class='ident'>n</span>, <span class='ident'>a</span>, <span class='ident'>b</span>);
-                <span class='kw'>break</span>;
+        <span class="comment">// This is to check where the compression fails, if it were to</span>
+        <span class="kw">for</span> (<span class="ident">n</span>, (<span class="kw-2">&amp;</span><span class="ident">a</span>, <span class="kw-2">&amp;</span><span class="ident">b</span>)) <span class="kw">in</span> <span class="ident">input</span>.<span class="ident">iter</span>().<span class="ident">zip</span>(<span class="ident">decompressed</span>.<span class="ident">iter</span>()).<span class="ident">enumerate</span>() {
+            <span class="kw">if</span> <span class="ident">a</span> <span class="op">!=</span> <span class="ident">b</span> {
+                <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;First difference at {}, input: {}, output: {}&quot;</span>, <span class="ident">n</span>, <span class="ident">a</span>, <span class="ident">b</span>);
+                <span class="kw">break</span>;
             }
         }
-        <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>input</span>.<span class='ident'>len</span>(), <span class='ident'>decompressed</span>.<span class='ident'>len</span>());
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='kw-2'>&amp;</span><span class='ident'>decompressed</span> <span class='op'>==</span> <span class='kw-2'>&amp;</span><span class='ident'>input</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">input</span>.<span class="ident">len</span>(), <span class="ident">decompressed</span>.<span class="ident">len</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">decompressed</span> <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">input</span>);
     }
 
-    <span class='doccomment'>/// Check that lazy matching is working as intended</span>
-    <span class='attribute'>#[<span class='ident'>test</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>lazy</span>() {
-        <span class='comment'>// We want to match on `badger` rather than `nba` as it is longer</span>
-        <span class='comment'>// let data = b&quot; nba nbadg badger nbadger&quot;;</span>
-        <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='string'>b&quot;nba badger nbadger&quot;</span>;
-        <span class='kw'>let</span> <span class='ident'>compressed</span> <span class='op'>=</span> <span class='ident'>lz77_compress</span>(<span class='ident'>data</span>).<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>test</span> <span class='op'>=</span> <span class='ident'>compressed</span>[<span class='ident'>compressed</span>.<span class='ident'>len</span>() <span class='op'>-</span> <span class='number'>1</span>];
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>LZType</span>::<span class='ident'>StoredLengthDistance</span>(<span class='ident'>l</span>, _) <span class='op'>=</span> <span class='ident'>test</span>.<span class='ident'>value</span>() {
-            <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>l</span>.<span class='ident'>actual_length</span>(), <span class='number'>6</span>);
-        } <span class='kw'>else</span> {
-            <span class='ident'>print_output</span>(<span class='kw-2'>&amp;</span><span class='ident'>compressed</span>);
-            <span class='macro'>panic</span><span class='macro'>!</span>();
+    <span class="doccomment">/// Check that lazy matching is working as intended</span>
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">lazy</span>() {
+        <span class="comment">// We want to match on `badger` rather than `nba` as it is longer</span>
+        <span class="comment">// let data = b&quot; nba nbadg badger nbadger&quot;;</span>
+        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="string">b&quot;nba badger nbadger&quot;</span>;
+        <span class="kw">let</span> <span class="ident">compressed</span> <span class="op">=</span> <span class="ident">lz77_compress</span>(<span class="ident">data</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">test</span> <span class="op">=</span> <span class="ident">compressed</span>[<span class="ident">compressed</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>];
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">LZType</span>::<span class="ident">StoredLengthDistance</span>(<span class="ident">l</span>, _) <span class="op">=</span> <span class="ident">test</span>.<span class="ident">value</span>() {
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">l</span>.<span class="ident">actual_length</span>(), <span class="number">6</span>);
+        } <span class="kw">else</span> {
+            <span class="ident">print_output</span>(<span class="kw-2">&amp;</span><span class="ident">compressed</span>);
+            <span class="macro">panic</span><span class="macro">!</span>();
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>roundtrip</span>(<span class='ident'>data</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>]) {
-        <span class='kw'>let</span> <span class='ident'>compressed</span> <span class='op'>=</span> <span class='kw'>super</span>::<span class='ident'>lz77_compress</span>(<span class='kw-2'>&amp;</span><span class='ident'>data</span>).<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>decompressed</span> <span class='op'>=</span> <span class='ident'>decompress_lz77</span>(<span class='kw-2'>&amp;</span><span class='ident'>compressed</span>);
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>decompressed</span> <span class='op'>==</span> <span class='ident'>data</span>);
+    <span class="kw">fn</span> <span class="ident">roundtrip</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) {
+        <span class="kw">let</span> <span class="ident">compressed</span> <span class="op">=</span> <span class="kw">super</span>::<span class="ident">lz77_compress</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">decompressed</span> <span class="op">=</span> <span class="ident">decompress_lz77</span>(<span class="kw-2">&amp;</span><span class="ident">compressed</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">decompressed</span> <span class="op">==</span> <span class="ident">data</span>);
     }
 
-    <span class='comment'>// Check that data with the exact window size is working properly</span>
-    <span class='attribute'>#[<span class='ident'>test</span>]</span>
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unused</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>exact_window_size</span>() {
-        <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::<span class='ident'>Write</span>;
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>0</span>; <span class='ident'>WINDOW_SIZE</span>];
-        <span class='ident'>roundtrip</span>(<span class='kw-2'>&amp;</span><span class='ident'>data</span>);
+    <span class="comment">// Check that data with the exact window size is working properly</span>
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">exact_window_size</span>() {
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">WINDOW_SIZE</span>];
+        <span class="ident">roundtrip</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>);
         {
-            <span class='ident'>data</span>.<span class='ident'>write</span>(<span class='kw-2'>&amp;</span>[<span class='number'>22</span>; <span class='ident'>WINDOW_SIZE</span>]);
+            <span class="ident">data</span>.<span class="ident">write</span>(<span class="kw-2">&amp;</span>[<span class="number">22</span>; <span class="ident">WINDOW_SIZE</span>]);
         }
-        <span class='ident'>roundtrip</span>(<span class='kw-2'>&amp;</span><span class='ident'>data</span>);
+        <span class="ident">roundtrip</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>);
         {
-            <span class='ident'>data</span>.<span class='ident'>write</span>(<span class='kw-2'>&amp;</span>[<span class='number'>55</span>; <span class='ident'>WINDOW_SIZE</span>]);
+            <span class="ident">data</span>.<span class="ident">write</span>(<span class="kw-2">&amp;</span>[<span class="number">55</span>; <span class="ident">WINDOW_SIZE</span>]);
         }
-        <span class='ident'>roundtrip</span>(<span class='kw-2'>&amp;</span><span class='ident'>data</span>);
+        <span class="ident">roundtrip</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>);
     }
 
-    <span class='doccomment'>/// Test that matches at the window border are working correctly</span>
-    <span class='attribute'>#[<span class='ident'>test</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>border</span>() {
-        <span class='kw'>use</span> <span class='ident'>chained_hash_table</span>::<span class='ident'>WINDOW_SIZE</span>;
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>35</span>; <span class='ident'>WINDOW_SIZE</span>];
-        <span class='ident'>data</span>.<span class='ident'>extend</span>(<span class='string'>b&quot;Test&quot;</span>);
-        <span class='kw'>let</span> <span class='ident'>compressed</span> <span class='op'>=</span> <span class='kw'>super</span>::<span class='ident'>lz77_compress</span>(<span class='kw-2'>&amp;</span><span class='ident'>data</span>).<span class='ident'>unwrap</span>();
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>compressed</span>.<span class='ident'>len</span>() <span class='op'>&lt;</span> <span class='ident'>data</span>.<span class='ident'>len</span>());
-        <span class='kw'>let</span> <span class='ident'>decompressed</span> <span class='op'>=</span> <span class='ident'>decompress_lz77</span>(<span class='kw-2'>&amp;</span><span class='ident'>compressed</span>);
+    <span class="doccomment">/// Test that matches at the window border are working correctly</span>
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">border</span>() {
+        <span class="kw">use</span> <span class="ident">chained_hash_table</span>::<span class="ident">WINDOW_SIZE</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">35</span>; <span class="ident">WINDOW_SIZE</span>];
+        <span class="ident">data</span>.<span class="ident">extend</span>(<span class="string">b&quot;Test&quot;</span>);
+        <span class="kw">let</span> <span class="ident">compressed</span> <span class="op">=</span> <span class="kw">super</span>::<span class="ident">lz77_compress</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>).<span class="ident">unwrap</span>();
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">compressed</span>.<span class="ident">len</span>() <span class="op">&lt;</span> <span class="ident">data</span>.<span class="ident">len</span>());
+        <span class="kw">let</span> <span class="ident">decompressed</span> <span class="op">=</span> <span class="ident">decompress_lz77</span>(<span class="kw-2">&amp;</span><span class="ident">compressed</span>);
 
-        <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>decompressed</span>.<span class='ident'>len</span>(), <span class='ident'>data</span>.<span class='ident'>len</span>());
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>decompressed</span> <span class='op'>==</span> <span class='ident'>data</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">decompressed</span>.<span class="ident">len</span>(), <span class="ident">data</span>.<span class="ident">len</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">decompressed</span> <span class="op">==</span> <span class="ident">data</span>);
     }
 
-    <span class='attribute'>#[<span class='ident'>test</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>border_multiple_blocks</span>() {
-        <span class='kw'>use</span> <span class='ident'>chained_hash_table</span>::<span class='ident'>WINDOW_SIZE</span>;
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>0</span>; (<span class='ident'>WINDOW_SIZE</span> <span class='op'>*</span> <span class='number'>2</span>) <span class='op'>+</span> <span class='number'>50</span>];
-        <span class='ident'>data</span>.<span class='ident'>push</span>(<span class='number'>1</span>);
-        <span class='kw'>let</span> <span class='ident'>compressed</span> <span class='op'>=</span> <span class='kw'>super</span>::<span class='ident'>lz77_compress</span>(<span class='kw-2'>&amp;</span><span class='ident'>data</span>).<span class='ident'>unwrap</span>();
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>compressed</span>.<span class='ident'>len</span>() <span class='op'>&lt;</span> <span class='ident'>data</span>.<span class='ident'>len</span>());
-        <span class='kw'>let</span> <span class='ident'>decompressed</span> <span class='op'>=</span> <span class='ident'>decompress_lz77</span>(<span class='kw-2'>&amp;</span><span class='ident'>compressed</span>);
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>decompressed</span> <span class='op'>==</span> <span class='ident'>data</span>);
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">border_multiple_blocks</span>() {
+        <span class="kw">use</span> <span class="ident">chained_hash_table</span>::<span class="ident">WINDOW_SIZE</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; (<span class="ident">WINDOW_SIZE</span> <span class="op">*</span> <span class="number">2</span>) <span class="op">+</span> <span class="number">50</span>];
+        <span class="ident">data</span>.<span class="ident">push</span>(<span class="number">1</span>);
+        <span class="kw">let</span> <span class="ident">compressed</span> <span class="op">=</span> <span class="kw">super</span>::<span class="ident">lz77_compress</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>).<span class="ident">unwrap</span>();
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">compressed</span>.<span class="ident">len</span>() <span class="op">&lt;</span> <span class="ident">data</span>.<span class="ident">len</span>());
+        <span class="kw">let</span> <span class="ident">decompressed</span> <span class="op">=</span> <span class="ident">decompress_lz77</span>(<span class="kw-2">&amp;</span><span class="ident">compressed</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">decompressed</span> <span class="op">==</span> <span class="ident">data</span>);
     }
 
-    <span class='attribute'>#[<span class='ident'>test</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>compress_block_status</span>() {
-        <span class='kw'>use</span> <span class='ident'>input_buffer</span>::<span class='ident'>InputBuffer</span>;
-        <span class='kw'>use</span> <span class='ident'>output_writer</span>::<span class='ident'>FixedWriter</span>;
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">compress_block_status</span>() {
+        <span class="kw">use</span> <span class="ident">input_buffer</span>::<span class="ident">InputBuffer</span>;
+        <span class="kw">use</span> <span class="ident">output_writer</span>::<span class="ident">FixedWriter</span>;
 
-        <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='string'>b&quot;Test data data&quot;</span>;
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>writer</span> <span class='op'>=</span> <span class='ident'>FixedWriter</span>::<span class='ident'>new</span>();
+        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="string">b&quot;Test data data&quot;</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">writer</span> <span class="op">=</span> <span class="ident">FixedWriter</span>::<span class="ident">new</span>();
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>buffer</span> <span class='op'>=</span> <span class='ident'>InputBuffer</span>::<span class='ident'>empty</span>();
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>state</span> <span class='op'>=</span> <span class='ident'>LZ77State</span>::<span class='ident'>new</span>(<span class='number'>4096</span>, <span class='ident'>DEFAULT_LAZY_IF_LESS_THAN</span>, <span class='ident'>MatchingType</span>::<span class='ident'>Lazy</span>);
-        <span class='kw'>let</span> <span class='ident'>status</span> <span class='op'>=</span> <span class='ident'>lz77_compress_block_finish</span>(<span class='ident'>data</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>state</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buffer</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>writer</span>);
-        <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>status</span>.<span class='number'>1</span>, <span class='ident'>LZ77Status</span>::<span class='ident'>Finished</span>);
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='kw-2'>&amp;</span><span class='ident'>buffer</span>.<span class='ident'>get_buffer</span>()[..<span class='ident'>data</span>.<span class='ident'>len</span>()] <span class='op'>==</span> <span class='ident'>data</span>);
-        <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>buffer</span>.<span class='ident'>current_end</span>(), <span class='ident'>data</span>.<span class='ident'>len</span>());
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">InputBuffer</span>::<span class="ident">empty</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">LZ77State</span>::<span class="ident">new</span>(<span class="number">4096</span>, <span class="ident">DEFAULT_LAZY_IF_LESS_THAN</span>, <span class="ident">MatchingType</span>::<span class="ident">Lazy</span>);
+        <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">lz77_compress_block_finish</span>(<span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">writer</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">status</span>.<span class="number">1</span>, <span class="ident">LZ77Status</span>::<span class="ident">Finished</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">buffer</span>.<span class="ident">get_buffer</span>()[..<span class="ident">data</span>.<span class="ident">len</span>()] <span class="op">==</span> <span class="ident">data</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">buffer</span>.<span class="ident">current_end</span>(), <span class="ident">data</span>.<span class="ident">len</span>());
     }
 
-    <span class='attribute'>#[<span class='ident'>test</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>compress_block_multiple_windows</span>() {
-        <span class='kw'>use</span> <span class='ident'>input_buffer</span>::<span class='ident'>InputBuffer</span>;
-        <span class='kw'>use</span> <span class='ident'>output_writer</span>::{<span class='ident'>OutputWriter</span>, <span class='ident'>FixedWriter</span>};
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">compress_block_multiple_windows</span>() {
+        <span class="kw">use</span> <span class="ident">input_buffer</span>::<span class="ident">InputBuffer</span>;
+        <span class="kw">use</span> <span class="ident">output_writer</span>::{<span class="ident">OutputWriter</span>, <span class="ident">FixedWriter</span>};
 
-        <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='ident'>get_test_data</span>();
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>data</span>.<span class='ident'>len</span>() <span class='op'>&gt;</span> (<span class='ident'>WINDOW_SIZE</span> <span class='op'>*</span> <span class='number'>2</span>) <span class='op'>+</span> <span class='kw'>super</span>::<span class='ident'>MAX_MATCH</span>);
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>writer</span> <span class='op'>=</span> <span class='ident'>FixedWriter</span>::<span class='ident'>new</span>();
+        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">get_test_data</span>();
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">data</span>.<span class="ident">len</span>() <span class="op">&gt;</span> (<span class="ident">WINDOW_SIZE</span> <span class="op">*</span> <span class="number">2</span>) <span class="op">+</span> <span class="kw">super</span>::<span class="ident">MAX_MATCH</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">writer</span> <span class="op">=</span> <span class="ident">FixedWriter</span>::<span class="ident">new</span>();
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>buffer</span> <span class='op'>=</span> <span class='ident'>InputBuffer</span>::<span class='ident'>empty</span>();
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>state</span> <span class='op'>=</span> <span class='ident'>LZ77State</span>::<span class='ident'>new</span>(<span class='number'>0</span>, <span class='ident'>DEFAULT_LAZY_IF_LESS_THAN</span>, <span class='ident'>MatchingType</span>::<span class='ident'>Lazy</span>);
-        <span class='kw'>let</span> (<span class='ident'>bytes_consumed</span>, <span class='ident'>status</span>) <span class='op'>=</span>
-            <span class='ident'>lz77_compress_block_finish</span>(<span class='kw-2'>&amp;</span><span class='ident'>data</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>state</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buffer</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>writer</span>);
-        <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>buffer</span>.<span class='ident'>get_buffer</span>().<span class='ident'>len</span>(),
-                   (<span class='ident'>WINDOW_SIZE</span> <span class='op'>*</span> <span class='number'>2</span>) <span class='op'>+</span> <span class='kw'>super</span>::<span class='ident'>MAX_MATCH</span>);
-        <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>status</span>, <span class='ident'>LZ77Status</span>::<span class='ident'>EndBlock</span>);
-        <span class='kw'>let</span> <span class='ident'>buf_len</span> <span class='op'>=</span> <span class='ident'>buffer</span>.<span class='ident'>get_buffer</span>().<span class='ident'>len</span>();
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>buffer</span>.<span class='ident'>get_buffer</span>()[..] <span class='op'>==</span> <span class='ident'>data</span>[..<span class='ident'>buf_len</span>]);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">InputBuffer</span>::<span class="ident">empty</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">LZ77State</span>::<span class="ident">new</span>(<span class="number">0</span>, <span class="ident">DEFAULT_LAZY_IF_LESS_THAN</span>, <span class="ident">MatchingType</span>::<span class="ident">Lazy</span>);
+        <span class="kw">let</span> (<span class="ident">bytes_consumed</span>, <span class="ident">status</span>) <span class="op">=</span>
+            <span class="ident">lz77_compress_block_finish</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">writer</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">buffer</span>.<span class="ident">get_buffer</span>().<span class="ident">len</span>(),
+                   (<span class="ident">WINDOW_SIZE</span> <span class="op">*</span> <span class="number">2</span>) <span class="op">+</span> <span class="kw">super</span>::<span class="ident">MAX_MATCH</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">status</span>, <span class="ident">LZ77Status</span>::<span class="ident">EndBlock</span>);
+        <span class="kw">let</span> <span class="ident">buf_len</span> <span class="op">=</span> <span class="ident">buffer</span>.<span class="ident">get_buffer</span>().<span class="ident">len</span>();
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">buffer</span>.<span class="ident">get_buffer</span>()[..] <span class="op">==</span> <span class="ident">data</span>[..<span class="ident">buf_len</span>]);
 
-        <span class='ident'>writer</span>.<span class='ident'>clear_buffer</span>();
-        <span class='kw'>let</span> (_, <span class='ident'>status</span>) <span class='op'>=</span> <span class='ident'>lz77_compress_block_finish</span>(<span class='kw-2'>&amp;</span><span class='ident'>data</span>[<span class='ident'>bytes_consumed</span>..],
-                                                     <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>state</span>,
-                                                     <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>buffer</span>,
-                                                     <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>writer</span>);
-        <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>status</span>, <span class='ident'>LZ77Status</span>::<span class='ident'>EndBlock</span>);
+        <span class="ident">writer</span>.<span class="ident">clear_buffer</span>();
+        <span class="kw">let</span> (_, <span class="ident">status</span>) <span class="op">=</span> <span class="ident">lz77_compress_block_finish</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>[<span class="ident">bytes_consumed</span>..],
+                                                     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>,
+                                                     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>,
+                                                     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">writer</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">status</span>, <span class="ident">LZ77Status</span>::<span class="ident">EndBlock</span>);
 
     }
 
-    <span class='attribute'>#[<span class='ident'>test</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>multiple_inputs</span>() {
-        <span class='kw'>use</span> <span class='ident'>output_writer</span>::<span class='ident'>OutputWriter</span>;
-        <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='string'>b&quot;Badger badger bababa test data 25 asfgestghresjkgh&quot;</span>;
-        <span class='kw'>let</span> <span class='ident'>comp1</span> <span class='op'>=</span> <span class='ident'>lz77_compress</span>(<span class='ident'>data</span>).<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>comp2</span> <span class='op'>=</span> {
-            <span class='kw'>const</span> <span class='ident'>SPLIT</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='number'>25</span>;
-            <span class='kw'>let</span> <span class='ident'>first_part</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>data</span>[..<span class='ident'>SPLIT</span>];
-            <span class='kw'>let</span> <span class='ident'>second_part</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>data</span>[<span class='ident'>SPLIT</span>..];
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>state</span> <span class='op'>=</span> <span class='ident'>TestStruct</span>::<span class='ident'>new</span>();
-            <span class='kw'>let</span> (<span class='ident'>bytes_written</span>, <span class='ident'>status</span>) <span class='op'>=</span> <span class='ident'>state</span>.<span class='ident'>compress_block</span>(<span class='ident'>first_part</span>, <span class='bool-val'>false</span>);
-            <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>bytes_written</span>, <span class='ident'>first_part</span>.<span class='ident'>len</span>());
-            <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>status</span>, <span class='ident'>LZ77Status</span>::<span class='ident'>NeedInput</span>);
-            <span class='kw'>let</span> (<span class='ident'>bytes_written</span>, <span class='ident'>status</span>) <span class='op'>=</span> <span class='ident'>state</span>.<span class='ident'>compress_block</span>(<span class='ident'>second_part</span>, <span class='bool-val'>true</span>);
-            <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>bytes_written</span>, <span class='ident'>second_part</span>.<span class='ident'>len</span>());
-            <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>status</span>, <span class='ident'>LZ77Status</span>::<span class='ident'>Finished</span>);
-            <span class='ident'>Vec</span>::<span class='ident'>from</span>(<span class='ident'>state</span>.<span class='ident'>writer</span>.<span class='ident'>get_buffer</span>())
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">multiple_inputs</span>() {
+        <span class="kw">use</span> <span class="ident">output_writer</span>::<span class="ident">OutputWriter</span>;
+        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="string">b&quot;Badger badger bababa test data 25 asfgestghresjkgh&quot;</span>;
+        <span class="kw">let</span> <span class="ident">comp1</span> <span class="op">=</span> <span class="ident">lz77_compress</span>(<span class="ident">data</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">comp2</span> <span class="op">=</span> {
+            <span class="kw">const</span> <span class="ident">SPLIT</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">25</span>;
+            <span class="kw">let</span> <span class="ident">first_part</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">data</span>[..<span class="ident">SPLIT</span>];
+            <span class="kw">let</span> <span class="ident">second_part</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">data</span>[<span class="ident">SPLIT</span>..];
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">TestStruct</span>::<span class="ident">new</span>();
+            <span class="kw">let</span> (<span class="ident">bytes_written</span>, <span class="ident">status</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">compress_block</span>(<span class="ident">first_part</span>, <span class="bool-val">false</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">bytes_written</span>, <span class="ident">first_part</span>.<span class="ident">len</span>());
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">status</span>, <span class="ident">LZ77Status</span>::<span class="ident">NeedInput</span>);
+            <span class="kw">let</span> (<span class="ident">bytes_written</span>, <span class="ident">status</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">compress_block</span>(<span class="ident">second_part</span>, <span class="bool-val">true</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">bytes_written</span>, <span class="ident">second_part</span>.<span class="ident">len</span>());
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">status</span>, <span class="ident">LZ77Status</span>::<span class="ident">Finished</span>);
+            <span class="ident">Vec</span>::<span class="ident">from</span>(<span class="ident">state</span>.<span class="ident">writer</span>.<span class="ident">get_buffer</span>())
         };
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>comp1</span> <span class='op'>==</span> <span class='ident'>comp2</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">comp1</span> <span class="op">==</span> <span class="ident">comp2</span>);
     }
 }
 </pre>

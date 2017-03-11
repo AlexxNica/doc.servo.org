@@ -582,545 +582,545 @@
 <span id="537">537</span>
 <span id="538">538</span>
 <span id="539">539</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
-<span class='kw'>use</span> <span class='ident'>bloom</span>::<span class='ident'>BloomFilter</span>;
-<span class='kw'>use</span> <span class='ident'>parser</span>::{<span class='ident'>CaseSensitivity</span>, <span class='ident'>Combinator</span>, <span class='ident'>ComplexSelector</span>, <span class='ident'>LocalName</span>};
-<span class='kw'>use</span> <span class='ident'>parser</span>::{<span class='ident'>SimpleSelector</span>, <span class='ident'>Selector</span>, <span class='ident'>SelectorImpl</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::<span class='ident'>Borrow</span>;
-<span class='kw'>use</span> <span class='ident'>tree</span>::<span class='ident'>Element</span>;
+<span class="kw">use</span> <span class="ident">bloom</span>::<span class="ident">BloomFilter</span>;
+<span class="kw">use</span> <span class="ident">parser</span>::{<span class="ident">CaseSensitivity</span>, <span class="ident">Combinator</span>, <span class="ident">ComplexSelector</span>, <span class="ident">LocalName</span>};
+<span class="kw">use</span> <span class="ident">parser</span>::{<span class="ident">SimpleSelector</span>, <span class="ident">Selector</span>, <span class="ident">SelectorImpl</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Borrow</span>;
+<span class="kw">use</span> <span class="ident">tree</span>::<span class="ident">Element</span>;
 
-<span class='comment'>// The bloom filter for descendant CSS selectors will have a &lt;1% false</span>
-<span class='comment'>// positive rate until it has this many selectors in it, then it will</span>
-<span class='comment'>// rapidly increase.</span>
-<span class='kw'>pub</span> <span class='kw'>static</span> <span class='ident'>RECOMMENDED_SELECTOR_BLOOM_FILTER_SIZE</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='number'>4096</span>;
+<span class="comment">// The bloom filter for descendant CSS selectors will have a &lt;1% false</span>
+<span class="comment">// positive rate until it has this many selectors in it, then it will</span>
+<span class="comment">// rapidly increase.</span>
+<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">RECOMMENDED_SELECTOR_BLOOM_FILTER_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">4096</span>;
 
-<span class='macro'>bitflags</span><span class='macro'>!</span> {
-    <span class='doccomment'>/// Set of flags that determine the different kind of elements affected by</span>
-    <span class='doccomment'>/// the selector matching process.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// This is used to implement efficient sharing.</span>
-    <span class='kw'>pub</span> <span class='ident'>flags</span> <span class='ident'>StyleRelations</span>: <span class='ident'>u16</span> {
-        <span class='doccomment'>/// Whether this element has matched any rule that is determined by a</span>
-        <span class='doccomment'>/// sibling (when using the `+` or `~` combinators).</span>
-        <span class='kw'>const</span> <span class='ident'>AFFECTED_BY_SIBLINGS</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>0</span>,
+<span class="macro">bitflags</span><span class="macro">!</span> {
+    <span class="doccomment">/// Set of flags that determine the different kind of elements affected by</span>
+    <span class="doccomment">/// the selector matching process.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is used to implement efficient sharing.</span>
+    <span class="kw">pub</span> <span class="ident">flags</span> <span class="ident">StyleRelations</span>: <span class="ident">u16</span> {
+        <span class="doccomment">/// Whether this element has matched any rule that is determined by a</span>
+        <span class="doccomment">/// sibling (when using the `+` or `~` combinators).</span>
+        <span class="kw">const</span> <span class="ident">AFFECTED_BY_SIBLINGS</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">0</span>,
 
-        <span class='doccomment'>/// Whether this element has matched any rule whose matching is</span>
-        <span class='doccomment'>/// determined by its position in the tree (i.e., first-child,</span>
-        <span class='doccomment'>/// nth-child, etc.).</span>
-        <span class='kw'>const</span> <span class='ident'>AFFECTED_BY_CHILD_INDEX</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>1</span>,
+        <span class="doccomment">/// Whether this element has matched any rule whose matching is</span>
+        <span class="doccomment">/// determined by its position in the tree (i.e., first-child,</span>
+        <span class="doccomment">/// nth-child, etc.).</span>
+        <span class="kw">const</span> <span class="ident">AFFECTED_BY_CHILD_INDEX</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">1</span>,
 
-        <span class='doccomment'>/// Whether this flag is affected by any state (i.e., non</span>
-        <span class='doccomment'>/// tree-structural pseudo-class).</span>
-        <span class='kw'>const</span> <span class='ident'>AFFECTED_BY_STATE</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>2</span>,
+        <span class="doccomment">/// Whether this flag is affected by any state (i.e., non</span>
+        <span class="doccomment">/// tree-structural pseudo-class).</span>
+        <span class="kw">const</span> <span class="ident">AFFECTED_BY_STATE</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">2</span>,
 
-        <span class='doccomment'>/// Whether this element is affected by an ID selector.</span>
-        <span class='kw'>const</span> <span class='ident'>AFFECTED_BY_ID_SELECTOR</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>3</span>,
+        <span class="doccomment">/// Whether this element is affected by an ID selector.</span>
+        <span class="kw">const</span> <span class="ident">AFFECTED_BY_ID_SELECTOR</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">3</span>,
 
-        <span class='doccomment'>/// Whether this element is affected by a non-common style-affecting</span>
-        <span class='doccomment'>/// attribute.</span>
-        <span class='kw'>const</span> <span class='ident'>AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>4</span>,
+        <span class="doccomment">/// Whether this element is affected by a non-common style-affecting</span>
+        <span class="doccomment">/// attribute.</span>
+        <span class="kw">const</span> <span class="ident">AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">4</span>,
 
-        <span class='doccomment'>/// Whether this element matches the :empty pseudo class.</span>
-        <span class='kw'>const</span> <span class='ident'>AFFECTED_BY_EMPTY</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>5</span>,
+        <span class="doccomment">/// Whether this element matches the :empty pseudo class.</span>
+        <span class="kw">const</span> <span class="ident">AFFECTED_BY_EMPTY</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">5</span>,
 
-        <span class='doccomment'>/// Whether this element has a style attribute. Computed</span>
-        <span class='doccomment'>/// externally.</span>
-        <span class='kw'>const</span> <span class='ident'>AFFECTED_BY_STYLE_ATTRIBUTE</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>6</span>,
+        <span class="doccomment">/// Whether this element has a style attribute. Computed</span>
+        <span class="doccomment">/// externally.</span>
+        <span class="kw">const</span> <span class="ident">AFFECTED_BY_STYLE_ATTRIBUTE</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">6</span>,
 
-        <span class='doccomment'>/// Whether this element is affected by presentational hints. This is</span>
-        <span class='doccomment'>/// computed externally (that is, in Servo).</span>
-        <span class='kw'>const</span> <span class='ident'>AFFECTED_BY_PRESENTATIONAL_HINTS</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>7</span>,
+        <span class="doccomment">/// Whether this element is affected by presentational hints. This is</span>
+        <span class="doccomment">/// computed externally (that is, in Servo).</span>
+        <span class="kw">const</span> <span class="ident">AFFECTED_BY_PRESENTATIONAL_HINTS</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">7</span>,
 
-        <span class='doccomment'>/// Whether this element has pseudo-element styles. Computed externally.</span>
-        <span class='kw'>const</span> <span class='ident'>AFFECTED_BY_PSEUDO_ELEMENTS</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>8</span>,
+        <span class="doccomment">/// Whether this element has pseudo-element styles. Computed externally.</span>
+        <span class="kw">const</span> <span class="ident">AFFECTED_BY_PSEUDO_ELEMENTS</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">8</span>,
 
-        <span class='doccomment'>/// Whether this element has effective animation styles. Computed</span>
-        <span class='doccomment'>/// externally.</span>
-        <span class='kw'>const</span> <span class='ident'>AFFECTED_BY_ANIMATIONS</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>9</span>,
+        <span class="doccomment">/// Whether this element has effective animation styles. Computed</span>
+        <span class="doccomment">/// externally.</span>
+        <span class="kw">const</span> <span class="ident">AFFECTED_BY_ANIMATIONS</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">9</span>,
 
-        <span class='doccomment'>/// Whether this element has effective transition styles. Computed</span>
-        <span class='doccomment'>/// externally.</span>
-        <span class='kw'>const</span> <span class='ident'>AFFECTED_BY_TRANSITIONS</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>10</span>,
+        <span class="doccomment">/// Whether this element has effective transition styles. Computed</span>
+        <span class="doccomment">/// externally.</span>
+        <span class="kw">const</span> <span class="ident">AFFECTED_BY_TRANSITIONS</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">10</span>,
     }
 }
 
-<span class='macro'>bitflags</span><span class='macro'>!</span> {
-    <span class='doccomment'>/// Set of flags that are set on either the element or its parent (depending</span>
-    <span class='doccomment'>/// on the flag) if the element could potentially match a selector.</span>
-    <span class='kw'>pub</span> <span class='ident'>flags</span> <span class='ident'>ElementSelectorFlags</span>: <span class='ident'>u8</span> {
-        <span class='doccomment'>/// When a child is added or removed from the parent, all the children</span>
-        <span class='doccomment'>/// must be restyled, because they may match :nth-last-child,</span>
-        <span class='doccomment'>/// :last-of-type, :nth-last-of-type, or :only-of-type.</span>
-        <span class='kw'>const</span> <span class='ident'>HAS_SLOW_SELECTOR</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>0</span>,
+<span class="macro">bitflags</span><span class="macro">!</span> {
+    <span class="doccomment">/// Set of flags that are set on either the element or its parent (depending</span>
+    <span class="doccomment">/// on the flag) if the element could potentially match a selector.</span>
+    <span class="kw">pub</span> <span class="ident">flags</span> <span class="ident">ElementSelectorFlags</span>: <span class="ident">u8</span> {
+        <span class="doccomment">/// When a child is added or removed from the parent, all the children</span>
+        <span class="doccomment">/// must be restyled, because they may match :nth-last-child,</span>
+        <span class="doccomment">/// :last-of-type, :nth-last-of-type, or :only-of-type.</span>
+        <span class="kw">const</span> <span class="ident">HAS_SLOW_SELECTOR</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">0</span>,
 
-        <span class='doccomment'>/// When a child is added or removed from the parent, any later</span>
-        <span class='doccomment'>/// children must be restyled, because they may match :nth-child,</span>
-        <span class='doccomment'>/// :first-of-type, or :nth-of-type.</span>
-        <span class='kw'>const</span> <span class='ident'>HAS_SLOW_SELECTOR_LATER_SIBLINGS</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>1</span>,
+        <span class="doccomment">/// When a child is added or removed from the parent, any later</span>
+        <span class="doccomment">/// children must be restyled, because they may match :nth-child,</span>
+        <span class="doccomment">/// :first-of-type, or :nth-of-type.</span>
+        <span class="kw">const</span> <span class="ident">HAS_SLOW_SELECTOR_LATER_SIBLINGS</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">1</span>,
 
-        <span class='doccomment'>/// When a child is added or removed from the parent, the first and</span>
-        <span class='doccomment'>/// last children must be restyled, because they may match :first-child,</span>
-        <span class='doccomment'>/// :last-child, or :only-child.</span>
-        <span class='kw'>const</span> <span class='ident'>HAS_EDGE_CHILD_SELECTOR</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>2</span>,
+        <span class="doccomment">/// When a child is added or removed from the parent, the first and</span>
+        <span class="doccomment">/// last children must be restyled, because they may match :first-child,</span>
+        <span class="doccomment">/// :last-child, or :only-child.</span>
+        <span class="kw">const</span> <span class="ident">HAS_EDGE_CHILD_SELECTOR</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">2</span>,
 
-        <span class='doccomment'>/// The element has an empty selector, so when a child is appended we</span>
-        <span class='doccomment'>/// might need to restyle the parent completely.</span>
-        <span class='kw'>const</span> <span class='ident'>HAS_EMPTY_SELECTOR</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='number'>3</span>,
+        <span class="doccomment">/// The element has an empty selector, so when a child is appended we</span>
+        <span class="doccomment">/// might need to restyle the parent completely.</span>
+        <span class="kw">const</span> <span class="ident">HAS_EMPTY_SELECTOR</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">3</span>,
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>ElementSelectorFlags</span> {
-    <span class='doccomment'>/// Returns the subset of flags that apply to the element.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>for_self</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>ElementSelectorFlags</span> {
-        <span class='self'>self</span> <span class='op'>&amp;</span> (<span class='ident'>HAS_EMPTY_SELECTOR</span>)
+<span class="kw">impl</span> <span class="ident">ElementSelectorFlags</span> {
+    <span class="doccomment">/// Returns the subset of flags that apply to the element.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">for_self</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ElementSelectorFlags</span> {
+        <span class="self">self</span> <span class="op">&amp;</span> (<span class="ident">HAS_EMPTY_SELECTOR</span>)
     }
 
-    <span class='doccomment'>/// Returns the subset of flags that apply to the parent.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>for_parent</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>ElementSelectorFlags</span> {
-        <span class='self'>self</span> <span class='op'>&amp;</span> (<span class='ident'>HAS_SLOW_SELECTOR</span> <span class='op'>|</span> <span class='ident'>HAS_SLOW_SELECTOR_LATER_SIBLINGS</span> <span class='op'>|</span> <span class='ident'>HAS_EDGE_CHILD_SELECTOR</span>)
+    <span class="doccomment">/// Returns the subset of flags that apply to the parent.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">for_parent</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ElementSelectorFlags</span> {
+        <span class="self">self</span> <span class="op">&amp;</span> (<span class="ident">HAS_SLOW_SELECTOR</span> <span class="op">|</span> <span class="ident">HAS_SLOW_SELECTOR_LATER_SIBLINGS</span> <span class="op">|</span> <span class="ident">HAS_EDGE_CHILD_SELECTOR</span>)
     }
 }
 
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>matches</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='ident'>selector_list</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Selector</span><span class='op'>&lt;</span><span class='ident'>E</span>::<span class='ident'>Impl</span><span class='op'>&gt;</span>],
-                  <span class='ident'>element</span>: <span class='kw-2'>&amp;</span><span class='ident'>E</span>,
-                  <span class='ident'>parent_bf</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>BloomFilter</span><span class='op'>&gt;</span>)
-                  <span class='op'>-&gt;</span> <span class='ident'>bool</span>
-    <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>Element</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="ident">selector_list</span>: <span class="kw-2">&amp;</span>[<span class="ident">Selector</span><span class="op">&lt;</span><span class="ident">E</span>::<span class="ident">Impl</span><span class="op">&gt;</span>],
+                  <span class="ident">element</span>: <span class="kw-2">&amp;</span><span class="ident">E</span>,
+                  <span class="ident">parent_bf</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">BloomFilter</span><span class="op">&gt;</span>)
+                  <span class="op">-&gt;</span> <span class="ident">bool</span>
+    <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">Element</span>
 {
-    <span class='ident'>selector_list</span>.<span class='ident'>iter</span>().<span class='ident'>any</span>(<span class='op'>|</span><span class='ident'>selector</span><span class='op'>|</span> {
-        <span class='ident'>selector</span>.<span class='ident'>pseudo_element</span>.<span class='ident'>is_none</span>() <span class='op'>&amp;&amp;</span>
-        <span class='ident'>matches_complex_selector</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>selector</span>.<span class='ident'>complex_selector</span>, <span class='ident'>element</span>, <span class='ident'>parent_bf</span>,
-                                 <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>StyleRelations</span>::<span class='ident'>empty</span>(), <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ElementSelectorFlags</span>::<span class='ident'>empty</span>())
+    <span class="ident">selector_list</span>.<span class="ident">iter</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">selector</span><span class="op">|</span> {
+        <span class="ident">selector</span>.<span class="ident">pseudo_element</span>.<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span>
+        <span class="ident">matches_complex_selector</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">selector</span>.<span class="ident">complex_selector</span>, <span class="ident">element</span>, <span class="ident">parent_bf</span>,
+                                 <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">StyleRelations</span>::<span class="ident">empty</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ElementSelectorFlags</span>::<span class="ident">empty</span>())
     })
 }
 
-<span class='doccomment'>/// Determines whether the given element matches the given complex selector.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// NB: If you add support for any new kinds of selectors to this routine, be sure to set</span>
-<span class='doccomment'>/// `shareable` to false unless you are willing to update the style sharing logic. Otherwise things</span>
-<span class='doccomment'>/// will almost certainly break as elements will start mistakenly sharing styles. (See</span>
-<span class='doccomment'>/// `can_share_style_with` in `servo/components/style/matching.rs`.)</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>matches_complex_selector</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='ident'>selector</span>: <span class='kw-2'>&amp;</span><span class='ident'>ComplexSelector</span><span class='op'>&lt;</span><span class='ident'>E</span>::<span class='ident'>Impl</span><span class='op'>&gt;</span>,
-                                   <span class='ident'>element</span>: <span class='kw-2'>&amp;</span><span class='ident'>E</span>,
-                                   <span class='ident'>parent_bf</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>BloomFilter</span><span class='op'>&gt;</span>,
-                                   <span class='ident'>relations</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>StyleRelations</span>,
-                                   <span class='ident'>flags</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ElementSelectorFlags</span>)
-                                   <span class='op'>-&gt;</span> <span class='ident'>bool</span>
-    <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>Element</span>
+<span class="doccomment">/// Determines whether the given element matches the given complex selector.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// NB: If you add support for any new kinds of selectors to this routine, be sure to set</span>
+<span class="doccomment">/// `shareable` to false unless you are willing to update the style sharing logic. Otherwise things</span>
+<span class="doccomment">/// will almost certainly break as elements will start mistakenly sharing styles. (See</span>
+<span class="doccomment">/// `can_share_style_with` in `servo/components/style/matching.rs`.)</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">matches_complex_selector</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="ident">selector</span>: <span class="kw-2">&amp;</span><span class="ident">ComplexSelector</span><span class="op">&lt;</span><span class="ident">E</span>::<span class="ident">Impl</span><span class="op">&gt;</span>,
+                                   <span class="ident">element</span>: <span class="kw-2">&amp;</span><span class="ident">E</span>,
+                                   <span class="ident">parent_bf</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">BloomFilter</span><span class="op">&gt;</span>,
+                                   <span class="ident">relations</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">StyleRelations</span>,
+                                   <span class="ident">flags</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ElementSelectorFlags</span>)
+                                   <span class="op">-&gt;</span> <span class="ident">bool</span>
+    <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">Element</span>
 {
-    <span class='kw'>match</span> <span class='ident'>matches_complex_selector_internal</span>(<span class='ident'>selector</span>, <span class='ident'>element</span>, <span class='ident'>parent_bf</span>, <span class='ident'>relations</span>, <span class='ident'>flags</span>) {
-        <span class='ident'>SelectorMatchingResult</span>::<span class='ident'>Matched</span> <span class='op'>=&gt;</span> {
-            <span class='kw'>match</span> <span class='ident'>selector</span>.<span class='ident'>next</span> {
-                <span class='prelude-val'>Some</span>((_, <span class='ident'>Combinator</span>::<span class='ident'>NextSibling</span>)) <span class='op'>|</span>
-                <span class='prelude-val'>Some</span>((_, <span class='ident'>Combinator</span>::<span class='ident'>LaterSibling</span>)) <span class='op'>=&gt;</span> <span class='kw-2'>*</span><span class='ident'>relations</span> <span class='op'>|=</span> <span class='ident'>AFFECTED_BY_SIBLINGS</span>,
-                _ <span class='op'>=&gt;</span> {}
+    <span class="kw">match</span> <span class="ident">matches_complex_selector_internal</span>(<span class="ident">selector</span>, <span class="ident">element</span>, <span class="ident">parent_bf</span>, <span class="ident">relations</span>, <span class="ident">flags</span>) {
+        <span class="ident">SelectorMatchingResult</span>::<span class="ident">Matched</span> <span class="op">=&gt;</span> {
+            <span class="kw">match</span> <span class="ident">selector</span>.<span class="ident">next</span> {
+                <span class="prelude-val">Some</span>((_, <span class="ident">Combinator</span>::<span class="ident">NextSibling</span>)) <span class="op">|</span>
+                <span class="prelude-val">Some</span>((_, <span class="ident">Combinator</span>::<span class="ident">LaterSibling</span>)) <span class="op">=&gt;</span> <span class="kw-2">*</span><span class="ident">relations</span> <span class="op">|=</span> <span class="ident">AFFECTED_BY_SIBLINGS</span>,
+                _ <span class="op">=&gt;</span> {}
             }
 
-            <span class='bool-val'>true</span>
+            <span class="bool-val">true</span>
         }
-        _ <span class='op'>=&gt;</span> <span class='bool-val'>false</span>
+        _ <span class="op">=&gt;</span> <span class="bool-val">false</span>
     }
 }
 
-<span class='doccomment'>/// A result of selector matching, includes 3 failure types,</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>///   NotMatchedAndRestartFromClosestLaterSibling</span>
-<span class='doccomment'>///   NotMatchedAndRestartFromClosestDescendant</span>
-<span class='doccomment'>///   NotMatchedGlobally</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// When NotMatchedGlobally appears, stop selector matching completely since</span>
-<span class='doccomment'>/// the succeeding selectors never matches.</span>
-<span class='doccomment'>/// It is raised when</span>
-<span class='doccomment'>///   Child combinator cannot find the candidate element.</span>
-<span class='doccomment'>///   Descendant combinator cannot find the candidate element.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// When NotMatchedAndRestartFromClosestDescendant appears, the selector</span>
-<span class='doccomment'>/// matching does backtracking and restarts from the closest Descendant</span>
-<span class='doccomment'>/// combinator.</span>
-<span class='doccomment'>/// It is raised when</span>
-<span class='doccomment'>///   NextSibling combinator cannot find the candidate element.</span>
-<span class='doccomment'>///   LaterSibling combinator cannot find the candidate element.</span>
-<span class='doccomment'>///   Child combinator doesn&#39;t match on the found element.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// When NotMatchedAndRestartFromClosestLaterSibling appears, the selector</span>
-<span class='doccomment'>/// matching does backtracking and restarts from the closest LaterSibling</span>
-<span class='doccomment'>/// combinator.</span>
-<span class='doccomment'>/// It is raised when</span>
-<span class='doccomment'>///   NextSibling combinator doesn&#39;t match on the found element.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// For example, when the selector &quot;d1 d2 a&quot; is provided and we cannot *find*</span>
-<span class='doccomment'>/// an appropriate ancestor element for &quot;d1&quot;, this selector matching raises</span>
-<span class='doccomment'>/// NotMatchedGlobally since even if &quot;d2&quot; is moved to more upper element, the</span>
-<span class='doccomment'>/// candidates for &quot;d1&quot; becomes less than before and d1 .</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// The next example is siblings. When the selector &quot;b1 + b2 ~ d1 a&quot; is</span>
-<span class='doccomment'>/// provided and we cannot *find* an appropriate brother element for b1,</span>
-<span class='doccomment'>/// the selector matching raises NotMatchedAndRestartFromClosestDescendant.</span>
-<span class='doccomment'>/// The selectors (&quot;b1 + b2 ~&quot;) doesn&#39;t match and matching restart from &quot;d1&quot;.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// The additional example is child and sibling. When the selector</span>
-<span class='doccomment'>/// &quot;b1 + c1 &gt; b2 ~ d1 a&quot; is provided and the selector &quot;b1&quot; doesn&#39;t match on</span>
-<span class='doccomment'>/// the element, this &quot;b1&quot; raises NotMatchedAndRestartFromClosestLaterSibling.</span>
-<span class='doccomment'>/// However since the selector &quot;c1&quot; raises</span>
-<span class='doccomment'>/// NotMatchedAndRestartFromClosestDescendant. So the selector</span>
-<span class='doccomment'>/// &quot;b1 + c1 &gt; b2 ~ &quot; doesn&#39;t match and restart matching from &quot;d1&quot;.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Copy</span>, <span class='ident'>Clone</span>)]</span>
-<span class='kw'>enum</span> <span class='ident'>SelectorMatchingResult</span> {
-    <span class='ident'>Matched</span>,
-    <span class='ident'>NotMatchedAndRestartFromClosestLaterSibling</span>,
-    <span class='ident'>NotMatchedAndRestartFromClosestDescendant</span>,
-    <span class='ident'>NotMatchedGlobally</span>,
+<span class="doccomment">/// A result of selector matching, includes 3 failure types,</span>
+<span class="doccomment">///</span>
+<span class="doccomment">///   NotMatchedAndRestartFromClosestLaterSibling</span>
+<span class="doccomment">///   NotMatchedAndRestartFromClosestDescendant</span>
+<span class="doccomment">///   NotMatchedGlobally</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// When NotMatchedGlobally appears, stop selector matching completely since</span>
+<span class="doccomment">/// the succeeding selectors never matches.</span>
+<span class="doccomment">/// It is raised when</span>
+<span class="doccomment">///   Child combinator cannot find the candidate element.</span>
+<span class="doccomment">///   Descendant combinator cannot find the candidate element.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// When NotMatchedAndRestartFromClosestDescendant appears, the selector</span>
+<span class="doccomment">/// matching does backtracking and restarts from the closest Descendant</span>
+<span class="doccomment">/// combinator.</span>
+<span class="doccomment">/// It is raised when</span>
+<span class="doccomment">///   NextSibling combinator cannot find the candidate element.</span>
+<span class="doccomment">///   LaterSibling combinator cannot find the candidate element.</span>
+<span class="doccomment">///   Child combinator doesn&#39;t match on the found element.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// When NotMatchedAndRestartFromClosestLaterSibling appears, the selector</span>
+<span class="doccomment">/// matching does backtracking and restarts from the closest LaterSibling</span>
+<span class="doccomment">/// combinator.</span>
+<span class="doccomment">/// It is raised when</span>
+<span class="doccomment">///   NextSibling combinator doesn&#39;t match on the found element.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// For example, when the selector &quot;d1 d2 a&quot; is provided and we cannot *find*</span>
+<span class="doccomment">/// an appropriate ancestor element for &quot;d1&quot;, this selector matching raises</span>
+<span class="doccomment">/// NotMatchedGlobally since even if &quot;d2&quot; is moved to more upper element, the</span>
+<span class="doccomment">/// candidates for &quot;d1&quot; becomes less than before and d1 .</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The next example is siblings. When the selector &quot;b1 + b2 ~ d1 a&quot; is</span>
+<span class="doccomment">/// provided and we cannot *find* an appropriate brother element for b1,</span>
+<span class="doccomment">/// the selector matching raises NotMatchedAndRestartFromClosestDescendant.</span>
+<span class="doccomment">/// The selectors (&quot;b1 + b2 ~&quot;) doesn&#39;t match and matching restart from &quot;d1&quot;.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The additional example is child and sibling. When the selector</span>
+<span class="doccomment">/// &quot;b1 + c1 &gt; b2 ~ d1 a&quot; is provided and the selector &quot;b1&quot; doesn&#39;t match on</span>
+<span class="doccomment">/// the element, this &quot;b1&quot; raises NotMatchedAndRestartFromClosestLaterSibling.</span>
+<span class="doccomment">/// However since the selector &quot;c1&quot; raises</span>
+<span class="doccomment">/// NotMatchedAndRestartFromClosestDescendant. So the selector</span>
+<span class="doccomment">/// &quot;b1 + c1 &gt; b2 ~ &quot; doesn&#39;t match and restart matching from &quot;d1&quot;.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
+<span class="kw">enum</span> <span class="ident">SelectorMatchingResult</span> {
+    <span class="ident">Matched</span>,
+    <span class="ident">NotMatchedAndRestartFromClosestLaterSibling</span>,
+    <span class="ident">NotMatchedAndRestartFromClosestDescendant</span>,
+    <span class="ident">NotMatchedGlobally</span>,
 }
 
-<span class='doccomment'>/// Quickly figures out whether or not the complex selector is worth doing more</span>
-<span class='doccomment'>/// work on. If the simple selectors don&#39;t match, or there&#39;s a child selector</span>
-<span class='doccomment'>/// that does not appear in the bloom parent bloom filter, we can exit early.</span>
-<span class='kw'>fn</span> <span class='ident'>can_fast_reject</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='kw-2'>mut</span> <span class='ident'>selector</span>: <span class='kw-2'>&amp;</span><span class='ident'>ComplexSelector</span><span class='op'>&lt;</span><span class='ident'>E</span>::<span class='ident'>Impl</span><span class='op'>&gt;</span>,
-                      <span class='ident'>element</span>: <span class='kw-2'>&amp;</span><span class='ident'>E</span>,
-                      <span class='ident'>parent_bf</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>BloomFilter</span><span class='op'>&gt;</span>,
-                      <span class='ident'>relations</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>StyleRelations</span>,
-                      <span class='ident'>flags</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ElementSelectorFlags</span>)
-                      <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>SelectorMatchingResult</span><span class='op'>&gt;</span>
-    <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>Element</span>
+<span class="doccomment">/// Quickly figures out whether or not the complex selector is worth doing more</span>
+<span class="doccomment">/// work on. If the simple selectors don&#39;t match, or there&#39;s a child selector</span>
+<span class="doccomment">/// that does not appear in the bloom parent bloom filter, we can exit early.</span>
+<span class="kw">fn</span> <span class="ident">can_fast_reject</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="kw-2">mut</span> <span class="ident">selector</span>: <span class="kw-2">&amp;</span><span class="ident">ComplexSelector</span><span class="op">&lt;</span><span class="ident">E</span>::<span class="ident">Impl</span><span class="op">&gt;</span>,
+                      <span class="ident">element</span>: <span class="kw-2">&amp;</span><span class="ident">E</span>,
+                      <span class="ident">parent_bf</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">BloomFilter</span><span class="op">&gt;</span>,
+                      <span class="ident">relations</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">StyleRelations</span>,
+                      <span class="ident">flags</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ElementSelectorFlags</span>)
+                      <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SelectorMatchingResult</span><span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">Element</span>
 {
-    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>selector</span>.<span class='ident'>compound_selector</span>.<span class='ident'>iter</span>().<span class='ident'>all</span>(<span class='op'>|</span><span class='ident'>simple_selector</span><span class='op'>|</span> {
-      <span class='ident'>matches_simple_selector</span>(<span class='ident'>simple_selector</span>, <span class='ident'>element</span>, <span class='ident'>parent_bf</span>, <span class='ident'>relations</span>, <span class='ident'>flags</span>) }) {
-        <span class='kw'>return</span> <span class='prelude-val'>Some</span>(<span class='ident'>SelectorMatchingResult</span>::<span class='ident'>NotMatchedAndRestartFromClosestLaterSibling</span>);
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">selector</span>.<span class="ident">compound_selector</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">simple_selector</span><span class="op">|</span> {
+      <span class="ident">matches_simple_selector</span>(<span class="ident">simple_selector</span>, <span class="ident">element</span>, <span class="ident">parent_bf</span>, <span class="ident">relations</span>, <span class="ident">flags</span>) }) {
+        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">SelectorMatchingResult</span>::<span class="ident">NotMatchedAndRestartFromClosestLaterSibling</span>);
     }
 
-    <span class='kw'>let</span> <span class='ident'>bf</span>: <span class='kw-2'>&amp;</span><span class='ident'>BloomFilter</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>parent_bf</span> {
-        <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>None</span>,
-        <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>bf</span>) <span class='op'>=&gt;</span> <span class='ident'>bf</span>,
+    <span class="kw">let</span> <span class="ident">bf</span>: <span class="kw-2">&amp;</span><span class="ident">BloomFilter</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">parent_bf</span> {
+        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
+        <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">bf</span>) <span class="op">=&gt;</span> <span class="ident">bf</span>,
     };
 
-    <span class='comment'>// See if the bloom filter can exclude any of the descendant selectors, and</span>
-    <span class='comment'>// reject if we can.</span>
-    <span class='kw'>loop</span> {
-         <span class='kw'>match</span> <span class='ident'>selector</span>.<span class='ident'>next</span> {
-             <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>break</span>,
-             <span class='prelude-val'>Some</span>((<span class='kw-2'>ref</span> <span class='ident'>cs</span>, <span class='ident'>Combinator</span>::<span class='ident'>Descendant</span>)) <span class='op'>=&gt;</span> <span class='ident'>selector</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='kw-2'>*</span><span class='ident'>cs</span>,
-             <span class='prelude-val'>Some</span>((<span class='kw-2'>ref</span> <span class='ident'>cs</span>, _)) <span class='op'>=&gt;</span> {
-                 <span class='ident'>selector</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='kw-2'>*</span><span class='ident'>cs</span>;
-                 <span class='kw'>continue</span>;
+    <span class="comment">// See if the bloom filter can exclude any of the descendant selectors, and</span>
+    <span class="comment">// reject if we can.</span>
+    <span class="kw">loop</span> {
+         <span class="kw">match</span> <span class="ident">selector</span>.<span class="ident">next</span> {
+             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">break</span>,
+             <span class="prelude-val">Some</span>((<span class="kw-2">ref</span> <span class="ident">cs</span>, <span class="ident">Combinator</span>::<span class="ident">Descendant</span>)) <span class="op">=&gt;</span> <span class="ident">selector</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">cs</span>,
+             <span class="prelude-val">Some</span>((<span class="kw-2">ref</span> <span class="ident">cs</span>, _)) <span class="op">=&gt;</span> {
+                 <span class="ident">selector</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">cs</span>;
+                 <span class="kw">continue</span>;
              }
          };
 
-        <span class='kw'>for</span> <span class='ident'>ss</span> <span class='kw'>in</span> <span class='ident'>selector</span>.<span class='ident'>compound_selector</span>.<span class='ident'>iter</span>() {
-            <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>ss</span> {
-                <span class='ident'>SimpleSelector</span>::<span class='ident'>LocalName</span>(<span class='ident'>LocalName</span> { <span class='kw-2'>ref</span> <span class='ident'>name</span>, <span class='kw-2'>ref</span> <span class='ident'>lower_name</span> })  <span class='op'>=&gt;</span> {
-                    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>bf</span>.<span class='ident'>might_contain</span>(<span class='ident'>name</span>) <span class='op'>&amp;&amp;</span>
-                       <span class='op'>!</span><span class='ident'>bf</span>.<span class='ident'>might_contain</span>(<span class='ident'>lower_name</span>) {
-                        <span class='kw'>return</span> <span class='prelude-val'>Some</span>(<span class='ident'>SelectorMatchingResult</span>::<span class='ident'>NotMatchedGlobally</span>);
+        <span class="kw">for</span> <span class="ident">ss</span> <span class="kw">in</span> <span class="ident">selector</span>.<span class="ident">compound_selector</span>.<span class="ident">iter</span>() {
+            <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">ss</span> {
+                <span class="ident">SimpleSelector</span>::<span class="ident">LocalName</span>(<span class="ident">LocalName</span> { <span class="kw-2">ref</span> <span class="ident">name</span>, <span class="kw-2">ref</span> <span class="ident">lower_name</span> })  <span class="op">=&gt;</span> {
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">bf</span>.<span class="ident">might_contain</span>(<span class="ident">name</span>) <span class="op">&amp;&amp;</span>
+                       <span class="op">!</span><span class="ident">bf</span>.<span class="ident">might_contain</span>(<span class="ident">lower_name</span>) {
+                        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">SelectorMatchingResult</span>::<span class="ident">NotMatchedGlobally</span>);
                     }
                 },
-                <span class='ident'>SimpleSelector</span>::<span class='ident'>Namespace</span>(<span class='kw-2'>ref</span> <span class='ident'>namespace</span>) <span class='op'>=&gt;</span> {
-                    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>bf</span>.<span class='ident'>might_contain</span>(<span class='kw-2'>&amp;</span><span class='ident'>namespace</span>.<span class='ident'>url</span>) {
-                        <span class='kw'>return</span> <span class='prelude-val'>Some</span>(<span class='ident'>SelectorMatchingResult</span>::<span class='ident'>NotMatchedGlobally</span>);
+                <span class="ident">SimpleSelector</span>::<span class="ident">Namespace</span>(<span class="kw-2">ref</span> <span class="ident">namespace</span>) <span class="op">=&gt;</span> {
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">bf</span>.<span class="ident">might_contain</span>(<span class="kw-2">&amp;</span><span class="ident">namespace</span>.<span class="ident">url</span>) {
+                        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">SelectorMatchingResult</span>::<span class="ident">NotMatchedGlobally</span>);
                     }
                 },
-                <span class='ident'>SimpleSelector</span>::<span class='ident'>ID</span>(<span class='kw-2'>ref</span> <span class='ident'>id</span>) <span class='op'>=&gt;</span> {
-                    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>bf</span>.<span class='ident'>might_contain</span>(<span class='ident'>id</span>) {
-                        <span class='kw'>return</span> <span class='prelude-val'>Some</span>(<span class='ident'>SelectorMatchingResult</span>::<span class='ident'>NotMatchedGlobally</span>);
+                <span class="ident">SimpleSelector</span>::<span class="ident">ID</span>(<span class="kw-2">ref</span> <span class="ident">id</span>) <span class="op">=&gt;</span> {
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">bf</span>.<span class="ident">might_contain</span>(<span class="ident">id</span>) {
+                        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">SelectorMatchingResult</span>::<span class="ident">NotMatchedGlobally</span>);
                     }
                 },
-                <span class='ident'>SimpleSelector</span>::<span class='ident'>Class</span>(<span class='kw-2'>ref</span> <span class='ident'>class</span>) <span class='op'>=&gt;</span> {
-                    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>bf</span>.<span class='ident'>might_contain</span>(<span class='ident'>class</span>) {
-                        <span class='kw'>return</span> <span class='prelude-val'>Some</span>(<span class='ident'>SelectorMatchingResult</span>::<span class='ident'>NotMatchedGlobally</span>);
+                <span class="ident">SimpleSelector</span>::<span class="ident">Class</span>(<span class="kw-2">ref</span> <span class="ident">class</span>) <span class="op">=&gt;</span> {
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">bf</span>.<span class="ident">might_contain</span>(<span class="ident">class</span>) {
+                        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">SelectorMatchingResult</span>::<span class="ident">NotMatchedGlobally</span>);
                     }
                 },
-                _ <span class='op'>=&gt;</span> {},
+                _ <span class="op">=&gt;</span> {},
             }
         }
     }
 
-    <span class='comment'>// Can&#39;t fast reject.</span>
-    <span class='prelude-val'>None</span>
+    <span class="comment">// Can&#39;t fast reject.</span>
+    <span class="prelude-val">None</span>
 }
 
-<span class='kw'>fn</span> <span class='ident'>matches_complex_selector_internal</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='ident'>selector</span>: <span class='kw-2'>&amp;</span><span class='ident'>ComplexSelector</span><span class='op'>&lt;</span><span class='ident'>E</span>::<span class='ident'>Impl</span><span class='op'>&gt;</span>,
-                                         <span class='ident'>element</span>: <span class='kw-2'>&amp;</span><span class='ident'>E</span>,
-                                         <span class='ident'>parent_bf</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>BloomFilter</span><span class='op'>&gt;</span>,
-                                         <span class='ident'>relations</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>StyleRelations</span>,
-                                         <span class='ident'>flags</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ElementSelectorFlags</span>)
-                                         <span class='op'>-&gt;</span> <span class='ident'>SelectorMatchingResult</span>
-     <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>Element</span>
+<span class="kw">fn</span> <span class="ident">matches_complex_selector_internal</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="ident">selector</span>: <span class="kw-2">&amp;</span><span class="ident">ComplexSelector</span><span class="op">&lt;</span><span class="ident">E</span>::<span class="ident">Impl</span><span class="op">&gt;</span>,
+                                         <span class="ident">element</span>: <span class="kw-2">&amp;</span><span class="ident">E</span>,
+                                         <span class="ident">parent_bf</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">BloomFilter</span><span class="op">&gt;</span>,
+                                         <span class="ident">relations</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">StyleRelations</span>,
+                                         <span class="ident">flags</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ElementSelectorFlags</span>)
+                                         <span class="op">-&gt;</span> <span class="ident">SelectorMatchingResult</span>
+     <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">Element</span>
 {
-    <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>result</span>) <span class='op'>=</span> <span class='ident'>can_fast_reject</span>(<span class='ident'>selector</span>, <span class='ident'>element</span>, <span class='ident'>parent_bf</span>, <span class='ident'>relations</span>, <span class='ident'>flags</span>) {
-        <span class='kw'>return</span> <span class='ident'>result</span>;
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">result</span>) <span class="op">=</span> <span class="ident">can_fast_reject</span>(<span class="ident">selector</span>, <span class="ident">element</span>, <span class="ident">parent_bf</span>, <span class="ident">relations</span>, <span class="ident">flags</span>) {
+        <span class="kw">return</span> <span class="ident">result</span>;
     }
 
-    <span class='kw'>match</span> <span class='ident'>selector</span>.<span class='ident'>next</span> {
-        <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='ident'>SelectorMatchingResult</span>::<span class='ident'>Matched</span>,
-        <span class='prelude-val'>Some</span>((<span class='kw-2'>ref</span> <span class='ident'>next_selector</span>, <span class='ident'>combinator</span>)) <span class='op'>=&gt;</span> {
-            <span class='kw'>let</span> (<span class='ident'>siblings</span>, <span class='ident'>candidate_not_found</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>combinator</span> {
-                <span class='ident'>Combinator</span>::<span class='ident'>Child</span> <span class='op'>=&gt;</span> (<span class='bool-val'>false</span>, <span class='ident'>SelectorMatchingResult</span>::<span class='ident'>NotMatchedGlobally</span>),
-                <span class='ident'>Combinator</span>::<span class='ident'>Descendant</span> <span class='op'>=&gt;</span> (<span class='bool-val'>false</span>, <span class='ident'>SelectorMatchingResult</span>::<span class='ident'>NotMatchedGlobally</span>),
-                <span class='ident'>Combinator</span>::<span class='ident'>NextSibling</span> <span class='op'>=&gt;</span> (<span class='bool-val'>true</span>, <span class='ident'>SelectorMatchingResult</span>::<span class='ident'>NotMatchedAndRestartFromClosestDescendant</span>),
-                <span class='ident'>Combinator</span>::<span class='ident'>LaterSibling</span> <span class='op'>=&gt;</span> (<span class='bool-val'>true</span>, <span class='ident'>SelectorMatchingResult</span>::<span class='ident'>NotMatchedAndRestartFromClosestDescendant</span>),
+    <span class="kw">match</span> <span class="ident">selector</span>.<span class="ident">next</span> {
+        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">SelectorMatchingResult</span>::<span class="ident">Matched</span>,
+        <span class="prelude-val">Some</span>((<span class="kw-2">ref</span> <span class="ident">next_selector</span>, <span class="ident">combinator</span>)) <span class="op">=&gt;</span> {
+            <span class="kw">let</span> (<span class="ident">siblings</span>, <span class="ident">candidate_not_found</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">combinator</span> {
+                <span class="ident">Combinator</span>::<span class="ident">Child</span> <span class="op">=&gt;</span> (<span class="bool-val">false</span>, <span class="ident">SelectorMatchingResult</span>::<span class="ident">NotMatchedGlobally</span>),
+                <span class="ident">Combinator</span>::<span class="ident">Descendant</span> <span class="op">=&gt;</span> (<span class="bool-val">false</span>, <span class="ident">SelectorMatchingResult</span>::<span class="ident">NotMatchedGlobally</span>),
+                <span class="ident">Combinator</span>::<span class="ident">NextSibling</span> <span class="op">=&gt;</span> (<span class="bool-val">true</span>, <span class="ident">SelectorMatchingResult</span>::<span class="ident">NotMatchedAndRestartFromClosestDescendant</span>),
+                <span class="ident">Combinator</span>::<span class="ident">LaterSibling</span> <span class="op">=&gt;</span> (<span class="bool-val">true</span>, <span class="ident">SelectorMatchingResult</span>::<span class="ident">NotMatchedAndRestartFromClosestDescendant</span>),
             };
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>next_element</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>siblings</span> {
-                <span class='ident'>element</span>.<span class='ident'>prev_sibling_element</span>()
-            } <span class='kw'>else</span> {
-                <span class='ident'>element</span>.<span class='ident'>parent_element</span>()
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">next_element</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">siblings</span> {
+                <span class="ident">element</span>.<span class="ident">prev_sibling_element</span>()
+            } <span class="kw">else</span> {
+                <span class="ident">element</span>.<span class="ident">parent_element</span>()
             };
-            <span class='kw'>loop</span> {
-                <span class='kw'>let</span> <span class='ident'>element</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>next_element</span> {
-                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='ident'>candidate_not_found</span>,
-                    <span class='prelude-val'>Some</span>(<span class='ident'>next_element</span>) <span class='op'>=&gt;</span> <span class='ident'>next_element</span>,
+            <span class="kw">loop</span> {
+                <span class="kw">let</span> <span class="ident">element</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">next_element</span> {
+                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">candidate_not_found</span>,
+                    <span class="prelude-val">Some</span>(<span class="ident">next_element</span>) <span class="op">=&gt;</span> <span class="ident">next_element</span>,
                 };
-                <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>matches_complex_selector_internal</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='kw-2'>*</span><span class='ident'>next_selector</span>,
-                                                                <span class='kw-2'>&amp;</span><span class='ident'>element</span>,
-                                                                <span class='ident'>parent_bf</span>,
-                                                                <span class='ident'>relations</span>,
-                                                                <span class='ident'>flags</span>);
-                <span class='kw'>match</span> (<span class='ident'>result</span>, <span class='ident'>combinator</span>) {
-                    <span class='comment'>// Return the status immediately.</span>
-                    (<span class='ident'>SelectorMatchingResult</span>::<span class='ident'>Matched</span>, _) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='ident'>result</span>,
-                    (<span class='ident'>SelectorMatchingResult</span>::<span class='ident'>NotMatchedGlobally</span>, _) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='ident'>result</span>,
+                <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">matches_complex_selector_internal</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">next_selector</span>,
+                                                                <span class="kw-2">&amp;</span><span class="ident">element</span>,
+                                                                <span class="ident">parent_bf</span>,
+                                                                <span class="ident">relations</span>,
+                                                                <span class="ident">flags</span>);
+                <span class="kw">match</span> (<span class="ident">result</span>, <span class="ident">combinator</span>) {
+                    <span class="comment">// Return the status immediately.</span>
+                    (<span class="ident">SelectorMatchingResult</span>::<span class="ident">Matched</span>, _) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">result</span>,
+                    (<span class="ident">SelectorMatchingResult</span>::<span class="ident">NotMatchedGlobally</span>, _) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">result</span>,
 
-                    <span class='comment'>// Upgrade the failure status to</span>
-                    <span class='comment'>// NotMatchedAndRestartFromClosestDescendant.</span>
-                    (_, <span class='ident'>Combinator</span>::<span class='ident'>Child</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='ident'>SelectorMatchingResult</span>::<span class='ident'>NotMatchedAndRestartFromClosestDescendant</span>,
+                    <span class="comment">// Upgrade the failure status to</span>
+                    <span class="comment">// NotMatchedAndRestartFromClosestDescendant.</span>
+                    (_, <span class="ident">Combinator</span>::<span class="ident">Child</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">SelectorMatchingResult</span>::<span class="ident">NotMatchedAndRestartFromClosestDescendant</span>,
 
-                    <span class='comment'>// Return the status directly.</span>
-                    (_, <span class='ident'>Combinator</span>::<span class='ident'>NextSibling</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='ident'>result</span>,
+                    <span class="comment">// Return the status directly.</span>
+                    (_, <span class="ident">Combinator</span>::<span class="ident">NextSibling</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">result</span>,
 
-                    <span class='comment'>// If the failure status is NotMatchedAndRestartFromClosestDescendant</span>
-                    <span class='comment'>// and combinator is Combinator::LaterSibling, give up this Combinator::LaterSibling matching</span>
-                    <span class='comment'>// and restart from the closest descendant combinator.</span>
-                    (<span class='ident'>SelectorMatchingResult</span>::<span class='ident'>NotMatchedAndRestartFromClosestDescendant</span>, <span class='ident'>Combinator</span>::<span class='ident'>LaterSibling</span>)
-                        <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='ident'>result</span>,
+                    <span class="comment">// If the failure status is NotMatchedAndRestartFromClosestDescendant</span>
+                    <span class="comment">// and combinator is Combinator::LaterSibling, give up this Combinator::LaterSibling matching</span>
+                    <span class="comment">// and restart from the closest descendant combinator.</span>
+                    (<span class="ident">SelectorMatchingResult</span>::<span class="ident">NotMatchedAndRestartFromClosestDescendant</span>, <span class="ident">Combinator</span>::<span class="ident">LaterSibling</span>)
+                        <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">result</span>,
 
-                    <span class='comment'>// The Combinator::Descendant combinator and the status is</span>
-                    <span class='comment'>// NotMatchedAndRestartFromClosestLaterSibling or</span>
-                    <span class='comment'>// NotMatchedAndRestartFromClosestDescendant,</span>
-                    <span class='comment'>// or the Combinator::LaterSibling combinator and the status is</span>
-                    <span class='comment'>// NotMatchedAndRestartFromClosestDescendant</span>
-                    <span class='comment'>// can continue to matching on the next candidate element.</span>
-                    _ <span class='op'>=&gt;</span> {},
+                    <span class="comment">// The Combinator::Descendant combinator and the status is</span>
+                    <span class="comment">// NotMatchedAndRestartFromClosestLaterSibling or</span>
+                    <span class="comment">// NotMatchedAndRestartFromClosestDescendant,</span>
+                    <span class="comment">// or the Combinator::LaterSibling combinator and the status is</span>
+                    <span class="comment">// NotMatchedAndRestartFromClosestDescendant</span>
+                    <span class="comment">// can continue to matching on the next candidate element.</span>
+                    _ <span class="op">=&gt;</span> {},
                 }
-                <span class='ident'>next_element</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>siblings</span> {
-                    <span class='ident'>element</span>.<span class='ident'>prev_sibling_element</span>()
-                } <span class='kw'>else</span> {
-                    <span class='ident'>element</span>.<span class='ident'>parent_element</span>()
+                <span class="ident">next_element</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">siblings</span> {
+                    <span class="ident">element</span>.<span class="ident">prev_sibling_element</span>()
+                } <span class="kw">else</span> {
+                    <span class="ident">element</span>.<span class="ident">parent_element</span>()
                 };
             }
         }
     }
 }
 
-<span class='doccomment'>/// Determines whether the given element matches the given single selector.</span>
-<span class='attribute'>#[<span class='ident'>inline</span>]</span>
-<span class='kw'>fn</span> <span class='ident'>matches_simple_selector</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(
-        <span class='ident'>selector</span>: <span class='kw-2'>&amp;</span><span class='ident'>SimpleSelector</span><span class='op'>&lt;</span><span class='ident'>E</span>::<span class='ident'>Impl</span><span class='op'>&gt;</span>,
-        <span class='ident'>element</span>: <span class='kw-2'>&amp;</span><span class='ident'>E</span>,
-        <span class='ident'>parent_bf</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>BloomFilter</span><span class='op'>&gt;</span>,
-        <span class='ident'>relations</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>StyleRelations</span>,
-        <span class='ident'>flags</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ElementSelectorFlags</span>)
-        <span class='op'>-&gt;</span> <span class='ident'>bool</span>
-    <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>Element</span>
+<span class="doccomment">/// Determines whether the given element matches the given single selector.</span>
+<span class="attribute">#[<span class="ident">inline</span>]</span>
+<span class="kw">fn</span> <span class="ident">matches_simple_selector</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(
+        <span class="ident">selector</span>: <span class="kw-2">&amp;</span><span class="ident">SimpleSelector</span><span class="op">&lt;</span><span class="ident">E</span>::<span class="ident">Impl</span><span class="op">&gt;</span>,
+        <span class="ident">element</span>: <span class="kw-2">&amp;</span><span class="ident">E</span>,
+        <span class="ident">parent_bf</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">BloomFilter</span><span class="op">&gt;</span>,
+        <span class="ident">relations</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">StyleRelations</span>,
+        <span class="ident">flags</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ElementSelectorFlags</span>)
+        <span class="op">-&gt;</span> <span class="ident">bool</span>
+    <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">Element</span>
 {
-    <span class='macro'>macro_rules</span><span class='macro'>!</span> <span class='ident'>relation_if</span> {
-        (<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>ex</span>:<span class='ident'>expr</span>, <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>flag</span>:<span class='ident'>ident</span>) <span class='op'>=&gt;</span> {
-            <span class='kw'>if</span> <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>ex</span> {
-                <span class='kw-2'>*</span><span class='ident'>relations</span> <span class='op'>|=</span> <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>flag</span>;
-                <span class='bool-val'>true</span>
-            } <span class='kw'>else</span> {
-                <span class='bool-val'>false</span>
+    <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">relation_if</span> {
+        (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">ex</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>:<span class="ident">ident</span>) <span class="op">=&gt;</span> {
+            <span class="kw">if</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ex</span> {
+                <span class="kw-2">*</span><span class="ident">relations</span> <span class="op">|=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>;
+                <span class="bool-val">true</span>
+            } <span class="kw">else</span> {
+                <span class="bool-val">false</span>
             }
         }
     }
 
-    <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>selector</span> {
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>LocalName</span>(<span class='ident'>LocalName</span> { <span class='kw-2'>ref</span> <span class='ident'>name</span>, <span class='kw-2'>ref</span> <span class='ident'>lower_name</span> }) <span class='op'>=&gt;</span> {
-            <span class='kw'>let</span> <span class='ident'>name</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>element</span>.<span class='ident'>is_html_element_in_html_document</span>() { <span class='ident'>lower_name</span> } <span class='kw'>else</span> { <span class='ident'>name</span> };
-            <span class='ident'>element</span>.<span class='ident'>get_local_name</span>() <span class='op'>==</span> <span class='ident'>name</span>.<span class='ident'>borrow</span>()
+    <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">selector</span> {
+        <span class="ident">SimpleSelector</span>::<span class="ident">LocalName</span>(<span class="ident">LocalName</span> { <span class="kw-2">ref</span> <span class="ident">name</span>, <span class="kw-2">ref</span> <span class="ident">lower_name</span> }) <span class="op">=&gt;</span> {
+            <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">element</span>.<span class="ident">is_html_element_in_html_document</span>() { <span class="ident">lower_name</span> } <span class="kw">else</span> { <span class="ident">name</span> };
+            <span class="ident">element</span>.<span class="ident">get_local_name</span>() <span class="op">==</span> <span class="ident">name</span>.<span class="ident">borrow</span>()
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>Namespace</span>(<span class='kw-2'>ref</span> <span class='ident'>namespace</span>) <span class='op'>=&gt;</span> {
-            <span class='ident'>element</span>.<span class='ident'>get_namespace</span>() <span class='op'>==</span> <span class='ident'>namespace</span>.<span class='ident'>url</span>.<span class='ident'>borrow</span>()
+        <span class="ident">SimpleSelector</span>::<span class="ident">Namespace</span>(<span class="kw-2">ref</span> <span class="ident">namespace</span>) <span class="op">=&gt;</span> {
+            <span class="ident">element</span>.<span class="ident">get_namespace</span>() <span class="op">==</span> <span class="ident">namespace</span>.<span class="ident">url</span>.<span class="ident">borrow</span>()
         }
-        <span class='comment'>// TODO: case-sensitivity depends on the document type and quirks mode</span>
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>ID</span>(<span class='kw-2'>ref</span> <span class='ident'>id</span>) <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>element</span>.<span class='ident'>get_id</span>().<span class='ident'>map_or</span>(<span class='bool-val'>false</span>, <span class='op'>|</span><span class='ident'>attr</span><span class='op'>|</span> <span class='ident'>attr</span> <span class='op'>==</span> <span class='kw-2'>*</span><span class='ident'>id</span>),
-                         <span class='ident'>AFFECTED_BY_ID_SELECTOR</span>)
+        <span class="comment">// TODO: case-sensitivity depends on the document type and quirks mode</span>
+        <span class="ident">SimpleSelector</span>::<span class="ident">ID</span>(<span class="kw-2">ref</span> <span class="ident">id</span>) <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">element</span>.<span class="ident">get_id</span>().<span class="ident">map_or</span>(<span class="bool-val">false</span>, <span class="op">|</span><span class="ident">attr</span><span class="op">|</span> <span class="ident">attr</span> <span class="op">==</span> <span class="kw-2">*</span><span class="ident">id</span>),
+                         <span class="ident">AFFECTED_BY_ID_SELECTOR</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>Class</span>(<span class='kw-2'>ref</span> <span class='ident'>class</span>) <span class='op'>=&gt;</span> {
-            <span class='ident'>element</span>.<span class='ident'>has_class</span>(<span class='ident'>class</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">Class</span>(<span class="kw-2">ref</span> <span class="ident">class</span>) <span class="op">=&gt;</span> {
+            <span class="ident">element</span>.<span class="ident">has_class</span>(<span class="ident">class</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrExists</span>(<span class='kw-2'>ref</span> <span class='ident'>attr</span>) <span class='op'>=&gt;</span> {
-            <span class='kw'>let</span> <span class='ident'>matches</span> <span class='op'>=</span> <span class='ident'>element</span>.<span class='ident'>match_attr_has</span>(<span class='ident'>attr</span>);
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrExists</span>(<span class="kw-2">ref</span> <span class="ident">attr</span>) <span class="op">=&gt;</span> {
+            <span class="kw">let</span> <span class="ident">matches</span> <span class="op">=</span> <span class="ident">element</span>.<span class="ident">match_attr_has</span>(<span class="ident">attr</span>);
 
-            <span class='kw'>if</span> <span class='ident'>matches</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='ident'>E</span>::<span class='ident'>Impl</span>::<span class='ident'>attr_exists_selector_is_shareable</span>(<span class='ident'>attr</span>) {
-                <span class='kw-2'>*</span><span class='ident'>relations</span> <span class='op'>|=</span> <span class='ident'>AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span>;
+            <span class="kw">if</span> <span class="ident">matches</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">E</span>::<span class="ident">Impl</span>::<span class="ident">attr_exists_selector_is_shareable</span>(<span class="ident">attr</span>) {
+                <span class="kw-2">*</span><span class="ident">relations</span> <span class="op">|=</span> <span class="ident">AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span>;
             }
 
-            <span class='ident'>matches</span>
+            <span class="ident">matches</span>
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrEqual</span>(<span class='kw-2'>ref</span> <span class='ident'>attr</span>, <span class='kw-2'>ref</span> <span class='ident'>value</span>, <span class='ident'>case_sensitivity</span>) <span class='op'>=&gt;</span> {
-            <span class='kw'>let</span> <span class='ident'>matches</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>case_sensitivity</span> {
-                <span class='ident'>CaseSensitivity</span>::<span class='ident'>CaseSensitive</span> <span class='op'>=&gt;</span> <span class='ident'>element</span>.<span class='ident'>match_attr_equals</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>),
-                <span class='ident'>CaseSensitivity</span>::<span class='ident'>CaseInsensitive</span> <span class='op'>=&gt;</span> <span class='ident'>element</span>.<span class='ident'>match_attr_equals_ignore_ascii_case</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>),
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrEqual</span>(<span class="kw-2">ref</span> <span class="ident">attr</span>, <span class="kw-2">ref</span> <span class="ident">value</span>, <span class="ident">case_sensitivity</span>) <span class="op">=&gt;</span> {
+            <span class="kw">let</span> <span class="ident">matches</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">case_sensitivity</span> {
+                <span class="ident">CaseSensitivity</span>::<span class="ident">CaseSensitive</span> <span class="op">=&gt;</span> <span class="ident">element</span>.<span class="ident">match_attr_equals</span>(<span class="ident">attr</span>, <span class="ident">value</span>),
+                <span class="ident">CaseSensitivity</span>::<span class="ident">CaseInsensitive</span> <span class="op">=&gt;</span> <span class="ident">element</span>.<span class="ident">match_attr_equals_ignore_ascii_case</span>(<span class="ident">attr</span>, <span class="ident">value</span>),
             };
 
-            <span class='kw'>if</span> <span class='ident'>matches</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='ident'>E</span>::<span class='ident'>Impl</span>::<span class='ident'>attr_equals_selector_is_shareable</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>) {
-                <span class='kw-2'>*</span><span class='ident'>relations</span> <span class='op'>|=</span> <span class='ident'>AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span>;
+            <span class="kw">if</span> <span class="ident">matches</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">E</span>::<span class="ident">Impl</span>::<span class="ident">attr_equals_selector_is_shareable</span>(<span class="ident">attr</span>, <span class="ident">value</span>) {
+                <span class="kw-2">*</span><span class="ident">relations</span> <span class="op">|=</span> <span class="ident">AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span>;
             }
 
-            <span class='ident'>matches</span>
+            <span class="ident">matches</span>
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrIncludes</span>(<span class='kw-2'>ref</span> <span class='ident'>attr</span>, <span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>element</span>.<span class='ident'>match_attr_includes</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>),
-                         <span class='ident'>AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrIncludes</span>(<span class="kw-2">ref</span> <span class="ident">attr</span>, <span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">element</span>.<span class="ident">match_attr_includes</span>(<span class="ident">attr</span>, <span class="ident">value</span>),
+                         <span class="ident">AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrDashMatch</span>(<span class='kw-2'>ref</span> <span class='ident'>attr</span>, <span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>element</span>.<span class='ident'>match_attr_dash</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>),
-                         <span class='ident'>AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrDashMatch</span>(<span class="kw-2">ref</span> <span class="ident">attr</span>, <span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">element</span>.<span class="ident">match_attr_dash</span>(<span class="ident">attr</span>, <span class="ident">value</span>),
+                         <span class="ident">AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrPrefixMatch</span>(<span class='kw-2'>ref</span> <span class='ident'>attr</span>, <span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>element</span>.<span class='ident'>match_attr_prefix</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>),
-                         <span class='ident'>AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrPrefixMatch</span>(<span class="kw-2">ref</span> <span class="ident">attr</span>, <span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">element</span>.<span class="ident">match_attr_prefix</span>(<span class="ident">attr</span>, <span class="ident">value</span>),
+                         <span class="ident">AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrSubstringMatch</span>(<span class='kw-2'>ref</span> <span class='ident'>attr</span>, <span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>element</span>.<span class='ident'>match_attr_substring</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>),
-                         <span class='ident'>AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrSubstringMatch</span>(<span class="kw-2">ref</span> <span class="ident">attr</span>, <span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">element</span>.<span class="ident">match_attr_substring</span>(<span class="ident">attr</span>, <span class="ident">value</span>),
+                         <span class="ident">AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrSuffixMatch</span>(<span class='kw-2'>ref</span> <span class='ident'>attr</span>, <span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>element</span>.<span class='ident'>match_attr_suffix</span>(<span class='ident'>attr</span>, <span class='ident'>value</span>),
-                         <span class='ident'>AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrSuffixMatch</span>(<span class="kw-2">ref</span> <span class="ident">attr</span>, <span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">element</span>.<span class="ident">match_attr_suffix</span>(<span class="ident">attr</span>, <span class="ident">value</span>),
+                         <span class="ident">AFFECTED_BY_NON_COMMON_STYLE_AFFECTING_ATTRIBUTE_SELECTOR</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrIncludesNeverMatch</span>(..) <span class='op'>|</span>
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrPrefixNeverMatch</span>(..) <span class='op'>|</span>
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrSubstringNeverMatch</span>(..) <span class='op'>|</span>
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>AttrSuffixNeverMatch</span>(..) <span class='op'>=&gt;</span> {
-            <span class='bool-val'>false</span>
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrIncludesNeverMatch</span>(..) <span class="op">|</span>
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrPrefixNeverMatch</span>(..) <span class="op">|</span>
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrSubstringNeverMatch</span>(..) <span class="op">|</span>
+        <span class="ident">SimpleSelector</span>::<span class="ident">AttrSuffixNeverMatch</span>(..) <span class="op">=&gt;</span> {
+            <span class="bool-val">false</span>
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>NonTSPseudoClass</span>(<span class='kw-2'>ref</span> <span class='ident'>pc</span>) <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>element</span>.<span class='ident'>match_non_ts_pseudo_class</span>(<span class='ident'>pc</span>),
-                         <span class='ident'>AFFECTED_BY_STATE</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">NonTSPseudoClass</span>(<span class="kw-2">ref</span> <span class="ident">pc</span>) <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">element</span>.<span class="ident">match_non_ts_pseudo_class</span>(<span class="ident">pc</span>),
+                         <span class="ident">AFFECTED_BY_STATE</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>FirstChild</span> <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>matches_first_child</span>(<span class='ident'>element</span>, <span class='ident'>flags</span>), <span class='ident'>AFFECTED_BY_CHILD_INDEX</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">FirstChild</span> <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">matches_first_child</span>(<span class="ident">element</span>, <span class="ident">flags</span>), <span class="ident">AFFECTED_BY_CHILD_INDEX</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>LastChild</span> <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>matches_last_child</span>(<span class='ident'>element</span>, <span class='ident'>flags</span>), <span class='ident'>AFFECTED_BY_CHILD_INDEX</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">LastChild</span> <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">matches_last_child</span>(<span class="ident">element</span>, <span class="ident">flags</span>), <span class="ident">AFFECTED_BY_CHILD_INDEX</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>OnlyChild</span> <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>matches_first_child</span>(<span class='ident'>element</span>, <span class='ident'>flags</span>) <span class='op'>&amp;&amp;</span>
-                         <span class='ident'>matches_last_child</span>(<span class='ident'>element</span>, <span class='ident'>flags</span>), <span class='ident'>AFFECTED_BY_CHILD_INDEX</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">OnlyChild</span> <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">matches_first_child</span>(<span class="ident">element</span>, <span class="ident">flags</span>) <span class="op">&amp;&amp;</span>
+                         <span class="ident">matches_last_child</span>(<span class="ident">element</span>, <span class="ident">flags</span>), <span class="ident">AFFECTED_BY_CHILD_INDEX</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>Root</span> <span class='op'>=&gt;</span> {
-            <span class='comment'>// We never share styles with an element with no parent, so no point</span>
-            <span class='comment'>// in creating a new StyleRelation.</span>
-            <span class='ident'>element</span>.<span class='ident'>is_root</span>()
+        <span class="ident">SimpleSelector</span>::<span class="ident">Root</span> <span class="op">=&gt;</span> {
+            <span class="comment">// We never share styles with an element with no parent, so no point</span>
+            <span class="comment">// in creating a new StyleRelation.</span>
+            <span class="ident">element</span>.<span class="ident">is_root</span>()
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>Empty</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>flags</span>.<span class='ident'>insert</span>(<span class='ident'>HAS_EMPTY_SELECTOR</span>);
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>element</span>.<span class='ident'>is_empty</span>(), <span class='ident'>AFFECTED_BY_EMPTY</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">Empty</span> <span class="op">=&gt;</span> {
+            <span class="ident">flags</span>.<span class="ident">insert</span>(<span class="ident">HAS_EMPTY_SELECTOR</span>);
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">element</span>.<span class="ident">is_empty</span>(), <span class="ident">AFFECTED_BY_EMPTY</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>NthChild</span>(<span class='ident'>a</span>, <span class='ident'>b</span>) <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>matches_generic_nth_child</span>(<span class='ident'>element</span>, <span class='ident'>a</span>, <span class='ident'>b</span>, <span class='bool-val'>false</span>, <span class='bool-val'>false</span>, <span class='ident'>flags</span>),
-                         <span class='ident'>AFFECTED_BY_CHILD_INDEX</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">NthChild</span>(<span class="ident">a</span>, <span class="ident">b</span>) <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">matches_generic_nth_child</span>(<span class="ident">element</span>, <span class="ident">a</span>, <span class="ident">b</span>, <span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="ident">flags</span>),
+                         <span class="ident">AFFECTED_BY_CHILD_INDEX</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>NthLastChild</span>(<span class='ident'>a</span>, <span class='ident'>b</span>) <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>matches_generic_nth_child</span>(<span class='ident'>element</span>, <span class='ident'>a</span>, <span class='ident'>b</span>, <span class='bool-val'>false</span>, <span class='bool-val'>true</span>, <span class='ident'>flags</span>),
-                         <span class='ident'>AFFECTED_BY_CHILD_INDEX</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">NthLastChild</span>(<span class="ident">a</span>, <span class="ident">b</span>) <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">matches_generic_nth_child</span>(<span class="ident">element</span>, <span class="ident">a</span>, <span class="ident">b</span>, <span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="ident">flags</span>),
+                         <span class="ident">AFFECTED_BY_CHILD_INDEX</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>NthOfType</span>(<span class='ident'>a</span>, <span class='ident'>b</span>) <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>matches_generic_nth_child</span>(<span class='ident'>element</span>, <span class='ident'>a</span>, <span class='ident'>b</span>, <span class='bool-val'>true</span>, <span class='bool-val'>false</span>, <span class='ident'>flags</span>),
-                         <span class='ident'>AFFECTED_BY_CHILD_INDEX</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">NthOfType</span>(<span class="ident">a</span>, <span class="ident">b</span>) <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">matches_generic_nth_child</span>(<span class="ident">element</span>, <span class="ident">a</span>, <span class="ident">b</span>, <span class="bool-val">true</span>, <span class="bool-val">false</span>, <span class="ident">flags</span>),
+                         <span class="ident">AFFECTED_BY_CHILD_INDEX</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>NthLastOfType</span>(<span class='ident'>a</span>, <span class='ident'>b</span>) <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>matches_generic_nth_child</span>(<span class='ident'>element</span>, <span class='ident'>a</span>, <span class='ident'>b</span>, <span class='bool-val'>true</span>, <span class='bool-val'>true</span>, <span class='ident'>flags</span>),
-                         <span class='ident'>AFFECTED_BY_CHILD_INDEX</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">NthLastOfType</span>(<span class="ident">a</span>, <span class="ident">b</span>) <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">matches_generic_nth_child</span>(<span class="ident">element</span>, <span class="ident">a</span>, <span class="ident">b</span>, <span class="bool-val">true</span>, <span class="bool-val">true</span>, <span class="ident">flags</span>),
+                         <span class="ident">AFFECTED_BY_CHILD_INDEX</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>FirstOfType</span> <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>matches_generic_nth_child</span>(<span class='ident'>element</span>, <span class='number'>0</span>, <span class='number'>1</span>, <span class='bool-val'>true</span>, <span class='bool-val'>false</span>, <span class='ident'>flags</span>),
-                         <span class='ident'>AFFECTED_BY_CHILD_INDEX</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">FirstOfType</span> <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">matches_generic_nth_child</span>(<span class="ident">element</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="bool-val">true</span>, <span class="bool-val">false</span>, <span class="ident">flags</span>),
+                         <span class="ident">AFFECTED_BY_CHILD_INDEX</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>LastOfType</span> <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>matches_generic_nth_child</span>(<span class='ident'>element</span>, <span class='number'>0</span>, <span class='number'>1</span>, <span class='bool-val'>true</span>, <span class='bool-val'>true</span>, <span class='ident'>flags</span>),
-                         <span class='ident'>AFFECTED_BY_CHILD_INDEX</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">LastOfType</span> <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">matches_generic_nth_child</span>(<span class="ident">element</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="bool-val">true</span>, <span class="bool-val">true</span>, <span class="ident">flags</span>),
+                         <span class="ident">AFFECTED_BY_CHILD_INDEX</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>OnlyOfType</span> <span class='op'>=&gt;</span> {
-            <span class='macro'>relation_if</span><span class='macro'>!</span>(<span class='ident'>matches_generic_nth_child</span>(<span class='ident'>element</span>, <span class='number'>0</span>, <span class='number'>1</span>, <span class='bool-val'>true</span>, <span class='bool-val'>false</span>, <span class='ident'>flags</span>) <span class='op'>&amp;&amp;</span>
-                         <span class='ident'>matches_generic_nth_child</span>(<span class='ident'>element</span>, <span class='number'>0</span>, <span class='number'>1</span>, <span class='bool-val'>true</span>, <span class='bool-val'>true</span>, <span class='ident'>flags</span>),
-                         <span class='ident'>AFFECTED_BY_CHILD_INDEX</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">OnlyOfType</span> <span class="op">=&gt;</span> {
+            <span class="macro">relation_if</span><span class="macro">!</span>(<span class="ident">matches_generic_nth_child</span>(<span class="ident">element</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="bool-val">true</span>, <span class="bool-val">false</span>, <span class="ident">flags</span>) <span class="op">&amp;&amp;</span>
+                         <span class="ident">matches_generic_nth_child</span>(<span class="ident">element</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="bool-val">true</span>, <span class="bool-val">true</span>, <span class="ident">flags</span>),
+                         <span class="ident">AFFECTED_BY_CHILD_INDEX</span>)
         }
-        <span class='ident'>SimpleSelector</span>::<span class='ident'>Negation</span>(<span class='kw-2'>ref</span> <span class='ident'>negated</span>) <span class='op'>=&gt;</span> {
-            <span class='op'>!</span><span class='ident'>negated</span>.<span class='ident'>iter</span>().<span class='ident'>all</span>(<span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> {
-                <span class='ident'>matches_complex_selector</span>(<span class='ident'>s</span>, <span class='ident'>element</span>, <span class='ident'>parent_bf</span>, <span class='ident'>relations</span>, <span class='ident'>flags</span>)
+        <span class="ident">SimpleSelector</span>::<span class="ident">Negation</span>(<span class="kw-2">ref</span> <span class="ident">negated</span>) <span class="op">=&gt;</span> {
+            <span class="op">!</span><span class="ident">negated</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> {
+                <span class="ident">matches_complex_selector</span>(<span class="ident">s</span>, <span class="ident">element</span>, <span class="ident">parent_bf</span>, <span class="ident">relations</span>, <span class="ident">flags</span>)
             })
         }
     }
 }
 
-<span class='attribute'>#[<span class='ident'>inline</span>]</span>
-<span class='kw'>fn</span> <span class='ident'>matches_generic_nth_child</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='ident'>element</span>: <span class='kw-2'>&amp;</span><span class='ident'>E</span>,
-                                <span class='ident'>a</span>: <span class='ident'>i32</span>,
-                                <span class='ident'>b</span>: <span class='ident'>i32</span>,
-                                <span class='ident'>is_of_type</span>: <span class='ident'>bool</span>,
-                                <span class='ident'>is_from_end</span>: <span class='ident'>bool</span>,
-                                <span class='ident'>flags</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ElementSelectorFlags</span>)
-                                <span class='op'>-&gt;</span> <span class='ident'>bool</span>
-    <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>Element</span>
+<span class="attribute">#[<span class="ident">inline</span>]</span>
+<span class="kw">fn</span> <span class="ident">matches_generic_nth_child</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="ident">element</span>: <span class="kw-2">&amp;</span><span class="ident">E</span>,
+                                <span class="ident">a</span>: <span class="ident">i32</span>,
+                                <span class="ident">b</span>: <span class="ident">i32</span>,
+                                <span class="ident">is_of_type</span>: <span class="ident">bool</span>,
+                                <span class="ident">is_from_end</span>: <span class="ident">bool</span>,
+                                <span class="ident">flags</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ElementSelectorFlags</span>)
+                                <span class="op">-&gt;</span> <span class="ident">bool</span>
+    <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">Element</span>
 {
-    <span class='ident'>flags</span>.<span class='ident'>insert</span>(<span class='kw'>if</span> <span class='ident'>is_from_end</span> {
-        <span class='ident'>HAS_SLOW_SELECTOR</span>
-    } <span class='kw'>else</span> {
-        <span class='ident'>HAS_SLOW_SELECTOR_LATER_SIBLINGS</span>
+    <span class="ident">flags</span>.<span class="ident">insert</span>(<span class="kw">if</span> <span class="ident">is_from_end</span> {
+        <span class="ident">HAS_SLOW_SELECTOR</span>
+    } <span class="kw">else</span> {
+        <span class="ident">HAS_SLOW_SELECTOR_LATER_SIBLINGS</span>
     });
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>index</span> <span class='op'>=</span> <span class='number'>1</span>;
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>next_sibling</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>is_from_end</span> {
-        <span class='ident'>element</span>.<span class='ident'>next_sibling_element</span>()
-    } <span class='kw'>else</span> {
-        <span class='ident'>element</span>.<span class='ident'>prev_sibling_element</span>()
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index</span> <span class="op">=</span> <span class="number">1</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">next_sibling</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_from_end</span> {
+        <span class="ident">element</span>.<span class="ident">next_sibling_element</span>()
+    } <span class="kw">else</span> {
+        <span class="ident">element</span>.<span class="ident">prev_sibling_element</span>()
     };
 
-    <span class='kw'>loop</span> {
-        <span class='kw'>let</span> <span class='ident'>sibling</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>next_sibling</span> {
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>break</span>,
-            <span class='prelude-val'>Some</span>(<span class='ident'>next_sibling</span>) <span class='op'>=&gt;</span> <span class='ident'>next_sibling</span>
+    <span class="kw">loop</span> {
+        <span class="kw">let</span> <span class="ident">sibling</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">next_sibling</span> {
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">break</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">next_sibling</span>) <span class="op">=&gt;</span> <span class="ident">next_sibling</span>
         };
 
-        <span class='kw'>if</span> <span class='ident'>is_of_type</span> {
-            <span class='kw'>if</span> <span class='ident'>element</span>.<span class='ident'>get_local_name</span>() <span class='op'>==</span> <span class='ident'>sibling</span>.<span class='ident'>get_local_name</span>() <span class='op'>&amp;&amp;</span>
-                <span class='ident'>element</span>.<span class='ident'>get_namespace</span>() <span class='op'>==</span> <span class='ident'>sibling</span>.<span class='ident'>get_namespace</span>() {
-                <span class='ident'>index</span> <span class='op'>+=</span> <span class='number'>1</span>;
+        <span class="kw">if</span> <span class="ident">is_of_type</span> {
+            <span class="kw">if</span> <span class="ident">element</span>.<span class="ident">get_local_name</span>() <span class="op">==</span> <span class="ident">sibling</span>.<span class="ident">get_local_name</span>() <span class="op">&amp;&amp;</span>
+                <span class="ident">element</span>.<span class="ident">get_namespace</span>() <span class="op">==</span> <span class="ident">sibling</span>.<span class="ident">get_namespace</span>() {
+                <span class="ident">index</span> <span class="op">+=</span> <span class="number">1</span>;
             }
-        } <span class='kw'>else</span> {
-          <span class='ident'>index</span> <span class='op'>+=</span> <span class='number'>1</span>;
+        } <span class="kw">else</span> {
+          <span class="ident">index</span> <span class="op">+=</span> <span class="number">1</span>;
         }
-        <span class='ident'>next_sibling</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>is_from_end</span> {
-            <span class='ident'>sibling</span>.<span class='ident'>next_sibling_element</span>()
-        } <span class='kw'>else</span> {
-            <span class='ident'>sibling</span>.<span class='ident'>prev_sibling_element</span>()
+        <span class="ident">next_sibling</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_from_end</span> {
+            <span class="ident">sibling</span>.<span class="ident">next_sibling_element</span>()
+        } <span class="kw">else</span> {
+            <span class="ident">sibling</span>.<span class="ident">prev_sibling_element</span>()
         };
     }
 
-    <span class='kw'>if</span> <span class='ident'>a</span> <span class='op'>==</span> <span class='number'>0</span> {
-        <span class='ident'>b</span> <span class='op'>==</span> <span class='ident'>index</span>
-    } <span class='kw'>else</span> {
-        (<span class='ident'>index</span> <span class='op'>-</span> <span class='ident'>b</span>) <span class='op'>/</span> <span class='ident'>a</span> <span class='op'>&gt;=</span> <span class='number'>0</span> <span class='op'>&amp;&amp;</span>
-        (<span class='ident'>index</span> <span class='op'>-</span> <span class='ident'>b</span>) <span class='op'>%</span> <span class='ident'>a</span> <span class='op'>==</span> <span class='number'>0</span>
+    <span class="kw">if</span> <span class="ident">a</span> <span class="op">==</span> <span class="number">0</span> {
+        <span class="ident">b</span> <span class="op">==</span> <span class="ident">index</span>
+    } <span class="kw">else</span> {
+        (<span class="ident">index</span> <span class="op">-</span> <span class="ident">b</span>) <span class="op">/</span> <span class="ident">a</span> <span class="op">&gt;=</span> <span class="number">0</span> <span class="op">&amp;&amp;</span>
+        (<span class="ident">index</span> <span class="op">-</span> <span class="ident">b</span>) <span class="op">%</span> <span class="ident">a</span> <span class="op">==</span> <span class="number">0</span>
     }
 }
 
-<span class='attribute'>#[<span class='ident'>inline</span>]</span>
-<span class='kw'>fn</span> <span class='ident'>matches_first_child</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='ident'>element</span>: <span class='kw-2'>&amp;</span><span class='ident'>E</span>, <span class='ident'>flags</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ElementSelectorFlags</span>)
-                          <span class='op'>-&gt;</span> <span class='ident'>bool</span> <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>Element</span> {
-    <span class='ident'>flags</span>.<span class='ident'>insert</span>(<span class='ident'>HAS_EDGE_CHILD_SELECTOR</span>);
-    <span class='ident'>element</span>.<span class='ident'>prev_sibling_element</span>().<span class='ident'>is_none</span>()
+<span class="attribute">#[<span class="ident">inline</span>]</span>
+<span class="kw">fn</span> <span class="ident">matches_first_child</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="ident">element</span>: <span class="kw-2">&amp;</span><span class="ident">E</span>, <span class="ident">flags</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ElementSelectorFlags</span>)
+                          <span class="op">-&gt;</span> <span class="ident">bool</span> <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">Element</span> {
+    <span class="ident">flags</span>.<span class="ident">insert</span>(<span class="ident">HAS_EDGE_CHILD_SELECTOR</span>);
+    <span class="ident">element</span>.<span class="ident">prev_sibling_element</span>().<span class="ident">is_none</span>()
 }
 
-<span class='attribute'>#[<span class='ident'>inline</span>]</span>
-<span class='kw'>fn</span> <span class='ident'>matches_last_child</span><span class='op'>&lt;</span><span class='ident'>E</span><span class='op'>&gt;</span>(<span class='ident'>element</span>: <span class='kw-2'>&amp;</span><span class='ident'>E</span>, <span class='ident'>flags</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ElementSelectorFlags</span>)
-                         <span class='op'>-&gt;</span> <span class='ident'>bool</span> <span class='kw'>where</span> <span class='ident'>E</span>: <span class='ident'>Element</span> {
-    <span class='ident'>flags</span>.<span class='ident'>insert</span>(<span class='ident'>HAS_EDGE_CHILD_SELECTOR</span>);
-    <span class='ident'>element</span>.<span class='ident'>next_sibling_element</span>().<span class='ident'>is_none</span>()
+<span class="attribute">#[<span class="ident">inline</span>]</span>
+<span class="kw">fn</span> <span class="ident">matches_last_child</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="ident">element</span>: <span class="kw-2">&amp;</span><span class="ident">E</span>, <span class="ident">flags</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ElementSelectorFlags</span>)
+                         <span class="op">-&gt;</span> <span class="ident">bool</span> <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">Element</span> {
+    <span class="ident">flags</span>.<span class="ident">insert</span>(<span class="ident">HAS_EDGE_CHILD_SELECTOR</span>);
+    <span class="ident">element</span>.<span class="ident">next_sibling_element</span>().<span class="ident">is_none</span>()
 }
 </pre>
 </section>

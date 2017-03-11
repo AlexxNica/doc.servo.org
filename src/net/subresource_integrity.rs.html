@@ -220,183 +220,183 @@
 <span id="175">175</span>
 <span id="176">176</span>
 <span id="177">177</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='kw'>use</span> <span class='ident'>net_traits</span>::<span class='ident'>response</span>::{<span class='ident'>Response</span>, <span class='ident'>ResponseBody</span>, <span class='ident'>ResponseType</span>};
-<span class='kw'>use</span> <span class='ident'>openssl</span>::<span class='ident'>crypto</span>::<span class='ident'>hash</span>::{<span class='ident'>hash</span>, <span class='ident'>Type</span> <span class='kw'>as</span> <span class='ident'>MessageDigest</span>};
-<span class='kw'>use</span> <span class='ident'>rustc_serialize</span>::<span class='ident'>base64</span>::{<span class='ident'>STANDARD</span>, <span class='ident'>ToBase64</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>iter</span>::<span class='ident'>Filter</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>str</span>::<span class='ident'>Split</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>MutexGuard</span>;
-<span class='kw'>const</span> <span class='ident'>SUPPORTED_ALGORITHM</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> [<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span>] <span class='op'>=</span> <span class='kw-2'>&amp;</span>[
-    <span class='string'>&quot;sha256&quot;</span>,
-    <span class='string'>&quot;sha384&quot;</span>,
-    <span class='string'>&quot;sha512&quot;</span>,
+<span class="kw">use</span> <span class="ident">net_traits</span>::<span class="ident">response</span>::{<span class="ident">Response</span>, <span class="ident">ResponseBody</span>, <span class="ident">ResponseType</span>};
+<span class="kw">use</span> <span class="ident">openssl</span>::<span class="ident">crypto</span>::<span class="ident">hash</span>::{<span class="ident">hash</span>, <span class="ident">Type</span> <span class="kw">as</span> <span class="ident">MessageDigest</span>};
+<span class="kw">use</span> <span class="ident">rustc_serialize</span>::<span class="ident">base64</span>::{<span class="ident">STANDARD</span>, <span class="ident">ToBase64</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>::<span class="ident">Filter</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">Split</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">MutexGuard</span>;
+<span class="kw">const</span> <span class="ident">SUPPORTED_ALGORITHM</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+    <span class="string">&quot;sha256&quot;</span>,
+    <span class="string">&quot;sha384&quot;</span>,
+    <span class="string">&quot;sha512&quot;</span>,
 ];
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>StaticCharVec</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> [<span class='ident'>char</span>];
-<span class='doccomment'>/// A &quot;space character&quot; according to:</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// https://html.spec.whatwg.org/multipage/#space-character</span>
-<span class='kw'>pub</span> <span class='kw'>static</span> <span class='ident'>HTML_SPACE_CHARACTERS</span>: <span class='ident'>StaticCharVec</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span>[
-    <span class='string'>&#39;\u{0020}&#39;</span>,
-    <span class='string'>&#39;\u{0009}&#39;</span>,
-    <span class='string'>&#39;\u{000a}&#39;</span>,
-    <span class='string'>&#39;\u{000c}&#39;</span>,
-    <span class='string'>&#39;\u{000d}&#39;</span>,
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">StaticCharVec</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">char</span>];
+<span class="doccomment">/// A &quot;space character&quot; according to:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// https://html.spec.whatwg.org/multipage/#space-character</span>
+<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">HTML_SPACE_CHARACTERS</span>: <span class="ident">StaticCharVec</span> <span class="op">=</span> <span class="kw-2">&amp;</span>[
+    <span class="string">&#39;\u{0020}&#39;</span>,
+    <span class="string">&#39;\u{0009}&#39;</span>,
+    <span class="string">&#39;\u{000a}&#39;</span>,
+    <span class="string">&#39;\u{000c}&#39;</span>,
+    <span class="string">&#39;\u{000d}&#39;</span>,
 ];
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>SriEntry</span> {
-    <span class='kw'>pub</span> <span class='ident'>alg</span>: <span class='ident'>String</span>,
-    <span class='kw'>pub</span> <span class='ident'>val</span>: <span class='ident'>String</span>,
-    <span class='comment'>// TODO : Current version of spec does not define any option.</span>
-    <span class='comment'>// Can be refactored into appropriate datastructure when future</span>
-    <span class='comment'>// spec has more details.</span>
-    <span class='kw'>pub</span> <span class='ident'>opt</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>,
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SriEntry</span> {
+    <span class="kw">pub</span> <span class="ident">alg</span>: <span class="ident">String</span>,
+    <span class="kw">pub</span> <span class="ident">val</span>: <span class="ident">String</span>,
+    <span class="comment">// TODO : Current version of spec does not define any option.</span>
+    <span class="comment">// Can be refactored into appropriate datastructure when future</span>
+    <span class="comment">// spec has more details.</span>
+    <span class="kw">pub</span> <span class="ident">opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>SriEntry</span> {
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>alg</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>val</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>opt</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>SriEntry</span> {
-        <span class='ident'>SriEntry</span> {
-            <span class='ident'>alg</span>: <span class='ident'>alg</span>.<span class='ident'>to_owned</span>(),
-            <span class='ident'>val</span>: <span class='ident'>val</span>.<span class='ident'>to_owned</span>(),
-            <span class='ident'>opt</span>: <span class='ident'>opt</span>,
+<span class="kw">impl</span> <span class="ident">SriEntry</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">alg</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">SriEntry</span> {
+        <span class="ident">SriEntry</span> {
+            <span class="ident">alg</span>: <span class="ident">alg</span>.<span class="ident">to_owned</span>(),
+            <span class="ident">val</span>: <span class="ident">val</span>.<span class="ident">to_owned</span>(),
+            <span class="ident">opt</span>: <span class="ident">opt</span>,
         }
     }
 }
 
-<span class='doccomment'>/// https://w3c.github.io/webappsec-subresource-integrity/#parse-metadata</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parsed_metadata</span>(<span class='ident'>integrity_metadata</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>SriEntry</span><span class='op'>&gt;</span> {
-    <span class='comment'>// Step 1</span>
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
+<span class="doccomment">/// https://w3c.github.io/webappsec-subresource-integrity/#parse-metadata</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parsed_metadata</span>(<span class="ident">integrity_metadata</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SriEntry</span><span class="op">&gt;</span> {
+    <span class="comment">// Step 1</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
 
-    <span class='comment'>// Step 3</span>
-    <span class='kw'>let</span> <span class='ident'>tokens</span> <span class='op'>=</span> <span class='ident'>split_html_space_chars</span>(<span class='ident'>integrity_metadata</span>);
-    <span class='kw'>for</span> <span class='ident'>token</span> <span class='kw'>in</span> <span class='ident'>tokens</span> {
-        <span class='kw'>let</span> <span class='ident'>parsed_data</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>str</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>token</span>.<span class='ident'>split</span>(<span class='string'>&quot;-&quot;</span>).<span class='ident'>collect</span>();
+    <span class="comment">// Step 3</span>
+    <span class="kw">let</span> <span class="ident">tokens</span> <span class="op">=</span> <span class="ident">split_html_space_chars</span>(<span class="ident">integrity_metadata</span>);
+    <span class="kw">for</span> <span class="ident">token</span> <span class="kw">in</span> <span class="ident">tokens</span> {
+        <span class="kw">let</span> <span class="ident">parsed_data</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">token</span>.<span class="ident">split</span>(<span class="string">&quot;-&quot;</span>).<span class="ident">collect</span>();
 
-        <span class='kw'>if</span> <span class='ident'>parsed_data</span>.<span class='ident'>len</span>() <span class='op'>&gt;</span> <span class='number'>1</span> {
-            <span class='kw'>let</span> <span class='ident'>alg</span> <span class='op'>=</span> <span class='ident'>parsed_data</span>[<span class='number'>0</span>];
+        <span class="kw">if</span> <span class="ident">parsed_data</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">1</span> {
+            <span class="kw">let</span> <span class="ident">alg</span> <span class="op">=</span> <span class="ident">parsed_data</span>[<span class="number">0</span>];
 
-            <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>SUPPORTED_ALGORITHM</span>.<span class='ident'>contains</span>(<span class='kw-2'>&amp;</span><span class='ident'>alg</span>) {
-                <span class='kw'>continue</span>;
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">SUPPORTED_ALGORITHM</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">alg</span>) {
+                <span class="kw">continue</span>;
             }
 
-            <span class='kw'>let</span> <span class='ident'>data</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>str</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>parsed_data</span>[<span class='number'>1</span>].<span class='ident'>split</span>(<span class='string'>&quot;?&quot;</span>).<span class='ident'>collect</span>();
-            <span class='kw'>let</span> <span class='ident'>digest</span> <span class='op'>=</span> <span class='ident'>data</span>[<span class='number'>0</span>];
+            <span class="kw">let</span> <span class="ident">data</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">parsed_data</span>[<span class="number">1</span>].<span class="ident">split</span>(<span class="string">&quot;?&quot;</span>).<span class="ident">collect</span>();
+            <span class="kw">let</span> <span class="ident">digest</span> <span class="op">=</span> <span class="ident">data</span>[<span class="number">0</span>];
 
-            <span class='kw'>let</span> <span class='ident'>opt</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>data</span>.<span class='ident'>len</span>() <span class='op'>&gt;</span> <span class='number'>1</span> {
-                <span class='prelude-val'>Some</span>(<span class='ident'>data</span>[<span class='number'>1</span>].<span class='ident'>to_owned</span>())
-            } <span class='kw'>else</span> {
-                <span class='prelude-val'>None</span>
+            <span class="kw">let</span> <span class="ident">opt</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">data</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">1</span> {
+                <span class="prelude-val">Some</span>(<span class="ident">data</span>[<span class="number">1</span>].<span class="ident">to_owned</span>())
+            } <span class="kw">else</span> {
+                <span class="prelude-val">None</span>
             };
 
-            <span class='ident'>result</span>.<span class='ident'>push</span>(<span class='ident'>SriEntry</span>::<span class='ident'>new</span>(<span class='ident'>alg</span>, <span class='ident'>digest</span>, <span class='ident'>opt</span>));
+            <span class="ident">result</span>.<span class="ident">push</span>(<span class="ident">SriEntry</span>::<span class="ident">new</span>(<span class="ident">alg</span>, <span class="ident">digest</span>, <span class="ident">opt</span>));
         }
     }
 
-    <span class='kw'>return</span> <span class='ident'>result</span>;
+    <span class="kw">return</span> <span class="ident">result</span>;
 }
 
-<span class='doccomment'>/// https://w3c.github.io/webappsec-subresource-integrity/#getprioritizedhashfunction</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_prioritized_hash_function</span>(<span class='ident'>hash_func_left</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>hash_func_right</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span> {
-    <span class='kw'>let</span> <span class='ident'>left_priority</span> <span class='op'>=</span> <span class='ident'>SUPPORTED_ALGORITHM</span>.<span class='ident'>iter</span>().<span class='ident'>position</span>(<span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> <span class='ident'>s</span>.<span class='ident'>to_owned</span>() <span class='op'>==</span> <span class='ident'>hash_func_left</span>).<span class='ident'>unwrap</span>();
-    <span class='kw'>let</span> <span class='ident'>right_priority</span> <span class='op'>=</span> <span class='ident'>SUPPORTED_ALGORITHM</span>.<span class='ident'>iter</span>().<span class='ident'>position</span>(<span class='op'>|</span><span class='ident'>s</span><span class='op'>|</span> <span class='ident'>s</span>.<span class='ident'>to_owned</span>() <span class='op'>==</span> <span class='ident'>hash_func_right</span>).<span class='ident'>unwrap</span>();
+<span class="doccomment">/// https://w3c.github.io/webappsec-subresource-integrity/#getprioritizedhashfunction</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_prioritized_hash_function</span>(<span class="ident">hash_func_left</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">hash_func_right</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">left_priority</span> <span class="op">=</span> <span class="ident">SUPPORTED_ALGORITHM</span>.<span class="ident">iter</span>().<span class="ident">position</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">to_owned</span>() <span class="op">==</span> <span class="ident">hash_func_left</span>).<span class="ident">unwrap</span>();
+    <span class="kw">let</span> <span class="ident">right_priority</span> <span class="op">=</span> <span class="ident">SUPPORTED_ALGORITHM</span>.<span class="ident">iter</span>().<span class="ident">position</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">to_owned</span>() <span class="op">==</span> <span class="ident">hash_func_right</span>).<span class="ident">unwrap</span>();
 
-    <span class='kw'>if</span> <span class='ident'>left_priority</span> <span class='op'>==</span> <span class='ident'>right_priority</span> {
-        <span class='kw'>return</span> <span class='prelude-val'>None</span>;
+    <span class="kw">if</span> <span class="ident">left_priority</span> <span class="op">==</span> <span class="ident">right_priority</span> {
+        <span class="kw">return</span> <span class="prelude-val">None</span>;
     }
-    <span class='kw'>if</span> <span class='ident'>left_priority</span> <span class='op'>&gt;</span> <span class='ident'>right_priority</span> {
-        <span class='prelude-val'>Some</span>(<span class='ident'>hash_func_left</span>.<span class='ident'>to_owned</span>())
-    } <span class='kw'>else</span> {
-        <span class='prelude-val'>Some</span>(<span class='ident'>hash_func_right</span>.<span class='ident'>to_owned</span>())
+    <span class="kw">if</span> <span class="ident">left_priority</span> <span class="op">&gt;</span> <span class="ident">right_priority</span> {
+        <span class="prelude-val">Some</span>(<span class="ident">hash_func_left</span>.<span class="ident">to_owned</span>())
+    } <span class="kw">else</span> {
+        <span class="prelude-val">Some</span>(<span class="ident">hash_func_right</span>.<span class="ident">to_owned</span>())
     }
 
 }
 
-<span class='doccomment'>/// https://w3c.github.io/webappsec-subresource-integrity/#get-the-strongest-metadata</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_strongest_metadata</span>(<span class='ident'>integrity_metadata_list</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>SriEntry</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>SriEntry</span><span class='op'>&gt;</span> {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>result</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>SriEntry</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[<span class='ident'>integrity_metadata_list</span>[<span class='number'>0</span>].<span class='ident'>clone</span>()];
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>current_algorithm</span> <span class='op'>=</span> <span class='ident'>result</span>[<span class='number'>0</span>].<span class='ident'>alg</span>.<span class='ident'>clone</span>();
+<span class="doccomment">/// https://w3c.github.io/webappsec-subresource-integrity/#get-the-strongest-metadata</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_strongest_metadata</span>(<span class="ident">integrity_metadata_list</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SriEntry</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SriEntry</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SriEntry</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">integrity_metadata_list</span>[<span class="number">0</span>].<span class="ident">clone</span>()];
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">current_algorithm</span> <span class="op">=</span> <span class="ident">result</span>[<span class="number">0</span>].<span class="ident">alg</span>.<span class="ident">clone</span>();
 
-    <span class='kw'>for</span> <span class='ident'>integrity_metadata</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>integrity_metadata_list</span>[<span class='number'>1</span>..] {
-        <span class='kw'>let</span> <span class='ident'>prioritized_hash</span> <span class='op'>=</span> <span class='ident'>get_prioritized_hash_function</span>(<span class='kw-2'>&amp;</span><span class='ident'>integrity_metadata</span>.<span class='ident'>alg</span>,
-                                                                 <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>current_algorithm</span>);
-        <span class='kw'>if</span> <span class='ident'>prioritized_hash</span>.<span class='ident'>is_none</span>() {
-            <span class='ident'>result</span>.<span class='ident'>push</span>(<span class='ident'>integrity_metadata</span>.<span class='ident'>clone</span>());
-        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>algorithm</span>) <span class='op'>=</span> <span class='ident'>prioritized_hash</span> {
-            <span class='kw'>if</span> <span class='ident'>algorithm</span> <span class='op'>!=</span> <span class='ident'>current_algorithm</span> {
-                <span class='ident'>result</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[<span class='ident'>integrity_metadata</span>.<span class='ident'>clone</span>()];
-                <span class='ident'>current_algorithm</span> <span class='op'>=</span> <span class='ident'>algorithm</span>;
+    <span class="kw">for</span> <span class="ident">integrity_metadata</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">integrity_metadata_list</span>[<span class="number">1</span>..] {
+        <span class="kw">let</span> <span class="ident">prioritized_hash</span> <span class="op">=</span> <span class="ident">get_prioritized_hash_function</span>(<span class="kw-2">&amp;</span><span class="ident">integrity_metadata</span>.<span class="ident">alg</span>,
+                                                                 <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">current_algorithm</span>);
+        <span class="kw">if</span> <span class="ident">prioritized_hash</span>.<span class="ident">is_none</span>() {
+            <span class="ident">result</span>.<span class="ident">push</span>(<span class="ident">integrity_metadata</span>.<span class="ident">clone</span>());
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">algorithm</span>) <span class="op">=</span> <span class="ident">prioritized_hash</span> {
+            <span class="kw">if</span> <span class="ident">algorithm</span> <span class="op">!=</span> <span class="ident">current_algorithm</span> {
+                <span class="ident">result</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">integrity_metadata</span>.<span class="ident">clone</span>()];
+                <span class="ident">current_algorithm</span> <span class="op">=</span> <span class="ident">algorithm</span>;
             }
         }
     }
 
-    <span class='ident'>result</span>
+    <span class="ident">result</span>
 }
 
-<span class='doccomment'>/// https://w3c.github.io/webappsec-subresource-integrity/#apply-algorithm-to-response</span>
-<span class='kw'>fn</span> <span class='ident'>apply_algorithm_to_response</span>(<span class='ident'>body</span>: <span class='ident'>MutexGuard</span><span class='op'>&lt;</span><span class='ident'>ResponseBody</span><span class='op'>&gt;</span>,
-                               <span class='ident'>message_digest</span>: <span class='ident'>MessageDigest</span>)
-                               <span class='op'>-&gt;</span> <span class='ident'>String</span> {
-    <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>ResponseBody</span>::<span class='ident'>Done</span>(<span class='kw-2'>ref</span> <span class='ident'>vec</span>) <span class='op'>=</span> <span class='kw-2'>*</span><span class='ident'>body</span> {
-        <span class='kw'>let</span> <span class='ident'>response_digest</span> <span class='op'>=</span> <span class='ident'>hash</span>(<span class='ident'>message_digest</span>, <span class='ident'>vec</span>);
-        <span class='ident'>response_digest</span>.<span class='ident'>to_base64</span>(<span class='ident'>STANDARD</span>)
-    } <span class='kw'>else</span> {
-        <span class='macro'>unreachable</span><span class='macro'>!</span>(<span class='string'>&quot;Tried to calculate digest of incomplete response body&quot;</span>)
-    }
-}
-
-<span class='doccomment'>/// https://w3c.github.io/webappsec-subresource-integrity/#is-response-eligible</span>
-<span class='kw'>fn</span> <span class='ident'>is_eligible_for_integrity_validation</span>(<span class='ident'>response</span>: <span class='kw-2'>&amp;</span><span class='ident'>Response</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-    <span class='kw'>match</span> <span class='ident'>response</span>.<span class='ident'>response_type</span> {
-        <span class='ident'>ResponseType</span>::<span class='ident'>Basic</span> <span class='op'>|</span> <span class='ident'>ResponseType</span>::<span class='ident'>Default</span> <span class='op'>|</span> <span class='ident'>ResponseType</span>::<span class='ident'>Cors</span> <span class='op'>=&gt;</span> <span class='bool-val'>true</span>,
-        _ <span class='op'>=&gt;</span> <span class='bool-val'>false</span>,
+<span class="doccomment">/// https://w3c.github.io/webappsec-subresource-integrity/#apply-algorithm-to-response</span>
+<span class="kw">fn</span> <span class="ident">apply_algorithm_to_response</span>(<span class="ident">body</span>: <span class="ident">MutexGuard</span><span class="op">&lt;</span><span class="ident">ResponseBody</span><span class="op">&gt;</span>,
+                               <span class="ident">message_digest</span>: <span class="ident">MessageDigest</span>)
+                               <span class="op">-&gt;</span> <span class="ident">String</span> {
+    <span class="kw">if</span> <span class="kw">let</span> <span class="ident">ResponseBody</span>::<span class="ident">Done</span>(<span class="kw-2">ref</span> <span class="ident">vec</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">body</span> {
+        <span class="kw">let</span> <span class="ident">response_digest</span> <span class="op">=</span> <span class="ident">hash</span>(<span class="ident">message_digest</span>, <span class="ident">vec</span>);
+        <span class="ident">response_digest</span>.<span class="ident">to_base64</span>(<span class="ident">STANDARD</span>)
+    } <span class="kw">else</span> {
+        <span class="macro">unreachable</span><span class="macro">!</span>(<span class="string">&quot;Tried to calculate digest of incomplete response body&quot;</span>)
     }
 }
 
-<span class='doccomment'>/// https://w3c.github.io/webappsec-subresource-integrity/#does-response-match-metadatalist</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>is_response_integrity_valid</span>(<span class='ident'>integrity_metadata</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>response</span>: <span class='kw-2'>&amp;</span><span class='ident'>Response</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-    <span class='kw'>let</span> <span class='ident'>parsed_metadata_list</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>SriEntry</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>parsed_metadata</span>(<span class='ident'>integrity_metadata</span>);
+<span class="doccomment">/// https://w3c.github.io/webappsec-subresource-integrity/#is-response-eligible</span>
+<span class="kw">fn</span> <span class="ident">is_eligible_for_integrity_validation</span>(<span class="ident">response</span>: <span class="kw-2">&amp;</span><span class="ident">Response</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">match</span> <span class="ident">response</span>.<span class="ident">response_type</span> {
+        <span class="ident">ResponseType</span>::<span class="ident">Basic</span> <span class="op">|</span> <span class="ident">ResponseType</span>::<span class="ident">Default</span> <span class="op">|</span> <span class="ident">ResponseType</span>::<span class="ident">Cors</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+        _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+    }
+}
 
-    <span class='comment'>// Step 2 &amp; 4</span>
-    <span class='kw'>if</span> <span class='ident'>parsed_metadata_list</span>.<span class='ident'>is_empty</span>() {
-        <span class='kw'>return</span> <span class='bool-val'>true</span>;
+<span class="doccomment">/// https://w3c.github.io/webappsec-subresource-integrity/#does-response-match-metadatalist</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_response_integrity_valid</span>(<span class="ident">integrity_metadata</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">response</span>: <span class="kw-2">&amp;</span><span class="ident">Response</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">let</span> <span class="ident">parsed_metadata_list</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SriEntry</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">parsed_metadata</span>(<span class="ident">integrity_metadata</span>);
+
+    <span class="comment">// Step 2 &amp; 4</span>
+    <span class="kw">if</span> <span class="ident">parsed_metadata_list</span>.<span class="ident">is_empty</span>() {
+        <span class="kw">return</span> <span class="bool-val">true</span>;
     }
 
-    <span class='comment'>// Step 3</span>
-    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>is_eligible_for_integrity_validation</span>(<span class='ident'>response</span>) {
-        <span class='kw'>return</span> <span class='bool-val'>false</span>;
+    <span class="comment">// Step 3</span>
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">is_eligible_for_integrity_validation</span>(<span class="ident">response</span>) {
+        <span class="kw">return</span> <span class="bool-val">false</span>;
     }
 
-    <span class='comment'>// Step 5</span>
-    <span class='kw'>let</span> <span class='ident'>metadata</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>SriEntry</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>get_strongest_metadata</span>(<span class='ident'>parsed_metadata_list</span>);
-    <span class='kw'>for</span> <span class='ident'>item</span> <span class='kw'>in</span> <span class='ident'>metadata</span> {
-        <span class='kw'>let</span> <span class='ident'>body</span> <span class='op'>=</span> <span class='ident'>response</span>.<span class='ident'>body</span>.<span class='ident'>lock</span>().<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>algorithm</span> <span class='op'>=</span> <span class='ident'>item</span>.<span class='ident'>alg</span>;
-        <span class='kw'>let</span> <span class='ident'>digest</span> <span class='op'>=</span> <span class='ident'>item</span>.<span class='ident'>val</span>;
+    <span class="comment">// Step 5</span>
+    <span class="kw">let</span> <span class="ident">metadata</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SriEntry</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">get_strongest_metadata</span>(<span class="ident">parsed_metadata_list</span>);
+    <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="ident">metadata</span> {
+        <span class="kw">let</span> <span class="ident">body</span> <span class="op">=</span> <span class="ident">response</span>.<span class="ident">body</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">algorithm</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">alg</span>;
+        <span class="kw">let</span> <span class="ident">digest</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">val</span>;
 
-        <span class='kw'>let</span> <span class='ident'>message_digest</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>algorithm</span> {
-            <span class='string'>&quot;sha256&quot;</span> <span class='op'>=&gt;</span> <span class='ident'>MessageDigest</span>::<span class='ident'>SHA256</span>,
-            <span class='string'>&quot;sha384&quot;</span> <span class='op'>=&gt;</span> <span class='ident'>MessageDigest</span>::<span class='ident'>SHA384</span>,
-            <span class='string'>&quot;sha512&quot;</span> <span class='op'>=&gt;</span> <span class='ident'>MessageDigest</span>::<span class='ident'>SHA512</span>,
-            _ <span class='op'>=&gt;</span> <span class='kw'>continue</span>,
+        <span class="kw">let</span> <span class="ident">message_digest</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">algorithm</span> {
+            <span class="string">&quot;sha256&quot;</span> <span class="op">=&gt;</span> <span class="ident">MessageDigest</span>::<span class="ident">SHA256</span>,
+            <span class="string">&quot;sha384&quot;</span> <span class="op">=&gt;</span> <span class="ident">MessageDigest</span>::<span class="ident">SHA384</span>,
+            <span class="string">&quot;sha512&quot;</span> <span class="op">=&gt;</span> <span class="ident">MessageDigest</span>::<span class="ident">SHA512</span>,
+            _ <span class="op">=&gt;</span> <span class="kw">continue</span>,
         };
 
-        <span class='kw'>if</span> <span class='ident'>apply_algorithm_to_response</span>(<span class='ident'>body</span>, <span class='ident'>message_digest</span>) <span class='op'>==</span> <span class='ident'>digest</span> {
-            <span class='kw'>return</span> <span class='bool-val'>true</span>;
+        <span class="kw">if</span> <span class="ident">apply_algorithm_to_response</span>(<span class="ident">body</span>, <span class="ident">message_digest</span>) <span class="op">==</span> <span class="ident">digest</span> {
+            <span class="kw">return</span> <span class="bool-val">true</span>;
         }
     }
 
-    <span class='bool-val'>false</span>
+    <span class="bool-val">false</span>
 }
 
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>split_html_space_chars</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>(<span class='ident'>s</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>) <span class='op'>-&gt;</span>
-                                  <span class='ident'>Filter</span><span class='op'>&lt;</span><span class='ident'>Split</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>StaticCharVec</span><span class='op'>&gt;</span>, <span class='kw'>fn</span>(<span class='op'>&amp;&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>not_empty</span>(<span class='kw-2'>&amp;</span><span class='ident'>split</span>: <span class='op'>&amp;&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> { <span class='op'>!</span><span class='ident'>split</span>.<span class='ident'>is_empty</span>() }
-    <span class='ident'>s</span>.<span class='ident'>split</span>(<span class='ident'>HTML_SPACE_CHARACTERS</span>).<span class='ident'>filter</span>(<span class='ident'>not_empty</span> <span class='kw'>as</span> <span class='kw'>fn</span>(<span class='op'>&amp;&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>)
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">split_html_space_chars</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>) <span class="op">-&gt;</span>
+                                  <span class="ident">Filter</span><span class="op">&lt;</span><span class="ident">Split</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">StaticCharVec</span><span class="op">&gt;</span>, <span class="kw">fn</span>(<span class="op">&amp;&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">bool</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">not_empty</span>(<span class="kw-2">&amp;</span><span class="ident">split</span>: <span class="op">&amp;&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="op">!</span><span class="ident">split</span>.<span class="ident">is_empty</span>() }
+    <span class="ident">s</span>.<span class="ident">split</span>(<span class="ident">HTML_SPACE_CHARACTERS</span>).<span class="ident">filter</span>(<span class="ident">not_empty</span> <span class="kw">as</span> <span class="kw">fn</span>(<span class="op">&amp;&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>)
 }
 </pre>
 </section>

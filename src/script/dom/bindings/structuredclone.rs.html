@@ -131,95 +131,95 @@
 <span id="86">86</span>
 <span id="87">87</span>
 <span id="88">88</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! This module implements structured cloning, as defined by [HTML]</span>
-<span class='doccomment'>//! (https://html.spec.whatwg.org/multipage/#safe-passing-of-structured-data).</span>
+<span class="doccomment">//! This module implements structured cloning, as defined by [HTML]</span>
+<span class="doccomment">//! (https://html.spec.whatwg.org/multipage/#safe-passing-of-structured-data).</span>
 
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>error</span>::{<span class='ident'>Error</span>, <span class='ident'>Fallible</span>};
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>globalscope</span>::<span class='ident'>GlobalScope</span>;
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>HandleValue</span>, <span class='ident'>MutableHandleValue</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>JSContext</span>, <span class='ident'>JS_ReadStructuredClone</span>, <span class='ident'>JS_STRUCTURED_CLONE_VERSION</span>};
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>JS_ClearPendingException</span>, <span class='ident'>JS_WriteStructuredClone</span>};
-<span class='kw'>use</span> <span class='ident'>libc</span>::<span class='ident'>size_t</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ptr</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>slice</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">error</span>::{<span class="ident">Error</span>, <span class="ident">Fallible</span>};
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">globalscope</span>::<span class="ident">GlobalScope</span>;
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">HandleValue</span>, <span class="ident">MutableHandleValue</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">JSContext</span>, <span class="ident">JS_ReadStructuredClone</span>, <span class="ident">JS_STRUCTURED_CLONE_VERSION</span>};
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">JS_ClearPendingException</span>, <span class="ident">JS_WriteStructuredClone</span>};
+<span class="kw">use</span> <span class="ident">libc</span>::<span class="ident">size_t</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">slice</span>;
 
-<span class='doccomment'>/// A buffer for a structured clone.</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>StructuredCloneData</span> {
-    <span class='doccomment'>/// A non-serializable (default) variant</span>
-    <span class='ident'>Struct</span>(<span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>u64</span>, <span class='ident'>size_t</span>),
-    <span class='doccomment'>/// A variant that can be serialized</span>
-    <span class='ident'>Vector</span>(<span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>)
+<span class="doccomment">/// A buffer for a structured clone.</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">StructuredCloneData</span> {
+    <span class="doccomment">/// A non-serializable (default) variant</span>
+    <span class="ident">Struct</span>(<span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u64</span>, <span class="ident">size_t</span>),
+    <span class="doccomment">/// A variant that can be serialized</span>
+    <span class="ident">Vector</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>)
 }
 
-<span class='kw'>impl</span> <span class='ident'>StructuredCloneData</span> {
-    <span class='doccomment'>/// Writes a structured clone. Returns a `DataClone` error if that fails.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>write</span>(<span class='ident'>cx</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSContext</span>, <span class='ident'>message</span>: <span class='ident'>HandleValue</span>) <span class='op'>-&gt;</span> <span class='ident'>Fallible</span><span class='op'>&lt;</span><span class='ident'>StructuredCloneData</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='ident'>ptr</span>::<span class='ident'>null_mut</span>();
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>nbytes</span> <span class='op'>=</span> <span class='number'>0</span>;
-        <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='kw'>unsafe</span> {
-            <span class='ident'>JS_WriteStructuredClone</span>(<span class='ident'>cx</span>,
-                                    <span class='ident'>message</span>,
-                                    <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>,
-                                    <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>nbytes</span>,
-                                    <span class='ident'>ptr</span>::<span class='ident'>null</span>(),
-                                    <span class='ident'>ptr</span>::<span class='ident'>null_mut</span>(),
-                                    <span class='ident'>HandleValue</span>::<span class='ident'>undefined</span>())
+<span class="kw">impl</span> <span class="ident">StructuredCloneData</span> {
+    <span class="doccomment">/// Writes a structured clone. Returns a `DataClone` error if that fails.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">write</span>(<span class="ident">cx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSContext</span>, <span class="ident">message</span>: <span class="ident">HandleValue</span>) <span class="op">-&gt;</span> <span class="ident">Fallible</span><span class="op">&lt;</span><span class="ident">StructuredCloneData</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">nbytes</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">JS_WriteStructuredClone</span>(<span class="ident">cx</span>,
+                                    <span class="ident">message</span>,
+                                    <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">data</span>,
+                                    <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">nbytes</span>,
+                                    <span class="ident">ptr</span>::<span class="ident">null</span>(),
+                                    <span class="ident">ptr</span>::<span class="ident">null_mut</span>(),
+                                    <span class="ident">HandleValue</span>::<span class="ident">undefined</span>())
         };
-        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>result</span> {
-            <span class='kw'>unsafe</span> {
-                <span class='ident'>JS_ClearPendingException</span>(<span class='ident'>cx</span>);
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">result</span> {
+            <span class="kw">unsafe</span> {
+                <span class="ident">JS_ClearPendingException</span>(<span class="ident">cx</span>);
             }
-            <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>DataClone</span>);
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">DataClone</span>);
         }
-        <span class='prelude-val'>Ok</span>(<span class='ident'>StructuredCloneData</span>::<span class='ident'>Struct</span>(<span class='ident'>data</span>, <span class='ident'>nbytes</span>))
+        <span class="prelude-val">Ok</span>(<span class="ident">StructuredCloneData</span>::<span class="ident">Struct</span>(<span class="ident">data</span>, <span class="ident">nbytes</span>))
     }
 
-    <span class='doccomment'>/// Converts a StructuredCloneData to Vec&lt;u8&gt; for inter-thread sharing</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>move_to_arraybuffer</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span> {
-        <span class='kw'>match</span> <span class='self'>self</span> {
-            <span class='ident'>StructuredCloneData</span>::<span class='ident'>Struct</span>(<span class='ident'>data</span>, <span class='ident'>nbytes</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>unsafe</span> {
-                    <span class='ident'>slice</span>::<span class='ident'>from_raw_parts</span>(<span class='ident'>data</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>u8</span>, <span class='ident'>nbytes</span>).<span class='ident'>to_vec</span>()
+    <span class="doccomment">/// Converts a StructuredCloneData to Vec&lt;u8&gt; for inter-thread sharing</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">move_to_arraybuffer</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="self">self</span> {
+            <span class="ident">StructuredCloneData</span>::<span class="ident">Struct</span>(<span class="ident">data</span>, <span class="ident">nbytes</span>) <span class="op">=&gt;</span> {
+                <span class="kw">unsafe</span> {
+                    <span class="ident">slice</span>::<span class="ident">from_raw_parts</span>(<span class="ident">data</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span>, <span class="ident">nbytes</span>).<span class="ident">to_vec</span>()
                 }
             }
-            <span class='ident'>StructuredCloneData</span>::<span class='ident'>Vector</span>(<span class='ident'>msg</span>) <span class='op'>=&gt;</span> <span class='ident'>msg</span>
+            <span class="ident">StructuredCloneData</span>::<span class="ident">Vector</span>(<span class="ident">msg</span>) <span class="op">=&gt;</span> <span class="ident">msg</span>
         }
     }
 
-    <span class='doccomment'>/// Reads a structured clone.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Panics if `JS_ReadStructuredClone` fails.</span>
-    <span class='kw'>fn</span> <span class='ident'>read_clone</span>(<span class='ident'>global</span>: <span class='kw-2'>&amp;</span><span class='ident'>GlobalScope</span>, <span class='ident'>data</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>u64</span>, <span class='ident'>nbytes</span>: <span class='ident'>size_t</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='kw'>unsafe</span> {
-            <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>JS_ReadStructuredClone</span>(<span class='ident'>global</span>.<span class='ident'>get_cx</span>(),
-                                           <span class='ident'>data</span>,
-                                           <span class='ident'>nbytes</span>,
-                                           <span class='ident'>JS_STRUCTURED_CLONE_VERSION</span>,
-                                           <span class='ident'>rval</span>,
-                                           <span class='ident'>ptr</span>::<span class='ident'>null</span>(),
-                                           <span class='ident'>ptr</span>::<span class='ident'>null_mut</span>()));
+    <span class="doccomment">/// Reads a structured clone.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Panics if `JS_ReadStructuredClone` fails.</span>
+    <span class="kw">fn</span> <span class="ident">read_clone</span>(<span class="ident">global</span>: <span class="kw-2">&amp;</span><span class="ident">GlobalScope</span>, <span class="ident">data</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u64</span>, <span class="ident">nbytes</span>: <span class="ident">size_t</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="kw">unsafe</span> {
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">JS_ReadStructuredClone</span>(<span class="ident">global</span>.<span class="ident">get_cx</span>(),
+                                           <span class="ident">data</span>,
+                                           <span class="ident">nbytes</span>,
+                                           <span class="ident">JS_STRUCTURED_CLONE_VERSION</span>,
+                                           <span class="ident">rval</span>,
+                                           <span class="ident">ptr</span>::<span class="ident">null</span>(),
+                                           <span class="ident">ptr</span>::<span class="ident">null_mut</span>()));
         }
     }
 
-    <span class='doccomment'>/// Thunk for the actual `read_clone` method. Resolves proper variant for read_clone.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>read</span>(<span class='self'>self</span>, <span class='ident'>global</span>: <span class='kw-2'>&amp;</span><span class='ident'>GlobalScope</span>, <span class='ident'>rval</span>: <span class='ident'>MutableHandleValue</span>) {
-        <span class='kw'>match</span> <span class='self'>self</span> {
-            <span class='ident'>StructuredCloneData</span>::<span class='ident'>Vector</span>(<span class='kw-2'>mut</span> <span class='ident'>vec_msg</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>nbytes</span> <span class='op'>=</span> <span class='ident'>vec_msg</span>.<span class='ident'>len</span>();
-                <span class='kw'>let</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='ident'>vec_msg</span>.<span class='ident'>as_mut_ptr</span>() <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>u64</span>;
-                <span class='ident'>StructuredCloneData</span>::<span class='ident'>read_clone</span>(<span class='ident'>global</span>, <span class='ident'>data</span>, <span class='ident'>nbytes</span>, <span class='ident'>rval</span>);
+    <span class="doccomment">/// Thunk for the actual `read_clone` method. Resolves proper variant for read_clone.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">read</span>(<span class="self">self</span>, <span class="ident">global</span>: <span class="kw-2">&amp;</span><span class="ident">GlobalScope</span>, <span class="ident">rval</span>: <span class="ident">MutableHandleValue</span>) {
+        <span class="kw">match</span> <span class="self">self</span> {
+            <span class="ident">StructuredCloneData</span>::<span class="ident">Vector</span>(<span class="kw-2">mut</span> <span class="ident">vec_msg</span>) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">nbytes</span> <span class="op">=</span> <span class="ident">vec_msg</span>.<span class="ident">len</span>();
+                <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">vec_msg</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u64</span>;
+                <span class="ident">StructuredCloneData</span>::<span class="ident">read_clone</span>(<span class="ident">global</span>, <span class="ident">data</span>, <span class="ident">nbytes</span>, <span class="ident">rval</span>);
             }
-            <span class='ident'>StructuredCloneData</span>::<span class='ident'>Struct</span>(<span class='ident'>data</span>, <span class='ident'>nbytes</span>) <span class='op'>=&gt;</span> <span class='ident'>StructuredCloneData</span>::<span class='ident'>read_clone</span>(<span class='ident'>global</span>, <span class='ident'>data</span>, <span class='ident'>nbytes</span>, <span class='ident'>rval</span>)
+            <span class="ident">StructuredCloneData</span>::<span class="ident">Struct</span>(<span class="ident">data</span>, <span class="ident">nbytes</span>) <span class="op">=&gt;</span> <span class="ident">StructuredCloneData</span>::<span class="ident">read_clone</span>(<span class="ident">global</span>, <span class="ident">data</span>, <span class="ident">nbytes</span>, <span class="ident">rval</span>)
         }
     }
 }
 
-<span class='kw'>unsafe</span> <span class='kw'>impl</span> <span class='ident'>Send</span> <span class='kw'>for</span> <span class='ident'>StructuredCloneData</span> {}
+<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">StructuredCloneData</span> {}
 </pre>
 </section>
     <section id='search' class="content hidden"></section>

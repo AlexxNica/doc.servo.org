@@ -455,416 +455,416 @@
 <span id="410">410</span>
 <span id="411">411</span>
 <span id="412">412</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! Keyframes: https://drafts.csswg.org/css-animations/#keyframes</span>
+<span class="doccomment">//! Keyframes: https://drafts.csswg.org/css-animations/#keyframes</span>
 
-<span class='attribute'>#<span class='op'>!</span>[<span class='ident'>deny</span>(<span class='ident'>missing_docs</span>)]</span>
+<span class="attribute">#<span class="op">!</span>[<span class="ident">deny</span>(<span class="ident">missing_docs</span>)]</span>
 
-<span class='kw'>use</span> <span class='ident'>cssparser</span>::{<span class='ident'>AtRuleParser</span>, <span class='ident'>Parser</span>, <span class='ident'>QualifiedRuleParser</span>, <span class='ident'>RuleListParser</span>};
-<span class='kw'>use</span> <span class='ident'>cssparser</span>::{<span class='ident'>DeclarationListParser</span>, <span class='ident'>DeclarationParser</span>, <span class='ident'>parse_one_rule</span>};
-<span class='kw'>use</span> <span class='ident'>parking_lot</span>::<span class='ident'>RwLock</span>;
-<span class='kw'>use</span> <span class='ident'>parser</span>::{<span class='ident'>ParserContext</span>, <span class='ident'>ParserContextExtraData</span>, <span class='ident'>log_css_error</span>};
-<span class='kw'>use</span> <span class='ident'>properties</span>::{<span class='ident'>Importance</span>, <span class='ident'>PropertyDeclaration</span>, <span class='ident'>PropertyDeclarationBlock</span>, <span class='ident'>PropertyId</span>};
-<span class='kw'>use</span> <span class='ident'>properties</span>::{<span class='ident'>PropertyDeclarationId</span>, <span class='ident'>LonghandId</span>, <span class='ident'>DeclaredValue</span>, <span class='ident'>ParsedDeclaration</span>};
-<span class='kw'>use</span> <span class='ident'>properties</span>::<span class='ident'>LonghandIdSet</span>;
-<span class='kw'>use</span> <span class='ident'>properties</span>::<span class='ident'>animated_properties</span>::<span class='ident'>TransitionProperty</span>;
-<span class='kw'>use</span> <span class='ident'>properties</span>::<span class='ident'>longhands</span>::<span class='ident'>transition_timing_function</span>::<span class='ident'>single_value</span>::<span class='ident'>SpecifiedValue</span> <span class='kw'>as</span> <span class='ident'>SpecifiedTimingFunction</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fmt</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>Arc</span>;
-<span class='kw'>use</span> <span class='ident'>style_traits</span>::<span class='ident'>ToCss</span>;
-<span class='kw'>use</span> <span class='ident'>stylesheets</span>::{<span class='ident'>MemoryHoleReporter</span>, <span class='ident'>Stylesheet</span>};
+<span class="kw">use</span> <span class="ident">cssparser</span>::{<span class="ident">AtRuleParser</span>, <span class="ident">Parser</span>, <span class="ident">QualifiedRuleParser</span>, <span class="ident">RuleListParser</span>};
+<span class="kw">use</span> <span class="ident">cssparser</span>::{<span class="ident">DeclarationListParser</span>, <span class="ident">DeclarationParser</span>, <span class="ident">parse_one_rule</span>};
+<span class="kw">use</span> <span class="ident">parking_lot</span>::<span class="ident">RwLock</span>;
+<span class="kw">use</span> <span class="ident">parser</span>::{<span class="ident">ParserContext</span>, <span class="ident">ParserContextExtraData</span>, <span class="ident">log_css_error</span>};
+<span class="kw">use</span> <span class="ident">properties</span>::{<span class="ident">Importance</span>, <span class="ident">PropertyDeclaration</span>, <span class="ident">PropertyDeclarationBlock</span>, <span class="ident">PropertyId</span>};
+<span class="kw">use</span> <span class="ident">properties</span>::{<span class="ident">PropertyDeclarationId</span>, <span class="ident">LonghandId</span>, <span class="ident">DeclaredValue</span>, <span class="ident">ParsedDeclaration</span>};
+<span class="kw">use</span> <span class="ident">properties</span>::<span class="ident">LonghandIdSet</span>;
+<span class="kw">use</span> <span class="ident">properties</span>::<span class="ident">animated_properties</span>::<span class="ident">TransitionProperty</span>;
+<span class="kw">use</span> <span class="ident">properties</span>::<span class="ident">longhands</span>::<span class="ident">transition_timing_function</span>::<span class="ident">single_value</span>::<span class="ident">SpecifiedValue</span> <span class="kw">as</span> <span class="ident">SpecifiedTimingFunction</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
+<span class="kw">use</span> <span class="ident">style_traits</span>::<span class="ident">ToCss</span>;
+<span class="kw">use</span> <span class="ident">stylesheets</span>::{<span class="ident">MemoryHoleReporter</span>, <span class="ident">Stylesheet</span>};
 
-<span class='doccomment'>/// A number from 0 to 1, indicating the percentage of the animation when this</span>
-<span class='doccomment'>/// keyframe should run.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>Copy</span>, <span class='ident'>Clone</span>, <span class='ident'>PartialEq</span>, <span class='ident'>PartialOrd</span>)]</span>
-<span class='attribute'>#[<span class='ident'>cfg_attr</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>, <span class='ident'>derive</span>(<span class='ident'>HeapSizeOf</span>))]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>KeyframePercentage</span>(<span class='kw'>pub</span> <span class='ident'>f32</span>);
+<span class="doccomment">/// A number from 0 to 1, indicating the percentage of the animation when this</span>
+<span class="doccomment">/// keyframe should run.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">PartialOrd</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>, <span class="ident">derive</span>(<span class="ident">HeapSizeOf</span>))]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">KeyframePercentage</span>(<span class="kw">pub</span> <span class="ident">f32</span>);
 
-<span class='kw'>impl</span> ::<span class='ident'>std</span>::<span class='ident'>cmp</span>::<span class='ident'>Ord</span> <span class='kw'>for</span> <span class='ident'>KeyframePercentage</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>cmp</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>other</span>: <span class='kw-2'>&amp;</span><span class='self'>Self</span>) <span class='op'>-&gt;</span> ::<span class='ident'>std</span>::<span class='ident'>cmp</span>::<span class='ident'>Ordering</span> {
-        <span class='comment'>// We know we have a number from 0 to 1, so unwrap() here is safe.</span>
-        <span class='self'>self</span>.<span class='number'>0</span>.<span class='ident'>partial_cmp</span>(<span class='kw-2'>&amp;</span><span class='ident'>other</span>.<span class='number'>0</span>).<span class='ident'>unwrap</span>()
+<span class="kw">impl</span> ::<span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">Ord</span> <span class="kw">for</span> <span class="ident">KeyframePercentage</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) <span class="op">-&gt;</span> ::<span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span> {
+        <span class="comment">// We know we have a number from 0 to 1, so unwrap() here is safe.</span>
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">partial_cmp</span>(<span class="kw-2">&amp;</span><span class="ident">other</span>.<span class="number">0</span>).<span class="ident">unwrap</span>()
     }
 }
 
-<span class='kw'>impl</span> ::<span class='ident'>std</span>::<span class='ident'>cmp</span>::<span class='ident'>Eq</span> <span class='kw'>for</span> <span class='ident'>KeyframePercentage</span> { }
+<span class="kw">impl</span> ::<span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">Eq</span> <span class="kw">for</span> <span class="ident">KeyframePercentage</span> { }
 
-<span class='kw'>impl</span> <span class='ident'>ToCss</span> <span class='kw'>for</span> <span class='ident'>KeyframePercentage</span> {
-    <span class='kw'>fn</span> <span class='ident'>to_css</span><span class='op'>&lt;</span><span class='ident'>W</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>dest</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>W</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> <span class='kw'>where</span> <span class='ident'>W</span>: <span class='ident'>fmt</span>::<span class='ident'>Write</span> {
-        <span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>dest</span>, <span class='string'>&quot;{}%&quot;</span>, <span class='self'>self</span>.<span class='number'>0</span> <span class='op'>*</span> <span class='number'>100.0</span>)
+<span class="kw">impl</span> <span class="ident">ToCss</span> <span class="kw">for</span> <span class="ident">KeyframePercentage</span> {
+    <span class="kw">fn</span> <span class="ident">to_css</span><span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">dest</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> <span class="kw">where</span> <span class="ident">W</span>: <span class="ident">fmt</span>::<span class="ident">Write</span> {
+        <span class="macro">write</span><span class="macro">!</span>(<span class="ident">dest</span>, <span class="string">&quot;{}%&quot;</span>, <span class="self">self</span>.<span class="number">0</span> <span class="op">*</span> <span class="number">100.0</span>)
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>KeyframePercentage</span> {
-    <span class='doccomment'>/// Trivially constructs a new `KeyframePercentage`.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>value</span>: <span class='ident'>f32</span>) <span class='op'>-&gt;</span> <span class='ident'>KeyframePercentage</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>value</span> <span class='op'>&gt;=</span> <span class='number'>0.</span> <span class='op'>&amp;&amp;</span> <span class='ident'>value</span> <span class='op'>&lt;=</span> <span class='number'>1.</span>);
-        <span class='ident'>KeyframePercentage</span>(<span class='ident'>value</span>)
+<span class="kw">impl</span> <span class="ident">KeyframePercentage</span> {
+    <span class="doccomment">/// Trivially constructs a new `KeyframePercentage`.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">value</span>: <span class="ident">f32</span>) <span class="op">-&gt;</span> <span class="ident">KeyframePercentage</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">value</span> <span class="op">&gt;=</span> <span class="number">0.</span> <span class="op">&amp;&amp;</span> <span class="ident">value</span> <span class="op">&lt;=</span> <span class="number">1.</span>);
+        <span class="ident">KeyframePercentage</span>(<span class="ident">value</span>)
     }
 
-    <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>KeyframePercentage</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>percentage</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>input</span>.<span class='ident'>try</span>(<span class='op'>|</span><span class='ident'>input</span><span class='op'>|</span> <span class='ident'>input</span>.<span class='ident'>expect_ident_matching</span>(<span class='string'>&quot;from&quot;</span>)).<span class='ident'>is_ok</span>() {
-            <span class='ident'>KeyframePercentage</span>::<span class='ident'>new</span>(<span class='number'>0.</span>)
-        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>input</span>.<span class='ident'>try</span>(<span class='op'>|</span><span class='ident'>input</span><span class='op'>|</span> <span class='ident'>input</span>.<span class='ident'>expect_ident_matching</span>(<span class='string'>&quot;to&quot;</span>)).<span class='ident'>is_ok</span>() {
-            <span class='ident'>KeyframePercentage</span>::<span class='ident'>new</span>(<span class='number'>1.</span>)
-        } <span class='kw'>else</span> {
-            <span class='kw'>let</span> <span class='ident'>percentage</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>input</span>.<span class='ident'>expect_percentage</span>());
-            <span class='kw'>if</span> <span class='ident'>percentage</span> <span class='op'>&gt;=</span> <span class='number'>0.</span> <span class='op'>&amp;&amp;</span> <span class='ident'>percentage</span> <span class='op'>&lt;=</span> <span class='number'>1.</span> {
-                <span class='ident'>KeyframePercentage</span>::<span class='ident'>new</span>(<span class='ident'>percentage</span>)
-            } <span class='kw'>else</span> {
-                <span class='kw'>return</span> <span class='prelude-val'>Err</span>(());
+    <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">KeyframePercentage</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">percentage</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">try</span>(<span class="op">|</span><span class="ident">input</span><span class="op">|</span> <span class="ident">input</span>.<span class="ident">expect_ident_matching</span>(<span class="string">&quot;from&quot;</span>)).<span class="ident">is_ok</span>() {
+            <span class="ident">KeyframePercentage</span>::<span class="ident">new</span>(<span class="number">0.</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">try</span>(<span class="op">|</span><span class="ident">input</span><span class="op">|</span> <span class="ident">input</span>.<span class="ident">expect_ident_matching</span>(<span class="string">&quot;to&quot;</span>)).<span class="ident">is_ok</span>() {
+            <span class="ident">KeyframePercentage</span>::<span class="ident">new</span>(<span class="number">1.</span>)
+        } <span class="kw">else</span> {
+            <span class="kw">let</span> <span class="ident">percentage</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">input</span>.<span class="ident">expect_percentage</span>());
+            <span class="kw">if</span> <span class="ident">percentage</span> <span class="op">&gt;=</span> <span class="number">0.</span> <span class="op">&amp;&amp;</span> <span class="ident">percentage</span> <span class="op">&lt;=</span> <span class="number">1.</span> {
+                <span class="ident">KeyframePercentage</span>::<span class="ident">new</span>(<span class="ident">percentage</span>)
+            } <span class="kw">else</span> {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(());
             }
         };
 
-        <span class='prelude-val'>Ok</span>(<span class='ident'>percentage</span>)
+        <span class="prelude-val">Ok</span>(<span class="ident">percentage</span>)
     }
 }
 
-<span class='doccomment'>/// A keyframes selector is a list of percentages or from/to symbols, which are</span>
-<span class='doccomment'>/// converted at parse time to percentages.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>, <span class='ident'>PartialEq</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>KeyframeSelector</span>(<span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>KeyframePercentage</span><span class='op'>&gt;</span>);
-<span class='kw'>impl</span> <span class='ident'>KeyframeSelector</span> {
-    <span class='doccomment'>/// Return the list of percentages this selector contains.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>percentages</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span>[<span class='ident'>KeyframePercentage</span>] {
-        <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='number'>0</span>
+<span class="doccomment">/// A keyframes selector is a list of percentages or from/to symbols, which are</span>
+<span class="doccomment">/// converted at parse time to percentages.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">PartialEq</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">KeyframeSelector</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">KeyframePercentage</span><span class="op">&gt;</span>);
+<span class="kw">impl</span> <span class="ident">KeyframeSelector</span> {
+    <span class="doccomment">/// Return the list of percentages this selector contains.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">percentages</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">KeyframePercentage</span>] {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
     }
 
-    <span class='doccomment'>/// A dummy public function so we can write a unit test for this.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new_for_unit_testing</span>(<span class='ident'>percentages</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>KeyframePercentage</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>KeyframeSelector</span> {
-        <span class='ident'>KeyframeSelector</span>(<span class='ident'>percentages</span>)
+    <span class="doccomment">/// A dummy public function so we can write a unit test for this.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_for_unit_testing</span>(<span class="ident">percentages</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">KeyframePercentage</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">KeyframeSelector</span> {
+        <span class="ident">KeyframeSelector</span>(<span class="ident">percentages</span>)
     }
 
-    <span class='doccomment'>/// Parse a keyframe selector from CSS input.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='self'>Self</span>, ()<span class='op'>&gt;</span> {
-        <span class='ident'>input</span>.<span class='ident'>parse_comma_separated</span>(<span class='ident'>KeyframePercentage</span>::<span class='ident'>parse</span>)
-             .<span class='ident'>map</span>(<span class='ident'>KeyframeSelector</span>)
+    <span class="doccomment">/// Parse a keyframe selector from CSS input.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, ()<span class="op">&gt;</span> {
+        <span class="ident">input</span>.<span class="ident">parse_comma_separated</span>(<span class="ident">KeyframePercentage</span>::<span class="ident">parse</span>)
+             .<span class="ident">map</span>(<span class="ident">KeyframeSelector</span>)
     }
 }
 
-<span class='doccomment'>/// A keyframe.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Keyframe</span> {
-    <span class='doccomment'>/// The selector this keyframe was specified from.</span>
-    <span class='kw'>pub</span> <span class='ident'>selector</span>: <span class='ident'>KeyframeSelector</span>,
+<span class="doccomment">/// A keyframe.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Keyframe</span> {
+    <span class="doccomment">/// The selector this keyframe was specified from.</span>
+    <span class="kw">pub</span> <span class="ident">selector</span>: <span class="ident">KeyframeSelector</span>,
 
-    <span class='doccomment'>/// The declaration block that was declared inside this keyframe.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Note that `!important` rules in keyframes don&#39;t apply, but we keep this</span>
-    <span class='doccomment'>/// `Arc` just for convenience.</span>
-    <span class='kw'>pub</span> <span class='ident'>block</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>RwLock</span><span class='op'>&lt;</span><span class='ident'>PropertyDeclarationBlock</span><span class='op'>&gt;&gt;</span>,
+    <span class="doccomment">/// The declaration block that was declared inside this keyframe.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Note that `!important` rules in keyframes don&#39;t apply, but we keep this</span>
+    <span class="doccomment">/// `Arc` just for convenience.</span>
+    <span class="kw">pub</span> <span class="ident">block</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">PropertyDeclarationBlock</span><span class="op">&gt;&gt;</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>ToCss</span> <span class='kw'>for</span> <span class='ident'>Keyframe</span> {
-    <span class='kw'>fn</span> <span class='ident'>to_css</span><span class='op'>&lt;</span><span class='ident'>W</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>dest</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>W</span>) <span class='op'>-&gt;</span> <span class='ident'>fmt</span>::<span class='prelude-ty'>Result</span> <span class='kw'>where</span> <span class='ident'>W</span>: <span class='ident'>fmt</span>::<span class='ident'>Write</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>iter</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>selector</span>.<span class='ident'>percentages</span>().<span class='ident'>iter</span>();
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>iter</span>.<span class='ident'>next</span>().<span class='ident'>unwrap</span>().<span class='ident'>to_css</span>(<span class='ident'>dest</span>));
-        <span class='kw'>for</span> <span class='ident'>percentage</span> <span class='kw'>in</span> <span class='ident'>iter</span> {
-            <span class='macro'>try</span><span class='macro'>!</span>(<span class='macro'>write</span><span class='macro'>!</span>(<span class='ident'>dest</span>, <span class='string'>&quot;, &quot;</span>));
-            <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>percentage</span>.<span class='ident'>to_css</span>(<span class='ident'>dest</span>));
+<span class="kw">impl</span> <span class="ident">ToCss</span> <span class="kw">for</span> <span class="ident">Keyframe</span> {
+    <span class="kw">fn</span> <span class="ident">to_css</span><span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">dest</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> <span class="kw">where</span> <span class="ident">W</span>: <span class="ident">fmt</span>::<span class="ident">Write</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">selector</span>.<span class="ident">percentages</span>().<span class="ident">iter</span>();
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">iter</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>().<span class="ident">to_css</span>(<span class="ident">dest</span>));
+        <span class="kw">for</span> <span class="ident">percentage</span> <span class="kw">in</span> <span class="ident">iter</span> {
+            <span class="macro">try</span><span class="macro">!</span>(<span class="macro">write</span><span class="macro">!</span>(<span class="ident">dest</span>, <span class="string">&quot;, &quot;</span>));
+            <span class="macro">try</span><span class="macro">!</span>(<span class="ident">percentage</span>.<span class="ident">to_css</span>(<span class="ident">dest</span>));
         }
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>dest</span>.<span class='ident'>write_str</span>(<span class='string'>&quot; { &quot;</span>));
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='self'>self</span>.<span class='ident'>block</span>.<span class='ident'>read</span>().<span class='ident'>to_css</span>(<span class='ident'>dest</span>));
-        <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>dest</span>.<span class='ident'>write_str</span>(<span class='string'>&quot; }&quot;</span>));
-        <span class='prelude-val'>Ok</span>(())
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">dest</span>.<span class="ident">write_str</span>(<span class="string">&quot; { &quot;</span>));
+        <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">block</span>.<span class="ident">read</span>().<span class="ident">to_css</span>(<span class="ident">dest</span>));
+        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">dest</span>.<span class="ident">write_str</span>(<span class="string">&quot; }&quot;</span>));
+        <span class="prelude-val">Ok</span>(())
     }
 }
 
 
-<span class='kw'>impl</span> <span class='ident'>Keyframe</span> {
-    <span class='doccomment'>/// Parse a CSS keyframe.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse</span>(<span class='ident'>css</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>,
-                 <span class='ident'>parent_stylesheet</span>: <span class='kw-2'>&amp;</span><span class='ident'>Stylesheet</span>,
-                 <span class='ident'>extra_data</span>: <span class='ident'>ParserContextExtraData</span>)
-                 <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>RwLock</span><span class='op'>&lt;</span><span class='self'>Self</span><span class='op'>&gt;&gt;</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>error_reporter</span> <span class='op'>=</span> <span class='ident'>Box</span>::<span class='ident'>new</span>(<span class='ident'>MemoryHoleReporter</span>);
-        <span class='kw'>let</span> <span class='ident'>context</span> <span class='op'>=</span> <span class='ident'>ParserContext</span>::<span class='ident'>new_with_extra_data</span>(<span class='ident'>parent_stylesheet</span>.<span class='ident'>origin</span>,
-                                                         <span class='kw-2'>&amp;</span><span class='ident'>parent_stylesheet</span>.<span class='ident'>base_url</span>,
-                                                         <span class='ident'>error_reporter</span>,
-                                                         <span class='ident'>extra_data</span>);
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>input</span> <span class='op'>=</span> <span class='ident'>Parser</span>::<span class='ident'>new</span>(<span class='ident'>css</span>);
+<span class="kw">impl</span> <span class="ident">Keyframe</span> {
+    <span class="doccomment">/// Parse a CSS keyframe.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">css</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
+                 <span class="ident">parent_stylesheet</span>: <span class="kw-2">&amp;</span><span class="ident">Stylesheet</span>,
+                 <span class="ident">extra_data</span>: <span class="ident">ParserContextExtraData</span>)
+                 <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;&gt;</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">error_reporter</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">MemoryHoleReporter</span>);
+        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">ParserContext</span>::<span class="ident">new_with_extra_data</span>(<span class="ident">parent_stylesheet</span>.<span class="ident">origin</span>,
+                                                         <span class="kw-2">&amp;</span><span class="ident">parent_stylesheet</span>.<span class="ident">base_url</span>,
+                                                         <span class="ident">error_reporter</span>,
+                                                         <span class="ident">extra_data</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">input</span> <span class="op">=</span> <span class="ident">Parser</span>::<span class="ident">new</span>(<span class="ident">css</span>);
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>rule_parser</span> <span class='op'>=</span> <span class='ident'>KeyframeListParser</span> {
-            <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='ident'>context</span>,
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rule_parser</span> <span class="op">=</span> <span class="ident">KeyframeListParser</span> {
+            <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="ident">context</span>,
         };
-        <span class='ident'>parse_one_rule</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>input</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>rule_parser</span>)
+        <span class="ident">parse_one_rule</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">input</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rule_parser</span>)
     }
 }
 
-<span class='doccomment'>/// A keyframes step value. This can be a synthetised keyframes animation, that</span>
-<span class='doccomment'>/// is, one autogenerated from the current computed values, or a list of</span>
-<span class='doccomment'>/// declarations to apply.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// TODO: Find a better name for this?</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
-<span class='attribute'>#[<span class='ident'>cfg_attr</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>, <span class='ident'>derive</span>(<span class='ident'>HeapSizeOf</span>))]</span>
-<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>KeyframesStepValue</span> {
-    <span class='doccomment'>/// A step formed by a declaration block specified by the CSS.</span>
-    <span class='ident'>Declarations</span> {
-        <span class='doccomment'>/// The declaration block per se.</span>
-        <span class='attribute'>#[<span class='ident'>cfg_attr</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>, <span class='ident'>ignore_heap_size_of</span> <span class='op'>=</span> <span class='string'>&quot;Arc&quot;</span>)]</span>
-        <span class='ident'>block</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>RwLock</span><span class='op'>&lt;</span><span class='ident'>PropertyDeclarationBlock</span><span class='op'>&gt;&gt;</span>
+<span class="doccomment">/// A keyframes step value. This can be a synthetised keyframes animation, that</span>
+<span class="doccomment">/// is, one autogenerated from the current computed values, or a list of</span>
+<span class="doccomment">/// declarations to apply.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// TODO: Find a better name for this?</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>, <span class="ident">derive</span>(<span class="ident">HeapSizeOf</span>))]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">KeyframesStepValue</span> {
+    <span class="doccomment">/// A step formed by a declaration block specified by the CSS.</span>
+    <span class="ident">Declarations</span> {
+        <span class="doccomment">/// The declaration block per se.</span>
+        <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>, <span class="ident">ignore_heap_size_of</span> <span class="op">=</span> <span class="string">&quot;Arc&quot;</span>)]</span>
+        <span class="ident">block</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">PropertyDeclarationBlock</span><span class="op">&gt;&gt;</span>
     },
-    <span class='doccomment'>/// A synthetic step computed from the current computed values at the time</span>
-    <span class='doccomment'>/// of the animation.</span>
-    <span class='ident'>ComputedValues</span>,
+    <span class="doccomment">/// A synthetic step computed from the current computed values at the time</span>
+    <span class="doccomment">/// of the animation.</span>
+    <span class="ident">ComputedValues</span>,
 }
 
-<span class='doccomment'>/// A single step from a keyframe animation.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
-<span class='attribute'>#[<span class='ident'>cfg_attr</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>, <span class='ident'>derive</span>(<span class='ident'>HeapSizeOf</span>))]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>KeyframesStep</span> {
-    <span class='doccomment'>/// The percentage of the animation duration when this step starts.</span>
-    <span class='kw'>pub</span> <span class='ident'>start_percentage</span>: <span class='ident'>KeyframePercentage</span>,
-    <span class='doccomment'>/// Declarations that will determine the final style during the step, or</span>
-    <span class='doccomment'>/// `ComputedValues` if this is an autogenerated step.</span>
-    <span class='kw'>pub</span> <span class='ident'>value</span>: <span class='ident'>KeyframesStepValue</span>,
-    <span class='doccomment'>/// Wether a animation-timing-function declaration exists in the list of</span>
-    <span class='doccomment'>/// declarations.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// This is used to know when to override the keyframe animation style.</span>
-    <span class='kw'>pub</span> <span class='ident'>declared_timing_function</span>: <span class='ident'>bool</span>,
+<span class="doccomment">/// A single step from a keyframe animation.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>, <span class="ident">derive</span>(<span class="ident">HeapSizeOf</span>))]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">KeyframesStep</span> {
+    <span class="doccomment">/// The percentage of the animation duration when this step starts.</span>
+    <span class="kw">pub</span> <span class="ident">start_percentage</span>: <span class="ident">KeyframePercentage</span>,
+    <span class="doccomment">/// Declarations that will determine the final style during the step, or</span>
+    <span class="doccomment">/// `ComputedValues` if this is an autogenerated step.</span>
+    <span class="kw">pub</span> <span class="ident">value</span>: <span class="ident">KeyframesStepValue</span>,
+    <span class="doccomment">/// Wether a animation-timing-function declaration exists in the list of</span>
+    <span class="doccomment">/// declarations.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is used to know when to override the keyframe animation style.</span>
+    <span class="kw">pub</span> <span class="ident">declared_timing_function</span>: <span class="ident">bool</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>KeyframesStep</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>percentage</span>: <span class='ident'>KeyframePercentage</span>,
-           <span class='ident'>value</span>: <span class='ident'>KeyframesStepValue</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='kw'>let</span> <span class='ident'>declared_timing_function</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>value</span> {
-            <span class='ident'>KeyframesStepValue</span>::<span class='ident'>Declarations</span> { <span class='kw-2'>ref</span> <span class='ident'>block</span> } <span class='op'>=&gt;</span> {
-                <span class='ident'>block</span>.<span class='ident'>read</span>().<span class='ident'>declarations</span>().<span class='ident'>iter</span>().<span class='ident'>any</span>(<span class='op'>|</span><span class='kw-2'>&amp;</span>(<span class='kw-2'>ref</span> <span class='ident'>prop_decl</span>, _)<span class='op'>|</span> {
-                    <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>prop_decl</span> {
-                        <span class='ident'>PropertyDeclaration</span>::<span class='ident'>AnimationTimingFunction</span>(..) <span class='op'>=&gt;</span> <span class='bool-val'>true</span>,
-                        _ <span class='op'>=&gt;</span> <span class='bool-val'>false</span>,
+<span class="kw">impl</span> <span class="ident">KeyframesStep</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">percentage</span>: <span class="ident">KeyframePercentage</span>,
+           <span class="ident">value</span>: <span class="ident">KeyframesStepValue</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="kw">let</span> <span class="ident">declared_timing_function</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">value</span> {
+            <span class="ident">KeyframesStepValue</span>::<span class="ident">Declarations</span> { <span class="kw-2">ref</span> <span class="ident">block</span> } <span class="op">=&gt;</span> {
+                <span class="ident">block</span>.<span class="ident">read</span>().<span class="ident">declarations</span>().<span class="ident">iter</span>().<span class="ident">any</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="kw-2">ref</span> <span class="ident">prop_decl</span>, _)<span class="op">|</span> {
+                    <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">prop_decl</span> {
+                        <span class="ident">PropertyDeclaration</span>::<span class="ident">AnimationTimingFunction</span>(..) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+                        _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
                     }
                 })
             }
-            _ <span class='op'>=&gt;</span> <span class='bool-val'>false</span>,
+            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         };
 
-        <span class='ident'>KeyframesStep</span> {
-            <span class='ident'>start_percentage</span>: <span class='ident'>percentage</span>,
-            <span class='ident'>value</span>: <span class='ident'>value</span>,
-            <span class='ident'>declared_timing_function</span>: <span class='ident'>declared_timing_function</span>,
+        <span class="ident">KeyframesStep</span> {
+            <span class="ident">start_percentage</span>: <span class="ident">percentage</span>,
+            <span class="ident">value</span>: <span class="ident">value</span>,
+            <span class="ident">declared_timing_function</span>: <span class="ident">declared_timing_function</span>,
         }
     }
 
-    <span class='doccomment'>/// Return specified TransitionTimingFunction if this KeyframesSteps has &#39;animation-timing-function&#39;.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_animation_timing_function</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>SpecifiedTimingFunction</span><span class='op'>&gt;</span> {
-        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>declared_timing_function</span> {
-            <span class='kw'>return</span> <span class='prelude-val'>None</span>;
+    <span class="doccomment">/// Return specified TransitionTimingFunction if this KeyframesSteps has &#39;animation-timing-function&#39;.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_animation_timing_function</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SpecifiedTimingFunction</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">declared_timing_function</span> {
+            <span class="kw">return</span> <span class="prelude-val">None</span>;
         }
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>value</span> {
-            <span class='ident'>KeyframesStepValue</span>::<span class='ident'>Declarations</span> { <span class='kw-2'>ref</span> <span class='ident'>block</span> } <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>guard</span> <span class='op'>=</span> <span class='ident'>block</span>.<span class='ident'>read</span>();
-                <span class='kw'>let</span> <span class='kw-2'>&amp;</span>(<span class='kw-2'>ref</span> <span class='ident'>declaration</span>, _) <span class='op'>=</span>
-                    <span class='ident'>guard</span>.<span class='ident'>get</span>(<span class='ident'>PropertyDeclarationId</span>::<span class='ident'>Longhand</span>(<span class='ident'>LonghandId</span>::<span class='ident'>AnimationTimingFunction</span>)).<span class='ident'>unwrap</span>();
-                <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>declaration</span> {
-                    <span class='ident'>PropertyDeclaration</span>::<span class='ident'>AnimationTimingFunction</span>(<span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>=&gt;</span> {
-                        <span class='kw'>match</span> <span class='kw-2'>*</span><span class='ident'>value</span> {
-                            <span class='ident'>DeclaredValue</span>::<span class='ident'>Value</span>(<span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>=&gt;</span> {
-                                <span class='comment'>// Use the first value.</span>
-                                <span class='prelude-val'>Some</span>(<span class='ident'>value</span>.<span class='number'>0</span>[<span class='number'>0</span>])
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">value</span> {
+            <span class="ident">KeyframesStepValue</span>::<span class="ident">Declarations</span> { <span class="kw-2">ref</span> <span class="ident">block</span> } <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">block</span>.<span class="ident">read</span>();
+                <span class="kw">let</span> <span class="kw-2">&amp;</span>(<span class="kw-2">ref</span> <span class="ident">declaration</span>, _) <span class="op">=</span>
+                    <span class="ident">guard</span>.<span class="ident">get</span>(<span class="ident">PropertyDeclarationId</span>::<span class="ident">Longhand</span>(<span class="ident">LonghandId</span>::<span class="ident">AnimationTimingFunction</span>)).<span class="ident">unwrap</span>();
+                <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">declaration</span> {
+                    <span class="ident">PropertyDeclaration</span>::<span class="ident">AnimationTimingFunction</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=&gt;</span> {
+                        <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">value</span> {
+                            <span class="ident">DeclaredValue</span>::<span class="ident">Value</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=&gt;</span> {
+                                <span class="comment">// Use the first value.</span>
+                                <span class="prelude-val">Some</span>(<span class="ident">value</span>.<span class="number">0</span>[<span class="number">0</span>])
                             },
-                            _ <span class='op'>=&gt;</span> <span class='prelude-val'>None</span>,
+                            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
                         }
                     },
-                    _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(),
+                    _ <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(),
                 }
             },
-            <span class='ident'>KeyframesStepValue</span>::<span class='ident'>ComputedValues</span> <span class='op'>=&gt;</span> {
-                <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;Shouldn&#39;t happen to set animation-timing-function in missing keyframes&quot;</span>)
+            <span class="ident">KeyframesStepValue</span>::<span class="ident">ComputedValues</span> <span class="op">=&gt;</span> {
+                <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Shouldn&#39;t happen to set animation-timing-function in missing keyframes&quot;</span>)
             },
         }
     }
 }
 
-<span class='doccomment'>/// This structure represents a list of animation steps computed from the list</span>
-<span class='doccomment'>/// of keyframes, in order.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// It only takes into account animable properties.</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
-<span class='attribute'>#[<span class='ident'>cfg_attr</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;servo&quot;</span>, <span class='ident'>derive</span>(<span class='ident'>HeapSizeOf</span>))]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>KeyframesAnimation</span> {
-    <span class='doccomment'>/// The difference steps of the animation.</span>
-    <span class='kw'>pub</span> <span class='ident'>steps</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>KeyframesStep</span><span class='op'>&gt;</span>,
-    <span class='doccomment'>/// The properties that change in this animation.</span>
-    <span class='kw'>pub</span> <span class='ident'>properties_changed</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>TransitionProperty</span><span class='op'>&gt;</span>,
+<span class="doccomment">/// This structure represents a list of animation steps computed from the list</span>
+<span class="doccomment">/// of keyframes, in order.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// It only takes into account animable properties.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>, <span class="ident">derive</span>(<span class="ident">HeapSizeOf</span>))]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">KeyframesAnimation</span> {
+    <span class="doccomment">/// The difference steps of the animation.</span>
+    <span class="kw">pub</span> <span class="ident">steps</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">KeyframesStep</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The properties that change in this animation.</span>
+    <span class="kw">pub</span> <span class="ident">properties_changed</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TransitionProperty</span><span class="op">&gt;</span>,
 }
 
-<span class='doccomment'>/// Get all the animated properties in a keyframes animation.</span>
-<span class='kw'>fn</span> <span class='ident'>get_animated_properties</span>(<span class='ident'>keyframes</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>RwLock</span><span class='op'>&lt;</span><span class='ident'>Keyframe</span><span class='op'>&gt;&gt;</span>]) <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>TransitionProperty</span><span class='op'>&gt;</span> {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>ret</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[];
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>seen</span> <span class='op'>=</span> <span class='ident'>LonghandIdSet</span>::<span class='ident'>new</span>();
-    <span class='comment'>// NB: declarations are already deduplicated, so we don&#39;t have to check for</span>
-    <span class='comment'>// it here.</span>
-    <span class='kw'>for</span> <span class='ident'>keyframe</span> <span class='kw'>in</span> <span class='ident'>keyframes</span> {
-        <span class='kw'>let</span> <span class='ident'>keyframe</span> <span class='op'>=</span> <span class='ident'>keyframe</span>.<span class='ident'>read</span>();
-        <span class='kw'>for</span> <span class='kw-2'>&amp;</span>(<span class='kw-2'>ref</span> <span class='ident'>declaration</span>, <span class='ident'>importance</span>) <span class='kw'>in</span> <span class='ident'>keyframe</span>.<span class='ident'>block</span>.<span class='ident'>read</span>().<span class='ident'>declarations</span>().<span class='ident'>iter</span>() {
-            <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>importance</span>.<span class='ident'>important</span>());
+<span class="doccomment">/// Get all the animated properties in a keyframes animation.</span>
+<span class="kw">fn</span> <span class="ident">get_animated_properties</span>(<span class="ident">keyframes</span>: <span class="kw-2">&amp;</span>[<span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">Keyframe</span><span class="op">&gt;&gt;</span>]) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TransitionProperty</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ret</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">seen</span> <span class="op">=</span> <span class="ident">LonghandIdSet</span>::<span class="ident">new</span>();
+    <span class="comment">// NB: declarations are already deduplicated, so we don&#39;t have to check for</span>
+    <span class="comment">// it here.</span>
+    <span class="kw">for</span> <span class="ident">keyframe</span> <span class="kw">in</span> <span class="ident">keyframes</span> {
+        <span class="kw">let</span> <span class="ident">keyframe</span> <span class="op">=</span> <span class="ident">keyframe</span>.<span class="ident">read</span>();
+        <span class="kw">for</span> <span class="kw-2">&amp;</span>(<span class="kw-2">ref</span> <span class="ident">declaration</span>, <span class="ident">importance</span>) <span class="kw">in</span> <span class="ident">keyframe</span>.<span class="ident">block</span>.<span class="ident">read</span>().<span class="ident">declarations</span>().<span class="ident">iter</span>() {
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">importance</span>.<span class="ident">important</span>());
 
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>property</span>) <span class='op'>=</span> <span class='ident'>TransitionProperty</span>::<span class='ident'>from_declaration</span>(<span class='ident'>declaration</span>) {
-                <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>seen</span>.<span class='ident'>has_transition_property_bit</span>(<span class='kw-2'>&amp;</span><span class='ident'>property</span>) {
-                    <span class='ident'>ret</span>.<span class='ident'>push</span>(<span class='ident'>property</span>);
-                    <span class='ident'>seen</span>.<span class='ident'>set_transition_property_bit</span>(<span class='kw-2'>&amp;</span><span class='ident'>property</span>);
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">property</span>) <span class="op">=</span> <span class="ident">TransitionProperty</span>::<span class="ident">from_declaration</span>(<span class="ident">declaration</span>) {
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">seen</span>.<span class="ident">has_transition_property_bit</span>(<span class="kw-2">&amp;</span><span class="ident">property</span>) {
+                    <span class="ident">ret</span>.<span class="ident">push</span>(<span class="ident">property</span>);
+                    <span class="ident">seen</span>.<span class="ident">set_transition_property_bit</span>(<span class="kw-2">&amp;</span><span class="ident">property</span>);
                 }
             }
         }
     }
 
-    <span class='ident'>ret</span>
+    <span class="ident">ret</span>
 }
 
-<span class='kw'>impl</span> <span class='ident'>KeyframesAnimation</span> {
-    <span class='doccomment'>/// Create a keyframes animation from a given list of keyframes.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// This will return a keyframe animation with empty steps and</span>
-    <span class='doccomment'>/// properties_changed if the list of keyframes is empty, or there are no</span>
-    <span class='comment'>//  animated properties obtained from the keyframes.</span>
-    <span class='doccomment'>///</span>
-    <span class='doccomment'>/// Otherwise, this will compute and sort the steps used for the animation,</span>
-    <span class='doccomment'>/// and return the animation object.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>from_keyframes</span>(<span class='ident'>keyframes</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>RwLock</span><span class='op'>&lt;</span><span class='ident'>Keyframe</span><span class='op'>&gt;&gt;</span>]) <span class='op'>-&gt;</span> <span class='self'>Self</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>KeyframesAnimation</span> {
-            <span class='ident'>steps</span>: <span class='macro'>vec</span><span class='macro'>!</span>[],
-            <span class='ident'>properties_changed</span>: <span class='macro'>vec</span><span class='macro'>!</span>[],
+<span class="kw">impl</span> <span class="ident">KeyframesAnimation</span> {
+    <span class="doccomment">/// Create a keyframes animation from a given list of keyframes.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This will return a keyframe animation with empty steps and</span>
+    <span class="doccomment">/// properties_changed if the list of keyframes is empty, or there are no</span>
+    <span class="comment">//  animated properties obtained from the keyframes.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Otherwise, this will compute and sort the steps used for the animation,</span>
+    <span class="doccomment">/// and return the animation object.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_keyframes</span>(<span class="ident">keyframes</span>: <span class="kw-2">&amp;</span>[<span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">Keyframe</span><span class="op">&gt;&gt;</span>]) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">KeyframesAnimation</span> {
+            <span class="ident">steps</span>: <span class="macro">vec</span><span class="macro">!</span>[],
+            <span class="ident">properties_changed</span>: <span class="macro">vec</span><span class="macro">!</span>[],
         };
 
-        <span class='kw'>if</span> <span class='ident'>keyframes</span>.<span class='ident'>is_empty</span>() {
-            <span class='kw'>return</span> <span class='ident'>result</span>;
+        <span class="kw">if</span> <span class="ident">keyframes</span>.<span class="ident">is_empty</span>() {
+            <span class="kw">return</span> <span class="ident">result</span>;
         }
 
-        <span class='ident'>result</span>.<span class='ident'>properties_changed</span> <span class='op'>=</span> <span class='ident'>get_animated_properties</span>(<span class='ident'>keyframes</span>);
-        <span class='kw'>if</span> <span class='ident'>result</span>.<span class='ident'>properties_changed</span>.<span class='ident'>is_empty</span>() {
-            <span class='kw'>return</span> <span class='ident'>result</span>;
+        <span class="ident">result</span>.<span class="ident">properties_changed</span> <span class="op">=</span> <span class="ident">get_animated_properties</span>(<span class="ident">keyframes</span>);
+        <span class="kw">if</span> <span class="ident">result</span>.<span class="ident">properties_changed</span>.<span class="ident">is_empty</span>() {
+            <span class="kw">return</span> <span class="ident">result</span>;
         }
 
-        <span class='kw'>for</span> <span class='ident'>keyframe</span> <span class='kw'>in</span> <span class='ident'>keyframes</span> {
-            <span class='kw'>let</span> <span class='ident'>keyframe</span> <span class='op'>=</span> <span class='ident'>keyframe</span>.<span class='ident'>read</span>();
-            <span class='kw'>for</span> <span class='ident'>percentage</span> <span class='kw'>in</span> <span class='ident'>keyframe</span>.<span class='ident'>selector</span>.<span class='number'>0</span>.<span class='ident'>iter</span>() {
-                <span class='ident'>result</span>.<span class='ident'>steps</span>.<span class='ident'>push</span>(<span class='ident'>KeyframesStep</span>::<span class='ident'>new</span>(<span class='kw-2'>*</span><span class='ident'>percentage</span>, <span class='ident'>KeyframesStepValue</span>::<span class='ident'>Declarations</span> {
-                    <span class='ident'>block</span>: <span class='ident'>keyframe</span>.<span class='ident'>block</span>.<span class='ident'>clone</span>(),
+        <span class="kw">for</span> <span class="ident">keyframe</span> <span class="kw">in</span> <span class="ident">keyframes</span> {
+            <span class="kw">let</span> <span class="ident">keyframe</span> <span class="op">=</span> <span class="ident">keyframe</span>.<span class="ident">read</span>();
+            <span class="kw">for</span> <span class="ident">percentage</span> <span class="kw">in</span> <span class="ident">keyframe</span>.<span class="ident">selector</span>.<span class="number">0</span>.<span class="ident">iter</span>() {
+                <span class="ident">result</span>.<span class="ident">steps</span>.<span class="ident">push</span>(<span class="ident">KeyframesStep</span>::<span class="ident">new</span>(<span class="kw-2">*</span><span class="ident">percentage</span>, <span class="ident">KeyframesStepValue</span>::<span class="ident">Declarations</span> {
+                    <span class="ident">block</span>: <span class="ident">keyframe</span>.<span class="ident">block</span>.<span class="ident">clone</span>(),
                 }));
             }
         }
 
-        <span class='comment'>// Sort by the start percentage, so we can easily find a frame.</span>
-        <span class='ident'>result</span>.<span class='ident'>steps</span>.<span class='ident'>sort_by_key</span>(<span class='op'>|</span><span class='ident'>step</span><span class='op'>|</span> <span class='ident'>step</span>.<span class='ident'>start_percentage</span>);
+        <span class="comment">// Sort by the start percentage, so we can easily find a frame.</span>
+        <span class="ident">result</span>.<span class="ident">steps</span>.<span class="ident">sort_by_key</span>(<span class="op">|</span><span class="ident">step</span><span class="op">|</span> <span class="ident">step</span>.<span class="ident">start_percentage</span>);
 
-        <span class='comment'>// Prepend autogenerated keyframes if appropriate.</span>
-        <span class='kw'>if</span> <span class='ident'>result</span>.<span class='ident'>steps</span>[<span class='number'>0</span>].<span class='ident'>start_percentage</span>.<span class='number'>0</span> <span class='op'>!=</span> <span class='number'>0.</span> {
-            <span class='ident'>result</span>.<span class='ident'>steps</span>.<span class='ident'>insert</span>(<span class='number'>0</span>, <span class='ident'>KeyframesStep</span>::<span class='ident'>new</span>(<span class='ident'>KeyframePercentage</span>::<span class='ident'>new</span>(<span class='number'>0.</span>),
-                                                      <span class='ident'>KeyframesStepValue</span>::<span class='ident'>ComputedValues</span>));
+        <span class="comment">// Prepend autogenerated keyframes if appropriate.</span>
+        <span class="kw">if</span> <span class="ident">result</span>.<span class="ident">steps</span>[<span class="number">0</span>].<span class="ident">start_percentage</span>.<span class="number">0</span> <span class="op">!=</span> <span class="number">0.</span> {
+            <span class="ident">result</span>.<span class="ident">steps</span>.<span class="ident">insert</span>(<span class="number">0</span>, <span class="ident">KeyframesStep</span>::<span class="ident">new</span>(<span class="ident">KeyframePercentage</span>::<span class="ident">new</span>(<span class="number">0.</span>),
+                                                      <span class="ident">KeyframesStepValue</span>::<span class="ident">ComputedValues</span>));
         }
 
-        <span class='kw'>if</span> <span class='ident'>result</span>.<span class='ident'>steps</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>().<span class='ident'>start_percentage</span>.<span class='number'>0</span> <span class='op'>!=</span> <span class='number'>1.</span> {
-            <span class='ident'>result</span>.<span class='ident'>steps</span>.<span class='ident'>push</span>(<span class='ident'>KeyframesStep</span>::<span class='ident'>new</span>(<span class='ident'>KeyframePercentage</span>::<span class='ident'>new</span>(<span class='number'>1.</span>),
-                                                 <span class='ident'>KeyframesStepValue</span>::<span class='ident'>ComputedValues</span>));
+        <span class="kw">if</span> <span class="ident">result</span>.<span class="ident">steps</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>().<span class="ident">start_percentage</span>.<span class="number">0</span> <span class="op">!=</span> <span class="number">1.</span> {
+            <span class="ident">result</span>.<span class="ident">steps</span>.<span class="ident">push</span>(<span class="ident">KeyframesStep</span>::<span class="ident">new</span>(<span class="ident">KeyframePercentage</span>::<span class="ident">new</span>(<span class="number">1.</span>),
+                                                 <span class="ident">KeyframesStepValue</span>::<span class="ident">ComputedValues</span>));
         }
 
-        <span class='ident'>result</span>
+        <span class="ident">result</span>
     }
 }
 
-<span class='doccomment'>/// Parses a keyframes list, like:</span>
-<span class='doccomment'>/// 0%, 50% {</span>
-<span class='doccomment'>///     width: 50%;</span>
-<span class='doccomment'>/// }</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// 40%, 60%, 100% {</span>
-<span class='doccomment'>///     width: 100%;</span>
-<span class='doccomment'>/// }</span>
-<span class='kw'>struct</span> <span class='ident'>KeyframeListParser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>ParserContext</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>,
+<span class="doccomment">/// Parses a keyframes list, like:</span>
+<span class="doccomment">/// 0%, 50% {</span>
+<span class="doccomment">///     width: 50%;</span>
+<span class="doccomment">/// }</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// 40%, 60%, 100% {</span>
+<span class="doccomment">///     width: 100%;</span>
+<span class="doccomment">/// }</span>
+<span class="kw">struct</span> <span class="ident">KeyframeListParser</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">ParserContext</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
 }
 
-<span class='doccomment'>/// Parses a keyframe list from CSS input.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>parse_keyframe_list</span>(<span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='ident'>ParserContext</span>, <span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>) <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>RwLock</span><span class='op'>&lt;</span><span class='ident'>Keyframe</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span> {
-    <span class='ident'>RuleListParser</span>::<span class='ident'>new_for_nested_rule</span>(<span class='ident'>input</span>, <span class='ident'>KeyframeListParser</span> { <span class='ident'>context</span>: <span class='ident'>context</span> })
-        .<span class='ident'>filter_map</span>(<span class='prelude-ty'>Result</span>::<span class='ident'>ok</span>)
-        .<span class='ident'>collect</span>()
+<span class="doccomment">/// Parses a keyframe list from CSS input.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_keyframe_list</span>(<span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="ident">ParserContext</span>, <span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">Keyframe</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span> {
+    <span class="ident">RuleListParser</span>::<span class="ident">new_for_nested_rule</span>(<span class="ident">input</span>, <span class="ident">KeyframeListParser</span> { <span class="ident">context</span>: <span class="ident">context</span> })
+        .<span class="ident">filter_map</span>(<span class="prelude-ty">Result</span>::<span class="ident">ok</span>)
+        .<span class="ident">collect</span>()
 }
 
-<span class='kw'>enum</span> <span class='ident'>Void</span> {}
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>AtRuleParser</span> <span class='kw'>for</span> <span class='ident'>KeyframeListParser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Prelude</span> <span class='op'>=</span> <span class='ident'>Void</span>;
-    <span class='kw'>type</span> <span class='ident'>AtRule</span> <span class='op'>=</span> <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>RwLock</span><span class='op'>&lt;</span><span class='ident'>Keyframe</span><span class='op'>&gt;&gt;</span>;
+<span class="kw">enum</span> <span class="ident">Void</span> {}
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">AtRuleParser</span> <span class="kw">for</span> <span class="ident">KeyframeListParser</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Prelude</span> <span class="op">=</span> <span class="ident">Void</span>;
+    <span class="kw">type</span> <span class="ident">AtRule</span> <span class="op">=</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">Keyframe</span><span class="op">&gt;&gt;</span>;
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>QualifiedRuleParser</span> <span class='kw'>for</span> <span class='ident'>KeyframeListParser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Prelude</span> <span class='op'>=</span> <span class='ident'>KeyframeSelector</span>;
-    <span class='kw'>type</span> <span class='ident'>QualifiedRule</span> <span class='op'>=</span> <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>RwLock</span><span class='op'>&lt;</span><span class='ident'>Keyframe</span><span class='op'>&gt;&gt;</span>;
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">QualifiedRuleParser</span> <span class="kw">for</span> <span class="ident">KeyframeListParser</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Prelude</span> <span class="op">=</span> <span class="ident">KeyframeSelector</span>;
+    <span class="kw">type</span> <span class="ident">QualifiedRule</span> <span class="op">=</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">Keyframe</span><span class="op">&gt;&gt;</span>;
 
-    <span class='kw'>fn</span> <span class='ident'>parse_prelude</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='self'>Self</span>::<span class='ident'>Prelude</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>start</span> <span class='op'>=</span> <span class='ident'>input</span>.<span class='ident'>position</span>();
-        <span class='kw'>match</span> <span class='ident'>KeyframeSelector</span>::<span class='ident'>parse</span>(<span class='ident'>input</span>) {
-            <span class='prelude-val'>Ok</span>(<span class='ident'>sel</span>) <span class='op'>=&gt;</span> <span class='prelude-val'>Ok</span>(<span class='ident'>sel</span>),
-            <span class='prelude-val'>Err</span>(()) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>message</span> <span class='op'>=</span> <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;Invalid keyframe rule: &#39;{}&#39;&quot;</span>, <span class='ident'>input</span>.<span class='ident'>slice_from</span>(<span class='ident'>start</span>));
-                <span class='ident'>log_css_error</span>(<span class='ident'>input</span>, <span class='ident'>start</span>, <span class='kw-2'>&amp;</span><span class='ident'>message</span>, <span class='self'>self</span>.<span class='ident'>context</span>);
-                <span class='prelude-val'>Err</span>(())
+    <span class="kw">fn</span> <span class="ident">parse_prelude</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Prelude</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">position</span>();
+        <span class="kw">match</span> <span class="ident">KeyframeSelector</span>::<span class="ident">parse</span>(<span class="ident">input</span>) {
+            <span class="prelude-val">Ok</span>(<span class="ident">sel</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">sel</span>),
+            <span class="prelude-val">Err</span>(()) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Invalid keyframe rule: &#39;{}&#39;&quot;</span>, <span class="ident">input</span>.<span class="ident">slice_from</span>(<span class="ident">start</span>));
+                <span class="ident">log_css_error</span>(<span class="ident">input</span>, <span class="ident">start</span>, <span class="kw-2">&amp;</span><span class="ident">message</span>, <span class="self">self</span>.<span class="ident">context</span>);
+                <span class="prelude-val">Err</span>(())
             }
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>parse_block</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>prelude</span>: <span class='self'>Self</span>::<span class='ident'>Prelude</span>, <span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>)
-                   <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='self'>Self</span>::<span class='ident'>QualifiedRule</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>parser</span> <span class='op'>=</span> <span class='ident'>KeyframeDeclarationParser</span> {
-            <span class='ident'>context</span>: <span class='self'>self</span>.<span class='ident'>context</span>,
+    <span class="kw">fn</span> <span class="ident">parse_block</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">prelude</span>: <span class="self">Self</span>::<span class="ident">Prelude</span>, <span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>)
+                   <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">QualifiedRule</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">parser</span> <span class="op">=</span> <span class="ident">KeyframeDeclarationParser</span> {
+            <span class="ident">context</span>: <span class="self">self</span>.<span class="ident">context</span>,
         };
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>iter</span> <span class='op'>=</span> <span class='ident'>DeclarationListParser</span>::<span class='ident'>new</span>(<span class='ident'>input</span>, <span class='ident'>parser</span>);
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>block</span> <span class='op'>=</span> <span class='ident'>PropertyDeclarationBlock</span>::<span class='ident'>new</span>();
-        <span class='kw'>while</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>declaration</span>) <span class='op'>=</span> <span class='ident'>iter</span>.<span class='ident'>next</span>() {
-            <span class='kw'>match</span> <span class='ident'>declaration</span> {
-                <span class='prelude-val'>Ok</span>(<span class='ident'>parsed</span>) <span class='op'>=&gt;</span> <span class='ident'>parsed</span>.<span class='ident'>expand</span>(<span class='op'>|</span><span class='ident'>d</span><span class='op'>|</span> <span class='ident'>block</span>.<span class='ident'>push</span>(<span class='ident'>d</span>, <span class='ident'>Importance</span>::<span class='ident'>Normal</span>)),
-                <span class='prelude-val'>Err</span>(<span class='ident'>range</span>) <span class='op'>=&gt;</span> {
-                    <span class='kw'>let</span> <span class='ident'>pos</span> <span class='op'>=</span> <span class='ident'>range</span>.<span class='ident'>start</span>;
-                    <span class='kw'>let</span> <span class='ident'>message</span> <span class='op'>=</span> <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;Unsupported keyframe property declaration: &#39;{}&#39;&quot;</span>,
-                                          <span class='ident'>iter</span>.<span class='ident'>input</span>.<span class='ident'>slice</span>(<span class='ident'>range</span>));
-                    <span class='ident'>log_css_error</span>(<span class='ident'>iter</span>.<span class='ident'>input</span>, <span class='ident'>pos</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>message</span>, <span class='self'>self</span>.<span class='ident'>context</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">DeclarationListParser</span>::<span class="ident">new</span>(<span class="ident">input</span>, <span class="ident">parser</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">block</span> <span class="op">=</span> <span class="ident">PropertyDeclarationBlock</span>::<span class="ident">new</span>();
+        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">declaration</span>) <span class="op">=</span> <span class="ident">iter</span>.<span class="ident">next</span>() {
+            <span class="kw">match</span> <span class="ident">declaration</span> {
+                <span class="prelude-val">Ok</span>(<span class="ident">parsed</span>) <span class="op">=&gt;</span> <span class="ident">parsed</span>.<span class="ident">expand</span>(<span class="op">|</span><span class="ident">d</span><span class="op">|</span> <span class="ident">block</span>.<span class="ident">push</span>(<span class="ident">d</span>, <span class="ident">Importance</span>::<span class="ident">Normal</span>)),
+                <span class="prelude-val">Err</span>(<span class="ident">range</span>) <span class="op">=&gt;</span> {
+                    <span class="kw">let</span> <span class="ident">pos</span> <span class="op">=</span> <span class="ident">range</span>.<span class="ident">start</span>;
+                    <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Unsupported keyframe property declaration: &#39;{}&#39;&quot;</span>,
+                                          <span class="ident">iter</span>.<span class="ident">input</span>.<span class="ident">slice</span>(<span class="ident">range</span>));
+                    <span class="ident">log_css_error</span>(<span class="ident">iter</span>.<span class="ident">input</span>, <span class="ident">pos</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">message</span>, <span class="self">self</span>.<span class="ident">context</span>);
                 }
             }
-            <span class='comment'>// `parse_important` is not called here, `!important` is not allowed in keyframe blocks.</span>
+            <span class="comment">// `parse_important` is not called here, `!important` is not allowed in keyframe blocks.</span>
         }
-        <span class='prelude-val'>Ok</span>(<span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>RwLock</span>::<span class='ident'>new</span>(<span class='ident'>Keyframe</span> {
-            <span class='ident'>selector</span>: <span class='ident'>prelude</span>,
-            <span class='ident'>block</span>: <span class='ident'>Arc</span>::<span class='ident'>new</span>(<span class='ident'>RwLock</span>::<span class='ident'>new</span>(<span class='ident'>block</span>)),
+        <span class="prelude-val">Ok</span>(<span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">RwLock</span>::<span class="ident">new</span>(<span class="ident">Keyframe</span> {
+            <span class="ident">selector</span>: <span class="ident">prelude</span>,
+            <span class="ident">block</span>: <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">RwLock</span>::<span class="ident">new</span>(<span class="ident">block</span>)),
         })))
     }
 }
 
-<span class='kw'>struct</span> <span class='ident'>KeyframeDeclarationParser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='lifetime'>&#39;b</span>: <span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='ident'>context</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>ParserContext</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span><span class='op'>&gt;</span>,
+<span class="kw">struct</span> <span class="ident">KeyframeDeclarationParser</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;b</span>: <span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">ParserContext</span><span class="op">&lt;</span><span class="lifetime">&#39;b</span><span class="op">&gt;</span>,
 }
 
-<span class='doccomment'>/// Default methods reject all at rules.</span>
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='lifetime'>&#39;b</span><span class='op'>&gt;</span> <span class='ident'>AtRuleParser</span> <span class='kw'>for</span> <span class='ident'>KeyframeDeclarationParser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='lifetime'>&#39;b</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Prelude</span> <span class='op'>=</span> ();
-    <span class='kw'>type</span> <span class='ident'>AtRule</span> <span class='op'>=</span> <span class='ident'>ParsedDeclaration</span>;
+<span class="doccomment">/// Default methods reject all at rules.</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;b</span><span class="op">&gt;</span> <span class="ident">AtRuleParser</span> <span class="kw">for</span> <span class="ident">KeyframeDeclarationParser</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;b</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Prelude</span> <span class="op">=</span> ();
+    <span class="kw">type</span> <span class="ident">AtRule</span> <span class="op">=</span> <span class="ident">ParsedDeclaration</span>;
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='lifetime'>&#39;b</span><span class='op'>&gt;</span> <span class='ident'>DeclarationParser</span> <span class='kw'>for</span> <span class='ident'>KeyframeDeclarationParser</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='lifetime'>&#39;b</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Declaration</span> <span class='op'>=</span> <span class='ident'>ParsedDeclaration</span>;
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;b</span><span class="op">&gt;</span> <span class="ident">DeclarationParser</span> <span class="kw">for</span> <span class="ident">KeyframeDeclarationParser</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;b</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Declaration</span> <span class="op">=</span> <span class="ident">ParsedDeclaration</span>;
 
-    <span class='kw'>fn</span> <span class='ident'>parse_value</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>name</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>input</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Parser</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>ParsedDeclaration</span>, ()<span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>id</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>PropertyId</span>::<span class='ident'>parse</span>(<span class='ident'>name</span>.<span class='ident'>into</span>()));
-        <span class='kw'>match</span> <span class='ident'>ParsedDeclaration</span>::<span class='ident'>parse</span>(<span class='ident'>id</span>, <span class='self'>self</span>.<span class='ident'>context</span>, <span class='ident'>input</span>, <span class='bool-val'>true</span>) {
-            <span class='prelude-val'>Ok</span>(<span class='ident'>parsed</span>) <span class='op'>=&gt;</span> {
-                <span class='comment'>// In case there is still unparsed text in the declaration, we should roll back.</span>
-                <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>input</span>.<span class='ident'>is_exhausted</span>() {
-                    <span class='prelude-val'>Err</span>(())
-                } <span class='kw'>else</span> {
-                    <span class='prelude-val'>Ok</span>(<span class='ident'>parsed</span>)
+    <span class="kw">fn</span> <span class="ident">parse_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ParsedDeclaration</span>, ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">PropertyId</span>::<span class="ident">parse</span>(<span class="ident">name</span>.<span class="ident">into</span>()));
+        <span class="kw">match</span> <span class="ident">ParsedDeclaration</span>::<span class="ident">parse</span>(<span class="ident">id</span>, <span class="self">self</span>.<span class="ident">context</span>, <span class="ident">input</span>, <span class="bool-val">true</span>) {
+            <span class="prelude-val">Ok</span>(<span class="ident">parsed</span>) <span class="op">=&gt;</span> {
+                <span class="comment">// In case there is still unparsed text in the declaration, we should roll back.</span>
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">input</span>.<span class="ident">is_exhausted</span>() {
+                    <span class="prelude-val">Err</span>(())
+                } <span class="kw">else</span> {
+                    <span class="prelude-val">Ok</span>(<span class="ident">parsed</span>)
                 }
             }
-            <span class='prelude-val'>Err</span>(_) <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(())
+            <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(())
         }
     }
 }

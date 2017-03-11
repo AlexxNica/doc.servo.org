@@ -355,316 +355,316 @@
 <span id="310">310</span>
 <span id="311">311</span>
 <span id="312">312</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! Simple counting bloom filters.</span>
+<span class="doccomment">//! Simple counting bloom filters.</span>
 
-<span class='kw'>use</span> <span class='ident'>fnv</span>::<span class='ident'>FnvHasher</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>hash</span>::{<span class='ident'>Hash</span>, <span class='ident'>Hasher</span>};
+<span class="kw">use</span> <span class="ident">fnv</span>::<span class="ident">FnvHasher</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">hash</span>::{<span class="ident">Hash</span>, <span class="ident">Hasher</span>};
 
-<span class='kw'>const</span> <span class='ident'>KEY_SIZE</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='number'>12</span>;
-<span class='kw'>const</span> <span class='ident'>ARRAY_SIZE</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='ident'>KEY_SIZE</span>;
-<span class='kw'>const</span> <span class='ident'>KEY_MASK</span>: <span class='ident'>u32</span> <span class='op'>=</span> (<span class='number'>1</span> <span class='op'>&lt;&lt;</span> <span class='ident'>KEY_SIZE</span>) <span class='op'>-</span> <span class='number'>1</span>;
-<span class='kw'>const</span> <span class='ident'>KEY_SHIFT</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='number'>16</span>;
+<span class="kw">const</span> <span class="ident">KEY_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">12</span>;
+<span class="kw">const</span> <span class="ident">ARRAY_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="ident">KEY_SIZE</span>;
+<span class="kw">const</span> <span class="ident">KEY_MASK</span>: <span class="ident">u32</span> <span class="op">=</span> (<span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="ident">KEY_SIZE</span>) <span class="op">-</span> <span class="number">1</span>;
+<span class="kw">const</span> <span class="ident">KEY_SHIFT</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">16</span>;
 
-<span class='doccomment'>/// A counting Bloom filter with 8-bit counters.  For now we assume</span>
-<span class='doccomment'>/// that having two hash functions is enough, but we may revisit that</span>
-<span class='doccomment'>/// decision later.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// The filter uses an array with 2**KeySize entries.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Assuming a well-distributed hash function, a Bloom filter with</span>
-<span class='doccomment'>/// array size M containing N elements and</span>
-<span class='doccomment'>/// using k hash function has expected false positive rate exactly</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// $  (1 - (1 - 1/M)^{kN})^k  $</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// because each array slot has a</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// $  (1 - 1/M)^{kN}  $</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// chance of being 0, and the expected false positive rate is the</span>
-<span class='doccomment'>/// probability that all of the k hash functions will hit a nonzero</span>
-<span class='doccomment'>/// slot.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// For reasonable assumptions (M large, kN large, which should both</span>
-<span class='doccomment'>/// hold if we&#39;re worried about false positives) about M and kN this</span>
-<span class='doccomment'>/// becomes approximately</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// $$  (1 - \exp(-kN/M))^k   $$</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// For our special case of k == 2, that&#39;s $(1 - \exp(-2N/M))^2$,</span>
-<span class='doccomment'>/// or in other words</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// $$    N/M = -0.5 * \ln(1 - \sqrt(r))   $$</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// where r is the false positive rate.  This can be used to compute</span>
-<span class='doccomment'>/// the desired KeySize for a given load N and false positive rate r.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// If N/M is assumed small, then the false positive rate can</span>
-<span class='doccomment'>/// further be approximated as 4*N^2/M^2.  So increasing KeySize by</span>
-<span class='doccomment'>/// 1, which doubles M, reduces the false positive rate by about a</span>
-<span class='doccomment'>/// factor of 4, and a false positive rate of 1% corresponds to</span>
-<span class='doccomment'>/// about M/N == 20.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// What this means in practice is that for a few hundred keys using a</span>
-<span class='doccomment'>/// KeySize of 12 gives false positive rates on the order of 0.25-4%.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Similarly, using a KeySize of 10 would lead to a 4% false</span>
-<span class='doccomment'>/// positive rate for N == 100 and to quite bad false positive</span>
-<span class='doccomment'>/// rates for larger N.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>BloomFilter</span> {
-    <span class='ident'>counters</span>: [<span class='ident'>u8</span>; <span class='ident'>ARRAY_SIZE</span>],
+<span class="doccomment">/// A counting Bloom filter with 8-bit counters.  For now we assume</span>
+<span class="doccomment">/// that having two hash functions is enough, but we may revisit that</span>
+<span class="doccomment">/// decision later.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The filter uses an array with 2**KeySize entries.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Assuming a well-distributed hash function, a Bloom filter with</span>
+<span class="doccomment">/// array size M containing N elements and</span>
+<span class="doccomment">/// using k hash function has expected false positive rate exactly</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// $  (1 - (1 - 1/M)^{kN})^k  $</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// because each array slot has a</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// $  (1 - 1/M)^{kN}  $</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// chance of being 0, and the expected false positive rate is the</span>
+<span class="doccomment">/// probability that all of the k hash functions will hit a nonzero</span>
+<span class="doccomment">/// slot.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// For reasonable assumptions (M large, kN large, which should both</span>
+<span class="doccomment">/// hold if we&#39;re worried about false positives) about M and kN this</span>
+<span class="doccomment">/// becomes approximately</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// $$  (1 - \exp(-kN/M))^k   $$</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// For our special case of k == 2, that&#39;s $(1 - \exp(-2N/M))^2$,</span>
+<span class="doccomment">/// or in other words</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// $$    N/M = -0.5 * \ln(1 - \sqrt(r))   $$</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// where r is the false positive rate.  This can be used to compute</span>
+<span class="doccomment">/// the desired KeySize for a given load N and false positive rate r.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// If N/M is assumed small, then the false positive rate can</span>
+<span class="doccomment">/// further be approximated as 4*N^2/M^2.  So increasing KeySize by</span>
+<span class="doccomment">/// 1, which doubles M, reduces the false positive rate by about a</span>
+<span class="doccomment">/// factor of 4, and a false positive rate of 1% corresponds to</span>
+<span class="doccomment">/// about M/N == 20.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// What this means in practice is that for a few hundred keys using a</span>
+<span class="doccomment">/// KeySize of 12 gives false positive rates on the order of 0.25-4%.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Similarly, using a KeySize of 10 would lead to a 4% false</span>
+<span class="doccomment">/// positive rate for N == 100 and to quite bad false positive</span>
+<span class="doccomment">/// rates for larger N.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">BloomFilter</span> {
+    <span class="ident">counters</span>: [<span class="ident">u8</span>; <span class="ident">ARRAY_SIZE</span>],
 }
 
-<span class='kw'>impl</span> <span class='ident'>Clone</span> <span class='kw'>for</span> <span class='ident'>BloomFilter</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>BloomFilter</span> {
-        <span class='ident'>BloomFilter</span> {
-            <span class='ident'>counters</span>: <span class='self'>self</span>.<span class='ident'>counters</span>,
+<span class="kw">impl</span> <span class="ident">Clone</span> <span class="kw">for</span> <span class="ident">BloomFilter</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">BloomFilter</span> {
+        <span class="ident">BloomFilter</span> {
+            <span class="ident">counters</span>: <span class="self">self</span>.<span class="ident">counters</span>,
         }
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>BloomFilter</span> {
-    <span class='doccomment'>/// Creates a new bloom filter.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>BloomFilter</span> {
-        <span class='ident'>BloomFilter</span> {
-            <span class='ident'>counters</span>: [<span class='number'>0</span>; <span class='ident'>ARRAY_SIZE</span>],
+<span class="kw">impl</span> <span class="ident">BloomFilter</span> {
+    <span class="doccomment">/// Creates a new bloom filter.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">BloomFilter</span> {
+        <span class="ident">BloomFilter</span> {
+            <span class="ident">counters</span>: [<span class="number">0</span>; <span class="ident">ARRAY_SIZE</span>],
         }
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>first_slot</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>hash</span>: <span class='ident'>u32</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>u8</span> {
-        <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>counters</span>[<span class='ident'>hash1</span>(<span class='ident'>hash</span>) <span class='kw'>as</span> <span class='ident'>usize</span>]
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">first_slot</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">hash</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">u8</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">counters</span>[<span class="ident">hash1</span>(<span class="ident">hash</span>) <span class="kw">as</span> <span class="ident">usize</span>]
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>first_mut_slot</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>hash</span>: <span class='ident'>u32</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>u8</span> {
-        <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>counters</span>[<span class='ident'>hash1</span>(<span class='ident'>hash</span>) <span class='kw'>as</span> <span class='ident'>usize</span>]
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">first_mut_slot</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">hash</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">u8</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">counters</span>[<span class="ident">hash1</span>(<span class="ident">hash</span>) <span class="kw">as</span> <span class="ident">usize</span>]
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>second_slot</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>hash</span>: <span class='ident'>u32</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>u8</span> {
-        <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>counters</span>[<span class='ident'>hash2</span>(<span class='ident'>hash</span>) <span class='kw'>as</span> <span class='ident'>usize</span>]
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">second_slot</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">hash</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">u8</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">counters</span>[<span class="ident">hash2</span>(<span class="ident">hash</span>) <span class="kw">as</span> <span class="ident">usize</span>]
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>second_mut_slot</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>hash</span>: <span class='ident'>u32</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>u8</span> {
-        <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>counters</span>[<span class='ident'>hash2</span>(<span class='ident'>hash</span>) <span class='kw'>as</span> <span class='ident'>usize</span>]
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">second_mut_slot</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">hash</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">u8</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">counters</span>[<span class="ident">hash2</span>(<span class="ident">hash</span>) <span class="kw">as</span> <span class="ident">usize</span>]
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>clear</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='self'>self</span>.<span class='ident'>counters</span> <span class='op'>=</span> [<span class='number'>0</span>; <span class='ident'>ARRAY_SIZE</span>]
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">clear</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">counters</span> <span class="op">=</span> [<span class="number">0</span>; <span class="ident">ARRAY_SIZE</span>]
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>insert_hash</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>hash</span>: <span class='ident'>u32</span>) {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">insert_hash</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">hash</span>: <span class="ident">u32</span>) {
         {
-            <span class='kw'>let</span> <span class='ident'>slot1</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>first_mut_slot</span>(<span class='ident'>hash</span>);
-            <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>full</span>(<span class='ident'>slot1</span>) {
-                <span class='kw-2'>*</span><span class='ident'>slot1</span> <span class='op'>+=</span> <span class='number'>1</span>
-            }
-        }
-        {
-            <span class='kw'>let</span> <span class='ident'>slot2</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>second_mut_slot</span>(<span class='ident'>hash</span>);
-            <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>full</span>(<span class='ident'>slot2</span>) {
-                <span class='kw-2'>*</span><span class='ident'>slot2</span> <span class='op'>+=</span> <span class='number'>1</span>
-            }
-        }
-    }
-
-    <span class='doccomment'>/// Inserts an item into the bloom filter.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>insert</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Hash</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>elem</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>) {
-        <span class='self'>self</span>.<span class='ident'>insert_hash</span>(<span class='ident'>hash</span>(<span class='ident'>elem</span>))
-
-    }
-
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>remove_hash</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>hash</span>: <span class='ident'>u32</span>) {
-        {
-            <span class='kw'>let</span> <span class='ident'>slot1</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>first_mut_slot</span>(<span class='ident'>hash</span>);
-            <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>full</span>(<span class='ident'>slot1</span>) {
-                <span class='kw-2'>*</span><span class='ident'>slot1</span> <span class='op'>-=</span> <span class='number'>1</span>
+            <span class="kw">let</span> <span class="ident">slot1</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">first_mut_slot</span>(<span class="ident">hash</span>);
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">full</span>(<span class="ident">slot1</span>) {
+                <span class="kw-2">*</span><span class="ident">slot1</span> <span class="op">+=</span> <span class="number">1</span>
             }
         }
         {
-            <span class='kw'>let</span> <span class='ident'>slot2</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>second_mut_slot</span>(<span class='ident'>hash</span>);
-            <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>full</span>(<span class='ident'>slot2</span>) {
-                <span class='kw-2'>*</span><span class='ident'>slot2</span> <span class='op'>-=</span> <span class='number'>1</span>
+            <span class="kw">let</span> <span class="ident">slot2</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">second_mut_slot</span>(<span class="ident">hash</span>);
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">full</span>(<span class="ident">slot2</span>) {
+                <span class="kw-2">*</span><span class="ident">slot2</span> <span class="op">+=</span> <span class="number">1</span>
             }
         }
     }
 
-    <span class='doccomment'>/// Removes an item from the bloom filter.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>remove</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Hash</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>elem</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>) {
-        <span class='self'>self</span>.<span class='ident'>remove_hash</span>(<span class='ident'>hash</span>(<span class='ident'>elem</span>))
+    <span class="doccomment">/// Inserts an item into the bloom filter.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Hash</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">elem</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) {
+        <span class="self">self</span>.<span class="ident">insert_hash</span>(<span class="ident">hash</span>(<span class="ident">elem</span>))
+
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>might_contain_hash</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>hash</span>: <span class='ident'>u32</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>first_slot</span>(<span class='ident'>hash</span>) <span class='op'>!=</span> <span class='number'>0</span> <span class='op'>&amp;&amp;</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>second_slot</span>(<span class='ident'>hash</span>) <span class='op'>!=</span> <span class='number'>0</span>
-    }
-
-    <span class='doccomment'>/// Check whether the filter might contain an item.  This can</span>
-    <span class='doccomment'>/// sometimes return true even if the item is not in the filter,</span>
-    <span class='doccomment'>/// but will never return false for items that are actually in the</span>
-    <span class='doccomment'>/// filter.</span>
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>might_contain</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Hash</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>elem</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>might_contain_hash</span>(<span class='ident'>hash</span>(<span class='ident'>elem</span>))
-    }
-}
-
-<span class='attribute'>#[<span class='ident'>inline</span>]</span>
-<span class='kw'>fn</span> <span class='ident'>full</span>(<span class='ident'>slot</span>: <span class='kw-2'>&amp;</span><span class='ident'>u8</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-    <span class='kw-2'>*</span><span class='ident'>slot</span> <span class='op'>==</span> <span class='number'>0xff</span>
-}
-
-<span class='attribute'>#[<span class='ident'>inline</span>]</span>
-<span class='kw'>fn</span> <span class='ident'>hash</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Hash</span><span class='op'>&gt;</span>(<span class='ident'>elem</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='ident'>u32</span> {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>hasher</span> <span class='op'>=</span> <span class='ident'>FnvHasher</span>::<span class='ident'>default</span>();
-    <span class='ident'>elem</span>.<span class='ident'>hash</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>hasher</span>);
-    <span class='kw'>let</span> <span class='ident'>hash</span>: <span class='ident'>u64</span> <span class='op'>=</span> <span class='ident'>hasher</span>.<span class='ident'>finish</span>();
-    (<span class='ident'>hash</span> <span class='op'>&gt;&gt;</span> <span class='number'>32</span>) <span class='kw'>as</span> <span class='ident'>u32</span> <span class='op'>^</span> (<span class='ident'>hash</span> <span class='kw'>as</span> <span class='ident'>u32</span>)
-}
-
-<span class='attribute'>#[<span class='ident'>inline</span>]</span>
-<span class='kw'>fn</span> <span class='ident'>hash1</span>(<span class='ident'>hash</span>: <span class='ident'>u32</span>) <span class='op'>-&gt;</span> <span class='ident'>u32</span> {
-    <span class='ident'>hash</span> <span class='op'>&amp;</span> <span class='ident'>KEY_MASK</span>
-}
-
-<span class='attribute'>#[<span class='ident'>inline</span>]</span>
-<span class='kw'>fn</span> <span class='ident'>hash2</span>(<span class='ident'>hash</span>: <span class='ident'>u32</span>) <span class='op'>-&gt;</span> <span class='ident'>u32</span> {
-    (<span class='ident'>hash</span> <span class='op'>&gt;&gt;</span> <span class='ident'>KEY_SHIFT</span>) <span class='op'>&amp;</span> <span class='ident'>KEY_MASK</span>
-}
-
-<span class='attribute'>#[<span class='ident'>test</span>]</span>
-<span class='kw'>fn</span> <span class='ident'>create_and_insert_some_stuff</span>() {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>bf</span> <span class='op'>=</span> <span class='ident'>BloomFilter</span>::<span class='ident'>new</span>();
-
-    <span class='kw'>for</span> <span class='ident'>i</span> <span class='kw'>in</span> <span class='number'>0_usize</span> .. <span class='number'>1000</span> {
-        <span class='ident'>bf</span>.<span class='ident'>insert</span>(<span class='kw-2'>&amp;</span><span class='ident'>i</span>);
-    }
-
-    <span class='kw'>for</span> <span class='ident'>i</span> <span class='kw'>in</span> <span class='number'>0_usize</span> .. <span class='number'>1000</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>bf</span>.<span class='ident'>might_contain</span>(<span class='kw-2'>&amp;</span><span class='ident'>i</span>));
-    }
-
-    <span class='kw'>let</span> <span class='ident'>false_positives</span> <span class='op'>=</span>
-        (<span class='number'>1001_usize</span> .. <span class='number'>2000</span>).<span class='ident'>filter</span>(<span class='op'>|</span><span class='ident'>i</span><span class='op'>|</span> <span class='ident'>bf</span>.<span class='ident'>might_contain</span>(<span class='ident'>i</span>)).<span class='ident'>count</span>();
-
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>false_positives</span> <span class='op'>&lt;</span> <span class='number'>150</span>, <span class='string'>&quot;{} is not &lt; 150&quot;</span>, <span class='ident'>false_positives</span>); <span class='comment'>// 15%.</span>
-
-    <span class='kw'>for</span> <span class='ident'>i</span> <span class='kw'>in</span> <span class='number'>0_usize</span> .. <span class='number'>100</span> {
-        <span class='ident'>bf</span>.<span class='ident'>remove</span>(<span class='kw-2'>&amp;</span><span class='ident'>i</span>);
-    }
-
-    <span class='kw'>for</span> <span class='ident'>i</span> <span class='kw'>in</span> <span class='number'>100_usize</span> .. <span class='number'>1000</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>bf</span>.<span class='ident'>might_contain</span>(<span class='kw-2'>&amp;</span><span class='ident'>i</span>));
-    }
-
-    <span class='kw'>let</span> <span class='ident'>false_positives</span> <span class='op'>=</span> (<span class='number'>0_usize</span> .. <span class='number'>100</span>).<span class='ident'>filter</span>(<span class='op'>|</span><span class='ident'>i</span><span class='op'>|</span> <span class='ident'>bf</span>.<span class='ident'>might_contain</span>(<span class='ident'>i</span>)).<span class='ident'>count</span>();
-
-    <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>false_positives</span> <span class='op'>&lt;</span> <span class='number'>20</span>, <span class='string'>&quot;{} is not &lt; 20&quot;</span>, <span class='ident'>false_positives</span>); <span class='comment'>// 20%.</span>
-
-    <span class='ident'>bf</span>.<span class='ident'>clear</span>();
-
-    <span class='kw'>for</span> <span class='ident'>i</span> <span class='kw'>in</span> <span class='number'>0_usize</span> .. <span class='number'>2000</span> {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>bf</span>.<span class='ident'>might_contain</span>(<span class='kw-2'>&amp;</span><span class='ident'>i</span>));
-    }
-}
-
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>feature</span> <span class='op'>=</span> <span class='string'>&quot;unstable&quot;</span>)]</span>
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>test</span>)]</span>
-<span class='kw'>mod</span> <span class='ident'>bench</span> {
-    <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>test</span>;
-
-    <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>hash</span>::{<span class='ident'>Hash</span>, <span class='ident'>Hasher</span>, <span class='ident'>SipHasher</span>};
-    <span class='kw'>use</span> <span class='kw'>super</span>::<span class='ident'>BloomFilter</span>;
-
-    <span class='attribute'>#[<span class='ident'>bench</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>create_insert_1000_remove_100_lookup_100</span>(<span class='ident'>b</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>test</span>::<span class='ident'>Bencher</span>) {
-        <span class='ident'>b</span>.<span class='ident'>iter</span>(<span class='op'>||</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>bf</span> <span class='op'>=</span> <span class='ident'>BloomFilter</span>::<span class='ident'>new</span>();
-            <span class='kw'>for</span> <span class='ident'>i</span> <span class='kw'>in</span> <span class='number'>0_usize</span> .. <span class='number'>1000</span> {
-                <span class='ident'>bf</span>.<span class='ident'>insert</span>(<span class='kw-2'>&amp;</span><span class='ident'>i</span>);
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">remove_hash</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">hash</span>: <span class="ident">u32</span>) {
+        {
+            <span class="kw">let</span> <span class="ident">slot1</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">first_mut_slot</span>(<span class="ident">hash</span>);
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">full</span>(<span class="ident">slot1</span>) {
+                <span class="kw-2">*</span><span class="ident">slot1</span> <span class="op">-=</span> <span class="number">1</span>
             }
-            <span class='kw'>for</span> <span class='ident'>i</span> <span class='kw'>in</span> <span class='number'>0_usize</span> .. <span class='number'>100</span> {
-                <span class='ident'>bf</span>.<span class='ident'>remove</span>(<span class='kw-2'>&amp;</span><span class='ident'>i</span>);
+        }
+        {
+            <span class="kw">let</span> <span class="ident">slot2</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">second_mut_slot</span>(<span class="ident">hash</span>);
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">full</span>(<span class="ident">slot2</span>) {
+                <span class="kw-2">*</span><span class="ident">slot2</span> <span class="op">-=</span> <span class="number">1</span>
             }
-            <span class='kw'>for</span> <span class='ident'>i</span> <span class='kw'>in</span> <span class='number'>100_usize</span> .. <span class='number'>200</span> {
-                <span class='ident'>test</span>::<span class='ident'>black_box</span>(<span class='ident'>bf</span>.<span class='ident'>might_contain</span>(<span class='kw-2'>&amp;</span><span class='ident'>i</span>));
+        }
+    }
+
+    <span class="doccomment">/// Removes an item from the bloom filter.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">remove</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Hash</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">elem</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) {
+        <span class="self">self</span>.<span class="ident">remove_hash</span>(<span class="ident">hash</span>(<span class="ident">elem</span>))
+    }
+
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">might_contain_hash</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">hash</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">first_slot</span>(<span class="ident">hash</span>) <span class="op">!=</span> <span class="number">0</span> <span class="op">&amp;&amp;</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">second_slot</span>(<span class="ident">hash</span>) <span class="op">!=</span> <span class="number">0</span>
+    }
+
+    <span class="doccomment">/// Check whether the filter might contain an item.  This can</span>
+    <span class="doccomment">/// sometimes return true even if the item is not in the filter,</span>
+    <span class="doccomment">/// but will never return false for items that are actually in the</span>
+    <span class="doccomment">/// filter.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">might_contain</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Hash</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">elem</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">might_contain_hash</span>(<span class="ident">hash</span>(<span class="ident">elem</span>))
+    }
+}
+
+<span class="attribute">#[<span class="ident">inline</span>]</span>
+<span class="kw">fn</span> <span class="ident">full</span>(<span class="ident">slot</span>: <span class="kw-2">&amp;</span><span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw-2">*</span><span class="ident">slot</span> <span class="op">==</span> <span class="number">0xff</span>
+}
+
+<span class="attribute">#[<span class="ident">inline</span>]</span>
+<span class="kw">fn</span> <span class="ident">hash</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Hash</span><span class="op">&gt;</span>(<span class="ident">elem</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">hasher</span> <span class="op">=</span> <span class="ident">FnvHasher</span>::<span class="ident">default</span>();
+    <span class="ident">elem</span>.<span class="ident">hash</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">hasher</span>);
+    <span class="kw">let</span> <span class="ident">hash</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">hasher</span>.<span class="ident">finish</span>();
+    (<span class="ident">hash</span> <span class="op">&gt;&gt;</span> <span class="number">32</span>) <span class="kw">as</span> <span class="ident">u32</span> <span class="op">^</span> (<span class="ident">hash</span> <span class="kw">as</span> <span class="ident">u32</span>)
+}
+
+<span class="attribute">#[<span class="ident">inline</span>]</span>
+<span class="kw">fn</span> <span class="ident">hash1</span>(<span class="ident">hash</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
+    <span class="ident">hash</span> <span class="op">&amp;</span> <span class="ident">KEY_MASK</span>
+}
+
+<span class="attribute">#[<span class="ident">inline</span>]</span>
+<span class="kw">fn</span> <span class="ident">hash2</span>(<span class="ident">hash</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
+    (<span class="ident">hash</span> <span class="op">&gt;&gt;</span> <span class="ident">KEY_SHIFT</span>) <span class="op">&amp;</span> <span class="ident">KEY_MASK</span>
+}
+
+<span class="attribute">#[<span class="ident">test</span>]</span>
+<span class="kw">fn</span> <span class="ident">create_and_insert_some_stuff</span>() {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bf</span> <span class="op">=</span> <span class="ident">BloomFilter</span>::<span class="ident">new</span>();
+
+    <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0_usize</span> .. <span class="number">1000</span> {
+        <span class="ident">bf</span>.<span class="ident">insert</span>(<span class="kw-2">&amp;</span><span class="ident">i</span>);
+    }
+
+    <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0_usize</span> .. <span class="number">1000</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">bf</span>.<span class="ident">might_contain</span>(<span class="kw-2">&amp;</span><span class="ident">i</span>));
+    }
+
+    <span class="kw">let</span> <span class="ident">false_positives</span> <span class="op">=</span>
+        (<span class="number">1001_usize</span> .. <span class="number">2000</span>).<span class="ident">filter</span>(<span class="op">|</span><span class="ident">i</span><span class="op">|</span> <span class="ident">bf</span>.<span class="ident">might_contain</span>(<span class="ident">i</span>)).<span class="ident">count</span>();
+
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">false_positives</span> <span class="op">&lt;</span> <span class="number">150</span>, <span class="string">&quot;{} is not &lt; 150&quot;</span>, <span class="ident">false_positives</span>); <span class="comment">// 15%.</span>
+
+    <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0_usize</span> .. <span class="number">100</span> {
+        <span class="ident">bf</span>.<span class="ident">remove</span>(<span class="kw-2">&amp;</span><span class="ident">i</span>);
+    }
+
+    <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">100_usize</span> .. <span class="number">1000</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">bf</span>.<span class="ident">might_contain</span>(<span class="kw-2">&amp;</span><span class="ident">i</span>));
+    }
+
+    <span class="kw">let</span> <span class="ident">false_positives</span> <span class="op">=</span> (<span class="number">0_usize</span> .. <span class="number">100</span>).<span class="ident">filter</span>(<span class="op">|</span><span class="ident">i</span><span class="op">|</span> <span class="ident">bf</span>.<span class="ident">might_contain</span>(<span class="ident">i</span>)).<span class="ident">count</span>();
+
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">false_positives</span> <span class="op">&lt;</span> <span class="number">20</span>, <span class="string">&quot;{} is not &lt; 20&quot;</span>, <span class="ident">false_positives</span>); <span class="comment">// 20%.</span>
+
+    <span class="ident">bf</span>.<span class="ident">clear</span>();
+
+    <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0_usize</span> .. <span class="number">2000</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">bf</span>.<span class="ident">might_contain</span>(<span class="kw-2">&amp;</span><span class="ident">i</span>));
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">bench</span> {
+    <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">test</span>;
+
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">hash</span>::{<span class="ident">Hash</span>, <span class="ident">Hasher</span>, <span class="ident">SipHasher</span>};
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">BloomFilter</span>;
+
+    <span class="attribute">#[<span class="ident">bench</span>]</span>
+    <span class="kw">fn</span> <span class="ident">create_insert_1000_remove_100_lookup_100</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test</span>::<span class="ident">Bencher</span>) {
+        <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bf</span> <span class="op">=</span> <span class="ident">BloomFilter</span>::<span class="ident">new</span>();
+            <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0_usize</span> .. <span class="number">1000</span> {
+                <span class="ident">bf</span>.<span class="ident">insert</span>(<span class="kw-2">&amp;</span><span class="ident">i</span>);
+            }
+            <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0_usize</span> .. <span class="number">100</span> {
+                <span class="ident">bf</span>.<span class="ident">remove</span>(<span class="kw-2">&amp;</span><span class="ident">i</span>);
+            }
+            <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">100_usize</span> .. <span class="number">200</span> {
+                <span class="ident">test</span>::<span class="ident">black_box</span>(<span class="ident">bf</span>.<span class="ident">might_contain</span>(<span class="kw-2">&amp;</span><span class="ident">i</span>));
             }
         });
     }
 
-    <span class='attribute'>#[<span class='ident'>bench</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>might_contain</span>(<span class='ident'>b</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>test</span>::<span class='ident'>Bencher</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>bf</span> <span class='op'>=</span> <span class='ident'>BloomFilter</span>::<span class='ident'>new</span>();
+    <span class="attribute">#[<span class="ident">bench</span>]</span>
+    <span class="kw">fn</span> <span class="ident">might_contain</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test</span>::<span class="ident">Bencher</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bf</span> <span class="op">=</span> <span class="ident">BloomFilter</span>::<span class="ident">new</span>();
 
-        <span class='kw'>for</span> <span class='ident'>i</span> <span class='kw'>in</span> <span class='number'>0_usize</span> .. <span class='number'>1000</span> {
-            <span class='ident'>bf</span>.<span class='ident'>insert</span>(<span class='kw-2'>&amp;</span><span class='ident'>i</span>);
+        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0_usize</span> .. <span class="number">1000</span> {
+            <span class="ident">bf</span>.<span class="ident">insert</span>(<span class="kw-2">&amp;</span><span class="ident">i</span>);
         }
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>i</span> <span class='op'>=</span> <span class='number'>0_usize</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">i</span> <span class="op">=</span> <span class="number">0_usize</span>;
 
-        <span class='ident'>b</span>.<span class='ident'>bench_n</span>(<span class='number'>1000</span>, <span class='op'>|</span><span class='ident'>b</span><span class='op'>|</span> {
-            <span class='ident'>b</span>.<span class='ident'>iter</span>(<span class='op'>||</span> {
-                <span class='ident'>test</span>::<span class='ident'>black_box</span>(<span class='ident'>bf</span>.<span class='ident'>might_contain</span>(<span class='kw-2'>&amp;</span><span class='ident'>i</span>));
-                <span class='ident'>i</span> <span class='op'>+=</span> <span class='number'>1</span>;
+        <span class="ident">b</span>.<span class="ident">bench_n</span>(<span class="number">1000</span>, <span class="op">|</span><span class="ident">b</span><span class="op">|</span> {
+            <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
+                <span class="ident">test</span>::<span class="ident">black_box</span>(<span class="ident">bf</span>.<span class="ident">might_contain</span>(<span class="kw-2">&amp;</span><span class="ident">i</span>));
+                <span class="ident">i</span> <span class="op">+=</span> <span class="number">1</span>;
             });
         });
     }
 
-    <span class='attribute'>#[<span class='ident'>bench</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>insert</span>(<span class='ident'>b</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>test</span>::<span class='ident'>Bencher</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>bf</span> <span class='op'>=</span> <span class='ident'>BloomFilter</span>::<span class='ident'>new</span>();
+    <span class="attribute">#[<span class="ident">bench</span>]</span>
+    <span class="kw">fn</span> <span class="ident">insert</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test</span>::<span class="ident">Bencher</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bf</span> <span class="op">=</span> <span class="ident">BloomFilter</span>::<span class="ident">new</span>();
 
-        <span class='ident'>b</span>.<span class='ident'>bench_n</span>(<span class='number'>1000</span>, <span class='op'>|</span><span class='ident'>b</span><span class='op'>|</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>i</span> <span class='op'>=</span> <span class='number'>0_usize</span>;
+        <span class="ident">b</span>.<span class="ident">bench_n</span>(<span class="number">1000</span>, <span class="op">|</span><span class="ident">b</span><span class="op">|</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">i</span> <span class="op">=</span> <span class="number">0_usize</span>;
 
-            <span class='ident'>b</span>.<span class='ident'>iter</span>(<span class='op'>||</span> {
-                <span class='ident'>test</span>::<span class='ident'>black_box</span>(<span class='ident'>bf</span>.<span class='ident'>insert</span>(<span class='kw-2'>&amp;</span><span class='ident'>i</span>));
-                <span class='ident'>i</span> <span class='op'>+=</span> <span class='number'>1</span>;
+            <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
+                <span class="ident">test</span>::<span class="ident">black_box</span>(<span class="ident">bf</span>.<span class="ident">insert</span>(<span class="kw-2">&amp;</span><span class="ident">i</span>));
+                <span class="ident">i</span> <span class="op">+=</span> <span class="number">1</span>;
             });
         });
     }
 
-    <span class='attribute'>#[<span class='ident'>bench</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>remove</span>(<span class='ident'>b</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>test</span>::<span class='ident'>Bencher</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>bf</span> <span class='op'>=</span> <span class='ident'>BloomFilter</span>::<span class='ident'>new</span>();
-        <span class='kw'>for</span> <span class='ident'>i</span> <span class='kw'>in</span> <span class='number'>0_usize</span> .. <span class='number'>1000</span> {
-            <span class='ident'>bf</span>.<span class='ident'>insert</span>(<span class='kw-2'>&amp;</span><span class='ident'>i</span>);
+    <span class="attribute">#[<span class="ident">bench</span>]</span>
+    <span class="kw">fn</span> <span class="ident">remove</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test</span>::<span class="ident">Bencher</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bf</span> <span class="op">=</span> <span class="ident">BloomFilter</span>::<span class="ident">new</span>();
+        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0_usize</span> .. <span class="number">1000</span> {
+            <span class="ident">bf</span>.<span class="ident">insert</span>(<span class="kw-2">&amp;</span><span class="ident">i</span>);
         }
 
-        <span class='ident'>b</span>.<span class='ident'>bench_n</span>(<span class='number'>1000</span>, <span class='op'>|</span><span class='ident'>b</span><span class='op'>|</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>i</span> <span class='op'>=</span> <span class='number'>0_usize</span>;
+        <span class="ident">b</span>.<span class="ident">bench_n</span>(<span class="number">1000</span>, <span class="op">|</span><span class="ident">b</span><span class="op">|</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">i</span> <span class="op">=</span> <span class="number">0_usize</span>;
 
-            <span class='ident'>b</span>.<span class='ident'>iter</span>(<span class='op'>||</span> {
-                <span class='ident'>bf</span>.<span class='ident'>remove</span>(<span class='kw-2'>&amp;</span><span class='ident'>i</span>);
-                <span class='ident'>i</span> <span class='op'>+=</span> <span class='number'>1</span>;
+            <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
+                <span class="ident">bf</span>.<span class="ident">remove</span>(<span class="kw-2">&amp;</span><span class="ident">i</span>);
+                <span class="ident">i</span> <span class="op">+=</span> <span class="number">1</span>;
             });
         });
 
-        <span class='ident'>test</span>::<span class='ident'>black_box</span>(<span class='ident'>bf</span>.<span class='ident'>might_contain</span>(<span class='kw-2'>&amp;</span><span class='number'>0_usize</span>));
+        <span class="ident">test</span>::<span class="ident">black_box</span>(<span class="ident">bf</span>.<span class="ident">might_contain</span>(<span class="kw-2">&amp;</span><span class="number">0_usize</span>));
     }
 
-    <span class='attribute'>#[<span class='ident'>bench</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>hash_a_uint</span>(<span class='ident'>b</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>test</span>::<span class='ident'>Bencher</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>i</span> <span class='op'>=</span> <span class='number'>0_usize</span>;
-        <span class='ident'>b</span>.<span class='ident'>iter</span>(<span class='op'>||</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>hasher</span> <span class='op'>=</span> <span class='ident'>SipHasher</span>::<span class='ident'>default</span>();
-            <span class='ident'>i</span>.<span class='ident'>hash</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>hasher</span>);
-            <span class='ident'>test</span>::<span class='ident'>black_box</span>(<span class='ident'>hasher</span>.<span class='ident'>finish</span>());
-            <span class='ident'>i</span> <span class='op'>+=</span> <span class='number'>1</span>;
+    <span class="attribute">#[<span class="ident">bench</span>]</span>
+    <span class="kw">fn</span> <span class="ident">hash_a_uint</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test</span>::<span class="ident">Bencher</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">i</span> <span class="op">=</span> <span class="number">0_usize</span>;
+        <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">hasher</span> <span class="op">=</span> <span class="ident">SipHasher</span>::<span class="ident">default</span>();
+            <span class="ident">i</span>.<span class="ident">hash</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">hasher</span>);
+            <span class="ident">test</span>::<span class="ident">black_box</span>(<span class="ident">hasher</span>.<span class="ident">finish</span>());
+            <span class="ident">i</span> <span class="op">+=</span> <span class="number">1</span>;
         })
     }
 }

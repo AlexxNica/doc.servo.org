@@ -641,603 +641,603 @@
 <span id="596">596</span>
 <span id="597">597</span>
 <span id="598">598</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! The generated content assignment phase.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! This phase handles CSS counters, quotes, and ordered lists per CSS § 12.3-12.5. It cannot be</span>
-<span class='doccomment'>//! done in parallel and is therefore a sequential pass that runs on as little of the flow tree</span>
-<span class='doccomment'>//! as possible.</span>
+<span class="doccomment">//! The generated content assignment phase.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! This phase handles CSS counters, quotes, and ordered lists per CSS § 12.3-12.5. It cannot be</span>
+<span class="doccomment">//! done in parallel and is therefore a sequential pass that runs on as little of the flow tree</span>
+<span class="doccomment">//! as possible.</span>
 
-<span class='kw'>use</span> <span class='ident'>context</span>::{<span class='ident'>LayoutContext</span>, <span class='ident'>with_thread_local_font_context</span>};
-<span class='kw'>use</span> <span class='ident'>flow</span>::{<span class='self'>self</span>, <span class='ident'>AFFECTS_COUNTERS</span>, <span class='ident'>Flow</span>, <span class='ident'>HAS_COUNTER_AFFECTING_CHILDREN</span>, <span class='ident'>ImmutableFlowUtils</span>};
-<span class='kw'>use</span> <span class='ident'>flow</span>::<span class='ident'>InorderFlowTraversal</span>;
-<span class='kw'>use</span> <span class='ident'>fragment</span>::{<span class='ident'>Fragment</span>, <span class='ident'>GeneratedContentInfo</span>, <span class='ident'>SpecificFragmentInfo</span>, <span class='ident'>UnscannedTextFragmentInfo</span>};
-<span class='kw'>use</span> <span class='ident'>gfx</span>::<span class='ident'>display_list</span>::<span class='ident'>OpaqueNode</span>;
-<span class='kw'>use</span> <span class='ident'>script_layout_interface</span>::<span class='ident'>wrapper_traits</span>::<span class='ident'>PseudoElementType</span>;
-<span class='kw'>use</span> <span class='ident'>smallvec</span>::<span class='ident'>SmallVec</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::{<span class='ident'>HashMap</span>, <span class='ident'>LinkedList</span>};
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>sync</span>::<span class='ident'>Arc</span>;
-<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>computed_values</span>::{<span class='ident'>display</span>, <span class='ident'>list_style_type</span>};
-<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>computed_values</span>::<span class='ident'>content</span>::<span class='ident'>ContentItem</span>;
-<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>properties</span>::<span class='ident'>ServoComputedValues</span>;
-<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>selector_parser</span>::<span class='ident'>RestyleDamage</span>;
-<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>servo</span>::<span class='ident'>restyle_damage</span>::<span class='ident'>RESOLVE_GENERATED_CONTENT</span>;
-<span class='kw'>use</span> <span class='ident'>text</span>::<span class='ident'>TextRunScanner</span>;
+<span class="kw">use</span> <span class="ident">context</span>::{<span class="ident">LayoutContext</span>, <span class="ident">with_thread_local_font_context</span>};
+<span class="kw">use</span> <span class="ident">flow</span>::{<span class="self">self</span>, <span class="ident">AFFECTS_COUNTERS</span>, <span class="ident">Flow</span>, <span class="ident">HAS_COUNTER_AFFECTING_CHILDREN</span>, <span class="ident">ImmutableFlowUtils</span>};
+<span class="kw">use</span> <span class="ident">flow</span>::<span class="ident">InorderFlowTraversal</span>;
+<span class="kw">use</span> <span class="ident">fragment</span>::{<span class="ident">Fragment</span>, <span class="ident">GeneratedContentInfo</span>, <span class="ident">SpecificFragmentInfo</span>, <span class="ident">UnscannedTextFragmentInfo</span>};
+<span class="kw">use</span> <span class="ident">gfx</span>::<span class="ident">display_list</span>::<span class="ident">OpaqueNode</span>;
+<span class="kw">use</span> <span class="ident">script_layout_interface</span>::<span class="ident">wrapper_traits</span>::<span class="ident">PseudoElementType</span>;
+<span class="kw">use</span> <span class="ident">smallvec</span>::<span class="ident">SmallVec</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::{<span class="ident">HashMap</span>, <span class="ident">LinkedList</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
+<span class="kw">use</span> <span class="ident">style</span>::<span class="ident">computed_values</span>::{<span class="ident">display</span>, <span class="ident">list_style_type</span>};
+<span class="kw">use</span> <span class="ident">style</span>::<span class="ident">computed_values</span>::<span class="ident">content</span>::<span class="ident">ContentItem</span>;
+<span class="kw">use</span> <span class="ident">style</span>::<span class="ident">properties</span>::<span class="ident">ServoComputedValues</span>;
+<span class="kw">use</span> <span class="ident">style</span>::<span class="ident">selector_parser</span>::<span class="ident">RestyleDamage</span>;
+<span class="kw">use</span> <span class="ident">style</span>::<span class="ident">servo</span>::<span class="ident">restyle_damage</span>::<span class="ident">RESOLVE_GENERATED_CONTENT</span>;
+<span class="kw">use</span> <span class="ident">text</span>::<span class="ident">TextRunScanner</span>;
 
-<span class='comment'>// Decimal styles per CSS-COUNTER-STYLES § 6.1:</span>
-<span class='kw'>static</span> <span class='ident'>DECIMAL</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [ <span class='string'>&#39;0&#39;</span>, <span class='string'>&#39;1&#39;</span>, <span class='string'>&#39;2&#39;</span>, <span class='string'>&#39;3&#39;</span>, <span class='string'>&#39;4&#39;</span>, <span class='string'>&#39;5&#39;</span>, <span class='string'>&#39;6&#39;</span>, <span class='string'>&#39;7&#39;</span>, <span class='string'>&#39;8&#39;</span>, <span class='string'>&#39;9&#39;</span> ];
-<span class='comment'>// TODO(pcwalton): `decimal-leading-zero`</span>
-<span class='kw'>static</span> <span class='ident'>ARABIC_INDIC</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [ <span class='string'>&#39;٠&#39;</span>, <span class='string'>&#39;١&#39;</span>, <span class='string'>&#39;٢&#39;</span>, <span class='string'>&#39;٣&#39;</span>, <span class='string'>&#39;٤&#39;</span>, <span class='string'>&#39;٥&#39;</span>, <span class='string'>&#39;٦&#39;</span>, <span class='string'>&#39;٧&#39;</span>, <span class='string'>&#39;٨&#39;</span>, <span class='string'>&#39;٩&#39;</span> ];
-<span class='comment'>// TODO(pcwalton): `armenian`, `upper-armenian`, `lower-armenian`</span>
-<span class='kw'>static</span> <span class='ident'>BENGALI</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [ <span class='string'>&#39;০&#39;</span>, <span class='string'>&#39;১&#39;</span>, <span class='string'>&#39;২&#39;</span>, <span class='string'>&#39;৩&#39;</span>, <span class='string'>&#39;৪&#39;</span>, <span class='string'>&#39;৫&#39;</span>, <span class='string'>&#39;৬&#39;</span>, <span class='string'>&#39;৭&#39;</span>, <span class='string'>&#39;৮&#39;</span>, <span class='string'>&#39;৯&#39;</span> ];
-<span class='kw'>static</span> <span class='ident'>CAMBODIAN</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [ <span class='string'>&#39;០&#39;</span>, <span class='string'>&#39;១&#39;</span>, <span class='string'>&#39;២&#39;</span>, <span class='string'>&#39;៣&#39;</span>, <span class='string'>&#39;៤&#39;</span>, <span class='string'>&#39;៥&#39;</span>, <span class='string'>&#39;៦&#39;</span>, <span class='string'>&#39;៧&#39;</span>, <span class='string'>&#39;៨&#39;</span>, <span class='string'>&#39;៩&#39;</span> ];
-<span class='comment'>// TODO(pcwalton): Suffix for CJK decimal.</span>
-<span class='kw'>static</span> <span class='ident'>CJK_DECIMAL</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [ <span class='string'>&#39;〇&#39;</span>, <span class='string'>&#39;一&#39;</span>, <span class='string'>&#39;二&#39;</span>, <span class='string'>&#39;三&#39;</span>, <span class='string'>&#39;四&#39;</span>, <span class='string'>&#39;五&#39;</span>, <span class='string'>&#39;六&#39;</span>, <span class='string'>&#39;七&#39;</span>, <span class='string'>&#39;八&#39;</span>, <span class='string'>&#39;九&#39;</span> ];
-<span class='kw'>static</span> <span class='ident'>DEVANAGARI</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [ <span class='string'>&#39;०&#39;</span>, <span class='string'>&#39;१&#39;</span>, <span class='string'>&#39;२&#39;</span>, <span class='string'>&#39;३&#39;</span>, <span class='string'>&#39;४&#39;</span>, <span class='string'>&#39;५&#39;</span>, <span class='string'>&#39;६&#39;</span>, <span class='string'>&#39;७&#39;</span>, <span class='string'>&#39;८&#39;</span>, <span class='string'>&#39;९&#39;</span> ];
-<span class='comment'>// TODO(pcwalton): `georgian`</span>
-<span class='kw'>static</span> <span class='ident'>GUJARATI</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [<span class='string'>&#39;૦&#39;</span>, <span class='string'>&#39;૧&#39;</span>, <span class='string'>&#39;૨&#39;</span>, <span class='string'>&#39;૩&#39;</span>, <span class='string'>&#39;૪&#39;</span>, <span class='string'>&#39;૫&#39;</span>, <span class='string'>&#39;૬&#39;</span>, <span class='string'>&#39;૭&#39;</span>, <span class='string'>&#39;૮&#39;</span>, <span class='string'>&#39;૯&#39;</span>];
-<span class='kw'>static</span> <span class='ident'>GURMUKHI</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [<span class='string'>&#39;੦&#39;</span>, <span class='string'>&#39;੧&#39;</span>, <span class='string'>&#39;੨&#39;</span>, <span class='string'>&#39;੩&#39;</span>, <span class='string'>&#39;੪&#39;</span>, <span class='string'>&#39;੫&#39;</span>, <span class='string'>&#39;੬&#39;</span>, <span class='string'>&#39;੭&#39;</span>, <span class='string'>&#39;੮&#39;</span>, <span class='string'>&#39;੯&#39;</span>];
-<span class='comment'>// TODO(pcwalton): `hebrew`</span>
-<span class='kw'>static</span> <span class='ident'>KANNADA</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [<span class='string'>&#39;೦&#39;</span>, <span class='string'>&#39;೧&#39;</span>, <span class='string'>&#39;೨&#39;</span>, <span class='string'>&#39;೩&#39;</span>, <span class='string'>&#39;೪&#39;</span>, <span class='string'>&#39;೫&#39;</span>, <span class='string'>&#39;೬&#39;</span>, <span class='string'>&#39;೭&#39;</span>, <span class='string'>&#39;೮&#39;</span>, <span class='string'>&#39;೯&#39;</span>];
-<span class='kw'>static</span> <span class='ident'>LAO</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [<span class='string'>&#39;໐&#39;</span>, <span class='string'>&#39;໑&#39;</span>, <span class='string'>&#39;໒&#39;</span>, <span class='string'>&#39;໓&#39;</span>, <span class='string'>&#39;໔&#39;</span>, <span class='string'>&#39;໕&#39;</span>, <span class='string'>&#39;໖&#39;</span>, <span class='string'>&#39;໗&#39;</span>, <span class='string'>&#39;໘&#39;</span>, <span class='string'>&#39;໙&#39;</span>];
-<span class='kw'>static</span> <span class='ident'>MALAYALAM</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [<span class='string'>&#39;൦&#39;</span>, <span class='string'>&#39;൧&#39;</span>, <span class='string'>&#39;൨&#39;</span>, <span class='string'>&#39;൩&#39;</span>, <span class='string'>&#39;൪&#39;</span>, <span class='string'>&#39;൫&#39;</span>, <span class='string'>&#39;൬&#39;</span>, <span class='string'>&#39;൭&#39;</span>, <span class='string'>&#39;൮&#39;</span>, <span class='string'>&#39;൯&#39;</span>];
-<span class='kw'>static</span> <span class='ident'>MONGOLIAN</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [<span class='string'>&#39;᠐&#39;</span>, <span class='string'>&#39;᠑&#39;</span>, <span class='string'>&#39;᠒&#39;</span>, <span class='string'>&#39;᠓&#39;</span>, <span class='string'>&#39;᠔&#39;</span>, <span class='string'>&#39;᠕&#39;</span>, <span class='string'>&#39;᠖&#39;</span>, <span class='string'>&#39;᠗&#39;</span>, <span class='string'>&#39;᠘&#39;</span>, <span class='string'>&#39;᠙&#39;</span>];
-<span class='kw'>static</span> <span class='ident'>MYANMAR</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [<span class='string'>&#39;၀&#39;</span>, <span class='string'>&#39;၁&#39;</span>, <span class='string'>&#39;၂&#39;</span>, <span class='string'>&#39;၃&#39;</span>, <span class='string'>&#39;၄&#39;</span>, <span class='string'>&#39;၅&#39;</span>, <span class='string'>&#39;၆&#39;</span>, <span class='string'>&#39;၇&#39;</span>, <span class='string'>&#39;၈&#39;</span>, <span class='string'>&#39;၉&#39;</span>];
-<span class='kw'>static</span> <span class='ident'>ORIYA</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [<span class='string'>&#39;୦&#39;</span>, <span class='string'>&#39;୧&#39;</span>, <span class='string'>&#39;୨&#39;</span>, <span class='string'>&#39;୩&#39;</span>, <span class='string'>&#39;୪&#39;</span>, <span class='string'>&#39;୫&#39;</span>, <span class='string'>&#39;୬&#39;</span>, <span class='string'>&#39;୭&#39;</span>, <span class='string'>&#39;୮&#39;</span>, <span class='string'>&#39;୯&#39;</span>];
-<span class='kw'>static</span> <span class='ident'>PERSIAN</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [<span class='string'>&#39;۰&#39;</span>, <span class='string'>&#39;۱&#39;</span>, <span class='string'>&#39;۲&#39;</span>, <span class='string'>&#39;۳&#39;</span>, <span class='string'>&#39;۴&#39;</span>, <span class='string'>&#39;۵&#39;</span>, <span class='string'>&#39;۶&#39;</span>, <span class='string'>&#39;۷&#39;</span>, <span class='string'>&#39;۸&#39;</span>, <span class='string'>&#39;۹&#39;</span>];
-<span class='comment'>// TODO(pcwalton): `lower-roman`, `upper-roman`</span>
-<span class='kw'>static</span> <span class='ident'>TELUGU</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [<span class='string'>&#39;౦&#39;</span>, <span class='string'>&#39;౧&#39;</span>, <span class='string'>&#39;౨&#39;</span>, <span class='string'>&#39;౩&#39;</span>, <span class='string'>&#39;౪&#39;</span>, <span class='string'>&#39;౫&#39;</span>, <span class='string'>&#39;౬&#39;</span>, <span class='string'>&#39;౭&#39;</span>, <span class='string'>&#39;౮&#39;</span>, <span class='string'>&#39;౯&#39;</span>];
-<span class='kw'>static</span> <span class='ident'>THAI</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [<span class='string'>&#39;๐&#39;</span>, <span class='string'>&#39;๑&#39;</span>, <span class='string'>&#39;๒&#39;</span>, <span class='string'>&#39;๓&#39;</span>, <span class='string'>&#39;๔&#39;</span>, <span class='string'>&#39;๕&#39;</span>, <span class='string'>&#39;๖&#39;</span>, <span class='string'>&#39;๗&#39;</span>, <span class='string'>&#39;๘&#39;</span>, <span class='string'>&#39;๙&#39;</span>];
-<span class='kw'>static</span> <span class='ident'>TIBETAN</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [<span class='string'>&#39;༠&#39;</span>, <span class='string'>&#39;༡&#39;</span>, <span class='string'>&#39;༢&#39;</span>, <span class='string'>&#39;༣&#39;</span>, <span class='string'>&#39;༤&#39;</span>, <span class='string'>&#39;༥&#39;</span>, <span class='string'>&#39;༦&#39;</span>, <span class='string'>&#39;༧&#39;</span>, <span class='string'>&#39;༨&#39;</span>, <span class='string'>&#39;༩&#39;</span>];
+<span class="comment">// Decimal styles per CSS-COUNTER-STYLES § 6.1:</span>
+<span class="kw">static</span> <span class="ident">DECIMAL</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [ <span class="string">&#39;0&#39;</span>, <span class="string">&#39;1&#39;</span>, <span class="string">&#39;2&#39;</span>, <span class="string">&#39;3&#39;</span>, <span class="string">&#39;4&#39;</span>, <span class="string">&#39;5&#39;</span>, <span class="string">&#39;6&#39;</span>, <span class="string">&#39;7&#39;</span>, <span class="string">&#39;8&#39;</span>, <span class="string">&#39;9&#39;</span> ];
+<span class="comment">// TODO(pcwalton): `decimal-leading-zero`</span>
+<span class="kw">static</span> <span class="ident">ARABIC_INDIC</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [ <span class="string">&#39;٠&#39;</span>, <span class="string">&#39;١&#39;</span>, <span class="string">&#39;٢&#39;</span>, <span class="string">&#39;٣&#39;</span>, <span class="string">&#39;٤&#39;</span>, <span class="string">&#39;٥&#39;</span>, <span class="string">&#39;٦&#39;</span>, <span class="string">&#39;٧&#39;</span>, <span class="string">&#39;٨&#39;</span>, <span class="string">&#39;٩&#39;</span> ];
+<span class="comment">// TODO(pcwalton): `armenian`, `upper-armenian`, `lower-armenian`</span>
+<span class="kw">static</span> <span class="ident">BENGALI</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [ <span class="string">&#39;০&#39;</span>, <span class="string">&#39;১&#39;</span>, <span class="string">&#39;২&#39;</span>, <span class="string">&#39;৩&#39;</span>, <span class="string">&#39;৪&#39;</span>, <span class="string">&#39;৫&#39;</span>, <span class="string">&#39;৬&#39;</span>, <span class="string">&#39;৭&#39;</span>, <span class="string">&#39;৮&#39;</span>, <span class="string">&#39;৯&#39;</span> ];
+<span class="kw">static</span> <span class="ident">CAMBODIAN</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [ <span class="string">&#39;០&#39;</span>, <span class="string">&#39;១&#39;</span>, <span class="string">&#39;២&#39;</span>, <span class="string">&#39;៣&#39;</span>, <span class="string">&#39;៤&#39;</span>, <span class="string">&#39;៥&#39;</span>, <span class="string">&#39;៦&#39;</span>, <span class="string">&#39;៧&#39;</span>, <span class="string">&#39;៨&#39;</span>, <span class="string">&#39;៩&#39;</span> ];
+<span class="comment">// TODO(pcwalton): Suffix for CJK decimal.</span>
+<span class="kw">static</span> <span class="ident">CJK_DECIMAL</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [ <span class="string">&#39;〇&#39;</span>, <span class="string">&#39;一&#39;</span>, <span class="string">&#39;二&#39;</span>, <span class="string">&#39;三&#39;</span>, <span class="string">&#39;四&#39;</span>, <span class="string">&#39;五&#39;</span>, <span class="string">&#39;六&#39;</span>, <span class="string">&#39;七&#39;</span>, <span class="string">&#39;八&#39;</span>, <span class="string">&#39;九&#39;</span> ];
+<span class="kw">static</span> <span class="ident">DEVANAGARI</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [ <span class="string">&#39;०&#39;</span>, <span class="string">&#39;१&#39;</span>, <span class="string">&#39;२&#39;</span>, <span class="string">&#39;३&#39;</span>, <span class="string">&#39;४&#39;</span>, <span class="string">&#39;५&#39;</span>, <span class="string">&#39;६&#39;</span>, <span class="string">&#39;७&#39;</span>, <span class="string">&#39;८&#39;</span>, <span class="string">&#39;९&#39;</span> ];
+<span class="comment">// TODO(pcwalton): `georgian`</span>
+<span class="kw">static</span> <span class="ident">GUJARATI</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [<span class="string">&#39;૦&#39;</span>, <span class="string">&#39;૧&#39;</span>, <span class="string">&#39;૨&#39;</span>, <span class="string">&#39;૩&#39;</span>, <span class="string">&#39;૪&#39;</span>, <span class="string">&#39;૫&#39;</span>, <span class="string">&#39;૬&#39;</span>, <span class="string">&#39;૭&#39;</span>, <span class="string">&#39;૮&#39;</span>, <span class="string">&#39;૯&#39;</span>];
+<span class="kw">static</span> <span class="ident">GURMUKHI</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [<span class="string">&#39;੦&#39;</span>, <span class="string">&#39;੧&#39;</span>, <span class="string">&#39;੨&#39;</span>, <span class="string">&#39;੩&#39;</span>, <span class="string">&#39;੪&#39;</span>, <span class="string">&#39;੫&#39;</span>, <span class="string">&#39;੬&#39;</span>, <span class="string">&#39;੭&#39;</span>, <span class="string">&#39;੮&#39;</span>, <span class="string">&#39;੯&#39;</span>];
+<span class="comment">// TODO(pcwalton): `hebrew`</span>
+<span class="kw">static</span> <span class="ident">KANNADA</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [<span class="string">&#39;೦&#39;</span>, <span class="string">&#39;೧&#39;</span>, <span class="string">&#39;೨&#39;</span>, <span class="string">&#39;೩&#39;</span>, <span class="string">&#39;೪&#39;</span>, <span class="string">&#39;೫&#39;</span>, <span class="string">&#39;೬&#39;</span>, <span class="string">&#39;೭&#39;</span>, <span class="string">&#39;೮&#39;</span>, <span class="string">&#39;೯&#39;</span>];
+<span class="kw">static</span> <span class="ident">LAO</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [<span class="string">&#39;໐&#39;</span>, <span class="string">&#39;໑&#39;</span>, <span class="string">&#39;໒&#39;</span>, <span class="string">&#39;໓&#39;</span>, <span class="string">&#39;໔&#39;</span>, <span class="string">&#39;໕&#39;</span>, <span class="string">&#39;໖&#39;</span>, <span class="string">&#39;໗&#39;</span>, <span class="string">&#39;໘&#39;</span>, <span class="string">&#39;໙&#39;</span>];
+<span class="kw">static</span> <span class="ident">MALAYALAM</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [<span class="string">&#39;൦&#39;</span>, <span class="string">&#39;൧&#39;</span>, <span class="string">&#39;൨&#39;</span>, <span class="string">&#39;൩&#39;</span>, <span class="string">&#39;൪&#39;</span>, <span class="string">&#39;൫&#39;</span>, <span class="string">&#39;൬&#39;</span>, <span class="string">&#39;൭&#39;</span>, <span class="string">&#39;൮&#39;</span>, <span class="string">&#39;൯&#39;</span>];
+<span class="kw">static</span> <span class="ident">MONGOLIAN</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [<span class="string">&#39;᠐&#39;</span>, <span class="string">&#39;᠑&#39;</span>, <span class="string">&#39;᠒&#39;</span>, <span class="string">&#39;᠓&#39;</span>, <span class="string">&#39;᠔&#39;</span>, <span class="string">&#39;᠕&#39;</span>, <span class="string">&#39;᠖&#39;</span>, <span class="string">&#39;᠗&#39;</span>, <span class="string">&#39;᠘&#39;</span>, <span class="string">&#39;᠙&#39;</span>];
+<span class="kw">static</span> <span class="ident">MYANMAR</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [<span class="string">&#39;၀&#39;</span>, <span class="string">&#39;၁&#39;</span>, <span class="string">&#39;၂&#39;</span>, <span class="string">&#39;၃&#39;</span>, <span class="string">&#39;၄&#39;</span>, <span class="string">&#39;၅&#39;</span>, <span class="string">&#39;၆&#39;</span>, <span class="string">&#39;၇&#39;</span>, <span class="string">&#39;၈&#39;</span>, <span class="string">&#39;၉&#39;</span>];
+<span class="kw">static</span> <span class="ident">ORIYA</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [<span class="string">&#39;୦&#39;</span>, <span class="string">&#39;୧&#39;</span>, <span class="string">&#39;୨&#39;</span>, <span class="string">&#39;୩&#39;</span>, <span class="string">&#39;୪&#39;</span>, <span class="string">&#39;୫&#39;</span>, <span class="string">&#39;୬&#39;</span>, <span class="string">&#39;୭&#39;</span>, <span class="string">&#39;୮&#39;</span>, <span class="string">&#39;୯&#39;</span>];
+<span class="kw">static</span> <span class="ident">PERSIAN</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [<span class="string">&#39;۰&#39;</span>, <span class="string">&#39;۱&#39;</span>, <span class="string">&#39;۲&#39;</span>, <span class="string">&#39;۳&#39;</span>, <span class="string">&#39;۴&#39;</span>, <span class="string">&#39;۵&#39;</span>, <span class="string">&#39;۶&#39;</span>, <span class="string">&#39;۷&#39;</span>, <span class="string">&#39;۸&#39;</span>, <span class="string">&#39;۹&#39;</span>];
+<span class="comment">// TODO(pcwalton): `lower-roman`, `upper-roman`</span>
+<span class="kw">static</span> <span class="ident">TELUGU</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [<span class="string">&#39;౦&#39;</span>, <span class="string">&#39;౧&#39;</span>, <span class="string">&#39;౨&#39;</span>, <span class="string">&#39;౩&#39;</span>, <span class="string">&#39;౪&#39;</span>, <span class="string">&#39;౫&#39;</span>, <span class="string">&#39;౬&#39;</span>, <span class="string">&#39;౭&#39;</span>, <span class="string">&#39;౮&#39;</span>, <span class="string">&#39;౯&#39;</span>];
+<span class="kw">static</span> <span class="ident">THAI</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [<span class="string">&#39;๐&#39;</span>, <span class="string">&#39;๑&#39;</span>, <span class="string">&#39;๒&#39;</span>, <span class="string">&#39;๓&#39;</span>, <span class="string">&#39;๔&#39;</span>, <span class="string">&#39;๕&#39;</span>, <span class="string">&#39;๖&#39;</span>, <span class="string">&#39;๗&#39;</span>, <span class="string">&#39;๘&#39;</span>, <span class="string">&#39;๙&#39;</span>];
+<span class="kw">static</span> <span class="ident">TIBETAN</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [<span class="string">&#39;༠&#39;</span>, <span class="string">&#39;༡&#39;</span>, <span class="string">&#39;༢&#39;</span>, <span class="string">&#39;༣&#39;</span>, <span class="string">&#39;༤&#39;</span>, <span class="string">&#39;༥&#39;</span>, <span class="string">&#39;༦&#39;</span>, <span class="string">&#39;༧&#39;</span>, <span class="string">&#39;༨&#39;</span>, <span class="string">&#39;༩&#39;</span>];
 
-<span class='comment'>// Alphabetic styles per CSS-COUNTER-STYLES § 6.2:</span>
-<span class='kw'>static</span> <span class='ident'>LOWER_ALPHA</span>: [<span class='ident'>char</span>; <span class='number'>26</span>] <span class='op'>=</span> [
-    <span class='string'>&#39;a&#39;</span>, <span class='string'>&#39;b&#39;</span>, <span class='string'>&#39;c&#39;</span>, <span class='string'>&#39;d&#39;</span>, <span class='string'>&#39;e&#39;</span>, <span class='string'>&#39;f&#39;</span>, <span class='string'>&#39;g&#39;</span>, <span class='string'>&#39;h&#39;</span>, <span class='string'>&#39;i&#39;</span>, <span class='string'>&#39;j&#39;</span>, <span class='string'>&#39;k&#39;</span>, <span class='string'>&#39;l&#39;</span>, <span class='string'>&#39;m&#39;</span>, <span class='string'>&#39;n&#39;</span>, <span class='string'>&#39;o&#39;</span>, <span class='string'>&#39;p&#39;</span>, <span class='string'>&#39;q&#39;</span>, <span class='string'>&#39;r&#39;</span>, <span class='string'>&#39;s&#39;</span>,
-    <span class='string'>&#39;t&#39;</span>, <span class='string'>&#39;u&#39;</span>, <span class='string'>&#39;v&#39;</span>, <span class='string'>&#39;w&#39;</span>, <span class='string'>&#39;x&#39;</span>, <span class='string'>&#39;y&#39;</span>, <span class='string'>&#39;z&#39;</span>
+<span class="comment">// Alphabetic styles per CSS-COUNTER-STYLES § 6.2:</span>
+<span class="kw">static</span> <span class="ident">LOWER_ALPHA</span>: [<span class="ident">char</span>; <span class="number">26</span>] <span class="op">=</span> [
+    <span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;c&#39;</span>, <span class="string">&#39;d&#39;</span>, <span class="string">&#39;e&#39;</span>, <span class="string">&#39;f&#39;</span>, <span class="string">&#39;g&#39;</span>, <span class="string">&#39;h&#39;</span>, <span class="string">&#39;i&#39;</span>, <span class="string">&#39;j&#39;</span>, <span class="string">&#39;k&#39;</span>, <span class="string">&#39;l&#39;</span>, <span class="string">&#39;m&#39;</span>, <span class="string">&#39;n&#39;</span>, <span class="string">&#39;o&#39;</span>, <span class="string">&#39;p&#39;</span>, <span class="string">&#39;q&#39;</span>, <span class="string">&#39;r&#39;</span>, <span class="string">&#39;s&#39;</span>,
+    <span class="string">&#39;t&#39;</span>, <span class="string">&#39;u&#39;</span>, <span class="string">&#39;v&#39;</span>, <span class="string">&#39;w&#39;</span>, <span class="string">&#39;x&#39;</span>, <span class="string">&#39;y&#39;</span>, <span class="string">&#39;z&#39;</span>
 ];
-<span class='kw'>static</span> <span class='ident'>UPPER_ALPHA</span>: [<span class='ident'>char</span>; <span class='number'>26</span>] <span class='op'>=</span> [
-    <span class='string'>&#39;A&#39;</span>, <span class='string'>&#39;B&#39;</span>, <span class='string'>&#39;C&#39;</span>, <span class='string'>&#39;D&#39;</span>, <span class='string'>&#39;E&#39;</span>, <span class='string'>&#39;F&#39;</span>, <span class='string'>&#39;G&#39;</span>, <span class='string'>&#39;H&#39;</span>, <span class='string'>&#39;I&#39;</span>, <span class='string'>&#39;J&#39;</span>, <span class='string'>&#39;K&#39;</span>, <span class='string'>&#39;L&#39;</span>, <span class='string'>&#39;M&#39;</span>, <span class='string'>&#39;N&#39;</span>, <span class='string'>&#39;O&#39;</span>, <span class='string'>&#39;P&#39;</span>, <span class='string'>&#39;Q&#39;</span>, <span class='string'>&#39;R&#39;</span>, <span class='string'>&#39;S&#39;</span>,
-    <span class='string'>&#39;T&#39;</span>, <span class='string'>&#39;U&#39;</span>, <span class='string'>&#39;V&#39;</span>, <span class='string'>&#39;W&#39;</span>, <span class='string'>&#39;X&#39;</span>, <span class='string'>&#39;Y&#39;</span>, <span class='string'>&#39;Z&#39;</span>
+<span class="kw">static</span> <span class="ident">UPPER_ALPHA</span>: [<span class="ident">char</span>; <span class="number">26</span>] <span class="op">=</span> [
+    <span class="string">&#39;A&#39;</span>, <span class="string">&#39;B&#39;</span>, <span class="string">&#39;C&#39;</span>, <span class="string">&#39;D&#39;</span>, <span class="string">&#39;E&#39;</span>, <span class="string">&#39;F&#39;</span>, <span class="string">&#39;G&#39;</span>, <span class="string">&#39;H&#39;</span>, <span class="string">&#39;I&#39;</span>, <span class="string">&#39;J&#39;</span>, <span class="string">&#39;K&#39;</span>, <span class="string">&#39;L&#39;</span>, <span class="string">&#39;M&#39;</span>, <span class="string">&#39;N&#39;</span>, <span class="string">&#39;O&#39;</span>, <span class="string">&#39;P&#39;</span>, <span class="string">&#39;Q&#39;</span>, <span class="string">&#39;R&#39;</span>, <span class="string">&#39;S&#39;</span>,
+    <span class="string">&#39;T&#39;</span>, <span class="string">&#39;U&#39;</span>, <span class="string">&#39;V&#39;</span>, <span class="string">&#39;W&#39;</span>, <span class="string">&#39;X&#39;</span>, <span class="string">&#39;Y&#39;</span>, <span class="string">&#39;Z&#39;</span>
 ];
-<span class='kw'>static</span> <span class='ident'>CJK_EARTHLY_BRANCH</span>: [<span class='ident'>char</span>; <span class='number'>12</span>] <span class='op'>=</span> [
-    <span class='string'>&#39;子&#39;</span>, <span class='string'>&#39;丑&#39;</span>, <span class='string'>&#39;寅&#39;</span>, <span class='string'>&#39;卯&#39;</span>, <span class='string'>&#39;辰&#39;</span>, <span class='string'>&#39;巳&#39;</span>, <span class='string'>&#39;午&#39;</span>, <span class='string'>&#39;未&#39;</span>, <span class='string'>&#39;申&#39;</span>, <span class='string'>&#39;酉&#39;</span>, <span class='string'>&#39;戌&#39;</span>, <span class='string'>&#39;亥&#39;</span>
+<span class="kw">static</span> <span class="ident">CJK_EARTHLY_BRANCH</span>: [<span class="ident">char</span>; <span class="number">12</span>] <span class="op">=</span> [
+    <span class="string">&#39;子&#39;</span>, <span class="string">&#39;丑&#39;</span>, <span class="string">&#39;寅&#39;</span>, <span class="string">&#39;卯&#39;</span>, <span class="string">&#39;辰&#39;</span>, <span class="string">&#39;巳&#39;</span>, <span class="string">&#39;午&#39;</span>, <span class="string">&#39;未&#39;</span>, <span class="string">&#39;申&#39;</span>, <span class="string">&#39;酉&#39;</span>, <span class="string">&#39;戌&#39;</span>, <span class="string">&#39;亥&#39;</span>
 ];
-<span class='kw'>static</span> <span class='ident'>CJK_HEAVENLY_STEM</span>: [<span class='ident'>char</span>; <span class='number'>10</span>] <span class='op'>=</span> [
-    <span class='string'>&#39;甲&#39;</span>, <span class='string'>&#39;乙&#39;</span>, <span class='string'>&#39;丙&#39;</span>, <span class='string'>&#39;丁&#39;</span>, <span class='string'>&#39;戊&#39;</span>, <span class='string'>&#39;己&#39;</span>, <span class='string'>&#39;庚&#39;</span>, <span class='string'>&#39;辛&#39;</span>, <span class='string'>&#39;壬&#39;</span>, <span class='string'>&#39;癸&#39;</span>
+<span class="kw">static</span> <span class="ident">CJK_HEAVENLY_STEM</span>: [<span class="ident">char</span>; <span class="number">10</span>] <span class="op">=</span> [
+    <span class="string">&#39;甲&#39;</span>, <span class="string">&#39;乙&#39;</span>, <span class="string">&#39;丙&#39;</span>, <span class="string">&#39;丁&#39;</span>, <span class="string">&#39;戊&#39;</span>, <span class="string">&#39;己&#39;</span>, <span class="string">&#39;庚&#39;</span>, <span class="string">&#39;辛&#39;</span>, <span class="string">&#39;壬&#39;</span>, <span class="string">&#39;癸&#39;</span>
 ];
-<span class='kw'>static</span> <span class='ident'>LOWER_GREEK</span>: [<span class='ident'>char</span>; <span class='number'>24</span>] <span class='op'>=</span> [
-    <span class='string'>&#39;α&#39;</span>, <span class='string'>&#39;β&#39;</span>, <span class='string'>&#39;γ&#39;</span>, <span class='string'>&#39;δ&#39;</span>, <span class='string'>&#39;ε&#39;</span>, <span class='string'>&#39;ζ&#39;</span>, <span class='string'>&#39;η&#39;</span>, <span class='string'>&#39;θ&#39;</span>, <span class='string'>&#39;ι&#39;</span>, <span class='string'>&#39;κ&#39;</span>, <span class='string'>&#39;λ&#39;</span>, <span class='string'>&#39;μ&#39;</span>, <span class='string'>&#39;ν&#39;</span>, <span class='string'>&#39;ξ&#39;</span>, <span class='string'>&#39;ο&#39;</span>, <span class='string'>&#39;π&#39;</span>, <span class='string'>&#39;ρ&#39;</span>, <span class='string'>&#39;σ&#39;</span>, <span class='string'>&#39;τ&#39;</span>,
-    <span class='string'>&#39;υ&#39;</span>, <span class='string'>&#39;φ&#39;</span>, <span class='string'>&#39;χ&#39;</span>, <span class='string'>&#39;ψ&#39;</span>, <span class='string'>&#39;ω&#39;</span>
+<span class="kw">static</span> <span class="ident">LOWER_GREEK</span>: [<span class="ident">char</span>; <span class="number">24</span>] <span class="op">=</span> [
+    <span class="string">&#39;α&#39;</span>, <span class="string">&#39;β&#39;</span>, <span class="string">&#39;γ&#39;</span>, <span class="string">&#39;δ&#39;</span>, <span class="string">&#39;ε&#39;</span>, <span class="string">&#39;ζ&#39;</span>, <span class="string">&#39;η&#39;</span>, <span class="string">&#39;θ&#39;</span>, <span class="string">&#39;ι&#39;</span>, <span class="string">&#39;κ&#39;</span>, <span class="string">&#39;λ&#39;</span>, <span class="string">&#39;μ&#39;</span>, <span class="string">&#39;ν&#39;</span>, <span class="string">&#39;ξ&#39;</span>, <span class="string">&#39;ο&#39;</span>, <span class="string">&#39;π&#39;</span>, <span class="string">&#39;ρ&#39;</span>, <span class="string">&#39;σ&#39;</span>, <span class="string">&#39;τ&#39;</span>,
+    <span class="string">&#39;υ&#39;</span>, <span class="string">&#39;φ&#39;</span>, <span class="string">&#39;χ&#39;</span>, <span class="string">&#39;ψ&#39;</span>, <span class="string">&#39;ω&#39;</span>
 ];
-<span class='kw'>static</span> <span class='ident'>HIRAGANA</span>: [<span class='ident'>char</span>; <span class='number'>48</span>] <span class='op'>=</span> [
-    <span class='string'>&#39;あ&#39;</span>, <span class='string'>&#39;い&#39;</span>, <span class='string'>&#39;う&#39;</span>, <span class='string'>&#39;え&#39;</span>, <span class='string'>&#39;お&#39;</span>, <span class='string'>&#39;か&#39;</span>, <span class='string'>&#39;き&#39;</span>, <span class='string'>&#39;く&#39;</span>, <span class='string'>&#39;け&#39;</span>, <span class='string'>&#39;こ&#39;</span>, <span class='string'>&#39;さ&#39;</span>, <span class='string'>&#39;し&#39;</span>, <span class='string'>&#39;す&#39;</span>, <span class='string'>&#39;せ&#39;</span>, <span class='string'>&#39;そ&#39;</span>,
-    <span class='string'>&#39;た&#39;</span>, <span class='string'>&#39;ち&#39;</span>, <span class='string'>&#39;つ&#39;</span>, <span class='string'>&#39;て&#39;</span>, <span class='string'>&#39;と&#39;</span>, <span class='string'>&#39;な&#39;</span>, <span class='string'>&#39;に&#39;</span>, <span class='string'>&#39;ぬ&#39;</span>, <span class='string'>&#39;ね&#39;</span>, <span class='string'>&#39;の&#39;</span>, <span class='string'>&#39;は&#39;</span>, <span class='string'>&#39;ひ&#39;</span>, <span class='string'>&#39;ふ&#39;</span>, <span class='string'>&#39;へ&#39;</span>, <span class='string'>&#39;ほ&#39;</span>,
-    <span class='string'>&#39;ま&#39;</span>, <span class='string'>&#39;み&#39;</span>, <span class='string'>&#39;む&#39;</span>, <span class='string'>&#39;め&#39;</span>, <span class='string'>&#39;も&#39;</span>, <span class='string'>&#39;や&#39;</span>, <span class='string'>&#39;ゆ&#39;</span>, <span class='string'>&#39;よ&#39;</span>, <span class='string'>&#39;ら&#39;</span>, <span class='string'>&#39;り&#39;</span>, <span class='string'>&#39;る&#39;</span>, <span class='string'>&#39;れ&#39;</span>, <span class='string'>&#39;ろ&#39;</span>,
-    <span class='string'>&#39;わ&#39;</span>, <span class='string'>&#39;ゐ&#39;</span>, <span class='string'>&#39;ゑ&#39;</span>, <span class='string'>&#39;を&#39;</span>, <span class='string'>&#39;ん&#39;</span>
+<span class="kw">static</span> <span class="ident">HIRAGANA</span>: [<span class="ident">char</span>; <span class="number">48</span>] <span class="op">=</span> [
+    <span class="string">&#39;あ&#39;</span>, <span class="string">&#39;い&#39;</span>, <span class="string">&#39;う&#39;</span>, <span class="string">&#39;え&#39;</span>, <span class="string">&#39;お&#39;</span>, <span class="string">&#39;か&#39;</span>, <span class="string">&#39;き&#39;</span>, <span class="string">&#39;く&#39;</span>, <span class="string">&#39;け&#39;</span>, <span class="string">&#39;こ&#39;</span>, <span class="string">&#39;さ&#39;</span>, <span class="string">&#39;し&#39;</span>, <span class="string">&#39;す&#39;</span>, <span class="string">&#39;せ&#39;</span>, <span class="string">&#39;そ&#39;</span>,
+    <span class="string">&#39;た&#39;</span>, <span class="string">&#39;ち&#39;</span>, <span class="string">&#39;つ&#39;</span>, <span class="string">&#39;て&#39;</span>, <span class="string">&#39;と&#39;</span>, <span class="string">&#39;な&#39;</span>, <span class="string">&#39;に&#39;</span>, <span class="string">&#39;ぬ&#39;</span>, <span class="string">&#39;ね&#39;</span>, <span class="string">&#39;の&#39;</span>, <span class="string">&#39;は&#39;</span>, <span class="string">&#39;ひ&#39;</span>, <span class="string">&#39;ふ&#39;</span>, <span class="string">&#39;へ&#39;</span>, <span class="string">&#39;ほ&#39;</span>,
+    <span class="string">&#39;ま&#39;</span>, <span class="string">&#39;み&#39;</span>, <span class="string">&#39;む&#39;</span>, <span class="string">&#39;め&#39;</span>, <span class="string">&#39;も&#39;</span>, <span class="string">&#39;や&#39;</span>, <span class="string">&#39;ゆ&#39;</span>, <span class="string">&#39;よ&#39;</span>, <span class="string">&#39;ら&#39;</span>, <span class="string">&#39;り&#39;</span>, <span class="string">&#39;る&#39;</span>, <span class="string">&#39;れ&#39;</span>, <span class="string">&#39;ろ&#39;</span>,
+    <span class="string">&#39;わ&#39;</span>, <span class="string">&#39;ゐ&#39;</span>, <span class="string">&#39;ゑ&#39;</span>, <span class="string">&#39;を&#39;</span>, <span class="string">&#39;ん&#39;</span>
 ];
-<span class='kw'>static</span> <span class='ident'>HIRAGANA_IROHA</span>: [<span class='ident'>char</span>; <span class='number'>47</span>] <span class='op'>=</span> [
-    <span class='string'>&#39;い&#39;</span>, <span class='string'>&#39;ろ&#39;</span>, <span class='string'>&#39;は&#39;</span>, <span class='string'>&#39;に&#39;</span>, <span class='string'>&#39;ほ&#39;</span>, <span class='string'>&#39;へ&#39;</span>, <span class='string'>&#39;と&#39;</span>, <span class='string'>&#39;ち&#39;</span>, <span class='string'>&#39;り&#39;</span>, <span class='string'>&#39;ぬ&#39;</span>, <span class='string'>&#39;る&#39;</span>, <span class='string'>&#39;を&#39;</span>, <span class='string'>&#39;わ&#39;</span>, <span class='string'>&#39;か&#39;</span>, <span class='string'>&#39;よ&#39;</span>,
-    <span class='string'>&#39;た&#39;</span>, <span class='string'>&#39;れ&#39;</span>, <span class='string'>&#39;そ&#39;</span>, <span class='string'>&#39;つ&#39;</span>, <span class='string'>&#39;ね&#39;</span>, <span class='string'>&#39;な&#39;</span>, <span class='string'>&#39;ら&#39;</span>, <span class='string'>&#39;む&#39;</span>, <span class='string'>&#39;う&#39;</span>, <span class='string'>&#39;ゐ&#39;</span>, <span class='string'>&#39;の&#39;</span>, <span class='string'>&#39;お&#39;</span>, <span class='string'>&#39;く&#39;</span>, <span class='string'>&#39;や&#39;</span>, <span class='string'>&#39;ま&#39;</span>,
-    <span class='string'>&#39;け&#39;</span>, <span class='string'>&#39;ふ&#39;</span>, <span class='string'>&#39;こ&#39;</span>, <span class='string'>&#39;え&#39;</span>, <span class='string'>&#39;て&#39;</span>, <span class='string'>&#39;あ&#39;</span>, <span class='string'>&#39;さ&#39;</span>, <span class='string'>&#39;き&#39;</span>, <span class='string'>&#39;ゆ&#39;</span>, <span class='string'>&#39;め&#39;</span>, <span class='string'>&#39;み&#39;</span>, <span class='string'>&#39;し&#39;</span>, <span class='string'>&#39;ゑ&#39;</span>,
-    <span class='string'>&#39;ひ&#39;</span>, <span class='string'>&#39;も&#39;</span>, <span class='string'>&#39;せ&#39;</span>, <span class='string'>&#39;す&#39;</span>
+<span class="kw">static</span> <span class="ident">HIRAGANA_IROHA</span>: [<span class="ident">char</span>; <span class="number">47</span>] <span class="op">=</span> [
+    <span class="string">&#39;い&#39;</span>, <span class="string">&#39;ろ&#39;</span>, <span class="string">&#39;は&#39;</span>, <span class="string">&#39;に&#39;</span>, <span class="string">&#39;ほ&#39;</span>, <span class="string">&#39;へ&#39;</span>, <span class="string">&#39;と&#39;</span>, <span class="string">&#39;ち&#39;</span>, <span class="string">&#39;り&#39;</span>, <span class="string">&#39;ぬ&#39;</span>, <span class="string">&#39;る&#39;</span>, <span class="string">&#39;を&#39;</span>, <span class="string">&#39;わ&#39;</span>, <span class="string">&#39;か&#39;</span>, <span class="string">&#39;よ&#39;</span>,
+    <span class="string">&#39;た&#39;</span>, <span class="string">&#39;れ&#39;</span>, <span class="string">&#39;そ&#39;</span>, <span class="string">&#39;つ&#39;</span>, <span class="string">&#39;ね&#39;</span>, <span class="string">&#39;な&#39;</span>, <span class="string">&#39;ら&#39;</span>, <span class="string">&#39;む&#39;</span>, <span class="string">&#39;う&#39;</span>, <span class="string">&#39;ゐ&#39;</span>, <span class="string">&#39;の&#39;</span>, <span class="string">&#39;お&#39;</span>, <span class="string">&#39;く&#39;</span>, <span class="string">&#39;や&#39;</span>, <span class="string">&#39;ま&#39;</span>,
+    <span class="string">&#39;け&#39;</span>, <span class="string">&#39;ふ&#39;</span>, <span class="string">&#39;こ&#39;</span>, <span class="string">&#39;え&#39;</span>, <span class="string">&#39;て&#39;</span>, <span class="string">&#39;あ&#39;</span>, <span class="string">&#39;さ&#39;</span>, <span class="string">&#39;き&#39;</span>, <span class="string">&#39;ゆ&#39;</span>, <span class="string">&#39;め&#39;</span>, <span class="string">&#39;み&#39;</span>, <span class="string">&#39;し&#39;</span>, <span class="string">&#39;ゑ&#39;</span>,
+    <span class="string">&#39;ひ&#39;</span>, <span class="string">&#39;も&#39;</span>, <span class="string">&#39;せ&#39;</span>, <span class="string">&#39;す&#39;</span>
 ];
-<span class='kw'>static</span> <span class='ident'>KATAKANA</span>: [<span class='ident'>char</span>; <span class='number'>48</span>] <span class='op'>=</span> [
-    <span class='string'>&#39;ア&#39;</span>, <span class='string'>&#39;イ&#39;</span>, <span class='string'>&#39;ウ&#39;</span>, <span class='string'>&#39;エ&#39;</span>, <span class='string'>&#39;オ&#39;</span>, <span class='string'>&#39;カ&#39;</span>, <span class='string'>&#39;キ&#39;</span>, <span class='string'>&#39;ク&#39;</span>, <span class='string'>&#39;ケ&#39;</span>, <span class='string'>&#39;コ&#39;</span>, <span class='string'>&#39;サ&#39;</span>, <span class='string'>&#39;シ&#39;</span>, <span class='string'>&#39;ス&#39;</span>, <span class='string'>&#39;セ&#39;</span>, <span class='string'>&#39;ソ&#39;</span>,
-    <span class='string'>&#39;タ&#39;</span>, <span class='string'>&#39;チ&#39;</span>, <span class='string'>&#39;ツ&#39;</span>, <span class='string'>&#39;テ&#39;</span>, <span class='string'>&#39;ト&#39;</span>, <span class='string'>&#39;ナ&#39;</span>, <span class='string'>&#39;ニ&#39;</span>, <span class='string'>&#39;ヌ&#39;</span>, <span class='string'>&#39;ネ&#39;</span>, <span class='string'>&#39;ノ&#39;</span>, <span class='string'>&#39;ハ&#39;</span>, <span class='string'>&#39;ヒ&#39;</span>, <span class='string'>&#39;フ&#39;</span>, <span class='string'>&#39;ヘ&#39;</span>, <span class='string'>&#39;ホ&#39;</span>,
-    <span class='string'>&#39;マ&#39;</span>, <span class='string'>&#39;ミ&#39;</span>, <span class='string'>&#39;ム&#39;</span>, <span class='string'>&#39;メ&#39;</span>, <span class='string'>&#39;モ&#39;</span>, <span class='string'>&#39;ヤ&#39;</span>, <span class='string'>&#39;ユ&#39;</span>, <span class='string'>&#39;ヨ&#39;</span>, <span class='string'>&#39;ラ&#39;</span>, <span class='string'>&#39;リ&#39;</span>, <span class='string'>&#39;ル&#39;</span>, <span class='string'>&#39;レ&#39;</span>, <span class='string'>&#39;ロ&#39;</span>,
-    <span class='string'>&#39;ワ&#39;</span>, <span class='string'>&#39;ヰ&#39;</span>, <span class='string'>&#39;ヱ&#39;</span>, <span class='string'>&#39;ヲ&#39;</span>, <span class='string'>&#39;ン&#39;</span>
+<span class="kw">static</span> <span class="ident">KATAKANA</span>: [<span class="ident">char</span>; <span class="number">48</span>] <span class="op">=</span> [
+    <span class="string">&#39;ア&#39;</span>, <span class="string">&#39;イ&#39;</span>, <span class="string">&#39;ウ&#39;</span>, <span class="string">&#39;エ&#39;</span>, <span class="string">&#39;オ&#39;</span>, <span class="string">&#39;カ&#39;</span>, <span class="string">&#39;キ&#39;</span>, <span class="string">&#39;ク&#39;</span>, <span class="string">&#39;ケ&#39;</span>, <span class="string">&#39;コ&#39;</span>, <span class="string">&#39;サ&#39;</span>, <span class="string">&#39;シ&#39;</span>, <span class="string">&#39;ス&#39;</span>, <span class="string">&#39;セ&#39;</span>, <span class="string">&#39;ソ&#39;</span>,
+    <span class="string">&#39;タ&#39;</span>, <span class="string">&#39;チ&#39;</span>, <span class="string">&#39;ツ&#39;</span>, <span class="string">&#39;テ&#39;</span>, <span class="string">&#39;ト&#39;</span>, <span class="string">&#39;ナ&#39;</span>, <span class="string">&#39;ニ&#39;</span>, <span class="string">&#39;ヌ&#39;</span>, <span class="string">&#39;ネ&#39;</span>, <span class="string">&#39;ノ&#39;</span>, <span class="string">&#39;ハ&#39;</span>, <span class="string">&#39;ヒ&#39;</span>, <span class="string">&#39;フ&#39;</span>, <span class="string">&#39;ヘ&#39;</span>, <span class="string">&#39;ホ&#39;</span>,
+    <span class="string">&#39;マ&#39;</span>, <span class="string">&#39;ミ&#39;</span>, <span class="string">&#39;ム&#39;</span>, <span class="string">&#39;メ&#39;</span>, <span class="string">&#39;モ&#39;</span>, <span class="string">&#39;ヤ&#39;</span>, <span class="string">&#39;ユ&#39;</span>, <span class="string">&#39;ヨ&#39;</span>, <span class="string">&#39;ラ&#39;</span>, <span class="string">&#39;リ&#39;</span>, <span class="string">&#39;ル&#39;</span>, <span class="string">&#39;レ&#39;</span>, <span class="string">&#39;ロ&#39;</span>,
+    <span class="string">&#39;ワ&#39;</span>, <span class="string">&#39;ヰ&#39;</span>, <span class="string">&#39;ヱ&#39;</span>, <span class="string">&#39;ヲ&#39;</span>, <span class="string">&#39;ン&#39;</span>
 ];
-<span class='kw'>static</span> <span class='ident'>KATAKANA_IROHA</span>: [<span class='ident'>char</span>; <span class='number'>47</span>] <span class='op'>=</span> [
-    <span class='string'>&#39;イ&#39;</span>, <span class='string'>&#39;ロ&#39;</span>, <span class='string'>&#39;ハ&#39;</span>, <span class='string'>&#39;ニ&#39;</span>, <span class='string'>&#39;ホ&#39;</span>, <span class='string'>&#39;ヘ&#39;</span>, <span class='string'>&#39;ト&#39;</span>, <span class='string'>&#39;チ&#39;</span>, <span class='string'>&#39;リ&#39;</span>, <span class='string'>&#39;ヌ&#39;</span>, <span class='string'>&#39;ル&#39;</span>, <span class='string'>&#39;ヲ&#39;</span>, <span class='string'>&#39;ワ&#39;</span>, <span class='string'>&#39;カ&#39;</span>, <span class='string'>&#39;ヨ&#39;</span>,
-    <span class='string'>&#39;タ&#39;</span>, <span class='string'>&#39;レ&#39;</span>, <span class='string'>&#39;ソ&#39;</span>, <span class='string'>&#39;ツ&#39;</span>, <span class='string'>&#39;ネ&#39;</span>, <span class='string'>&#39;ナ&#39;</span>, <span class='string'>&#39;ラ&#39;</span>, <span class='string'>&#39;ム&#39;</span>, <span class='string'>&#39;ウ&#39;</span>, <span class='string'>&#39;ヰ&#39;</span>, <span class='string'>&#39;ノ&#39;</span>, <span class='string'>&#39;オ&#39;</span>, <span class='string'>&#39;ク&#39;</span>, <span class='string'>&#39;ヤ&#39;</span>, <span class='string'>&#39;マ&#39;</span>,
-    <span class='string'>&#39;ケ&#39;</span>, <span class='string'>&#39;フ&#39;</span>, <span class='string'>&#39;コ&#39;</span>, <span class='string'>&#39;エ&#39;</span>, <span class='string'>&#39;テ&#39;</span>, <span class='string'>&#39;ア&#39;</span>, <span class='string'>&#39;サ&#39;</span>, <span class='string'>&#39;キ&#39;</span>, <span class='string'>&#39;ユ&#39;</span>, <span class='string'>&#39;メ&#39;</span>, <span class='string'>&#39;ミ&#39;</span>, <span class='string'>&#39;シ&#39;</span>, <span class='string'>&#39;ヱ&#39;</span>,
-    <span class='string'>&#39;ヒ&#39;</span>, <span class='string'>&#39;モ&#39;</span>, <span class='string'>&#39;セ&#39;</span>, <span class='string'>&#39;ス&#39;</span>
+<span class="kw">static</span> <span class="ident">KATAKANA_IROHA</span>: [<span class="ident">char</span>; <span class="number">47</span>] <span class="op">=</span> [
+    <span class="string">&#39;イ&#39;</span>, <span class="string">&#39;ロ&#39;</span>, <span class="string">&#39;ハ&#39;</span>, <span class="string">&#39;ニ&#39;</span>, <span class="string">&#39;ホ&#39;</span>, <span class="string">&#39;ヘ&#39;</span>, <span class="string">&#39;ト&#39;</span>, <span class="string">&#39;チ&#39;</span>, <span class="string">&#39;リ&#39;</span>, <span class="string">&#39;ヌ&#39;</span>, <span class="string">&#39;ル&#39;</span>, <span class="string">&#39;ヲ&#39;</span>, <span class="string">&#39;ワ&#39;</span>, <span class="string">&#39;カ&#39;</span>, <span class="string">&#39;ヨ&#39;</span>,
+    <span class="string">&#39;タ&#39;</span>, <span class="string">&#39;レ&#39;</span>, <span class="string">&#39;ソ&#39;</span>, <span class="string">&#39;ツ&#39;</span>, <span class="string">&#39;ネ&#39;</span>, <span class="string">&#39;ナ&#39;</span>, <span class="string">&#39;ラ&#39;</span>, <span class="string">&#39;ム&#39;</span>, <span class="string">&#39;ウ&#39;</span>, <span class="string">&#39;ヰ&#39;</span>, <span class="string">&#39;ノ&#39;</span>, <span class="string">&#39;オ&#39;</span>, <span class="string">&#39;ク&#39;</span>, <span class="string">&#39;ヤ&#39;</span>, <span class="string">&#39;マ&#39;</span>,
+    <span class="string">&#39;ケ&#39;</span>, <span class="string">&#39;フ&#39;</span>, <span class="string">&#39;コ&#39;</span>, <span class="string">&#39;エ&#39;</span>, <span class="string">&#39;テ&#39;</span>, <span class="string">&#39;ア&#39;</span>, <span class="string">&#39;サ&#39;</span>, <span class="string">&#39;キ&#39;</span>, <span class="string">&#39;ユ&#39;</span>, <span class="string">&#39;メ&#39;</span>, <span class="string">&#39;ミ&#39;</span>, <span class="string">&#39;シ&#39;</span>, <span class="string">&#39;ヱ&#39;</span>,
+    <span class="string">&#39;ヒ&#39;</span>, <span class="string">&#39;モ&#39;</span>, <span class="string">&#39;セ&#39;</span>, <span class="string">&#39;ス&#39;</span>
 ];
 
-<span class='doccomment'>/// The generated content resolution traversal.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ResolveGeneratedContent</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// The layout context.</span>
-    <span class='ident'>layout_context</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>LayoutContext</span>,
-    <span class='doccomment'>/// The counter representing an ordered list item.</span>
-    <span class='ident'>list_item</span>: <span class='ident'>Counter</span>,
-    <span class='doccomment'>/// Named CSS counters.</span>
-    <span class='ident'>counters</span>: <span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>String</span>, <span class='ident'>Counter</span><span class='op'>&gt;</span>,
-    <span class='doccomment'>/// The level of quote nesting.</span>
-    <span class='ident'>quote</span>: <span class='ident'>u32</span>,
+<span class="doccomment">/// The generated content resolution traversal.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ResolveGeneratedContent</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// The layout context.</span>
+    <span class="ident">layout_context</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">LayoutContext</span>,
+    <span class="doccomment">/// The counter representing an ordered list item.</span>
+    <span class="ident">list_item</span>: <span class="ident">Counter</span>,
+    <span class="doccomment">/// Named CSS counters.</span>
+    <span class="ident">counters</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Counter</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The level of quote nesting.</span>
+    <span class="ident">quote</span>: <span class="ident">u32</span>,
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>ResolveGeneratedContent</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Creates a new generated content resolution traversal.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>layout_context</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>LayoutContext</span>) <span class='op'>-&gt;</span> <span class='ident'>ResolveGeneratedContent</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-        <span class='ident'>ResolveGeneratedContent</span> {
-            <span class='ident'>layout_context</span>: <span class='ident'>layout_context</span>,
-            <span class='ident'>list_item</span>: <span class='ident'>Counter</span>::<span class='ident'>new</span>(),
-            <span class='ident'>counters</span>: <span class='ident'>HashMap</span>::<span class='ident'>new</span>(),
-            <span class='ident'>quote</span>: <span class='number'>0</span>,
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">ResolveGeneratedContent</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Creates a new generated content resolution traversal.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">layout_context</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">LayoutContext</span>) <span class="op">-&gt;</span> <span class="ident">ResolveGeneratedContent</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+        <span class="ident">ResolveGeneratedContent</span> {
+            <span class="ident">layout_context</span>: <span class="ident">layout_context</span>,
+            <span class="ident">list_item</span>: <span class="ident">Counter</span>::<span class="ident">new</span>(),
+            <span class="ident">counters</span>: <span class="ident">HashMap</span>::<span class="ident">new</span>(),
+            <span class="ident">quote</span>: <span class="number">0</span>,
         }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> <span class='ident'>InorderFlowTraversal</span> <span class='kw'>for</span> <span class='ident'>ResolveGeneratedContent</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>process</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>flow</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Flow</span>, <span class='ident'>level</span>: <span class='ident'>u32</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>mutator</span> <span class='op'>=</span> <span class='ident'>ResolveGeneratedContentFragmentMutator</span> {
-            <span class='ident'>traversal</span>: <span class='self'>self</span>,
-            <span class='ident'>level</span>: <span class='ident'>level</span>,
-            <span class='ident'>is_block</span>: <span class='ident'>flow</span>.<span class='ident'>is_block_like</span>(),
-            <span class='ident'>incremented</span>: <span class='bool-val'>false</span>,
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">InorderFlowTraversal</span> <span class="kw">for</span> <span class="ident">ResolveGeneratedContent</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">process</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">flow</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Flow</span>, <span class="ident">level</span>: <span class="ident">u32</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mutator</span> <span class="op">=</span> <span class="ident">ResolveGeneratedContentFragmentMutator</span> {
+            <span class="ident">traversal</span>: <span class="self">self</span>,
+            <span class="ident">level</span>: <span class="ident">level</span>,
+            <span class="ident">is_block</span>: <span class="ident">flow</span>.<span class="ident">is_block_like</span>(),
+            <span class="ident">incremented</span>: <span class="bool-val">false</span>,
         };
-        <span class='ident'>flow</span>.<span class='ident'>mutate_fragments</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>|</span><span class='ident'>fragment</span><span class='op'>|</span> <span class='ident'>mutator</span>.<span class='ident'>mutate_fragment</span>(<span class='ident'>fragment</span>))
+        <span class="ident">flow</span>.<span class="ident">mutate_fragments</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">|</span><span class="ident">fragment</span><span class="op">|</span> <span class="ident">mutator</span>.<span class="ident">mutate_fragment</span>(<span class="ident">fragment</span>))
     }
 
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>should_process</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>flow</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Flow</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='ident'>flow</span>).<span class='ident'>restyle_damage</span>.<span class='ident'>intersects</span>(<span class='ident'>RESOLVE_GENERATED_CONTENT</span>) <span class='op'>||</span>
-            <span class='ident'>flow</span>::<span class='ident'>base</span>(<span class='ident'>flow</span>).<span class='ident'>flags</span>.<span class='ident'>intersects</span>(<span class='ident'>AFFECTS_COUNTERS</span> <span class='op'>|</span> <span class='ident'>HAS_COUNTER_AFFECTING_CHILDREN</span>)
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">should_process</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">flow</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Flow</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="ident">flow</span>::<span class="ident">base</span>(<span class="ident">flow</span>).<span class="ident">restyle_damage</span>.<span class="ident">intersects</span>(<span class="ident">RESOLVE_GENERATED_CONTENT</span>) <span class="op">||</span>
+            <span class="ident">flow</span>::<span class="ident">base</span>(<span class="ident">flow</span>).<span class="ident">flags</span>.<span class="ident">intersects</span>(<span class="ident">AFFECTS_COUNTERS</span> <span class="op">|</span> <span class="ident">HAS_COUNTER_AFFECTING_CHILDREN</span>)
     }
 }
 
-<span class='doccomment'>/// The object that mutates the generated content fragments.</span>
-<span class='kw'>struct</span> <span class='ident'>ResolveGeneratedContentFragmentMutator</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='lifetime'>&#39;b</span>:<span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// The traversal.</span>
-    <span class='ident'>traversal</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>ResolveGeneratedContent</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span><span class='op'>&gt;</span>,
-    <span class='doccomment'>/// The level we&#39;re at in the flow tree.</span>
-    <span class='ident'>level</span>: <span class='ident'>u32</span>,
-    <span class='doccomment'>/// Whether this flow is a block flow.</span>
-    <span class='ident'>is_block</span>: <span class='ident'>bool</span>,
-    <span class='doccomment'>/// Whether we&#39;ve incremented the counter yet.</span>
-    <span class='ident'>incremented</span>: <span class='ident'>bool</span>,
+<span class="doccomment">/// The object that mutates the generated content fragments.</span>
+<span class="kw">struct</span> <span class="ident">ResolveGeneratedContentFragmentMutator</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>,<span class="lifetime">&#39;b</span>:<span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// The traversal.</span>
+    <span class="ident">traversal</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">ResolveGeneratedContent</span><span class="op">&lt;</span><span class="lifetime">&#39;b</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The level we&#39;re at in the flow tree.</span>
+    <span class="ident">level</span>: <span class="ident">u32</span>,
+    <span class="doccomment">/// Whether this flow is a block flow.</span>
+    <span class="ident">is_block</span>: <span class="ident">bool</span>,
+    <span class="doccomment">/// Whether we&#39;ve incremented the counter yet.</span>
+    <span class="ident">incremented</span>: <span class="ident">bool</span>,
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='lifetime'>&#39;b</span><span class='op'>&gt;</span> <span class='ident'>ResolveGeneratedContentFragmentMutator</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>,<span class='lifetime'>&#39;b</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>mutate_fragment</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>fragment</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Fragment</span>) {
-        <span class='comment'>// We only reset and/or increment counters once per flow. This avoids double-incrementing</span>
-        <span class='comment'>// counters on list items (once for the main fragment and once for the marker).</span>
-        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>incremented</span> {
-            <span class='self'>self</span>.<span class='ident'>reset_and_increment_counters_as_necessary</span>(<span class='ident'>fragment</span>);
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>,<span class="lifetime">&#39;b</span><span class="op">&gt;</span> <span class="ident">ResolveGeneratedContentFragmentMutator</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>,<span class="lifetime">&#39;b</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">mutate_fragment</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">fragment</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Fragment</span>) {
+        <span class="comment">// We only reset and/or increment counters once per flow. This avoids double-incrementing</span>
+        <span class="comment">// counters on list items (once for the main fragment and once for the marker).</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">incremented</span> {
+            <span class="self">self</span>.<span class="ident">reset_and_increment_counters_as_necessary</span>(<span class="ident">fragment</span>);
         }
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>list_style_type</span> <span class='op'>=</span> <span class='ident'>fragment</span>.<span class='ident'>style</span>().<span class='ident'>get_list</span>().<span class='ident'>list_style_type</span>;
-        <span class='kw'>if</span> <span class='ident'>fragment</span>.<span class='ident'>style</span>().<span class='ident'>get_box</span>().<span class='ident'>display</span> <span class='op'>!=</span> <span class='ident'>display</span>::<span class='ident'>T</span>::<span class='ident'>list_item</span> {
-            <span class='ident'>list_style_type</span> <span class='op'>=</span> <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>none</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">list_style_type</span> <span class="op">=</span> <span class="ident">fragment</span>.<span class="ident">style</span>().<span class="ident">get_list</span>().<span class="ident">list_style_type</span>;
+        <span class="kw">if</span> <span class="ident">fragment</span>.<span class="ident">style</span>().<span class="ident">get_box</span>().<span class="ident">display</span> <span class="op">!=</span> <span class="ident">display</span>::<span class="ident">T</span>::<span class="ident">list_item</span> {
+            <span class="ident">list_style_type</span> <span class="op">=</span> <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">none</span>
         }
 
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>new_info</span> <span class='op'>=</span> <span class='prelude-val'>None</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new_info</span> <span class="op">=</span> <span class="prelude-val">None</span>;
         {
-            <span class='kw'>let</span> <span class='ident'>info</span> <span class='op'>=</span>
-                <span class='kw'>if</span> <span class='kw'>let</span> <span class='ident'>SpecificFragmentInfo</span>::<span class='ident'>GeneratedContent</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>info</span>) <span class='op'>=</span> <span class='ident'>fragment</span>.<span class='ident'>specific</span> {
-                    <span class='ident'>info</span>
-                } <span class='kw'>else</span> {
-                    <span class='kw'>return</span>
+            <span class="kw">let</span> <span class="ident">info</span> <span class="op">=</span>
+                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">SpecificFragmentInfo</span>::<span class="ident">GeneratedContent</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">info</span>) <span class="op">=</span> <span class="ident">fragment</span>.<span class="ident">specific</span> {
+                    <span class="ident">info</span>
+                } <span class="kw">else</span> {
+                    <span class="kw">return</span>
                 };
 
-            <span class='kw'>match</span> <span class='kw-2'>*</span><span class='kw-2'>*</span><span class='ident'>info</span> {
-                <span class='ident'>GeneratedContentInfo</span>::<span class='ident'>ListItem</span> <span class='op'>=&gt;</span> {
-                    <span class='ident'>new_info</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>list_item</span>.<span class='ident'>render</span>(<span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>layout_context</span>,
-                                                               <span class='ident'>fragment</span>.<span class='ident'>node</span>,
-                                                               <span class='ident'>fragment</span>.<span class='ident'>pseudo</span>.<span class='ident'>clone</span>(),
-                                                               <span class='ident'>fragment</span>.<span class='ident'>style</span>.<span class='ident'>clone</span>(),
-                                                               <span class='ident'>list_style_type</span>,
-                                                               <span class='ident'>RenderingMode</span>::<span class='ident'>Suffix</span>(<span class='string'>&quot;.\u{00a0}&quot;</span>))
+            <span class="kw">match</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">info</span> {
+                <span class="ident">GeneratedContentInfo</span>::<span class="ident">ListItem</span> <span class="op">=&gt;</span> {
+                    <span class="ident">new_info</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">list_item</span>.<span class="ident">render</span>(<span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">layout_context</span>,
+                                                               <span class="ident">fragment</span>.<span class="ident">node</span>,
+                                                               <span class="ident">fragment</span>.<span class="ident">pseudo</span>.<span class="ident">clone</span>(),
+                                                               <span class="ident">fragment</span>.<span class="ident">style</span>.<span class="ident">clone</span>(),
+                                                               <span class="ident">list_style_type</span>,
+                                                               <span class="ident">RenderingMode</span>::<span class="ident">Suffix</span>(<span class="string">&quot;.\u{00a0}&quot;</span>))
                 }
-                <span class='ident'>GeneratedContentInfo</span>::<span class='ident'>Empty</span> <span class='op'>|</span>
-                <span class='ident'>GeneratedContentInfo</span>::<span class='ident'>ContentItem</span>(<span class='ident'>ContentItem</span>::<span class='ident'>String</span>(_)) <span class='op'>=&gt;</span> {
-                    <span class='comment'>// Nothing to do here.</span>
+                <span class="ident">GeneratedContentInfo</span>::<span class="ident">Empty</span> <span class="op">|</span>
+                <span class="ident">GeneratedContentInfo</span>::<span class="ident">ContentItem</span>(<span class="ident">ContentItem</span>::<span class="ident">String</span>(_)) <span class="op">=&gt;</span> {
+                    <span class="comment">// Nothing to do here.</span>
                 }
-                <span class='ident'>GeneratedContentInfo</span>::<span class='ident'>ContentItem</span>(<span class='ident'>ContentItem</span>::<span class='ident'>Counter</span>(<span class='kw-2'>ref</span> <span class='ident'>counter_name</span>,
-                                                                       <span class='ident'>counter_style</span>)) <span class='op'>=&gt;</span> {
-                    <span class='kw'>let</span> <span class='ident'>temporary_counter</span> <span class='op'>=</span> <span class='ident'>Counter</span>::<span class='ident'>new</span>();
-                    <span class='kw'>let</span> <span class='ident'>counter</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>traversal</span>
-                                      .<span class='ident'>counters</span>
-                                      .<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>counter_name</span>)
-                                      .<span class='ident'>unwrap_or</span>(<span class='kw-2'>&amp;</span><span class='ident'>temporary_counter</span>);
-                    <span class='ident'>new_info</span> <span class='op'>=</span> <span class='ident'>counter</span>.<span class='ident'>render</span>(<span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>layout_context</span>,
-                                              <span class='ident'>fragment</span>.<span class='ident'>node</span>,
-                                              <span class='ident'>fragment</span>.<span class='ident'>pseudo</span>.<span class='ident'>clone</span>(),
-                                              <span class='ident'>fragment</span>.<span class='ident'>style</span>.<span class='ident'>clone</span>(),
-                                              <span class='ident'>counter_style</span>,
-                                              <span class='ident'>RenderingMode</span>::<span class='ident'>Plain</span>)
+                <span class="ident">GeneratedContentInfo</span>::<span class="ident">ContentItem</span>(<span class="ident">ContentItem</span>::<span class="ident">Counter</span>(<span class="kw-2">ref</span> <span class="ident">counter_name</span>,
+                                                                       <span class="ident">counter_style</span>)) <span class="op">=&gt;</span> {
+                    <span class="kw">let</span> <span class="ident">temporary_counter</span> <span class="op">=</span> <span class="ident">Counter</span>::<span class="ident">new</span>();
+                    <span class="kw">let</span> <span class="ident">counter</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">traversal</span>
+                                      .<span class="ident">counters</span>
+                                      .<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">counter_name</span>)
+                                      .<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="ident">temporary_counter</span>);
+                    <span class="ident">new_info</span> <span class="op">=</span> <span class="ident">counter</span>.<span class="ident">render</span>(<span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">layout_context</span>,
+                                              <span class="ident">fragment</span>.<span class="ident">node</span>,
+                                              <span class="ident">fragment</span>.<span class="ident">pseudo</span>.<span class="ident">clone</span>(),
+                                              <span class="ident">fragment</span>.<span class="ident">style</span>.<span class="ident">clone</span>(),
+                                              <span class="ident">counter_style</span>,
+                                              <span class="ident">RenderingMode</span>::<span class="ident">Plain</span>)
                 }
-                <span class='ident'>GeneratedContentInfo</span>::<span class='ident'>ContentItem</span>(<span class='ident'>ContentItem</span>::<span class='ident'>Counters</span>(<span class='kw-2'>ref</span> <span class='ident'>counter_name</span>,
-                                                                        <span class='kw-2'>ref</span> <span class='ident'>separator</span>,
-                                                                        <span class='ident'>counter_style</span>)) <span class='op'>=&gt;</span> {
-                    <span class='kw'>let</span> <span class='ident'>temporary_counter</span> <span class='op'>=</span> <span class='ident'>Counter</span>::<span class='ident'>new</span>();
-                    <span class='kw'>let</span> <span class='ident'>counter</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>traversal</span>
-                                      .<span class='ident'>counters</span>
-                                      .<span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>counter_name</span>)
-                                      .<span class='ident'>unwrap_or</span>(<span class='kw-2'>&amp;</span><span class='ident'>temporary_counter</span>);
-                    <span class='ident'>new_info</span> <span class='op'>=</span> <span class='ident'>counter</span>.<span class='ident'>render</span>(<span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>layout_context</span>,
-                                              <span class='ident'>fragment</span>.<span class='ident'>node</span>,
-                                              <span class='ident'>fragment</span>.<span class='ident'>pseudo</span>,
-                                              <span class='ident'>fragment</span>.<span class='ident'>style</span>.<span class='ident'>clone</span>(),
-                                              <span class='ident'>counter_style</span>,
-                                              <span class='ident'>RenderingMode</span>::<span class='ident'>All</span>(<span class='kw-2'>&amp;</span><span class='ident'>separator</span>));
+                <span class="ident">GeneratedContentInfo</span>::<span class="ident">ContentItem</span>(<span class="ident">ContentItem</span>::<span class="ident">Counters</span>(<span class="kw-2">ref</span> <span class="ident">counter_name</span>,
+                                                                        <span class="kw-2">ref</span> <span class="ident">separator</span>,
+                                                                        <span class="ident">counter_style</span>)) <span class="op">=&gt;</span> {
+                    <span class="kw">let</span> <span class="ident">temporary_counter</span> <span class="op">=</span> <span class="ident">Counter</span>::<span class="ident">new</span>();
+                    <span class="kw">let</span> <span class="ident">counter</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">traversal</span>
+                                      .<span class="ident">counters</span>
+                                      .<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">counter_name</span>)
+                                      .<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="ident">temporary_counter</span>);
+                    <span class="ident">new_info</span> <span class="op">=</span> <span class="ident">counter</span>.<span class="ident">render</span>(<span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">layout_context</span>,
+                                              <span class="ident">fragment</span>.<span class="ident">node</span>,
+                                              <span class="ident">fragment</span>.<span class="ident">pseudo</span>,
+                                              <span class="ident">fragment</span>.<span class="ident">style</span>.<span class="ident">clone</span>(),
+                                              <span class="ident">counter_style</span>,
+                                              <span class="ident">RenderingMode</span>::<span class="ident">All</span>(<span class="kw-2">&amp;</span><span class="ident">separator</span>));
                 }
-                <span class='ident'>GeneratedContentInfo</span>::<span class='ident'>ContentItem</span>(<span class='ident'>ContentItem</span>::<span class='ident'>OpenQuote</span>) <span class='op'>=&gt;</span> {
-                    <span class='ident'>new_info</span> <span class='op'>=</span> <span class='ident'>render_text</span>(<span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>layout_context</span>,
-                                           <span class='ident'>fragment</span>.<span class='ident'>node</span>,
-                                           <span class='ident'>fragment</span>.<span class='ident'>pseudo</span>,
-                                           <span class='ident'>fragment</span>.<span class='ident'>style</span>.<span class='ident'>clone</span>(),
-                                           <span class='self'>self</span>.<span class='ident'>quote</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>fragment</span>.<span class='ident'>style</span>, <span class='bool-val'>false</span>));
-                    <span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>quote</span> <span class='op'>+=</span> <span class='number'>1</span>
+                <span class="ident">GeneratedContentInfo</span>::<span class="ident">ContentItem</span>(<span class="ident">ContentItem</span>::<span class="ident">OpenQuote</span>) <span class="op">=&gt;</span> {
+                    <span class="ident">new_info</span> <span class="op">=</span> <span class="ident">render_text</span>(<span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">layout_context</span>,
+                                           <span class="ident">fragment</span>.<span class="ident">node</span>,
+                                           <span class="ident">fragment</span>.<span class="ident">pseudo</span>,
+                                           <span class="ident">fragment</span>.<span class="ident">style</span>.<span class="ident">clone</span>(),
+                                           <span class="self">self</span>.<span class="ident">quote</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">fragment</span>.<span class="ident">style</span>, <span class="bool-val">false</span>));
+                    <span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">quote</span> <span class="op">+=</span> <span class="number">1</span>
                 }
-                <span class='ident'>GeneratedContentInfo</span>::<span class='ident'>ContentItem</span>(<span class='ident'>ContentItem</span>::<span class='ident'>CloseQuote</span>) <span class='op'>=&gt;</span> {
-                    <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>quote</span> <span class='op'>&gt;=</span> <span class='number'>1</span> {
-                        <span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>quote</span> <span class='op'>-=</span> <span class='number'>1</span>
+                <span class="ident">GeneratedContentInfo</span>::<span class="ident">ContentItem</span>(<span class="ident">ContentItem</span>::<span class="ident">CloseQuote</span>) <span class="op">=&gt;</span> {
+                    <span class="kw">if</span> <span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">quote</span> <span class="op">&gt;=</span> <span class="number">1</span> {
+                        <span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">quote</span> <span class="op">-=</span> <span class="number">1</span>
                     }
 
-                    <span class='ident'>new_info</span> <span class='op'>=</span> <span class='ident'>render_text</span>(<span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>layout_context</span>,
-                                           <span class='ident'>fragment</span>.<span class='ident'>node</span>,
-                                           <span class='ident'>fragment</span>.<span class='ident'>pseudo</span>,
-                                           <span class='ident'>fragment</span>.<span class='ident'>style</span>.<span class='ident'>clone</span>(),
-                                           <span class='self'>self</span>.<span class='ident'>quote</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>fragment</span>.<span class='ident'>style</span>, <span class='bool-val'>true</span>));
+                    <span class="ident">new_info</span> <span class="op">=</span> <span class="ident">render_text</span>(<span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">layout_context</span>,
+                                           <span class="ident">fragment</span>.<span class="ident">node</span>,
+                                           <span class="ident">fragment</span>.<span class="ident">pseudo</span>,
+                                           <span class="ident">fragment</span>.<span class="ident">style</span>.<span class="ident">clone</span>(),
+                                           <span class="self">self</span>.<span class="ident">quote</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">fragment</span>.<span class="ident">style</span>, <span class="bool-val">true</span>));
                 }
-                <span class='ident'>GeneratedContentInfo</span>::<span class='ident'>ContentItem</span>(<span class='ident'>ContentItem</span>::<span class='ident'>NoOpenQuote</span>) <span class='op'>=&gt;</span> {
-                    <span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>quote</span> <span class='op'>+=</span> <span class='number'>1</span>
+                <span class="ident">GeneratedContentInfo</span>::<span class="ident">ContentItem</span>(<span class="ident">ContentItem</span>::<span class="ident">NoOpenQuote</span>) <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">quote</span> <span class="op">+=</span> <span class="number">1</span>
                 }
-                <span class='ident'>GeneratedContentInfo</span>::<span class='ident'>ContentItem</span>(<span class='ident'>ContentItem</span>::<span class='ident'>NoCloseQuote</span>) <span class='op'>=&gt;</span> {
-                    <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>quote</span> <span class='op'>&gt;=</span> <span class='number'>1</span> {
-                        <span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>quote</span> <span class='op'>-=</span> <span class='number'>1</span>
+                <span class="ident">GeneratedContentInfo</span>::<span class="ident">ContentItem</span>(<span class="ident">ContentItem</span>::<span class="ident">NoCloseQuote</span>) <span class="op">=&gt;</span> {
+                    <span class="kw">if</span> <span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">quote</span> <span class="op">&gt;=</span> <span class="number">1</span> {
+                        <span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">quote</span> <span class="op">-=</span> <span class="number">1</span>
                     }
                 }
             }
         };
 
-        <span class='ident'>fragment</span>.<span class='ident'>specific</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>new_info</span> {
-            <span class='prelude-val'>Some</span>(<span class='ident'>new_info</span>) <span class='op'>=&gt;</span> <span class='ident'>new_info</span>,
-            <span class='comment'>// If the fragment did not generate any content, replace it with a no-op placeholder</span>
-            <span class='comment'>// so that it isn&#39;t processed again on the next layout.  FIXME (mbrubeck): When</span>
-            <span class='comment'>// processing an inline flow, this traversal should be allowed to insert or remove</span>
-            <span class='comment'>// fragments.  Then we can just remove these fragments rather than adding placeholders.</span>
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='ident'>SpecificFragmentInfo</span>::<span class='ident'>GeneratedContent</span>(<span class='kw'>box</span> <span class='ident'>GeneratedContentInfo</span>::<span class='ident'>Empty</span>)
+        <span class="ident">fragment</span>.<span class="ident">specific</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">new_info</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">new_info</span>) <span class="op">=&gt;</span> <span class="ident">new_info</span>,
+            <span class="comment">// If the fragment did not generate any content, replace it with a no-op placeholder</span>
+            <span class="comment">// so that it isn&#39;t processed again on the next layout.  FIXME (mbrubeck): When</span>
+            <span class="comment">// processing an inline flow, this traversal should be allowed to insert or remove</span>
+            <span class="comment">// fragments.  Then we can just remove these fragments rather than adding placeholders.</span>
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">SpecificFragmentInfo</span>::<span class="ident">GeneratedContent</span>(<span class="kw">box</span> <span class="ident">GeneratedContentInfo</span>::<span class="ident">Empty</span>)
         };
     }
 
-    <span class='kw'>fn</span> <span class='ident'>reset_and_increment_counters_as_necessary</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>fragment</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Fragment</span>) {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>list_style_type</span> <span class='op'>=</span> <span class='ident'>fragment</span>.<span class='ident'>style</span>().<span class='ident'>get_list</span>().<span class='ident'>list_style_type</span>;
-        <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>is_block</span> <span class='op'>||</span> <span class='ident'>fragment</span>.<span class='ident'>style</span>().<span class='ident'>get_box</span>().<span class='ident'>display</span> <span class='op'>!=</span> <span class='ident'>display</span>::<span class='ident'>T</span>::<span class='ident'>list_item</span> {
-            <span class='ident'>list_style_type</span> <span class='op'>=</span> <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>none</span>
+    <span class="kw">fn</span> <span class="ident">reset_and_increment_counters_as_necessary</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">fragment</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Fragment</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">list_style_type</span> <span class="op">=</span> <span class="ident">fragment</span>.<span class="ident">style</span>().<span class="ident">get_list</span>().<span class="ident">list_style_type</span>;
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_block</span> <span class="op">||</span> <span class="ident">fragment</span>.<span class="ident">style</span>().<span class="ident">get_box</span>().<span class="ident">display</span> <span class="op">!=</span> <span class="ident">display</span>::<span class="ident">T</span>::<span class="ident">list_item</span> {
+            <span class="ident">list_style_type</span> <span class="op">=</span> <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">none</span>
         }
 
-        <span class='kw'>match</span> <span class='ident'>list_style_type</span> {
-            <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>disc</span> <span class='op'>|</span> <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>none</span> <span class='op'>|</span> <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>circle</span> <span class='op'>|</span>
-            <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>square</span> <span class='op'>|</span> <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>disclosure_open</span> <span class='op'>|</span>
-            <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>disclosure_closed</span> <span class='op'>=&gt;</span> {}
-            _ <span class='op'>=&gt;</span> <span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>list_item</span>.<span class='ident'>increment</span>(<span class='self'>self</span>.<span class='ident'>level</span>, <span class='number'>1</span>),
+        <span class="kw">match</span> <span class="ident">list_style_type</span> {
+            <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">disc</span> <span class="op">|</span> <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">none</span> <span class="op">|</span> <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">circle</span> <span class="op">|</span>
+            <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">square</span> <span class="op">|</span> <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">disclosure_open</span> <span class="op">|</span>
+            <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">disclosure_closed</span> <span class="op">=&gt;</span> {}
+            _ <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">list_item</span>.<span class="ident">increment</span>(<span class="self">self</span>.<span class="ident">level</span>, <span class="number">1</span>),
         }
 
-        <span class='comment'>// Truncate down counters.</span>
-        <span class='kw'>for</span> (_, <span class='ident'>counter</span>) <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>counters</span> {
-            <span class='ident'>counter</span>.<span class='ident'>truncate_to_level</span>(<span class='self'>self</span>.<span class='ident'>level</span>);
+        <span class="comment">// Truncate down counters.</span>
+        <span class="kw">for</span> (_, <span class="ident">counter</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">counters</span> {
+            <span class="ident">counter</span>.<span class="ident">truncate_to_level</span>(<span class="self">self</span>.<span class="ident">level</span>);
         }
-        <span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>list_item</span>.<span class='ident'>truncate_to_level</span>(<span class='self'>self</span>.<span class='ident'>level</span>);
+        <span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">list_item</span>.<span class="ident">truncate_to_level</span>(<span class="self">self</span>.<span class="ident">level</span>);
 
-        <span class='kw'>for</span> <span class='kw-2'>&amp;</span>(<span class='kw-2'>ref</span> <span class='ident'>counter_name</span>, <span class='ident'>value</span>) <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>fragment</span>.<span class='ident'>style</span>().<span class='ident'>get_counters</span>().<span class='ident'>counter_reset</span>.<span class='number'>0</span> {
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>counter</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>counters</span>.<span class='ident'>get_mut</span>(<span class='ident'>counter_name</span>) {
-                 <span class='ident'>counter</span>.<span class='ident'>reset</span>(<span class='self'>self</span>.<span class='ident'>level</span>, <span class='ident'>value</span>);
-                 <span class='kw'>continue</span>
+        <span class="kw">for</span> <span class="kw-2">&amp;</span>(<span class="kw-2">ref</span> <span class="ident">counter_name</span>, <span class="ident">value</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">fragment</span>.<span class="ident">style</span>().<span class="ident">get_counters</span>().<span class="ident">counter_reset</span>.<span class="number">0</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">counter</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">counters</span>.<span class="ident">get_mut</span>(<span class="ident">counter_name</span>) {
+                 <span class="ident">counter</span>.<span class="ident">reset</span>(<span class="self">self</span>.<span class="ident">level</span>, <span class="ident">value</span>);
+                 <span class="kw">continue</span>
             }
 
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>counter</span> <span class='op'>=</span> <span class='ident'>Counter</span>::<span class='ident'>new</span>();
-            <span class='ident'>counter</span>.<span class='ident'>reset</span>(<span class='self'>self</span>.<span class='ident'>level</span>, <span class='ident'>value</span>);
-            <span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>counters</span>.<span class='ident'>insert</span>((<span class='kw-2'>*</span><span class='ident'>counter_name</span>).<span class='ident'>clone</span>(), <span class='ident'>counter</span>);
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">counter</span> <span class="op">=</span> <span class="ident">Counter</span>::<span class="ident">new</span>();
+            <span class="ident">counter</span>.<span class="ident">reset</span>(<span class="self">self</span>.<span class="ident">level</span>, <span class="ident">value</span>);
+            <span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">counters</span>.<span class="ident">insert</span>((<span class="kw-2">*</span><span class="ident">counter_name</span>).<span class="ident">clone</span>(), <span class="ident">counter</span>);
         }
 
-        <span class='kw'>for</span> <span class='kw-2'>&amp;</span>(<span class='kw-2'>ref</span> <span class='ident'>counter_name</span>, <span class='ident'>value</span>) <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='ident'>fragment</span>.<span class='ident'>style</span>().<span class='ident'>get_counters</span>().<span class='ident'>counter_increment</span>.<span class='number'>0</span> {
-            <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>counter</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>counters</span>.<span class='ident'>get_mut</span>(<span class='ident'>counter_name</span>) {
-                <span class='ident'>counter</span>.<span class='ident'>increment</span>(<span class='self'>self</span>.<span class='ident'>level</span>, <span class='ident'>value</span>);
-                <span class='kw'>continue</span>
+        <span class="kw">for</span> <span class="kw-2">&amp;</span>(<span class="kw-2">ref</span> <span class="ident">counter_name</span>, <span class="ident">value</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">fragment</span>.<span class="ident">style</span>().<span class="ident">get_counters</span>().<span class="ident">counter_increment</span>.<span class="number">0</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">counter</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">counters</span>.<span class="ident">get_mut</span>(<span class="ident">counter_name</span>) {
+                <span class="ident">counter</span>.<span class="ident">increment</span>(<span class="self">self</span>.<span class="ident">level</span>, <span class="ident">value</span>);
+                <span class="kw">continue</span>
             }
 
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>counter</span> <span class='op'>=</span> <span class='ident'>Counter</span>::<span class='ident'>new</span>();
-            <span class='ident'>counter</span>.<span class='ident'>increment</span>(<span class='self'>self</span>.<span class='ident'>level</span>, <span class='ident'>value</span>);
-            <span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>counters</span>.<span class='ident'>insert</span>((<span class='kw-2'>*</span><span class='ident'>counter_name</span>).<span class='ident'>clone</span>(), <span class='ident'>counter</span>);
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">counter</span> <span class="op">=</span> <span class="ident">Counter</span>::<span class="ident">new</span>();
+            <span class="ident">counter</span>.<span class="ident">increment</span>(<span class="self">self</span>.<span class="ident">level</span>, <span class="ident">value</span>);
+            <span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">counters</span>.<span class="ident">insert</span>((<span class="kw-2">*</span><span class="ident">counter_name</span>).<span class="ident">clone</span>(), <span class="ident">counter</span>);
         }
 
-        <span class='self'>self</span>.<span class='ident'>incremented</span> <span class='op'>=</span> <span class='bool-val'>true</span>
+        <span class="self">self</span>.<span class="ident">incremented</span> <span class="op">=</span> <span class="bool-val">true</span>
     }
 
-    <span class='kw'>fn</span> <span class='ident'>quote</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>style</span>: <span class='kw-2'>&amp;</span><span class='ident'>ServoComputedValues</span>, <span class='ident'>close</span>: <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='ident'>String</span> {
-        <span class='kw'>let</span> <span class='ident'>quotes</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>style</span>.<span class='ident'>get_list</span>().<span class='ident'>quotes</span>;
-        <span class='kw'>if</span> <span class='ident'>quotes</span>.<span class='number'>0</span>.<span class='ident'>is_empty</span>() {
-            <span class='kw'>return</span> <span class='ident'>String</span>::<span class='ident'>new</span>()
+    <span class="kw">fn</span> <span class="ident">quote</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">style</span>: <span class="kw-2">&amp;</span><span class="ident">ServoComputedValues</span>, <span class="ident">close</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">String</span> {
+        <span class="kw">let</span> <span class="ident">quotes</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">style</span>.<span class="ident">get_list</span>().<span class="ident">quotes</span>;
+        <span class="kw">if</span> <span class="ident">quotes</span>.<span class="number">0</span>.<span class="ident">is_empty</span>() {
+            <span class="kw">return</span> <span class="ident">String</span>::<span class="ident">new</span>()
         }
-        <span class='kw'>let</span> <span class='kw-2'>&amp;</span>(<span class='kw-2'>ref</span> <span class='ident'>open_quote</span>, <span class='kw-2'>ref</span> <span class='ident'>close_quote</span>) <span class='op'>=</span>
-            <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>quote</span> <span class='kw'>as</span> <span class='ident'>usize</span> <span class='op'>&gt;=</span> <span class='ident'>quotes</span>.<span class='number'>0</span>.<span class='ident'>len</span>() {
-                <span class='ident'>quotes</span>.<span class='number'>0</span>.<span class='ident'>last</span>().<span class='ident'>unwrap</span>()
-            } <span class='kw'>else</span> {
-                <span class='kw-2'>&amp;</span><span class='ident'>quotes</span>.<span class='number'>0</span>[<span class='self'>self</span>.<span class='ident'>traversal</span>.<span class='ident'>quote</span> <span class='kw'>as</span> <span class='ident'>usize</span>]
+        <span class="kw">let</span> <span class="kw-2">&amp;</span>(<span class="kw-2">ref</span> <span class="ident">open_quote</span>, <span class="kw-2">ref</span> <span class="ident">close_quote</span>) <span class="op">=</span>
+            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">quote</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">&gt;=</span> <span class="ident">quotes</span>.<span class="number">0</span>.<span class="ident">len</span>() {
+                <span class="ident">quotes</span>.<span class="number">0</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>()
+            } <span class="kw">else</span> {
+                <span class="kw-2">&amp;</span><span class="ident">quotes</span>.<span class="number">0</span>[<span class="self">self</span>.<span class="ident">traversal</span>.<span class="ident">quote</span> <span class="kw">as</span> <span class="ident">usize</span>]
             };
-        <span class='kw'>if</span> <span class='ident'>close</span> {
-            <span class='ident'>close_quote</span>.<span class='ident'>clone</span>()
-        } <span class='kw'>else</span> {
-            <span class='ident'>open_quote</span>.<span class='ident'>clone</span>()
+        <span class="kw">if</span> <span class="ident">close</span> {
+            <span class="ident">close_quote</span>.<span class="ident">clone</span>()
+        } <span class="kw">else</span> {
+            <span class="ident">open_quote</span>.<span class="ident">clone</span>()
         }
     }
 }
 
-<span class='doccomment'>/// A counter per CSS 2.1 § 12.4.</span>
-<span class='kw'>struct</span> <span class='ident'>Counter</span> {
-    <span class='doccomment'>/// The values at each level.</span>
-    <span class='ident'>values</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>CounterValue</span><span class='op'>&gt;</span>,
+<span class="doccomment">/// A counter per CSS 2.1 § 12.4.</span>
+<span class="kw">struct</span> <span class="ident">Counter</span> {
+    <span class="doccomment">/// The values at each level.</span>
+    <span class="ident">values</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">CounterValue</span><span class="op">&gt;</span>,
 }
 
-<span class='kw'>impl</span> <span class='ident'>Counter</span> {
-    <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>Counter</span> {
-        <span class='ident'>Counter</span> {
-            <span class='ident'>values</span>: <span class='ident'>Vec</span>::<span class='ident'>new</span>(),
+<span class="kw">impl</span> <span class="ident">Counter</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">Counter</span> {
+        <span class="ident">Counter</span> {
+            <span class="ident">values</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>reset</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>level</span>: <span class='ident'>u32</span>, <span class='ident'>value</span>: <span class='ident'>i32</span>) {
-        <span class='comment'>// Do we have an instance of the counter at this level? If so, just mutate it.</span>
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>existing_value</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>values</span>.<span class='ident'>last_mut</span>() {
-            <span class='kw'>if</span> <span class='ident'>level</span> <span class='op'>==</span> <span class='ident'>existing_value</span>.<span class='ident'>level</span> {
-                <span class='ident'>existing_value</span>.<span class='ident'>value</span> <span class='op'>=</span> <span class='ident'>value</span>;
-                <span class='kw'>return</span>
+    <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">level</span>: <span class="ident">u32</span>, <span class="ident">value</span>: <span class="ident">i32</span>) {
+        <span class="comment">// Do we have an instance of the counter at this level? If so, just mutate it.</span>
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">existing_value</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">last_mut</span>() {
+            <span class="kw">if</span> <span class="ident">level</span> <span class="op">==</span> <span class="ident">existing_value</span>.<span class="ident">level</span> {
+                <span class="ident">existing_value</span>.<span class="ident">value</span> <span class="op">=</span> <span class="ident">value</span>;
+                <span class="kw">return</span>
             }
         }
 
-        <span class='comment'>// Otherwise, push a new instance of the counter.</span>
-        <span class='self'>self</span>.<span class='ident'>values</span>.<span class='ident'>push</span>(<span class='ident'>CounterValue</span> {
-            <span class='ident'>level</span>: <span class='ident'>level</span>,
-            <span class='ident'>value</span>: <span class='ident'>value</span>,
+        <span class="comment">// Otherwise, push a new instance of the counter.</span>
+        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">push</span>(<span class="ident">CounterValue</span> {
+            <span class="ident">level</span>: <span class="ident">level</span>,
+            <span class="ident">value</span>: <span class="ident">value</span>,
         })
     }
 
-    <span class='kw'>fn</span> <span class='ident'>truncate_to_level</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>level</span>: <span class='ident'>u32</span>) {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='ident'>position</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>values</span>.<span class='ident'>iter</span>().<span class='ident'>position</span>(<span class='op'>|</span><span class='ident'>value</span><span class='op'>|</span> <span class='ident'>value</span>.<span class='ident'>level</span> <span class='op'>&gt;</span> <span class='ident'>level</span>) {
-            <span class='self'>self</span>.<span class='ident'>values</span>.<span class='ident'>truncate</span>(<span class='ident'>position</span>)
+    <span class="kw">fn</span> <span class="ident">truncate_to_level</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">level</span>: <span class="ident">u32</span>) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">position</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">iter</span>().<span class="ident">position</span>(<span class="op">|</span><span class="ident">value</span><span class="op">|</span> <span class="ident">value</span>.<span class="ident">level</span> <span class="op">&gt;</span> <span class="ident">level</span>) {
+            <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">truncate</span>(<span class="ident">position</span>)
         }
     }
 
-    <span class='kw'>fn</span> <span class='ident'>increment</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>level</span>: <span class='ident'>u32</span>, <span class='ident'>amount</span>: <span class='ident'>i32</span>) {
-        <span class='kw'>if</span> <span class='kw'>let</span> <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='kw-2'>mut</span> <span class='ident'>value</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>values</span>.<span class='ident'>last_mut</span>() {
-            <span class='ident'>value</span>.<span class='ident'>value</span> <span class='op'>+=</span> <span class='ident'>amount</span>;
-            <span class='kw'>return</span>
+    <span class="kw">fn</span> <span class="ident">increment</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">level</span>: <span class="ident">u32</span>, <span class="ident">amount</span>: <span class="ident">i32</span>) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">value</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">last_mut</span>() {
+            <span class="ident">value</span>.<span class="ident">value</span> <span class="op">+=</span> <span class="ident">amount</span>;
+            <span class="kw">return</span>
         }
 
-        <span class='self'>self</span>.<span class='ident'>values</span>.<span class='ident'>push</span>(<span class='ident'>CounterValue</span> {
-            <span class='ident'>level</span>: <span class='ident'>level</span>,
-            <span class='ident'>value</span>: <span class='ident'>amount</span>,
+        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">push</span>(<span class="ident">CounterValue</span> {
+            <span class="ident">level</span>: <span class="ident">level</span>,
+            <span class="ident">value</span>: <span class="ident">amount</span>,
         })
     }
 
-    <span class='kw'>fn</span> <span class='ident'>render</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>,
-              <span class='ident'>layout_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayoutContext</span>,
-              <span class='ident'>node</span>: <span class='ident'>OpaqueNode</span>,
-              <span class='ident'>pseudo</span>: <span class='ident'>PseudoElementType</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span>,
-              <span class='ident'>style</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>ServoComputedValues</span><span class='op'>&gt;</span>,
-              <span class='ident'>list_style_type</span>: <span class='ident'>list_style_type</span>::<span class='ident'>T</span>,
-              <span class='ident'>mode</span>: <span class='ident'>RenderingMode</span>)
-              <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>SpecificFragmentInfo</span><span class='op'>&gt;</span> {
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>string</span> <span class='op'>=</span> <span class='ident'>String</span>::<span class='ident'>new</span>();
-        <span class='kw'>match</span> <span class='ident'>mode</span> {
-            <span class='ident'>RenderingMode</span>::<span class='ident'>Plain</span> <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>value</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>values</span>.<span class='ident'>last</span>() {
-                    <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>=&gt;</span> <span class='ident'>value</span>.<span class='ident'>value</span>,
-                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='number'>0</span>,
+    <span class="kw">fn</span> <span class="ident">render</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
+              <span class="ident">layout_context</span>: <span class="kw-2">&amp;</span><span class="ident">LayoutContext</span>,
+              <span class="ident">node</span>: <span class="ident">OpaqueNode</span>,
+              <span class="ident">pseudo</span>: <span class="ident">PseudoElementType</span><span class="op">&lt;</span>()<span class="op">&gt;</span>,
+              <span class="ident">style</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ServoComputedValues</span><span class="op">&gt;</span>,
+              <span class="ident">list_style_type</span>: <span class="ident">list_style_type</span>::<span class="ident">T</span>,
+              <span class="ident">mode</span>: <span class="ident">RenderingMode</span>)
+              <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SpecificFragmentInfo</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">string</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">new</span>();
+        <span class="kw">match</span> <span class="ident">mode</span> {
+            <span class="ident">RenderingMode</span>::<span class="ident">Plain</span> <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">last</span>() {
+                    <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=&gt;</span> <span class="ident">value</span>.<span class="ident">value</span>,
+                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="number">0</span>,
                 };
-                <span class='ident'>push_representation</span>(<span class='ident'>value</span>, <span class='ident'>list_style_type</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>string</span>)
+                <span class="ident">push_representation</span>(<span class="ident">value</span>, <span class="ident">list_style_type</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">string</span>)
             }
-            <span class='ident'>RenderingMode</span>::<span class='ident'>Suffix</span>(<span class='ident'>suffix</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>value</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>values</span>.<span class='ident'>last</span>() {
-                    <span class='prelude-val'>Some</span>(<span class='kw-2'>ref</span> <span class='ident'>value</span>) <span class='op'>=&gt;</span> <span class='ident'>value</span>.<span class='ident'>value</span>,
-                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='number'>0</span>,
+            <span class="ident">RenderingMode</span>::<span class="ident">Suffix</span>(<span class="ident">suffix</span>) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">last</span>() {
+                    <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=&gt;</span> <span class="ident">value</span>.<span class="ident">value</span>,
+                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="number">0</span>,
                 };
-                <span class='ident'>push_representation</span>(<span class='ident'>value</span>, <span class='ident'>list_style_type</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>string</span>);
-                <span class='ident'>string</span>.<span class='ident'>push_str</span>(<span class='ident'>suffix</span>)
+                <span class="ident">push_representation</span>(<span class="ident">value</span>, <span class="ident">list_style_type</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">string</span>);
+                <span class="ident">string</span>.<span class="ident">push_str</span>(<span class="ident">suffix</span>)
             }
-            <span class='ident'>RenderingMode</span>::<span class='ident'>All</span>(<span class='ident'>separator</span>) <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>first</span> <span class='op'>=</span> <span class='bool-val'>true</span>;
-                <span class='kw'>for</span> <span class='ident'>value</span> <span class='kw'>in</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>values</span> {
-                    <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>first</span> {
-                        <span class='ident'>string</span>.<span class='ident'>push_str</span>(<span class='ident'>separator</span>)
+            <span class="ident">RenderingMode</span>::<span class="ident">All</span>(<span class="ident">separator</span>) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">first</span> <span class="op">=</span> <span class="bool-val">true</span>;
+                <span class="kw">for</span> <span class="ident">value</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span> {
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">first</span> {
+                        <span class="ident">string</span>.<span class="ident">push_str</span>(<span class="ident">separator</span>)
                     }
-                    <span class='ident'>first</span> <span class='op'>=</span> <span class='bool-val'>false</span>;
-                    <span class='ident'>push_representation</span>(<span class='ident'>value</span>.<span class='ident'>value</span>, <span class='ident'>list_style_type</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>string</span>)
+                    <span class="ident">first</span> <span class="op">=</span> <span class="bool-val">false</span>;
+                    <span class="ident">push_representation</span>(<span class="ident">value</span>.<span class="ident">value</span>, <span class="ident">list_style_type</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">string</span>)
                 }
             }
         }
 
-        <span class='kw'>if</span> <span class='ident'>string</span>.<span class='ident'>is_empty</span>() {
-            <span class='prelude-val'>None</span>
-        } <span class='kw'>else</span> {
-            <span class='ident'>render_text</span>(<span class='ident'>layout_context</span>, <span class='ident'>node</span>, <span class='ident'>pseudo</span>, <span class='ident'>style</span>, <span class='ident'>string</span>)
+        <span class="kw">if</span> <span class="ident">string</span>.<span class="ident">is_empty</span>() {
+            <span class="prelude-val">None</span>
+        } <span class="kw">else</span> {
+            <span class="ident">render_text</span>(<span class="ident">layout_context</span>, <span class="ident">node</span>, <span class="ident">pseudo</span>, <span class="ident">style</span>, <span class="ident">string</span>)
         }
     }
 }
 
-<span class='doccomment'>/// How a counter value is to be rendered.</span>
-<span class='kw'>enum</span> <span class='ident'>RenderingMode</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// The innermost counter value is rendered with no extra decoration.</span>
-    <span class='ident'>Plain</span>,
-    <span class='doccomment'>/// The innermost counter value is rendered with the given string suffix.</span>
-    <span class='ident'>Suffix</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>),
-    <span class='doccomment'>/// All values of the counter are rendered with the given separator string between them.</span>
-    <span class='ident'>All</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>str</span>),
+<span class="doccomment">/// How a counter value is to be rendered.</span>
+<span class="kw">enum</span> <span class="ident">RenderingMode</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// The innermost counter value is rendered with no extra decoration.</span>
+    <span class="ident">Plain</span>,
+    <span class="doccomment">/// The innermost counter value is rendered with the given string suffix.</span>
+    <span class="ident">Suffix</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>),
+    <span class="doccomment">/// All values of the counter are rendered with the given separator string between them.</span>
+    <span class="ident">All</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>),
 }
 
-<span class='doccomment'>/// The value of a counter at a given level.</span>
-<span class='kw'>struct</span> <span class='ident'>CounterValue</span> {
-    <span class='doccomment'>/// The level of the flow tree that this corresponds to.</span>
-    <span class='ident'>level</span>: <span class='ident'>u32</span>,
-    <span class='doccomment'>/// The value of the counter at this level.</span>
-    <span class='ident'>value</span>: <span class='ident'>i32</span>,
+<span class="doccomment">/// The value of a counter at a given level.</span>
+<span class="kw">struct</span> <span class="ident">CounterValue</span> {
+    <span class="doccomment">/// The level of the flow tree that this corresponds to.</span>
+    <span class="ident">level</span>: <span class="ident">u32</span>,
+    <span class="doccomment">/// The value of the counter at this level.</span>
+    <span class="ident">value</span>: <span class="ident">i32</span>,
 }
 
-<span class='doccomment'>/// Creates fragment info for a literal string.</span>
-<span class='kw'>fn</span> <span class='ident'>render_text</span>(<span class='ident'>layout_context</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayoutContext</span>,
-               <span class='ident'>node</span>: <span class='ident'>OpaqueNode</span>,
-               <span class='ident'>pseudo</span>: <span class='ident'>PseudoElementType</span><span class='op'>&lt;</span>()<span class='op'>&gt;</span>,
-               <span class='ident'>style</span>: <span class='ident'>Arc</span><span class='op'>&lt;</span><span class='ident'>ServoComputedValues</span><span class='op'>&gt;</span>,
-               <span class='ident'>string</span>: <span class='ident'>String</span>)
-               <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>SpecificFragmentInfo</span><span class='op'>&gt;</span> {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fragments</span> <span class='op'>=</span> <span class='ident'>LinkedList</span>::<span class='ident'>new</span>();
-    <span class='kw'>let</span> <span class='ident'>info</span> <span class='op'>=</span> <span class='ident'>SpecificFragmentInfo</span>::<span class='ident'>UnscannedText</span>(
-        <span class='kw'>box</span> <span class='ident'>UnscannedTextFragmentInfo</span>::<span class='ident'>new</span>(<span class='ident'>string</span>, <span class='prelude-val'>None</span>));
-    <span class='ident'>fragments</span>.<span class='ident'>push_back</span>(<span class='ident'>Fragment</span>::<span class='ident'>from_opaque_node_and_style</span>(<span class='ident'>node</span>,
-                                                             <span class='ident'>pseudo</span>,
-                                                             <span class='ident'>style</span>.<span class='ident'>clone</span>(),
-                                                             <span class='ident'>style</span>,
-                                                             <span class='ident'>RestyleDamage</span>::<span class='ident'>rebuild_and_reflow</span>(),
-                                                             <span class='ident'>info</span>));
-    <span class='comment'>// FIXME(pcwalton): This should properly handle multiple marker fragments. This could happen</span>
-    <span class='comment'>// due to text run splitting.</span>
-    <span class='kw'>let</span> <span class='ident'>fragments</span> <span class='op'>=</span> <span class='ident'>with_thread_local_font_context</span>(<span class='ident'>layout_context</span>, <span class='op'>|</span><span class='ident'>font_context</span><span class='op'>|</span> {
-        <span class='ident'>TextRunScanner</span>::<span class='ident'>new</span>().<span class='ident'>scan_for_runs</span>(<span class='ident'>font_context</span>, <span class='ident'>fragments</span>)
+<span class="doccomment">/// Creates fragment info for a literal string.</span>
+<span class="kw">fn</span> <span class="ident">render_text</span>(<span class="ident">layout_context</span>: <span class="kw-2">&amp;</span><span class="ident">LayoutContext</span>,
+               <span class="ident">node</span>: <span class="ident">OpaqueNode</span>,
+               <span class="ident">pseudo</span>: <span class="ident">PseudoElementType</span><span class="op">&lt;</span>()<span class="op">&gt;</span>,
+               <span class="ident">style</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ServoComputedValues</span><span class="op">&gt;</span>,
+               <span class="ident">string</span>: <span class="ident">String</span>)
+               <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SpecificFragmentInfo</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fragments</span> <span class="op">=</span> <span class="ident">LinkedList</span>::<span class="ident">new</span>();
+    <span class="kw">let</span> <span class="ident">info</span> <span class="op">=</span> <span class="ident">SpecificFragmentInfo</span>::<span class="ident">UnscannedText</span>(
+        <span class="kw">box</span> <span class="ident">UnscannedTextFragmentInfo</span>::<span class="ident">new</span>(<span class="ident">string</span>, <span class="prelude-val">None</span>));
+    <span class="ident">fragments</span>.<span class="ident">push_back</span>(<span class="ident">Fragment</span>::<span class="ident">from_opaque_node_and_style</span>(<span class="ident">node</span>,
+                                                             <span class="ident">pseudo</span>,
+                                                             <span class="ident">style</span>.<span class="ident">clone</span>(),
+                                                             <span class="ident">style</span>,
+                                                             <span class="ident">RestyleDamage</span>::<span class="ident">rebuild_and_reflow</span>(),
+                                                             <span class="ident">info</span>));
+    <span class="comment">// FIXME(pcwalton): This should properly handle multiple marker fragments. This could happen</span>
+    <span class="comment">// due to text run splitting.</span>
+    <span class="kw">let</span> <span class="ident">fragments</span> <span class="op">=</span> <span class="ident">with_thread_local_font_context</span>(<span class="ident">layout_context</span>, <span class="op">|</span><span class="ident">font_context</span><span class="op">|</span> {
+        <span class="ident">TextRunScanner</span>::<span class="ident">new</span>().<span class="ident">scan_for_runs</span>(<span class="ident">font_context</span>, <span class="ident">fragments</span>)
     });
-    <span class='kw'>if</span> <span class='ident'>fragments</span>.<span class='ident'>is_empty</span>() {
-        <span class='prelude-val'>None</span>
-    } <span class='kw'>else</span> {
-        <span class='prelude-val'>Some</span>(<span class='ident'>fragments</span>.<span class='ident'>fragments</span>.<span class='ident'>into_iter</span>().<span class='ident'>next</span>().<span class='ident'>unwrap</span>().<span class='ident'>specific</span>)
+    <span class="kw">if</span> <span class="ident">fragments</span>.<span class="ident">is_empty</span>() {
+        <span class="prelude-val">None</span>
+    } <span class="kw">else</span> {
+        <span class="prelude-val">Some</span>(<span class="ident">fragments</span>.<span class="ident">fragments</span>.<span class="ident">into_iter</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>().<span class="ident">specific</span>)
     }
 }
 
-<span class='doccomment'>/// Appends string that represents the value rendered using the system appropriate for the given</span>
-<span class='doccomment'>/// `list-style-type` onto the given string.</span>
-<span class='kw'>fn</span> <span class='ident'>push_representation</span>(<span class='ident'>value</span>: <span class='ident'>i32</span>, <span class='ident'>list_style_type</span>: <span class='ident'>list_style_type</span>::<span class='ident'>T</span>, <span class='ident'>accumulator</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>String</span>) {
-    <span class='kw'>match</span> <span class='ident'>list_style_type</span> {
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>none</span> <span class='op'>=&gt;</span> {}
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>disc</span> <span class='op'>|</span>
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>circle</span> <span class='op'>|</span>
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>square</span> <span class='op'>|</span>
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>disclosure_open</span> <span class='op'>|</span>
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>disclosure_closed</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>accumulator</span>.<span class='ident'>push</span>(<span class='ident'>static_representation</span>(<span class='ident'>list_style_type</span>))
+<span class="doccomment">/// Appends string that represents the value rendered using the system appropriate for the given</span>
+<span class="doccomment">/// `list-style-type` onto the given string.</span>
+<span class="kw">fn</span> <span class="ident">push_representation</span>(<span class="ident">value</span>: <span class="ident">i32</span>, <span class="ident">list_style_type</span>: <span class="ident">list_style_type</span>::<span class="ident">T</span>, <span class="ident">accumulator</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">String</span>) {
+    <span class="kw">match</span> <span class="ident">list_style_type</span> {
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">none</span> <span class="op">=&gt;</span> {}
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">disc</span> <span class="op">|</span>
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">circle</span> <span class="op">|</span>
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">square</span> <span class="op">|</span>
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">disclosure_open</span> <span class="op">|</span>
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">disclosure_closed</span> <span class="op">=&gt;</span> {
+            <span class="ident">accumulator</span>.<span class="ident">push</span>(<span class="ident">static_representation</span>(<span class="ident">list_style_type</span>))
         }
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>decimal</span> <span class='op'>=&gt;</span> <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>DECIMAL</span>, <span class='ident'>accumulator</span>),
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>arabic_indic</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>ARABIC_INDIC</span>, <span class='ident'>accumulator</span>)
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">decimal</span> <span class="op">=&gt;</span> <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">DECIMAL</span>, <span class="ident">accumulator</span>),
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">arabic_indic</span> <span class="op">=&gt;</span> {
+            <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">ARABIC_INDIC</span>, <span class="ident">accumulator</span>)
         }
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>bengali</span> <span class='op'>=&gt;</span> <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>BENGALI</span>, <span class='ident'>accumulator</span>),
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>cambodian</span> <span class='op'>|</span> <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>khmer</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>CAMBODIAN</span>, <span class='ident'>accumulator</span>)
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">bengali</span> <span class="op">=&gt;</span> <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">BENGALI</span>, <span class="ident">accumulator</span>),
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">cambodian</span> <span class="op">|</span> <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">khmer</span> <span class="op">=&gt;</span> {
+            <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">CAMBODIAN</span>, <span class="ident">accumulator</span>)
         }
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>cjk_decimal</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>CJK_DECIMAL</span>, <span class='ident'>accumulator</span>)
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">cjk_decimal</span> <span class="op">=&gt;</span> {
+            <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">CJK_DECIMAL</span>, <span class="ident">accumulator</span>)
         }
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>devanagari</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>DEVANAGARI</span>, <span class='ident'>accumulator</span>)
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">devanagari</span> <span class="op">=&gt;</span> {
+            <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">DEVANAGARI</span>, <span class="ident">accumulator</span>)
         }
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>gujarati</span> <span class='op'>=&gt;</span> <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>GUJARATI</span>, <span class='ident'>accumulator</span>),
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>gurmukhi</span> <span class='op'>=&gt;</span> <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>GURMUKHI</span>, <span class='ident'>accumulator</span>),
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>kannada</span> <span class='op'>=&gt;</span> <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>KANNADA</span>, <span class='ident'>accumulator</span>),
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>lao</span> <span class='op'>=&gt;</span> <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>LAO</span>, <span class='ident'>accumulator</span>),
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>malayalam</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>MALAYALAM</span>, <span class='ident'>accumulator</span>)
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">gujarati</span> <span class="op">=&gt;</span> <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">GUJARATI</span>, <span class="ident">accumulator</span>),
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">gurmukhi</span> <span class="op">=&gt;</span> <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">GURMUKHI</span>, <span class="ident">accumulator</span>),
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">kannada</span> <span class="op">=&gt;</span> <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">KANNADA</span>, <span class="ident">accumulator</span>),
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">lao</span> <span class="op">=&gt;</span> <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">LAO</span>, <span class="ident">accumulator</span>),
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">malayalam</span> <span class="op">=&gt;</span> {
+            <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">MALAYALAM</span>, <span class="ident">accumulator</span>)
         }
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>mongolian</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>MONGOLIAN</span>, <span class='ident'>accumulator</span>)
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">mongolian</span> <span class="op">=&gt;</span> {
+            <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">MONGOLIAN</span>, <span class="ident">accumulator</span>)
         }
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>myanmar</span> <span class='op'>=&gt;</span> <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>MYANMAR</span>, <span class='ident'>accumulator</span>),
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>oriya</span> <span class='op'>=&gt;</span> <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>ORIYA</span>, <span class='ident'>accumulator</span>),
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>persian</span> <span class='op'>=&gt;</span> <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>PERSIAN</span>, <span class='ident'>accumulator</span>),
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>telugu</span> <span class='op'>=&gt;</span> <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>TELUGU</span>, <span class='ident'>accumulator</span>),
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>thai</span> <span class='op'>=&gt;</span> <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>THAI</span>, <span class='ident'>accumulator</span>),
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>tibetan</span> <span class='op'>=&gt;</span> <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>TIBETAN</span>, <span class='ident'>accumulator</span>),
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>lower_alpha</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>push_alphabetic_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>LOWER_ALPHA</span>, <span class='ident'>accumulator</span>)
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">myanmar</span> <span class="op">=&gt;</span> <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">MYANMAR</span>, <span class="ident">accumulator</span>),
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">oriya</span> <span class="op">=&gt;</span> <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">ORIYA</span>, <span class="ident">accumulator</span>),
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">persian</span> <span class="op">=&gt;</span> <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">PERSIAN</span>, <span class="ident">accumulator</span>),
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">telugu</span> <span class="op">=&gt;</span> <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">TELUGU</span>, <span class="ident">accumulator</span>),
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">thai</span> <span class="op">=&gt;</span> <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">THAI</span>, <span class="ident">accumulator</span>),
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">tibetan</span> <span class="op">=&gt;</span> <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">TIBETAN</span>, <span class="ident">accumulator</span>),
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">lower_alpha</span> <span class="op">=&gt;</span> {
+            <span class="ident">push_alphabetic_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">LOWER_ALPHA</span>, <span class="ident">accumulator</span>)
         }
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>upper_alpha</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>push_alphabetic_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>UPPER_ALPHA</span>, <span class='ident'>accumulator</span>)
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">upper_alpha</span> <span class="op">=&gt;</span> {
+            <span class="ident">push_alphabetic_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">UPPER_ALPHA</span>, <span class="ident">accumulator</span>)
         }
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>cjk_earthly_branch</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>push_alphabetic_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>CJK_EARTHLY_BRANCH</span>, <span class='ident'>accumulator</span>)
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">cjk_earthly_branch</span> <span class="op">=&gt;</span> {
+            <span class="ident">push_alphabetic_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">CJK_EARTHLY_BRANCH</span>, <span class="ident">accumulator</span>)
         }
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>cjk_heavenly_stem</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>push_alphabetic_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>CJK_HEAVENLY_STEM</span>, <span class='ident'>accumulator</span>)
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">cjk_heavenly_stem</span> <span class="op">=&gt;</span> {
+            <span class="ident">push_alphabetic_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">CJK_HEAVENLY_STEM</span>, <span class="ident">accumulator</span>)
         }
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>lower_greek</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>push_alphabetic_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>LOWER_GREEK</span>, <span class='ident'>accumulator</span>)
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">lower_greek</span> <span class="op">=&gt;</span> {
+            <span class="ident">push_alphabetic_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">LOWER_GREEK</span>, <span class="ident">accumulator</span>)
         }
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>hiragana</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>push_alphabetic_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>HIRAGANA</span>, <span class='ident'>accumulator</span>)
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">hiragana</span> <span class="op">=&gt;</span> {
+            <span class="ident">push_alphabetic_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">HIRAGANA</span>, <span class="ident">accumulator</span>)
         }
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>hiragana_iroha</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>push_alphabetic_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>HIRAGANA_IROHA</span>, <span class='ident'>accumulator</span>)
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">hiragana_iroha</span> <span class="op">=&gt;</span> {
+            <span class="ident">push_alphabetic_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">HIRAGANA_IROHA</span>, <span class="ident">accumulator</span>)
         }
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>katakana</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>push_alphabetic_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>KATAKANA</span>, <span class='ident'>accumulator</span>)
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">katakana</span> <span class="op">=&gt;</span> {
+            <span class="ident">push_alphabetic_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">KATAKANA</span>, <span class="ident">accumulator</span>)
         }
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>katakana_iroha</span> <span class='op'>=&gt;</span> {
-            <span class='ident'>push_alphabetic_representation</span>(<span class='ident'>value</span>, <span class='kw-2'>&amp;</span><span class='ident'>KATAKANA_IROHA</span>, <span class='ident'>accumulator</span>)
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">katakana_iroha</span> <span class="op">=&gt;</span> {
+            <span class="ident">push_alphabetic_representation</span>(<span class="ident">value</span>, <span class="kw-2">&amp;</span><span class="ident">KATAKANA_IROHA</span>, <span class="ident">accumulator</span>)
         }
     }
 }
 
-<span class='doccomment'>/// Returns the static character that represents the value rendered using the given list-style, if</span>
-<span class='doccomment'>/// possible.</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>static_representation</span>(<span class='ident'>list_style_type</span>: <span class='ident'>list_style_type</span>::<span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='ident'>char</span> {
-    <span class='kw'>match</span> <span class='ident'>list_style_type</span> {
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>disc</span> <span class='op'>=&gt;</span> <span class='string'>&#39;•&#39;</span>,
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>circle</span> <span class='op'>=&gt;</span> <span class='string'>&#39;◦&#39;</span>,
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>square</span> <span class='op'>=&gt;</span> <span class='string'>&#39;▪&#39;</span>,
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>disclosure_open</span> <span class='op'>=&gt;</span> <span class='string'>&#39;▾&#39;</span>,
-        <span class='ident'>list_style_type</span>::<span class='ident'>T</span>::<span class='ident'>disclosure_closed</span> <span class='op'>=&gt;</span> <span class='string'>&#39;‣&#39;</span>,
-        _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;No static representation for this list-style-type!&quot;</span>),
+<span class="doccomment">/// Returns the static character that represents the value rendered using the given list-style, if</span>
+<span class="doccomment">/// possible.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">static_representation</span>(<span class="ident">list_style_type</span>: <span class="ident">list_style_type</span>::<span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">char</span> {
+    <span class="kw">match</span> <span class="ident">list_style_type</span> {
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">disc</span> <span class="op">=&gt;</span> <span class="string">&#39;•&#39;</span>,
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">circle</span> <span class="op">=&gt;</span> <span class="string">&#39;◦&#39;</span>,
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">square</span> <span class="op">=&gt;</span> <span class="string">&#39;▪&#39;</span>,
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">disclosure_open</span> <span class="op">=&gt;</span> <span class="string">&#39;▾&#39;</span>,
+        <span class="ident">list_style_type</span>::<span class="ident">T</span>::<span class="ident">disclosure_closed</span> <span class="op">=&gt;</span> <span class="string">&#39;‣&#39;</span>,
+        _ <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;No static representation for this list-style-type!&quot;</span>),
     }
 }
 
-<span class='doccomment'>/// Pushes the string that represents the value rendered using the given *alphabetic system* onto</span>
-<span class='doccomment'>/// the accumulator per CSS-COUNTER-STYLES § 3.1.4.</span>
-<span class='kw'>fn</span> <span class='ident'>push_alphabetic_representation</span>(<span class='ident'>value</span>: <span class='ident'>i32</span>, <span class='ident'>system</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>char</span>], <span class='ident'>accumulator</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>String</span>) {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>abs_value</span> <span class='op'>=</span> <span class='ident'>handle_negative_value</span>(<span class='ident'>value</span>, <span class='ident'>accumulator</span>);
+<span class="doccomment">/// Pushes the string that represents the value rendered using the given *alphabetic system* onto</span>
+<span class="doccomment">/// the accumulator per CSS-COUNTER-STYLES § 3.1.4.</span>
+<span class="kw">fn</span> <span class="ident">push_alphabetic_representation</span>(<span class="ident">value</span>: <span class="ident">i32</span>, <span class="ident">system</span>: <span class="kw-2">&amp;</span>[<span class="ident">char</span>], <span class="ident">accumulator</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">String</span>) {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">abs_value</span> <span class="op">=</span> <span class="ident">handle_negative_value</span>(<span class="ident">value</span>, <span class="ident">accumulator</span>);
 
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>string</span>: <span class='ident'>SmallVec</span><span class='op'>&lt;</span>[<span class='ident'>char</span>; <span class='number'>8</span>]<span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>SmallVec</span>::<span class='ident'>new</span>();
-    <span class='kw'>while</span> <span class='ident'>abs_value</span> <span class='op'>!=</span> <span class='number'>0</span> {
-        <span class='comment'>// Step 1.</span>
-        <span class='ident'>abs_value</span> <span class='op'>=</span> <span class='ident'>abs_value</span> <span class='op'>-</span> <span class='number'>1</span>;
-        <span class='comment'>// Step 2.</span>
-        <span class='ident'>string</span>.<span class='ident'>push</span>(<span class='ident'>system</span>[<span class='ident'>abs_value</span> <span class='op'>%</span> <span class='ident'>system</span>.<span class='ident'>len</span>()]);
-        <span class='comment'>// Step 3.</span>
-        <span class='ident'>abs_value</span> <span class='op'>=</span> <span class='ident'>abs_value</span> <span class='op'>/</span> <span class='ident'>system</span>.<span class='ident'>len</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">string</span>: <span class="ident">SmallVec</span><span class="op">&lt;</span>[<span class="ident">char</span>; <span class="number">8</span>]<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">SmallVec</span>::<span class="ident">new</span>();
+    <span class="kw">while</span> <span class="ident">abs_value</span> <span class="op">!=</span> <span class="number">0</span> {
+        <span class="comment">// Step 1.</span>
+        <span class="ident">abs_value</span> <span class="op">=</span> <span class="ident">abs_value</span> <span class="op">-</span> <span class="number">1</span>;
+        <span class="comment">// Step 2.</span>
+        <span class="ident">string</span>.<span class="ident">push</span>(<span class="ident">system</span>[<span class="ident">abs_value</span> <span class="op">%</span> <span class="ident">system</span>.<span class="ident">len</span>()]);
+        <span class="comment">// Step 3.</span>
+        <span class="ident">abs_value</span> <span class="op">=</span> <span class="ident">abs_value</span> <span class="op">/</span> <span class="ident">system</span>.<span class="ident">len</span>();
     }
 
-    <span class='ident'>accumulator</span>.<span class='ident'>extend</span>(<span class='ident'>string</span>.<span class='ident'>iter</span>().<span class='ident'>cloned</span>().<span class='ident'>rev</span>())
+    <span class="ident">accumulator</span>.<span class="ident">extend</span>(<span class="ident">string</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">rev</span>())
 }
 
-<span class='doccomment'>/// Pushes the string that represents the value rendered using the given *numeric system* onto the</span>
-<span class='doccomment'>/// accumulator per CSS-COUNTER-STYLES § 3.1.5.</span>
-<span class='kw'>fn</span> <span class='ident'>push_numeric_representation</span>(<span class='ident'>value</span>: <span class='ident'>i32</span>, <span class='ident'>system</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>char</span>], <span class='ident'>accumulator</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>String</span>) {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>abs_value</span> <span class='op'>=</span> <span class='ident'>handle_negative_value</span>(<span class='ident'>value</span>, <span class='ident'>accumulator</span>);
+<span class="doccomment">/// Pushes the string that represents the value rendered using the given *numeric system* onto the</span>
+<span class="doccomment">/// accumulator per CSS-COUNTER-STYLES § 3.1.5.</span>
+<span class="kw">fn</span> <span class="ident">push_numeric_representation</span>(<span class="ident">value</span>: <span class="ident">i32</span>, <span class="ident">system</span>: <span class="kw-2">&amp;</span>[<span class="ident">char</span>], <span class="ident">accumulator</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">String</span>) {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">abs_value</span> <span class="op">=</span> <span class="ident">handle_negative_value</span>(<span class="ident">value</span>, <span class="ident">accumulator</span>);
 
-    <span class='comment'>// Step 1.</span>
-    <span class='kw'>if</span> <span class='ident'>abs_value</span> <span class='op'>==</span> <span class='number'>0</span> {
-        <span class='ident'>accumulator</span>.<span class='ident'>push</span>(<span class='ident'>system</span>[<span class='number'>0</span>]);
-        <span class='kw'>return</span>
+    <span class="comment">// Step 1.</span>
+    <span class="kw">if</span> <span class="ident">abs_value</span> <span class="op">==</span> <span class="number">0</span> {
+        <span class="ident">accumulator</span>.<span class="ident">push</span>(<span class="ident">system</span>[<span class="number">0</span>]);
+        <span class="kw">return</span>
     }
 
-    <span class='comment'>// Step 2.</span>
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>string</span>: <span class='ident'>SmallVec</span><span class='op'>&lt;</span>[<span class='ident'>char</span>; <span class='number'>8</span>]<span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>SmallVec</span>::<span class='ident'>new</span>();
-    <span class='kw'>while</span> <span class='ident'>abs_value</span> <span class='op'>!=</span> <span class='number'>0</span> {
-        <span class='comment'>// Step 2.1.</span>
-        <span class='ident'>string</span>.<span class='ident'>push</span>(<span class='ident'>system</span>[<span class='ident'>abs_value</span> <span class='op'>%</span> <span class='ident'>system</span>.<span class='ident'>len</span>()]);
-        <span class='comment'>// Step 2.2.</span>
-        <span class='ident'>abs_value</span> <span class='op'>=</span> <span class='ident'>abs_value</span> <span class='op'>/</span> <span class='ident'>system</span>.<span class='ident'>len</span>();
+    <span class="comment">// Step 2.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">string</span>: <span class="ident">SmallVec</span><span class="op">&lt;</span>[<span class="ident">char</span>; <span class="number">8</span>]<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">SmallVec</span>::<span class="ident">new</span>();
+    <span class="kw">while</span> <span class="ident">abs_value</span> <span class="op">!=</span> <span class="number">0</span> {
+        <span class="comment">// Step 2.1.</span>
+        <span class="ident">string</span>.<span class="ident">push</span>(<span class="ident">system</span>[<span class="ident">abs_value</span> <span class="op">%</span> <span class="ident">system</span>.<span class="ident">len</span>()]);
+        <span class="comment">// Step 2.2.</span>
+        <span class="ident">abs_value</span> <span class="op">=</span> <span class="ident">abs_value</span> <span class="op">/</span> <span class="ident">system</span>.<span class="ident">len</span>();
     }
 
-    <span class='comment'>// Step 3.</span>
-    <span class='ident'>accumulator</span>.<span class='ident'>extend</span>(<span class='ident'>string</span>.<span class='ident'>iter</span>().<span class='ident'>cloned</span>().<span class='ident'>rev</span>())
+    <span class="comment">// Step 3.</span>
+    <span class="ident">accumulator</span>.<span class="ident">extend</span>(<span class="ident">string</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">rev</span>())
 }
 
-<span class='doccomment'>/// If the system uses a negative sign, handle negative values per CSS-COUNTER-STYLES § 2.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// Returns the absolute value of the counter.</span>
-<span class='kw'>fn</span> <span class='ident'>handle_negative_value</span>(<span class='ident'>value</span>: <span class='ident'>i32</span>, <span class='ident'>accumulator</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>String</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-    <span class='comment'>// 3. If the counter value is negative and the counter style uses a negative sign, instead</span>
-    <span class='comment'>//    generate an initial representation using the absolute value of the counter value.</span>
-    <span class='kw'>if</span> <span class='ident'>value</span> <span class='op'>&lt;</span> <span class='number'>0</span> {
-        <span class='comment'>// TODO: Support different negative signs using the &#39;negative&#39; descriptor.</span>
-        <span class='comment'>// https://drafts.csswg.org/date/2015-07-16/css-counter-styles/#counter-style-negative</span>
-        <span class='ident'>accumulator</span>.<span class='ident'>push</span>(<span class='string'>&#39;-&#39;</span>);
-        <span class='ident'>value</span>.<span class='ident'>abs</span>() <span class='kw'>as</span> <span class='ident'>usize</span>
-    } <span class='kw'>else</span> {
-        <span class='ident'>value</span> <span class='kw'>as</span> <span class='ident'>usize</span>
+<span class="doccomment">/// If the system uses a negative sign, handle negative values per CSS-COUNTER-STYLES § 2.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Returns the absolute value of the counter.</span>
+<span class="kw">fn</span> <span class="ident">handle_negative_value</span>(<span class="ident">value</span>: <span class="ident">i32</span>, <span class="ident">accumulator</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">String</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+    <span class="comment">// 3. If the counter value is negative and the counter style uses a negative sign, instead</span>
+    <span class="comment">//    generate an initial representation using the absolute value of the counter value.</span>
+    <span class="kw">if</span> <span class="ident">value</span> <span class="op">&lt;</span> <span class="number">0</span> {
+        <span class="comment">// TODO: Support different negative signs using the &#39;negative&#39; descriptor.</span>
+        <span class="comment">// https://drafts.csswg.org/date/2015-07-16/css-counter-styles/#counter-style-negative</span>
+        <span class="ident">accumulator</span>.<span class="ident">push</span>(<span class="string">&#39;-&#39;</span>);
+        <span class="ident">value</span>.<span class="ident">abs</span>() <span class="kw">as</span> <span class="ident">usize</span>
+    } <span class="kw">else</span> {
+        <span class="ident">value</span> <span class="kw">as</span> <span class="ident">usize</span>
     }
 }
 </pre>

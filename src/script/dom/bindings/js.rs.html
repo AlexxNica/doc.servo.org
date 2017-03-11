@@ -649,611 +649,611 @@
 <span id="604">604</span>
 <span id="605">605</span>
 <span id="606">606</span>
-</pre><pre class='rust '>
-<span class='comment'>/* This Source Code Form is subject to the terms of the Mozilla Public
+</pre><pre class="rust ">
+<span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */</span>
 
-<span class='doccomment'>//! Smart pointers for the JS-managed DOM objects.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! The DOM is made up of DOM objects whose lifetime is entirely controlled by</span>
-<span class='doccomment'>//! the whims of the SpiderMonkey garbage collector. The types in this module</span>
-<span class='doccomment'>//! are designed to ensure that any interactions with said Rust types only</span>
-<span class='doccomment'>//! occur on values that will remain alive the entire time.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! Here is a brief overview of the important types:</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! - `Root&lt;T&gt;`: a stack-based reference to a rooted DOM object.</span>
-<span class='doccomment'>//! - `JS&lt;T&gt;`: a reference to a DOM object that can automatically be traced by</span>
-<span class='doccomment'>//!   the GC when encountered as a field of a Rust structure.</span>
-<span class='doccomment'>//!</span>
-<span class='doccomment'>//! `JS&lt;T&gt;` does not allow access to their inner value without explicitly</span>
-<span class='doccomment'>//! creating a stack-based root via the `root` method. This returns a `Root&lt;T&gt;`,</span>
-<span class='doccomment'>//! which causes the JS-owned value to be uncollectable for the duration of the</span>
-<span class='doccomment'>//! `Root` object&#39;s lifetime. A reference to the object can then be obtained</span>
-<span class='doccomment'>//! from the `Root` object. These references are not allowed to outlive their</span>
-<span class='doccomment'>//! originating `Root&lt;T&gt;`.</span>
-<span class='doccomment'>//!</span>
+<span class="doccomment">//! Smart pointers for the JS-managed DOM objects.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The DOM is made up of DOM objects whose lifetime is entirely controlled by</span>
+<span class="doccomment">//! the whims of the SpiderMonkey garbage collector. The types in this module</span>
+<span class="doccomment">//! are designed to ensure that any interactions with said Rust types only</span>
+<span class="doccomment">//! occur on values that will remain alive the entire time.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Here is a brief overview of the important types:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! - `Root&lt;T&gt;`: a stack-based reference to a rooted DOM object.</span>
+<span class="doccomment">//! - `JS&lt;T&gt;`: a reference to a DOM object that can automatically be traced by</span>
+<span class="doccomment">//!   the GC when encountered as a field of a Rust structure.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! `JS&lt;T&gt;` does not allow access to their inner value without explicitly</span>
+<span class="doccomment">//! creating a stack-based root via the `root` method. This returns a `Root&lt;T&gt;`,</span>
+<span class="doccomment">//! which causes the JS-owned value to be uncollectable for the duration of the</span>
+<span class="doccomment">//! `Root` object&#39;s lifetime. A reference to the object can then be obtained</span>
+<span class="doccomment">//! from the `Root` object. These references are not allowed to outlive their</span>
+<span class="doccomment">//! originating `Root&lt;T&gt;`.</span>
+<span class="doccomment">//!</span>
 
-<span class='kw'>use</span> <span class='ident'>core</span>::<span class='ident'>nonzero</span>::<span class='ident'>NonZero</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>conversions</span>::<span class='ident'>DerivedFrom</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>inheritance</span>::<span class='ident'>Castable</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>reflector</span>::{<span class='ident'>DomObject</span>, <span class='ident'>Reflector</span>};
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>trace</span>::<span class='ident'>JSTraceable</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>bindings</span>::<span class='ident'>trace</span>::<span class='ident'>trace_reflector</span>;
-<span class='kw'>use</span> <span class='ident'>dom</span>::<span class='ident'>node</span>::<span class='ident'>Node</span>;
-<span class='kw'>use</span> <span class='ident'>heapsize</span>::<span class='ident'>HeapSizeOf</span>;
-<span class='kw'>use</span> <span class='ident'>js</span>::<span class='ident'>jsapi</span>::{<span class='ident'>JSObject</span>, <span class='ident'>JSTracer</span>};
-<span class='kw'>use</span> <span class='ident'>script_layout_interface</span>::<span class='ident'>TrustedNodeAddress</span>;
-<span class='kw'>use</span> <span class='ident'>script_thread</span>::<span class='ident'>STACK_ROOTS</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cell</span>::<span class='ident'>UnsafeCell</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>default</span>::<span class='ident'>Default</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>hash</span>::{<span class='ident'>Hash</span>, <span class='ident'>Hasher</span>};
-<span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>debug_assertions</span>)]</span>
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>intrinsics</span>::<span class='ident'>type_name</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ops</span>::<span class='ident'>Deref</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ptr</span>;
-<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>rc</span>::<span class='ident'>Rc</span>;
-<span class='kw'>use</span> <span class='ident'>style</span>::<span class='ident'>thread_state</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">nonzero</span>::<span class="ident">NonZero</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">conversions</span>::<span class="ident">DerivedFrom</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">inheritance</span>::<span class="ident">Castable</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">reflector</span>::{<span class="ident">DomObject</span>, <span class="ident">Reflector</span>};
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">trace</span>::<span class="ident">JSTraceable</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">trace</span>::<span class="ident">trace_reflector</span>;
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">node</span>::<span class="ident">Node</span>;
+<span class="kw">use</span> <span class="ident">heapsize</span>::<span class="ident">HeapSizeOf</span>;
+<span class="kw">use</span> <span class="ident">js</span>::<span class="ident">jsapi</span>::{<span class="ident">JSObject</span>, <span class="ident">JSTracer</span>};
+<span class="kw">use</span> <span class="ident">script_layout_interface</span>::<span class="ident">TrustedNodeAddress</span>;
+<span class="kw">use</span> <span class="ident">script_thread</span>::<span class="ident">STACK_ROOTS</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">UnsafeCell</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">default</span>::<span class="ident">Default</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">hash</span>::{<span class="ident">Hash</span>, <span class="ident">Hasher</span>};
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">debug_assertions</span>)]</span>
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">intrinsics</span>::<span class="ident">type_name</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Deref</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">rc</span>::<span class="ident">Rc</span>;
+<span class="kw">use</span> <span class="ident">style</span>::<span class="ident">thread_state</span>;
 
-<span class='doccomment'>/// A traced reference to a DOM object</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// This type is critical to making garbage collection work with the DOM,</span>
-<span class='doccomment'>/// but it is very dangerous; if garbage collection happens with a `JS&lt;T&gt;`</span>
-<span class='doccomment'>/// on the stack, the `JS&lt;T&gt;` can point to freed memory.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// This should only be used as a field in other DOM objects.</span>
-<span class='attribute'>#[<span class='ident'>must_root</span>]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='ident'>ptr</span>: <span class='ident'>NonZero</span><span class='op'>&lt;</span><span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>T</span><span class='op'>&gt;</span>,
+<span class="doccomment">/// A traced reference to a DOM object</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This type is critical to making garbage collection work with the DOM,</span>
+<span class="doccomment">/// but it is very dangerous; if garbage collection happens with a `JS&lt;T&gt;`</span>
+<span class="doccomment">/// on the stack, the `JS&lt;T&gt;` can point to freed memory.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This should only be used as a field in other DOM objects.</span>
+<span class="attribute">#[<span class="ident">must_root</span>]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="ident">ptr</span>: <span class="ident">NonZero</span><span class="op">&lt;</span><span class="kw-2">*</span><span class="kw">const</span> <span class="ident">T</span><span class="op">&gt;</span>,
 }
 
-<span class='comment'>// JS&lt;T&gt; is similar to Rc&lt;T&gt;, in that it&#39;s not always clear how to avoid double-counting.</span>
-<span class='comment'>// For now, we choose not to follow any such pointers.</span>
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>HeapSizeOf</span> <span class='kw'>for</span> <span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>heap_size_of_children</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-        <span class='number'>0</span>
+<span class="comment">// JS&lt;T&gt; is similar to Rc&lt;T&gt;, in that it&#39;s not always clear how to avoid double-counting.</span>
+<span class="comment">// For now, we choose not to follow any such pointers.</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">HeapSizeOf</span> <span class="kw">for</span> <span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">heap_size_of_children</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="number">0</span>
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Returns `LayoutJS&lt;T&gt;` containing the same pointer.</span>
-    <span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>to_layout</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_layout</span>());
-        <span class='ident'>LayoutJS</span> {
-            <span class='ident'>ptr</span>: <span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>clone</span>(),
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Returns `LayoutJS&lt;T&gt;` containing the same pointer.</span>
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_layout</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_layout</span>());
+        <span class="ident">LayoutJS</span> {
+            <span class="ident">ptr</span>: <span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">clone</span>(),
         }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Create a JS&lt;T&gt; from a &amp;T</span>
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unrooted_must_root</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>from_ref</span>(<span class='ident'>obj</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='ident'>JS</span> {
-            <span class='ident'>ptr</span>: <span class='kw'>unsafe</span> { <span class='ident'>NonZero</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>obj</span>) },
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Create a JS&lt;T&gt; from a &amp;T</span>
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unrooted_must_root</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_ref</span>(<span class="ident">obj</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="ident">JS</span> {
+            <span class="ident">ptr</span>: <span class="kw">unsafe</span> { <span class="ident">NonZero</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">obj</span>) },
         }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;root</span>, <span class='ident'>T</span>: <span class='ident'>DomObject</span> <span class='op'>+</span> <span class='lifetime'>&#39;root</span><span class='op'>&gt;</span> <span class='ident'>RootedReference</span><span class='op'>&lt;</span><span class='lifetime'>&#39;root</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Ref</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> <span class='ident'>T</span>;
-    <span class='kw'>fn</span> <span class='ident'>r</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> <span class='ident'>T</span> {
-        <span class='kw-2'>&amp;</span><span class='self'>self</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;root</span>, <span class="ident">T</span>: <span class="ident">DomObject</span> <span class="op">+</span> <span class="lifetime">&#39;root</span><span class="op">&gt;</span> <span class="ident">RootedReference</span><span class="op">&lt;</span><span class="lifetime">&#39;root</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Ref</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> <span class="ident">T</span>;
+    <span class="kw">fn</span> <span class="ident">r</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> <span class="ident">T</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>Deref</span> <span class='kw'>for</span> <span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Target</span> <span class='op'>=</span> <span class='ident'>T</span>;
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">T</span>;
 
-    <span class='kw'>fn</span> <span class='ident'>deref</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>T</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='comment'>// We can only have &amp;JS&lt;T&gt; from a rooted thing, so it&#39;s safe to deref</span>
-        <span class='comment'>// it to &amp;T.</span>
-        <span class='kw'>unsafe</span> { <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span> }
+    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">T</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="comment">// We can only have &amp;JS&lt;T&gt; from a rooted thing, so it&#39;s safe to deref</span>
+        <span class="comment">// it to &amp;T.</span>
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">ptr</span> }
     }
 }
 
-<span class='kw'>unsafe</span> <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>JSTraceable</span> <span class='kw'>for</span> <span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>trace</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>trc</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSTracer</span>) {
-        <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>debug_assertions</span>)]</span>
-        <span class='kw'>let</span> <span class='ident'>trace_str</span> <span class='op'>=</span> <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;for {} on heap&quot;</span>, <span class='ident'>type_name</span>::<span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>());
-        <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>debug_assertions</span>)]</span>
-        <span class='kw'>let</span> <span class='ident'>trace_info</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>trace_str</span>[..];
-        <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>not</span>(<span class='ident'>debug_assertions</span>))]</span>
-        <span class='kw'>let</span> <span class='ident'>trace_info</span> <span class='op'>=</span> <span class='string'>&quot;for DOM object on heap&quot;</span>;
+<span class="kw">unsafe</span> <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">JSTraceable</span> <span class="kw">for</span> <span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trc</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSTracer</span>) {
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">debug_assertions</span>)]</span>
+        <span class="kw">let</span> <span class="ident">trace_str</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;for {} on heap&quot;</span>, <span class="ident">type_name</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>());
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">debug_assertions</span>)]</span>
+        <span class="kw">let</span> <span class="ident">trace_info</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">trace_str</span>[..];
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">debug_assertions</span>))]</span>
+        <span class="kw">let</span> <span class="ident">trace_info</span> <span class="op">=</span> <span class="string">&quot;for DOM object on heap&quot;</span>;
 
-        <span class='ident'>trace_reflector</span>(<span class='ident'>trc</span>,
-                        <span class='ident'>trace_info</span>,
-                        (<span class='kw-2'>*</span><span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>).<span class='ident'>reflector</span>());
+        <span class="ident">trace_reflector</span>(<span class="ident">trc</span>,
+                        <span class="ident">trace_info</span>,
+                        (<span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">ptr</span>).<span class="ident">reflector</span>());
     }
 }
 
-<span class='doccomment'>/// An unrooted reference to a DOM object for use in layout. `Layout*Helpers`</span>
-<span class='doccomment'>/// traits must be implemented on this.</span>
-<span class='attribute'>#[<span class='ident'>allow_unrooted_interior</span>]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='ident'>ptr</span>: <span class='ident'>NonZero</span><span class='op'>&lt;</span><span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>T</span><span class='op'>&gt;</span>,
+<span class="doccomment">/// An unrooted reference to a DOM object for use in layout. `Layout*Helpers`</span>
+<span class="doccomment">/// traits must be implemented on this.</span>
+<span class="attribute">#[<span class="ident">allow_unrooted_interior</span>]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="ident">ptr</span>: <span class="ident">NonZero</span><span class="op">&lt;</span><span class="kw-2">*</span><span class="kw">const</span> <span class="ident">T</span><span class="op">&gt;</span>,
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Castable</span><span class='op'>&gt;</span> <span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Cast a DOM object root upwards to one of the interfaces it derives from.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>upcast</span><span class='op'>&lt;</span><span class='ident'>U</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>U</span><span class='op'>&gt;</span>
-        <span class='kw'>where</span> <span class='ident'>U</span>: <span class='ident'>Castable</span>,
-              <span class='ident'>T</span>: <span class='ident'>DerivedFrom</span><span class='op'>&lt;</span><span class='ident'>U</span><span class='op'>&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Castable</span><span class="op">&gt;</span> <span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Cast a DOM object root upwards to one of the interfaces it derives from.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">upcast</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>
+        <span class="kw">where</span> <span class="ident">U</span>: <span class="ident">Castable</span>,
+              <span class="ident">T</span>: <span class="ident">DerivedFrom</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>
     {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_layout</span>());
-        <span class='kw'>let</span> <span class='ident'>ptr</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>T</span> <span class='op'>=</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>;
-        <span class='ident'>LayoutJS</span> {
-            <span class='ident'>ptr</span>: <span class='kw'>unsafe</span> { <span class='ident'>NonZero</span>::<span class='ident'>new</span>(<span class='ident'>ptr</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>U</span>) },
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_layout</span>());
+        <span class="kw">let</span> <span class="ident">ptr</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">T</span> <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">ptr</span>;
+        <span class="ident">LayoutJS</span> {
+            <span class="ident">ptr</span>: <span class="kw">unsafe</span> { <span class="ident">NonZero</span>::<span class="ident">new</span>(<span class="ident">ptr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">U</span>) },
         }
     }
 
-    <span class='doccomment'>/// Cast a DOM object downwards to one of the interfaces it might implement.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>downcast</span><span class='op'>&lt;</span><span class='ident'>U</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>U</span><span class='op'>&gt;&gt;</span>
-        <span class='kw'>where</span> <span class='ident'>U</span>: <span class='ident'>DerivedFrom</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>
+    <span class="doccomment">/// Cast a DOM object downwards to one of the interfaces it might implement.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">downcast</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;&gt;</span>
+        <span class="kw">where</span> <span class="ident">U</span>: <span class="ident">DerivedFrom</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
     {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_layout</span>());
-        <span class='kw'>unsafe</span> {
-            <span class='kw'>if</span> (<span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>unsafe_get</span>()).<span class='ident'>is</span>::<span class='op'>&lt;</span><span class='ident'>U</span><span class='op'>&gt;</span>() {
-                <span class='kw'>let</span> <span class='ident'>ptr</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>T</span> <span class='op'>=</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>;
-                <span class='prelude-val'>Some</span>(<span class='ident'>LayoutJS</span> {
-                    <span class='ident'>ptr</span>: <span class='ident'>NonZero</span>::<span class='ident'>new</span>(<span class='ident'>ptr</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>U</span>),
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_layout</span>());
+        <span class="kw">unsafe</span> {
+            <span class="kw">if</span> (<span class="kw-2">*</span><span class="self">self</span>.<span class="ident">unsafe_get</span>()).<span class="ident">is</span>::<span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>() {
+                <span class="kw">let</span> <span class="ident">ptr</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">T</span> <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">ptr</span>;
+                <span class="prelude-val">Some</span>(<span class="ident">LayoutJS</span> {
+                    <span class="ident">ptr</span>: <span class="ident">NonZero</span>::<span class="ident">new</span>(<span class="ident">ptr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">U</span>),
                 })
-            } <span class='kw'>else</span> {
-                <span class='prelude-val'>None</span>
+            } <span class="kw">else</span> {
+                <span class="prelude-val">None</span>
             }
         }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Get the reflector.</span>
-    <span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>get_jsobject</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSObject</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_layout</span>());
-        (<span class='kw-2'>*</span><span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>).<span class='ident'>reflector</span>().<span class='ident'>get_jsobject</span>().<span class='ident'>get</span>()
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Get the reflector.</span>
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">get_jsobject</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSObject</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_layout</span>());
+        (<span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">ptr</span>).<span class="ident">reflector</span>().<span class="ident">get_jsobject</span>().<span class="ident">get</span>()
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Copy</span> <span class='kw'>for</span> <span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {}
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Copy</span> <span class="kw">for</span> <span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {}
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>PartialEq</span> <span class='kw'>for</span> <span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>eq</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>other</span>: <span class='kw-2'>&amp;</span><span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>ptr</span> <span class='op'>==</span> <span class='ident'>other</span>.<span class='ident'>ptr</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">ptr</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">ptr</span>
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Eq</span> <span class='kw'>for</span> <span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {}
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Eq</span> <span class="kw">for</span> <span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {}
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>PartialEq</span> <span class='kw'>for</span> <span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>eq</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>other</span>: <span class='kw-2'>&amp;</span><span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>ptr</span> <span class='op'>==</span> <span class='ident'>other</span>.<span class='ident'>ptr</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">ptr</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">ptr</span>
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Eq</span> <span class='kw'>for</span> <span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {}
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Eq</span> <span class="kw">for</span> <span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {}
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Hash</span> <span class='kw'>for</span> <span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>hash</span><span class='op'>&lt;</span><span class='ident'>H</span>: <span class='ident'>Hasher</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>state</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>H</span>) {
-        <span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>hash</span>(<span class='ident'>state</span>)
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Hash</span> <span class="kw">for</span> <span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">hash</span><span class="op">&lt;</span><span class="ident">H</span>: <span class="ident">Hasher</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">H</span>) {
+        <span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">hash</span>(<span class="ident">state</span>)
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Hash</span> <span class='kw'>for</span> <span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>hash</span><span class='op'>&lt;</span><span class='ident'>H</span>: <span class='ident'>Hasher</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>state</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>H</span>) {
-        <span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>hash</span>(<span class='ident'>state</span>)
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Hash</span> <span class="kw">for</span> <span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">hash</span><span class="op">&lt;</span><span class="ident">H</span>: <span class="ident">Hasher</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">H</span>) {
+        <span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">hash</span>(<span class="ident">state</span>)
     }
 }
 
-<span class='kw'>impl</span> <span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Clone</span> <span class='kw'>for</span> <span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unrooted_must_root</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='ident'>JS</span> {
-            <span class='ident'>ptr</span>: <span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>clone</span>(),
+<span class="kw">impl</span> <span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Clone</span> <span class="kw">for</span> <span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unrooted_must_root</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="ident">JS</span> {
+            <span class="ident">ptr</span>: <span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">clone</span>(),
         }
     }
 }
 
-<span class='kw'>impl</span> <span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Clone</span> <span class='kw'>for</span> <span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='attribute'>#[<span class='ident'>inline</span>]</span>
-    <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_layout</span>());
-        <span class='ident'>LayoutJS</span> {
-            <span class='ident'>ptr</span>: <span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>clone</span>(),
+<span class="kw">impl</span> <span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Clone</span> <span class="kw">for</span> <span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_layout</span>());
+        <span class="ident">LayoutJS</span> {
+            <span class="ident">ptr</span>: <span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">clone</span>(),
         }
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>Node</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Create a new JS-owned value wrapped from an address known to be a</span>
-    <span class='doccomment'>/// `Node` pointer.</span>
-    <span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>from_trusted_node_address</span>(<span class='ident'>inner</span>: <span class='ident'>TrustedNodeAddress</span>) <span class='op'>-&gt;</span> <span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>Node</span><span class='op'>&gt;</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_layout</span>());
-        <span class='kw'>let</span> <span class='ident'>TrustedNodeAddress</span>(<span class='ident'>addr</span>) <span class='op'>=</span> <span class='ident'>inner</span>;
-        <span class='ident'>LayoutJS</span> {
-            <span class='ident'>ptr</span>: <span class='ident'>NonZero</span>::<span class='ident'>new</span>(<span class='ident'>addr</span> <span class='kw'>as</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>Node</span>),
+<span class="kw">impl</span> <span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">Node</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Create a new JS-owned value wrapped from an address known to be a</span>
+    <span class="doccomment">/// `Node` pointer.</span>
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_trusted_node_address</span>(<span class="ident">inner</span>: <span class="ident">TrustedNodeAddress</span>) <span class="op">-&gt;</span> <span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">Node</span><span class="op">&gt;</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_layout</span>());
+        <span class="kw">let</span> <span class="ident">TrustedNodeAddress</span>(<span class="ident">addr</span>) <span class="op">=</span> <span class="ident">inner</span>;
+        <span class="ident">LayoutJS</span> {
+            <span class="ident">ptr</span>: <span class="ident">NonZero</span>::<span class="ident">new</span>(<span class="ident">addr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Node</span>),
         }
     }
 }
 
-<span class='doccomment'>/// A holder that provides interior mutability for GC-managed values such as</span>
-<span class='doccomment'>/// `JS&lt;T&gt;`.  Essentially a `Cell&lt;JS&lt;T&gt;&gt;`, but safer.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// This should only be used as a field in other DOM objects; see warning</span>
-<span class='doccomment'>/// on `JS&lt;T&gt;`.</span>
-<span class='attribute'>#[<span class='ident'>must_root</span>]</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>JSTraceable</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>MutJS</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> {
-    <span class='ident'>val</span>: <span class='ident'>UnsafeCell</span><span class='op'>&lt;</span><span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;&gt;</span>,
+<span class="doccomment">/// A holder that provides interior mutability for GC-managed values such as</span>
+<span class="doccomment">/// `JS&lt;T&gt;`.  Essentially a `Cell&lt;JS&lt;T&gt;&gt;`, but safer.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This should only be used as a field in other DOM objects; see warning</span>
+<span class="doccomment">/// on `JS&lt;T&gt;`.</span>
+<span class="attribute">#[<span class="ident">must_root</span>]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">JSTraceable</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MutJS</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> {
+    <span class="ident">val</span>: <span class="ident">UnsafeCell</span><span class="op">&lt;</span><span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span>,
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>MutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Create a new `MutJS`.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>initial</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='ident'>MutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='ident'>MutJS</span> {
-            <span class='ident'>val</span>: <span class='ident'>UnsafeCell</span>::<span class='ident'>new</span>(<span class='ident'>JS</span>::<span class='ident'>from_ref</span>(<span class='ident'>initial</span>)),
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">MutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Create a new `MutJS`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">initial</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">MutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="ident">MutJS</span> {
+            <span class="ident">val</span>: <span class="ident">UnsafeCell</span>::<span class="ident">new</span>(<span class="ident">JS</span>::<span class="ident">from_ref</span>(<span class="ident">initial</span>)),
         }
     }
 
-    <span class='doccomment'>/// Set this `MutJS` to the given value.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>val</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>) {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='kw'>unsafe</span> {
-            <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>val</span>.<span class='ident'>get</span>() <span class='op'>=</span> <span class='ident'>JS</span>::<span class='ident'>from_ref</span>(<span class='ident'>val</span>);
+    <span class="doccomment">/// Set this `MutJS` to the given value.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="kw">unsafe</span> {
+            <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">val</span>.<span class="ident">get</span>() <span class="op">=</span> <span class="ident">JS</span>::<span class="ident">from_ref</span>(<span class="ident">val</span>);
         }
     }
 
-    <span class='doccomment'>/// Get the value in this `MutJS`.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='kw'>unsafe</span> {
-            <span class='ident'>Root</span>::<span class='ident'>from_ref</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>ptr</span>::<span class='ident'>read</span>(<span class='self'>self</span>.<span class='ident'>val</span>.<span class='ident'>get</span>()))
-        }
-    }
-}
-
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>HeapSizeOf</span> <span class='kw'>for</span> <span class='ident'>MutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>heap_size_of_children</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-        <span class='comment'>// See comment on HeapSizeOf for JS&lt;T&gt;.</span>
-        <span class='number'>0</span>
-    }
-}
-
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>PartialEq</span> <span class='kw'>for</span> <span class='ident'>MutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-   <span class='kw'>fn</span> <span class='ident'>eq</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>other</span>: <span class='kw-2'>&amp;</span><span class='self'>Self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>unsafe</span> {
-            <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>val</span>.<span class='ident'>get</span>() <span class='op'>==</span> <span class='kw-2'>*</span><span class='ident'>other</span>.<span class='ident'>val</span>.<span class='ident'>get</span>()
+    <span class="doccomment">/// Get the value in this `MutJS`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="kw">unsafe</span> {
+            <span class="ident">Root</span>::<span class="ident">from_ref</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">ptr</span>::<span class="ident">read</span>(<span class="self">self</span>.<span class="ident">val</span>.<span class="ident">get</span>()))
         }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span> <span class='op'>+</span> <span class='ident'>PartialEq</span><span class='op'>&gt;</span> <span class='ident'>PartialEq</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>MutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>eq</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>other</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>unsafe</span> {
-            <span class='kw-2'>*</span><span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>val</span>.<span class='ident'>get</span>() <span class='op'>==</span> <span class='kw-2'>*</span><span class='ident'>other</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">HeapSizeOf</span> <span class="kw">for</span> <span class="ident">MutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">heap_size_of_children</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="comment">// See comment on HeapSizeOf for JS&lt;T&gt;.</span>
+        <span class="number">0</span>
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">MutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+   <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">unsafe</span> {
+            <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">val</span>.<span class="ident">get</span>() <span class="op">==</span> <span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">val</span>.<span class="ident">get</span>()
         }
     }
 }
 
-<span class='doccomment'>/// A holder that provides interior mutability for GC-managed values such as</span>
-<span class='doccomment'>/// `JS&lt;T&gt;`, with nullability represented by an enclosing Option wrapper.</span>
-<span class='doccomment'>/// Essentially a `Cell&lt;Option&lt;JS&lt;T&gt;&gt;&gt;`, but safer.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// This should only be used as a field in other DOM objects; see warning</span>
-<span class='doccomment'>/// on `JS&lt;T&gt;`.</span>
-<span class='attribute'>#[<span class='ident'>must_root</span>]</span>
-<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>JSTraceable</span>)]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>MutNullableJS</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> {
-    <span class='ident'>ptr</span>: <span class='ident'>UnsafeCell</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>,
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span> <span class="op">+</span> <span class="ident">PartialEq</span><span class="op">&gt;</span> <span class="ident">PartialEq</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">MutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">unsafe</span> {
+            <span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">val</span>.<span class="ident">get</span>() <span class="op">==</span> <span class="kw-2">*</span><span class="ident">other</span>
+        }
+    }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>MutNullableJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Create a new `MutNullableJS`.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>initial</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>T</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>MutNullableJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='ident'>MutNullableJS</span> {
-            <span class='ident'>ptr</span>: <span class='ident'>UnsafeCell</span>::<span class='ident'>new</span>(<span class='ident'>initial</span>.<span class='ident'>map</span>(<span class='ident'>JS</span>::<span class='ident'>from_ref</span>)),
+<span class="doccomment">/// A holder that provides interior mutability for GC-managed values such as</span>
+<span class="doccomment">/// `JS&lt;T&gt;`, with nullability represented by an enclosing Option wrapper.</span>
+<span class="doccomment">/// Essentially a `Cell&lt;Option&lt;JS&lt;T&gt;&gt;&gt;`, but safer.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This should only be used as a field in other DOM objects; see warning</span>
+<span class="doccomment">/// on `JS&lt;T&gt;`.</span>
+<span class="attribute">#[<span class="ident">must_root</span>]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">JSTraceable</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MutNullableJS</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> {
+    <span class="ident">ptr</span>: <span class="ident">UnsafeCell</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">MutNullableJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Create a new `MutNullableJS`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">initial</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">T</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">MutNullableJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="ident">MutNullableJS</span> {
+            <span class="ident">ptr</span>: <span class="ident">UnsafeCell</span>::<span class="ident">new</span>(<span class="ident">initial</span>.<span class="ident">map</span>(<span class="ident">JS</span>::<span class="ident">from_ref</span>)),
         }
     }
 
-    <span class='doccomment'>/// Retrieve a copy of the current inner value. If it is `None`, it is</span>
-    <span class='doccomment'>/// initialized with the result of `cb` first.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>or_init</span><span class='op'>&lt;</span><span class='ident'>F</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>cb</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>
-        <span class='kw'>where</span> <span class='ident'>F</span>: <span class='ident'>FnOnce</span>() <span class='op'>-&gt;</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>
+    <span class="doccomment">/// Retrieve a copy of the current inner value. If it is `None`, it is</span>
+    <span class="doccomment">/// initialized with the result of `cb` first.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">or_init</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">cb</span>: <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+        <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnOnce</span>() <span class="op">-&gt;</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
     {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>get</span>() {
-            <span class='prelude-val'>Some</span>(<span class='ident'>inner</span>) <span class='op'>=&gt;</span> <span class='ident'>inner</span>,
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
-                <span class='kw'>let</span> <span class='ident'>inner</span> <span class='op'>=</span> <span class='ident'>cb</span>();
-                <span class='self'>self</span>.<span class='ident'>set</span>(<span class='prelude-val'>Some</span>(<span class='kw-2'>&amp;</span><span class='ident'>inner</span>));
-                <span class='ident'>inner</span>
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">get</span>() {
+            <span class="prelude-val">Some</span>(<span class="ident">inner</span>) <span class="op">=&gt;</span> <span class="ident">inner</span>,
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="ident">cb</span>();
+                <span class="self">self</span>.<span class="ident">set</span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">inner</span>));
+                <span class="ident">inner</span>
             },
         }
     }
 
-    <span class='doccomment'>/// Retrieve a copy of the inner optional `JS&lt;T&gt;` as `LayoutJS&lt;T&gt;`.</span>
-    <span class='doccomment'>/// For use by layout, which can&#39;t use safe types like Temporary.</span>
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unrooted_must_root</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>get_inner_as_layout</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;&gt;</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_layout</span>());
-        <span class='ident'>ptr</span>::<span class='ident'>read</span>(<span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>get</span>()).<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>js</span><span class='op'>|</span> <span class='ident'>js</span>.<span class='ident'>to_layout</span>())
+    <span class="doccomment">/// Retrieve a copy of the inner optional `JS&lt;T&gt;` as `LayoutJS&lt;T&gt;`.</span>
+    <span class="doccomment">/// For use by layout, which can&#39;t use safe types like Temporary.</span>
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unrooted_must_root</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">get_inner_as_layout</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_layout</span>());
+        <span class="ident">ptr</span>::<span class="ident">read</span>(<span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">get</span>()).<span class="ident">map</span>(<span class="op">|</span><span class="ident">js</span><span class="op">|</span> <span class="ident">js</span>.<span class="ident">to_layout</span>())
     }
 
-    <span class='doccomment'>/// Get a rooted value out of this object</span>
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unrooted_must_root</span>)]</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;&gt;</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='kw'>unsafe</span> {
-            <span class='ident'>ptr</span>::<span class='ident'>read</span>(<span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>get</span>()).<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>o</span><span class='op'>|</span> <span class='ident'>Root</span>::<span class='ident'>from_ref</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>o</span>))
+    <span class="doccomment">/// Get a rooted value out of this object</span>
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unrooted_must_root</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="kw">unsafe</span> {
+            <span class="ident">ptr</span>::<span class="ident">read</span>(<span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">get</span>()).<span class="ident">map</span>(<span class="op">|</span><span class="ident">o</span><span class="op">|</span> <span class="ident">Root</span>::<span class="ident">from_ref</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">o</span>))
         }
     }
 
-    <span class='doccomment'>/// Set this `MutNullableJS` to the given value.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>val</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>T</span><span class='op'>&gt;</span>) {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='kw'>unsafe</span> {
-            <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>get</span>() <span class='op'>=</span> <span class='ident'>val</span>.<span class='ident'>map</span>(<span class='op'>|</span><span class='ident'>p</span><span class='op'>|</span> <span class='ident'>JS</span>::<span class='ident'>from_ref</span>(<span class='ident'>p</span>));
+    <span class="doccomment">/// Set this `MutNullableJS` to the given value.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">val</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">T</span><span class="op">&gt;</span>) {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="kw">unsafe</span> {
+            <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">get</span>() <span class="op">=</span> <span class="ident">val</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">p</span><span class="op">|</span> <span class="ident">JS</span>::<span class="ident">from_ref</span>(<span class="ident">p</span>));
         }
     }
 
-    <span class='doccomment'>/// Gets the current value out of this object and sets it to `None`.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>take</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;&gt;</span> {
-        <span class='kw'>let</span> <span class='ident'>value</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>get</span>();
-        <span class='self'>self</span>.<span class='ident'>set</span>(<span class='prelude-val'>None</span>);
-        <span class='ident'>value</span>
+    <span class="doccomment">/// Gets the current value out of this object and sets it to `None`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span> {
+        <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get</span>();
+        <span class="self">self</span>.<span class="ident">set</span>(<span class="prelude-val">None</span>);
+        <span class="ident">value</span>
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>PartialEq</span> <span class='kw'>for</span> <span class='ident'>MutNullableJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>eq</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>other</span>: <span class='kw-2'>&amp;</span><span class='self'>Self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>unsafe</span> {
-            <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>get</span>() <span class='op'>==</span> <span class='kw-2'>*</span><span class='ident'>other</span>.<span class='ident'>ptr</span>.<span class='ident'>get</span>()
-        }
-    }
-}
-
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>PartialEq</span><span class='op'>&lt;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>T</span><span class='op'>&gt;&gt;</span> <span class='kw'>for</span> <span class='ident'>MutNullableJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>eq</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>other</span>: <span class='kw-2'>&amp;</span><span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>T</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='kw'>unsafe</span> {
-            <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>get</span>() <span class='op'>==</span> <span class='ident'>other</span>.<span class='ident'>map</span>(<span class='ident'>JS</span>::<span class='ident'>from_ref</span>)
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">MutNullableJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">unsafe</span> {
+            <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">get</span>() <span class="op">==</span> <span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">ptr</span>.<span class="ident">get</span>()
         }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>Default</span> <span class='kw'>for</span> <span class='ident'>MutNullableJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='attribute'>#[<span class='ident'>allow</span>(<span class='ident'>unrooted_must_root</span>)]</span>
-    <span class='kw'>fn</span> <span class='ident'>default</span>() <span class='op'>-&gt;</span> <span class='ident'>MutNullableJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='ident'>MutNullableJS</span> {
-            <span class='ident'>ptr</span>: <span class='ident'>UnsafeCell</span>::<span class='ident'>new</span>(<span class='prelude-val'>None</span>),
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">PartialEq</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">T</span><span class="op">&gt;&gt;</span> <span class="kw">for</span> <span class="ident">MutNullableJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">T</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">unsafe</span> {
+            <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">get</span>() <span class="op">==</span> <span class="ident">other</span>.<span class="ident">map</span>(<span class="ident">JS</span>::<span class="ident">from_ref</span>)
         }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>HeapSizeOf</span> <span class='kw'>for</span> <span class='ident'>MutNullableJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>heap_size_of_children</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-        <span class='comment'>// See comment on HeapSizeOf for JS&lt;T&gt;.</span>
-        <span class='number'>0</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">MutNullableJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unrooted_must_root</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="ident">MutNullableJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="ident">MutNullableJS</span> {
+            <span class="ident">ptr</span>: <span class="ident">UnsafeCell</span>::<span class="ident">new</span>(<span class="prelude-val">None</span>),
+        }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>LayoutJS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Returns an unsafe pointer to the interior of this JS object. This is</span>
-    <span class='doccomment'>/// the only method that be safely accessed from layout. (The fact that</span>
-    <span class='doccomment'>/// this is unsafe is what necessitates the layout wrappers.)</span>
-    <span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>unsafe_get</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>T</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_layout</span>());
-        <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>
-    }
-
-    <span class='doccomment'>/// Returns a reference to the interior of this JS object. This method is</span>
-    <span class='doccomment'>/// safe to call because it originates from the layout thread, and it cannot</span>
-    <span class='doccomment'>/// mutate DOM nodes.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_for_script</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>T</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='kw'>unsafe</span> { <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span> }
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">HeapSizeOf</span> <span class="kw">for</span> <span class="ident">MutNullableJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">heap_size_of_children</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="comment">// See comment on HeapSizeOf for JS&lt;T&gt;.</span>
+        <span class="number">0</span>
     }
 }
 
-<span class='doccomment'>/// Get a reference out of a rooted value.</span>
-<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>RootedReference</span><span class='op'>&lt;</span><span class='lifetime'>&#39;root</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// The type of the reference.</span>
-    <span class='kw'>type</span> <span class='ident'>Ref</span>: <span class='lifetime'>&#39;root</span>;
-    <span class='doccomment'>/// Obtain a reference out of the rooted value.</span>
-    <span class='kw'>fn</span> <span class='ident'>r</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='self'>Self</span>::<span class='ident'>Ref</span>;
-}
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">LayoutJS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Returns an unsafe pointer to the interior of this JS object. This is</span>
+    <span class="doccomment">/// the only method that be safely accessed from layout. (The fact that</span>
+    <span class="doccomment">/// this is unsafe is what necessitates the layout wrappers.)</span>
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">unsafe_get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">T</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_layout</span>());
+        <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">ptr</span>
+    }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;root</span>, <span class='ident'>T</span>: <span class='ident'>JSTraceable</span> <span class='op'>+</span> <span class='ident'>DomObject</span> <span class='op'>+</span> <span class='lifetime'>&#39;root</span><span class='op'>&gt;</span> <span class='ident'>RootedReference</span><span class='op'>&lt;</span><span class='lifetime'>&#39;root</span><span class='op'>&gt;</span> <span class='kw'>for</span> [<span class='ident'>JS</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>] {
-    <span class='kw'>type</span> <span class='ident'>Ref</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> [<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> <span class='ident'>T</span>];
-    <span class='kw'>fn</span> <span class='ident'>r</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> [<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> <span class='ident'>T</span>] {
-        <span class='kw'>unsafe</span> { <span class='ident'>mem</span>::<span class='ident'>transmute</span>(<span class='self'>self</span>) }
+    <span class="doccomment">/// Returns a reference to the interior of this JS object. This method is</span>
+    <span class="doccomment">/// safe to call because it originates from the layout thread, and it cannot</span>
+    <span class="doccomment">/// mutate DOM nodes.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_for_script</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">T</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">ptr</span> }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;root</span>, <span class='ident'>T</span>: <span class='ident'>DomObject</span> <span class='op'>+</span> <span class='lifetime'>&#39;root</span><span class='op'>&gt;</span> <span class='ident'>RootedReference</span><span class='op'>&lt;</span><span class='lifetime'>&#39;root</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Rc</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Ref</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> <span class='ident'>T</span>;
-    <span class='kw'>fn</span> <span class='ident'>r</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> <span class='ident'>T</span> {
-        <span class='self'>self</span>
+<span class="doccomment">/// Get a reference out of a rooted value.</span>
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">RootedReference</span><span class="op">&lt;</span><span class="lifetime">&#39;root</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// The type of the reference.</span>
+    <span class="kw">type</span> <span class="ident">Ref</span>: <span class="lifetime">&#39;root</span>;
+    <span class="doccomment">/// Obtain a reference out of the rooted value.</span>
+    <span class="kw">fn</span> <span class="ident">r</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">Ref</span>;
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;root</span>, <span class="ident">T</span>: <span class="ident">JSTraceable</span> <span class="op">+</span> <span class="ident">DomObject</span> <span class="op">+</span> <span class="lifetime">&#39;root</span><span class="op">&gt;</span> <span class="ident">RootedReference</span><span class="op">&lt;</span><span class="lifetime">&#39;root</span><span class="op">&gt;</span> <span class="kw">for</span> [<span class="ident">JS</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>] {
+    <span class="kw">type</span> <span class="ident">Ref</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> [<span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> <span class="ident">T</span>];
+    <span class="kw">fn</span> <span class="ident">r</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> [<span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> <span class="ident">T</span>] {
+        <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="self">self</span>) }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;root</span>, <span class='ident'>T</span>: <span class='ident'>RootedReference</span><span class='op'>&lt;</span><span class='lifetime'>&#39;root</span><span class='op'>&gt;</span> <span class='op'>+</span> <span class='lifetime'>&#39;root</span><span class='op'>&gt;</span> <span class='ident'>RootedReference</span><span class='op'>&lt;</span><span class='lifetime'>&#39;root</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Ref</span> <span class='op'>=</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>T</span>::<span class='ident'>Ref</span><span class='op'>&gt;</span>;
-    <span class='kw'>fn</span> <span class='ident'>r</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>T</span>::<span class='ident'>Ref</span><span class='op'>&gt;</span> {
-        <span class='self'>self</span>.<span class='ident'>as_ref</span>().<span class='ident'>map</span>(<span class='ident'>RootedReference</span>::<span class='ident'>r</span>)
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;root</span>, <span class="ident">T</span>: <span class="ident">DomObject</span> <span class="op">+</span> <span class="lifetime">&#39;root</span><span class="op">&gt;</span> <span class="ident">RootedReference</span><span class="op">&lt;</span><span class="lifetime">&#39;root</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Ref</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> <span class="ident">T</span>;
+    <span class="kw">fn</span> <span class="ident">r</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> <span class="ident">T</span> {
+        <span class="self">self</span>
     }
 }
 
-<span class='doccomment'>/// A rooting mechanism for reflectors on the stack.</span>
-<span class='doccomment'>/// LIFO is not required.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// See also [*Exact Stack Rooting - Storing a GCPointer on the CStack*]</span>
-<span class='doccomment'>/// (https://developer.mozilla.org/en-US/docs/Mozilla/Projects/SpiderMonkey/Internals/GC/Exact_Stack_Rooting).</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>RootCollection</span> {
-    <span class='ident'>roots</span>: <span class='ident'>UnsafeCell</span><span class='op'>&lt;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>Reflector</span><span class='op'>&gt;&gt;</span>,
-}
-
-<span class='doccomment'>/// A pointer to a RootCollection, for use in global variables.</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>RootCollectionPtr</span>(<span class='kw'>pub</span> <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>RootCollection</span>);
-
-<span class='kw'>impl</span> <span class='ident'>Copy</span> <span class='kw'>for</span> <span class='ident'>RootCollectionPtr</span> {}
-<span class='kw'>impl</span> <span class='ident'>Clone</span> <span class='kw'>for</span> <span class='ident'>RootCollectionPtr</span> {
-    <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>RootCollectionPtr</span> {
-        <span class='kw-2'>*</span><span class='self'>self</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;root</span>, <span class="ident">T</span>: <span class="ident">RootedReference</span><span class="op">&lt;</span><span class="lifetime">&#39;root</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;root</span><span class="op">&gt;</span> <span class="ident">RootedReference</span><span class="op">&lt;</span><span class="lifetime">&#39;root</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Ref</span> <span class="op">=</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">Ref</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">r</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">Ref</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="ident">RootedReference</span>::<span class="ident">r</span>)
     }
 }
 
-<span class='kw'>impl</span> <span class='ident'>RootCollection</span> {
-    <span class='doccomment'>/// Create an empty collection of roots</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>RootCollection</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='ident'>RootCollection</span> {
-            <span class='ident'>roots</span>: <span class='ident'>UnsafeCell</span>::<span class='ident'>new</span>(<span class='macro'>vec</span><span class='macro'>!</span>[]),
+<span class="doccomment">/// A rooting mechanism for reflectors on the stack.</span>
+<span class="doccomment">/// LIFO is not required.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// See also [*Exact Stack Rooting - Storing a GCPointer on the CStack*]</span>
+<span class="doccomment">/// (https://developer.mozilla.org/en-US/docs/Mozilla/Projects/SpiderMonkey/Internals/GC/Exact_Stack_Rooting).</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RootCollection</span> {
+    <span class="ident">roots</span>: <span class="ident">UnsafeCell</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Reflector</span><span class="op">&gt;&gt;</span>,
+}
+
+<span class="doccomment">/// A pointer to a RootCollection, for use in global variables.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RootCollectionPtr</span>(<span class="kw">pub</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">RootCollection</span>);
+
+<span class="kw">impl</span> <span class="ident">Copy</span> <span class="kw">for</span> <span class="ident">RootCollectionPtr</span> {}
+<span class="kw">impl</span> <span class="ident">Clone</span> <span class="kw">for</span> <span class="ident">RootCollectionPtr</span> {
+    <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">RootCollectionPtr</span> {
+        <span class="kw-2">*</span><span class="self">self</span>
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">RootCollection</span> {
+    <span class="doccomment">/// Create an empty collection of roots</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">RootCollection</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="ident">RootCollection</span> {
+            <span class="ident">roots</span>: <span class="ident">UnsafeCell</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[]),
         }
     }
 
-    <span class='doccomment'>/// Start tracking a stack-based root</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>root</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>untracked_reflector</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>Reflector</span>) {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>roots</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>roots</span>.<span class='ident'>get</span>();
-        <span class='ident'>roots</span>.<span class='ident'>push</span>(<span class='ident'>untracked_reflector</span>);
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span>(<span class='kw-2'>*</span><span class='ident'>untracked_reflector</span>).<span class='ident'>get_jsobject</span>().<span class='ident'>is_null</span>())
+    <span class="doccomment">/// Start tracking a stack-based root</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">root</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">untracked_reflector</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Reflector</span>) {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">roots</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">roots</span>.<span class="ident">get</span>();
+        <span class="ident">roots</span>.<span class="ident">push</span>(<span class="ident">untracked_reflector</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span>(<span class="kw-2">*</span><span class="ident">untracked_reflector</span>).<span class="ident">get_jsobject</span>().<span class="ident">is_null</span>())
     }
 
-    <span class='doccomment'>/// Stop tracking a stack-based reflector, asserting if it isn&#39;t found.</span>
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>unroot</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>tracked_reflector</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>Reflector</span>) {
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span><span class='ident'>tracked_reflector</span>.<span class='ident'>is_null</span>());
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='op'>!</span>(<span class='kw-2'>*</span><span class='ident'>tracked_reflector</span>).<span class='ident'>get_jsobject</span>().<span class='ident'>is_null</span>());
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>roots</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>roots</span>.<span class='ident'>get</span>();
-        <span class='kw'>match</span> <span class='ident'>roots</span>.<span class='ident'>iter</span>().<span class='ident'>rposition</span>(<span class='op'>|</span><span class='ident'>r</span><span class='op'>|</span> <span class='kw-2'>*</span><span class='ident'>r</span> <span class='op'>==</span> <span class='ident'>tracked_reflector</span>) {
-            <span class='prelude-val'>Some</span>(<span class='ident'>idx</span>) <span class='op'>=&gt;</span> {
-                <span class='ident'>roots</span>.<span class='ident'>remove</span>(<span class='ident'>idx</span>);
+    <span class="doccomment">/// Stop tracking a stack-based reflector, asserting if it isn&#39;t found.</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">unroot</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tracked_reflector</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Reflector</span>) {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">tracked_reflector</span>.<span class="ident">is_null</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span>(<span class="kw-2">*</span><span class="ident">tracked_reflector</span>).<span class="ident">get_jsobject</span>().<span class="ident">is_null</span>());
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">roots</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">roots</span>.<span class="ident">get</span>();
+        <span class="kw">match</span> <span class="ident">roots</span>.<span class="ident">iter</span>().<span class="ident">rposition</span>(<span class="op">|</span><span class="ident">r</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">r</span> <span class="op">==</span> <span class="ident">tracked_reflector</span>) {
+            <span class="prelude-val">Some</span>(<span class="ident">idx</span>) <span class="op">=&gt;</span> {
+                <span class="ident">roots</span>.<span class="ident">remove</span>(<span class="ident">idx</span>);
             },
-            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;Can&#39;t remove a root that was never rooted!&quot;</span>),
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Can&#39;t remove a root that was never rooted!&quot;</span>),
         }
     }
 }
 
-<span class='doccomment'>/// SM Callback that traces the rooted reflectors</span>
-<span class='kw'>pub</span> <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>trace_roots</span>(<span class='ident'>tracer</span>: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSTracer</span>) {
-    <span class='macro'>debug</span><span class='macro'>!</span>(<span class='string'>&quot;tracing stack roots&quot;</span>);
-    <span class='ident'>STACK_ROOTS</span>.<span class='ident'>with</span>(<span class='op'>|</span><span class='kw-2'>ref</span> <span class='ident'>collection</span><span class='op'>|</span> {
-        <span class='kw'>let</span> <span class='ident'>RootCollectionPtr</span>(<span class='ident'>collection</span>) <span class='op'>=</span> <span class='ident'>collection</span>.<span class='ident'>get</span>().<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>collection</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>*</span>(<span class='kw-2'>*</span><span class='ident'>collection</span>).<span class='ident'>roots</span>.<span class='ident'>get</span>();
-        <span class='kw'>for</span> <span class='ident'>root</span> <span class='kw'>in</span> <span class='ident'>collection</span> {
-            <span class='ident'>trace_reflector</span>(<span class='ident'>tracer</span>, <span class='string'>&quot;on stack&quot;</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='kw-2'>*</span><span class='ident'>root</span>);
+<span class="doccomment">/// SM Callback that traces the rooted reflectors</span>
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">trace_roots</span>(<span class="ident">tracer</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSTracer</span>) {
+    <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;tracing stack roots&quot;</span>);
+    <span class="ident">STACK_ROOTS</span>.<span class="ident">with</span>(<span class="op">|</span><span class="kw-2">ref</span> <span class="ident">collection</span><span class="op">|</span> {
+        <span class="kw">let</span> <span class="ident">RootCollectionPtr</span>(<span class="ident">collection</span>) <span class="op">=</span> <span class="ident">collection</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">collection</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span>(<span class="kw-2">*</span><span class="ident">collection</span>).<span class="ident">roots</span>.<span class="ident">get</span>();
+        <span class="kw">for</span> <span class="ident">root</span> <span class="kw">in</span> <span class="ident">collection</span> {
+            <span class="ident">trace_reflector</span>(<span class="ident">tracer</span>, <span class="string">&quot;on stack&quot;</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">root</span>);
         }
     });
 }
 
-<span class='doccomment'>/// A rooted reference to a DOM object.</span>
-<span class='doccomment'>///</span>
-<span class='doccomment'>/// The JS value is pinned for the duration of this object&#39;s lifetime; roots</span>
-<span class='doccomment'>/// are additive, so this object&#39;s destruction will not invalidate other roots</span>
-<span class='doccomment'>/// for the same JS value. `Root`s cannot outlive the associated</span>
-<span class='doccomment'>/// `RootCollection` object.</span>
-<span class='attribute'>#[<span class='ident'>allow_unrooted_interior</span>]</span>
-<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Reference to rooted value that must not outlive this container</span>
-    <span class='ident'>ptr</span>: <span class='ident'>NonZero</span><span class='op'>&lt;</span><span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>T</span><span class='op'>&gt;</span>,
-    <span class='doccomment'>/// List that ensures correct dynamic root ordering</span>
-    <span class='ident'>root_list</span>: <span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>RootCollection</span>,
+<span class="doccomment">/// A rooted reference to a DOM object.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The JS value is pinned for the duration of this object&#39;s lifetime; roots</span>
+<span class="doccomment">/// are additive, so this object&#39;s destruction will not invalidate other roots</span>
+<span class="doccomment">/// for the same JS value. `Root`s cannot outlive the associated</span>
+<span class="doccomment">/// `RootCollection` object.</span>
+<span class="attribute">#[<span class="ident">allow_unrooted_interior</span>]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Reference to rooted value that must not outlive this container</span>
+    <span class="ident">ptr</span>: <span class="ident">NonZero</span><span class="op">&lt;</span><span class="kw-2">*</span><span class="kw">const</span> <span class="ident">T</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// List that ensures correct dynamic root ordering</span>
+    <span class="ident">root_list</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">RootCollection</span>,
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Castable</span><span class='op'>&gt;</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Cast a DOM object root upwards to one of the interfaces it derives from.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>upcast</span><span class='op'>&lt;</span><span class='ident'>U</span><span class='op'>&gt;</span>(<span class='ident'>root</span>: <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>U</span><span class='op'>&gt;</span>
-        <span class='kw'>where</span> <span class='ident'>U</span>: <span class='ident'>Castable</span>,
-              <span class='ident'>T</span>: <span class='ident'>DerivedFrom</span><span class='op'>&lt;</span><span class='ident'>U</span><span class='op'>&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Castable</span><span class="op">&gt;</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Cast a DOM object root upwards to one of the interfaces it derives from.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">upcast</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>(<span class="ident">root</span>: <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>
+        <span class="kw">where</span> <span class="ident">U</span>: <span class="ident">Castable</span>,
+              <span class="ident">T</span>: <span class="ident">DerivedFrom</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>
     {
-        <span class='kw'>unsafe</span> { <span class='ident'>mem</span>::<span class='ident'>transmute</span>(<span class='ident'>root</span>) }
+        <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">root</span>) }
     }
 
-    <span class='doccomment'>/// Cast a DOM object root downwards to one of the interfaces it might implement.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>downcast</span><span class='op'>&lt;</span><span class='ident'>U</span><span class='op'>&gt;</span>(<span class='ident'>root</span>: <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>U</span><span class='op'>&gt;&gt;</span>
-        <span class='kw'>where</span> <span class='ident'>U</span>: <span class='ident'>DerivedFrom</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>
+    <span class="doccomment">/// Cast a DOM object root downwards to one of the interfaces it might implement.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">downcast</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>(<span class="ident">root</span>: <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Root</span><span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;&gt;</span>
+        <span class="kw">where</span> <span class="ident">U</span>: <span class="ident">DerivedFrom</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
     {
-        <span class='kw'>if</span> <span class='ident'>root</span>.<span class='ident'>is</span>::<span class='op'>&lt;</span><span class='ident'>U</span><span class='op'>&gt;</span>() {
-            <span class='prelude-val'>Some</span>(<span class='kw'>unsafe</span> { <span class='ident'>mem</span>::<span class='ident'>transmute</span>(<span class='ident'>root</span>) })
-        } <span class='kw'>else</span> {
-            <span class='prelude-val'>None</span>
+        <span class="kw">if</span> <span class="ident">root</span>.<span class="ident">is</span>::<span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>() {
+            <span class="prelude-val">Some</span>(<span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">root</span>) })
+        } <span class="kw">else</span> {
+            <span class="prelude-val">None</span>
         }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='doccomment'>/// Create a new stack-bounded root for the provided JS-owned value.</span>
-    <span class='doccomment'>/// It cannot outlive its associated `RootCollection`, and it gives</span>
-    <span class='doccomment'>/// out references which cannot outlive this new `Root`.</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>unrooted</span>: <span class='ident'>NonZero</span><span class='op'>&lt;</span><span class='kw-2'>*</span><span class='kw'>const</span> <span class='ident'>T</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='ident'>STACK_ROOTS</span>.<span class='ident'>with</span>(<span class='op'>|</span><span class='kw-2'>ref</span> <span class='ident'>collection</span><span class='op'>|</span> {
-            <span class='kw'>let</span> <span class='ident'>RootCollectionPtr</span>(<span class='ident'>collection</span>) <span class='op'>=</span> <span class='ident'>collection</span>.<span class='ident'>get</span>().<span class='ident'>unwrap</span>();
-            <span class='kw'>unsafe</span> { (<span class='kw-2'>*</span><span class='ident'>collection</span>).<span class='ident'>root</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span>(<span class='kw-2'>*</span><span class='kw-2'>*</span><span class='ident'>unrooted</span>).<span class='ident'>reflector</span>()) }
-            <span class='ident'>Root</span> {
-                <span class='ident'>ptr</span>: <span class='ident'>unrooted</span>,
-                <span class='ident'>root_list</span>: <span class='ident'>collection</span>,
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Create a new stack-bounded root for the provided JS-owned value.</span>
+    <span class="doccomment">/// It cannot outlive its associated `RootCollection`, and it gives</span>
+    <span class="doccomment">/// out references which cannot outlive this new `Root`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">unrooted</span>: <span class="ident">NonZero</span><span class="op">&lt;</span><span class="kw-2">*</span><span class="kw">const</span> <span class="ident">T</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="ident">STACK_ROOTS</span>.<span class="ident">with</span>(<span class="op">|</span><span class="kw-2">ref</span> <span class="ident">collection</span><span class="op">|</span> {
+            <span class="kw">let</span> <span class="ident">RootCollectionPtr</span>(<span class="ident">collection</span>) <span class="op">=</span> <span class="ident">collection</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>();
+            <span class="kw">unsafe</span> { (<span class="kw-2">*</span><span class="ident">collection</span>).<span class="ident">root</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span>(<span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">unrooted</span>).<span class="ident">reflector</span>()) }
+            <span class="ident">Root</span> {
+                <span class="ident">ptr</span>: <span class="ident">unrooted</span>,
+                <span class="ident">root_list</span>: <span class="ident">collection</span>,
             }
         })
     }
 
-    <span class='doccomment'>/// Generate a new root from a reference</span>
-    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>from_ref</span>(<span class='ident'>unrooted</span>: <span class='kw-2'>&amp;</span><span class='ident'>T</span>) <span class='op'>-&gt;</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-        <span class='ident'>Root</span>::<span class='ident'>new</span>(<span class='kw'>unsafe</span> { <span class='ident'>NonZero</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='ident'>unrooted</span>) })
+    <span class="doccomment">/// Generate a new root from a reference</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_ref</span>(<span class="ident">unrooted</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="ident">Root</span>::<span class="ident">new</span>(<span class="kw">unsafe</span> { <span class="ident">NonZero</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">unrooted</span>) })
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;root</span>, <span class='ident'>T</span>: <span class='ident'>DomObject</span> <span class='op'>+</span> <span class='lifetime'>&#39;root</span><span class='op'>&gt;</span> <span class='ident'>RootedReference</span><span class='op'>&lt;</span><span class='lifetime'>&#39;root</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Ref</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> <span class='ident'>T</span>;
-    <span class='kw'>fn</span> <span class='ident'>r</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;root</span> <span class='ident'>T</span> {
-        <span class='self'>self</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;root</span>, <span class="ident">T</span>: <span class="ident">DomObject</span> <span class="op">+</span> <span class="lifetime">&#39;root</span><span class="op">&gt;</span> <span class="ident">RootedReference</span><span class="op">&lt;</span><span class="lifetime">&#39;root</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Ref</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> <span class="ident">T</span>;
+    <span class="kw">fn</span> <span class="ident">r</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;root</span> <span class="ident">T</span> {
+        <span class="self">self</span>
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>Deref</span> <span class='kw'>for</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>type</span> <span class='ident'>Target</span> <span class='op'>=</span> <span class='ident'>T</span>;
-    <span class='kw'>fn</span> <span class='ident'>deref</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='ident'>T</span> {
-        <span class='macro'>debug_assert</span><span class='macro'>!</span>(<span class='ident'>thread_state</span>::<span class='ident'>get</span>().<span class='ident'>is_script</span>());
-        <span class='kw'>unsafe</span> { <span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>deref</span>() }
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">T</span>;
+    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">T</span> {
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">thread_state</span>::<span class="ident">get</span>().<span class="ident">is_script</span>());
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">deref</span>() }
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span> <span class='op'>+</span> <span class='ident'>HeapSizeOf</span><span class='op'>&gt;</span> <span class='ident'>HeapSizeOf</span> <span class='kw'>for</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>heap_size_of_children</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
-        (<span class='kw-2'>*</span><span class='kw-2'>*</span><span class='self'>self</span>).<span class='ident'>heap_size_of_children</span>()
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span> <span class="op">+</span> <span class="ident">HeapSizeOf</span><span class="op">&gt;</span> <span class="ident">HeapSizeOf</span> <span class="kw">for</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">heap_size_of_children</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        (<span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>).<span class="ident">heap_size_of_children</span>()
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>PartialEq</span> <span class='kw'>for</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>eq</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>other</span>: <span class='kw-2'>&amp;</span><span class='self'>Self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
-        <span class='self'>self</span>.<span class='ident'>ptr</span> <span class='op'>==</span> <span class='ident'>other</span>.<span class='ident'>ptr</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">ptr</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">ptr</span>
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>Clone</span> <span class='kw'>for</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-        <span class='ident'>Root</span>::<span class='ident'>from_ref</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>*</span><span class='self'>self</span>)
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">Clone</span> <span class="kw">for</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="ident">Root</span>::<span class="ident">from_ref</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>)
     }
 }
 
-<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>Drop</span> <span class='kw'>for</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>fn</span> <span class='ident'>drop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
-        <span class='kw'>unsafe</span> {
-            (<span class='kw-2'>*</span><span class='self'>self</span>.<span class='ident'>root_list</span>).<span class='ident'>unroot</span>(<span class='self'>self</span>.<span class='ident'>reflector</span>());
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="kw">unsafe</span> {
+            (<span class="kw-2">*</span><span class="self">self</span>.<span class="ident">root_list</span>).<span class="ident">unroot</span>(<span class="self">self</span>.<span class="ident">reflector</span>());
         }
     }
 }
 
-<span class='kw'>unsafe</span> <span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>DomObject</span><span class='op'>&gt;</span> <span class='ident'>JSTraceable</span> <span class='kw'>for</span> <span class='ident'>Root</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
-    <span class='kw'>unsafe</span> <span class='kw'>fn</span> <span class='ident'>trace</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, _: <span class='kw-2'>*</span><span class='kw-2'>mut</span> <span class='ident'>JSTracer</span>) {
-        <span class='comment'>// Already traced.</span>
+<span class="kw">unsafe</span> <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DomObject</span><span class="op">&gt;</span> <span class="ident">JSTraceable</span> <span class="kw">for</span> <span class="ident">Root</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, _: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">JSTracer</span>) {
+        <span class="comment">// Already traced.</span>
     }
 }
 </pre>

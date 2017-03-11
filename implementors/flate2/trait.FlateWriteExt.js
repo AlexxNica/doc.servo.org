@@ -1,6 +1,5 @@
 (function() {var implementors = {};
 implementors["flate2"] = [];
-implementors["net"] = [];
 implementors["servo"] = [];
 
             if (window.register_implementors) {

@@ -67,7 +67,7 @@
                 </div>
 
                 <div id="content" class="content">
-                    <a class="header" href="#procedural-macros-and-custom-derive" name="procedural-macros-and-custom-derive"><h1>Procedural Macros (and custom Derive)</h1></a>
+                    <a class="header" href="procedural-macros.html#procedural-macros-and-custom-derive" name="procedural-macros-and-custom-derive"><h1>Procedural Macros (and custom Derive)</h1></a>
 <p>As you've seen throughout the rest of the book, Rust provides a mechanism
 called &quot;derive&quot; that lets you implement traits easily. For example,</p>
 <pre><code class="language-rust">#[derive(Debug)]
@@ -95,13 +95,13 @@ your own. We can accomplish this task through a feature of Rust called
 &quot;procedural macros.&quot; Eventually, procedural macros will allow for all sorts of
 advanced metaprogramming in Rust, but today, they're only for custom derive.</p>
 <p>Let's build a very simple trait, and derive it with custom derive.</p>
-<a class="header" href="#hello-world" name="hello-world"><h2>Hello World</h2></a>
+<a class="header" href="procedural-macros.html#hello-world" name="hello-world"><h2>Hello World</h2></a>
 <p>So the first thing we need to do is start a new crate for our project.</p>
 <pre><code class="language-bash">$ cargo new --bin hello-world
 </code></pre>
 <p>All we want is to be able to call <code>hello_world()</code> on a derived type. Something
 like this:</p>
-<pre><code class="language-rust,ignore">#[derive(HelloWorld)]
+<pre><code class="language-rust ignore">#[derive(HelloWorld)]
 struct Pancakes;
 
 fn main() {
@@ -111,7 +111,7 @@ fn main() {
 <p>With some kind of nice output, like <code>Hello, World! My name is Pancakes.</code>.</p>
 <p>Let's go ahead and write up what we think our macro will look like from a user
 perspective. In <code>src/main.rs</code> we write:</p>
-<pre><code class="language-rust,ignore">#[macro_use]
+<pre><code class="language-rust ignore">#[macro_use]
 extern crate hello_world_derive;
 
 trait HelloWorld {
@@ -143,7 +143,7 @@ created, we'll add it to our toml:</p>
 hello-world-derive = { path = &quot;hello-world-derive&quot; }
 </code></pre>
 <p>As for the source of our <code>hello-world-derive</code> crate, here's an example:</p>
-<pre><code class="language-rust,ignore">extern crate proc_macro;
+<pre><code class="language-rust ignore">extern crate proc_macro;
 extern crate syn;
 #[macro_use]
 extern crate quote;
@@ -168,7 +168,7 @@ pub fn hello_world(input: TokenStream) -&gt; TokenStream {
 <p>So there is a lot going on here. We have introduced two new crates: <a href="https://crates.io/crates/syn"><code>syn</code></a> and
 <a href="https://crates.io/crates/quote"><code>quote</code></a>. As you may have noticed, <code>input: TokenSteam</code> is immediately converted
 to a <code>String</code>. This <code>String</code> is a string representation of the Rust code for which
-we are deriving <code>HelloWorld</code> for. At the moment, the only thing you can do with a
+we are deriving <code>HelloWorld</code>. At the moment, the only thing you can do with a
 <code>TokenStream</code> is convert it to a string. A richer API will exist in the future.</p>
 <p>So what we really need is to be able to <em>parse</em> Rust code into something
 usable. This is where <code>syn</code> comes to play. <code>syn</code> is a crate for parsing Rust
@@ -184,7 +184,7 @@ then pass it back to Rust compiler.</p>
 error for a procedural macro, then you should <code>panic!</code> with the error message.
 In this case, we're keeping it as simple as possible.</p>
 <p>Great, so let's write <code>impl_hello_world(&amp;ast)</code>.</p>
-<pre><code class="language-rust,ignore">fn impl_hello_world(ast: &amp;syn::MacroInput) -&gt; quote::Tokens {
+<pre><code class="language-rust ignore">fn impl_hello_world(ast: &amp;syn::MacroInput) -&gt; quote::Tokens {
     let name = &amp;ast.ident;
     quote! {
         impl HelloWorld for #name {
@@ -200,7 +200,7 @@ a representation of our type (which can be either a <code>struct</code> or an <c
 Check out the <a href="https://docs.rs/syn/0.10.5/syn/struct.MacroInput.html">docs</a>,
 there is some useful information there. We are able to get the name of the
 type using <code>ast.ident</code>. The <code>quote!</code> macro lets us write up the Rust code
-that we wish to return and convert it into <code>Tokens</code>. <code>quote!</code> let's us use some
+that we wish to return and convert it into <code>Tokens</code>. <code>quote!</code> lets us use some
 really cool templating mechanics; we simply write <code>#name</code> and <code>quote!</code> will
 replace it with the variable named <code>name</code>. You can even do some repetition
 similar to regular macros work. You should check out the
@@ -228,6 +228,59 @@ proc-macro = true
 Hello, World! My name is Waffles
 </code></pre>
 <p>We've done it!</p>
+<a class="header" href="procedural-macros.html#custom-attributes" name="custom-attributes"><h2>Custom Attributes</h2></a>
+<p>In some cases it might make sense to allow users some kind of configuration.
+For example, the user might want to overwrite the name that is printed in the <code>hello_world()</code> method.</p>
+<p>This can be achieved with custom attributes:</p>
+<pre><code class="language-rust ignore">#[derive(HelloWorld)]
+#[HelloWorldName = &quot;the best Pancakes&quot;]
+struct Pancakes;
+
+fn main() {
+    Pancakes::hello_world();
+}
+</code></pre>
+<p>If we try to compile this though, the compiler will respond with an error:</p>
+<pre><code class="language-bash">error: The attribute `HelloWorldName` is currently unknown to the compiler and may have meaning added to it in the future (see issue #29642)
+</code></pre>
+<p>The compiler needs to know that we're handling this attribute and to not respond with an error.
+This is done in the <code>hello-world-derive</code> crate by adding <code>attributes</code> to the <code>proc_macro_derive</code> attribute:</p>
+<pre><code class="language-rust ignore">#[proc_macro_derive(HelloWorld, attributes(HelloWorldName))]
+pub fn hello_world(input: TokenStream) -&gt; TokenStream 
+</code></pre>
+<p>Multiple attributes can be specified that way.</p>
+<a class="header" href="procedural-macros.html#raising-errors" name="raising-errors"><h2>Raising Errors</h2></a>
+<p>Let's assume that we do not want to accept enums as input to our custom derive method.</p>
+<p>This condition can be easily checked with the help of <code>syn</code>.
+But how do we tell the user, that we do not accept enums?
+The idiomatic way to report errors in procedural macros is to panic:</p>
+<pre><code class="language-rust ignore">fn impl_hello_world(ast: &amp;syn::MacroInput) -&gt; quote::Tokens {
+    let name = &amp;ast.ident;
+    // Check if derive(HelloWorld) was specified for a struct
+    if let syn::Body::Struct(_) = ast.body {
+        // Yes, this is a struct
+        quote! {
+            impl HelloWorld for #name {
+                fn hello_world() {
+                    println!(&quot;Hello, World! My name is {}&quot;, stringify!(#name));
+                }
+            }
+        }
+    } else {
+        //Nope. This is an Enum. We cannot handle these!
+       panic!(&quot;#[derive(HelloWorld)] is only defined for structs, not for enums!&quot;);
+    }
+}
+</code></pre>
+<p>If a user now tries to derive <code>HelloWorld</code> from an enum they will be greeted with following, hopefully helpful, error:</p>
+<pre><code class="language-bash">error: custom derive attribute panicked
+  --&gt; src/main.rs
+   |
+   | #[derive(HelloWorld)]
+   |          ^^^^^^^^^^
+   |
+   = help: message: #[derive(HelloWorld)] is only defined for structs, not for enums!
+</code></pre>
 
                 </div>
 

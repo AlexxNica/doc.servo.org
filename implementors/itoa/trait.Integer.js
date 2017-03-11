@@ -1,7 +1,6 @@
 (function() {var implementors = {};
 implementors["itoa"] = [];
 implementors["layout_thread"] = [];
-implementors["net"] = [];
 implementors["servo"] = [];
 
             if (window.register_implementors) {
