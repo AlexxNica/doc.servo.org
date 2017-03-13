@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/94f255d/webrender/src/frame_builder.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/git/checkouts/webrender-c3596abe1cf4f320/e30fb29/webrender/src/frame_builder.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>frame_builder.rs.html -- source</title>
@@ -1738,11 +1738,6 @@
 <span id="1693">1693</span>
 <span id="1694">1694</span>
 <span id="1695">1695</span>
-<span id="1696">1696</span>
-<span id="1697">1697</span>
-<span id="1698">1698</span>
-<span id="1699">1699</span>
-<span id="1700">1700</span>
 </pre><pre class="rust ">
 <span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1865,7 +1860,7 @@
 
     <span class="doccomment">/// A stack of scroll nodes used during display list processing to properly</span>
     <span class="doccomment">/// parent new scroll nodes.</span>
-    <span class="ident">clip_scroll_node_stack</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ScrollLayerId</span><span class="op">&gt;</span>,
+    <span class="ident">reference_frame_stack</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ScrollLayerId</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// A stack of stacking contexts used for creating ClipScrollGroups as</span>
     <span class="doccomment">/// primitives are added to the frame.</span>
@@ -1886,7 +1881,7 @@
             <span class="ident">packed_layers</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
             <span class="ident">scrollbar_prims</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
             <span class="ident">config</span>: <span class="ident">config</span>,
-            <span class="ident">clip_scroll_node_stack</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
+            <span class="ident">reference_frame_stack</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
             <span class="ident">stacking_context_stack</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
         }
     }
@@ -1997,12 +1992,12 @@
                                 <span class="ident">clip_scroll_tree</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ClipScrollTree</span>)
                                 <span class="op">-&gt;</span> <span class="ident">ScrollLayerId</span> {
         <span class="kw">let</span> <span class="ident">new_id</span> <span class="op">=</span> <span class="ident">clip_scroll_tree</span>.<span class="ident">add_reference_frame</span>(<span class="ident">rect</span>, <span class="ident">transform</span>, <span class="ident">pipeline_id</span>, <span class="ident">parent_id</span>);
-        <span class="self">self</span>.<span class="ident">clip_scroll_node_stack</span>.<span class="ident">push</span>(<span class="ident">new_id</span>);
+        <span class="self">self</span>.<span class="ident">reference_frame_stack</span>.<span class="ident">push</span>(<span class="ident">new_id</span>);
         <span class="ident">new_id</span>
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">current_reference_frame_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ScrollLayerId</span> {
-        <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">clip_scroll_node_stack</span>.<span class="ident">iter</span>().<span class="ident">rev</span>().<span class="ident">find</span>(<span class="op">|</span><span class="ident">id</span><span class="op">|</span> <span class="ident">id</span>.<span class="ident">is_reference_frame</span>()).<span class="ident">unwrap</span>()
+        <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">reference_frame_stack</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>()
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">setup_viewport_offset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
@@ -2050,7 +2045,7 @@
 
         <span class="kw">let</span> <span class="ident">topmost_scroll_layer_id</span> <span class="op">=</span> <span class="ident">ScrollLayerId</span>::<span class="ident">root_scroll_layer</span>(<span class="ident">pipeline_id</span>);
         <span class="ident">clip_scroll_tree</span>.<span class="ident">topmost_scroll_layer_id</span> <span class="op">=</span> <span class="ident">topmost_scroll_layer_id</span>;
-        <span class="self">self</span>.<span class="ident">push_clip_scroll_node</span>(<span class="ident">topmost_scroll_layer_id</span>,
+        <span class="self">self</span>.<span class="ident">add_clip_scroll_node</span>(<span class="ident">topmost_scroll_layer_id</span>,
                                    <span class="ident">clip_scroll_tree</span>.<span class="ident">root_reference_frame_id</span>,
                                    <span class="ident">pipeline_id</span>,
                                    <span class="kw-2">&amp;</span><span class="ident">viewport_rect</span>,
@@ -2061,15 +2056,15 @@
         <span class="ident">topmost_scroll_layer_id</span>
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">push_clip_scroll_node</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
-                                 <span class="ident">new_node_id</span>: <span class="ident">ScrollLayerId</span>,
-                                 <span class="ident">parent_id</span>: <span class="ident">ScrollLayerId</span>,
-                                 <span class="ident">pipeline_id</span>: <span class="ident">PipelineId</span>,
-                                 <span class="ident">local_viewport_rect</span>: <span class="kw-2">&amp;</span><span class="ident">LayerRect</span>,
-                                 <span class="ident">content_size</span>: <span class="kw-2">&amp;</span><span class="ident">LayerSize</span>,
-                                 <span class="ident">scroll_root_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ServoScrollRootId</span><span class="op">&gt;</span>,
-                                 <span class="ident">clip_region</span>: <span class="kw-2">&amp;</span><span class="ident">ClipRegion</span>,
-                                 <span class="ident">clip_scroll_tree</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ClipScrollTree</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_clip_scroll_node</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+                                <span class="ident">new_node_id</span>: <span class="ident">ScrollLayerId</span>,
+                                <span class="ident">parent_id</span>: <span class="ident">ScrollLayerId</span>,
+                                <span class="ident">pipeline_id</span>: <span class="ident">PipelineId</span>,
+                                <span class="ident">local_viewport_rect</span>: <span class="kw-2">&amp;</span><span class="ident">LayerRect</span>,
+                                <span class="ident">content_size</span>: <span class="kw-2">&amp;</span><span class="ident">LayerSize</span>,
+                                <span class="ident">scroll_root_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ServoScrollRootId</span><span class="op">&gt;</span>,
+                                <span class="ident">clip_region</span>: <span class="kw-2">&amp;</span><span class="ident">ClipRegion</span>,
+                                <span class="ident">clip_scroll_tree</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ClipScrollTree</span>) {
         <span class="kw">let</span> <span class="ident">clip_info</span> <span class="op">=</span> <span class="ident">ClipInfo</span>::<span class="ident">new</span>(<span class="ident">clip_region</span>,
                                       <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">prim_store</span>.<span class="ident">gpu_data32</span>,
                                       <span class="ident">PackedLayerIndex</span>(<span class="self">self</span>.<span class="ident">packed_layers</span>.<span class="ident">len</span>()),
@@ -2082,15 +2077,10 @@
 
         <span class="ident">clip_scroll_tree</span>.<span class="ident">add_node</span>(<span class="ident">node</span>, <span class="ident">new_node_id</span>);
         <span class="self">self</span>.<span class="ident">packed_layers</span>.<span class="ident">push</span>(<span class="ident">PackedLayer</span>::<span class="ident">empty</span>());
-        <span class="self">self</span>.<span class="ident">clip_scroll_node_stack</span>.<span class="ident">push</span>(<span class="ident">new_node_id</span>);
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pop_clip_scroll_node</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
-        <span class="self">self</span>.<span class="ident">clip_scroll_node_stack</span>.<span class="ident">pop</span>();
-    }
-
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">current_clip_scroll_node_id</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ScrollLayerId</span> {
-        <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">clip_scroll_node_stack</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>()
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pop_reference_frame</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">reference_frame_stack</span>.<span class="ident">pop</span>();
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_solid_rectangle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
