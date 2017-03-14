@@ -1239,10 +1239,6 @@
 <span id="1194">1194</span>
 <span id="1195">1195</span>
 <span id="1196">1196</span>
-<span id="1197">1197</span>
-<span id="1198">1198</span>
-<span id="1199">1199</span>
-<span id="1200">1200</span>
 </pre><pre class="rust ">
 <span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1260,7 +1256,9 @@
 <span class="kw">use</span> <span class="ident">media_queries</span>::<span class="ident">Device</span>;
 <span class="kw">use</span> <span class="ident">parking_lot</span>::<span class="ident">RwLock</span>;
 <span class="kw">use</span> <span class="ident">pdqsort</span>::<span class="ident">sort_by</span>;
-<span class="kw">use</span> <span class="ident">properties</span>::{<span class="self">self</span>, <span class="ident">CascadeFlags</span>, <span class="ident">ComputedValues</span>, <span class="ident">INHERIT_ALL</span>};
+<span class="kw">use</span> <span class="ident">properties</span>::{<span class="self">self</span>, <span class="ident">CascadeFlags</span>, <span class="ident">ComputedValues</span>};
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>)]</span>
+<span class="kw">use</span> <span class="ident">properties</span>::<span class="ident">INHERIT_ALL</span>;
 <span class="kw">use</span> <span class="ident">properties</span>::<span class="ident">PropertyDeclarationBlock</span>;
 <span class="kw">use</span> <span class="ident">restyle_hints</span>::{<span class="ident">RestyleHint</span>, <span class="ident">DependencySet</span>};
 <span class="kw">use</span> <span class="ident">rule_tree</span>::{<span class="ident">CascadeLevel</span>, <span class="ident">RuleTree</span>, <span class="ident">StrongRuleNode</span>, <span class="ident">StyleSource</span>};
@@ -1539,8 +1537,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">precomputed_values_for_pseudo</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
                                          <span class="ident">pseudo</span>: <span class="kw-2">&amp;</span><span class="ident">PseudoElement</span>,
                                          <span class="ident">parent</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ComputedValues</span><span class="op">&gt;&gt;</span>,
-                                         <span class="ident">default</span>: <span class="kw-2">&amp;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ComputedValues</span><span class="op">&gt;</span>,
-                                         <span class="ident">inherit_all</span>: <span class="ident">bool</span>)
+                                         <span class="ident">cascade_flags</span>: <span class="ident">CascadeFlags</span>)
                                          <span class="op">-&gt;</span> <span class="ident">ComputedStyle</span> {
         <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">SelectorImpl</span>::<span class="ident">pseudo_element_cascade_type</span>(<span class="ident">pseudo</span>).<span class="ident">is_precomputed</span>());
 
@@ -1553,11 +1550,6 @@
             }
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">rule_tree</span>.<span class="ident">root</span>(),
         };
-
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">flags</span> <span class="op">=</span> <span class="ident">CascadeFlags</span>::<span class="ident">empty</span>();
-        <span class="kw">if</span> <span class="ident">inherit_all</span> {
-            <span class="ident">flags</span>.<span class="ident">insert</span>(<span class="ident">INHERIT_ALL</span>)
-        }
 
         <span class="comment">// NOTE(emilio): We skip calculating the proper layout parent style</span>
         <span class="comment">// here.</span>
@@ -1574,14 +1566,13 @@
         <span class="comment">// the actual used value, and the computed value of it would need</span>
         <span class="comment">// blockification.</span>
         <span class="kw">let</span> <span class="ident">computed</span> <span class="op">=</span>
-            <span class="ident">properties</span>::<span class="ident">cascade</span>(<span class="self">self</span>.<span class="ident">device</span>.<span class="ident">au_viewport_size</span>(),
+            <span class="ident">properties</span>::<span class="ident">cascade</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">device</span>,
                                 <span class="kw-2">&amp;</span><span class="ident">rule_node</span>,
                                 <span class="ident">parent</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">p</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">p</span>),
                                 <span class="ident">parent</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">p</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">p</span>),
-                                <span class="ident">default</span>,
                                 <span class="prelude-val">None</span>,
-                                <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">StdoutErrorReporter</span>),
-                                <span class="ident">flags</span>);
+                                <span class="kw-2">&amp;</span><span class="ident">StdoutErrorReporter</span>,
+                                <span class="ident">cascade_flags</span>);
         <span class="ident">ComputedStyle</span>::<span class="ident">new</span>(<span class="ident">rule_node</span>, <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">computed</span>))
     }
 
@@ -1589,8 +1580,7 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">style_for_anonymous_box</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
                                    <span class="ident">pseudo</span>: <span class="kw-2">&amp;</span><span class="ident">PseudoElement</span>,
-                                   <span class="ident">parent_style</span>: <span class="kw-2">&amp;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ComputedValues</span><span class="op">&gt;</span>,
-                                   <span class="ident">default_style</span>: <span class="kw-2">&amp;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ComputedValues</span><span class="op">&gt;</span>)
+                                   <span class="ident">parent_style</span>: <span class="kw-2">&amp;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ComputedValues</span><span class="op">&gt;</span>)
                                    <span class="op">-&gt;</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ComputedValues</span><span class="op">&gt;</span> {
         <span class="comment">// For most (but not all) pseudo-elements, we inherit all values from the parent.</span>
         <span class="kw">let</span> <span class="ident">inherit_all</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">pseudo</span> {
@@ -1609,7 +1599,11 @@
                 <span class="macro">unreachable</span><span class="macro">!</span>(<span class="string">&quot;That pseudo doesn&#39;t represent an anonymous box!&quot;</span>)
             }
         };
-        <span class="self">self</span>.<span class="ident">precomputed_values_for_pseudo</span>(<span class="kw-2">&amp;</span><span class="ident">pseudo</span>, <span class="prelude-val">Some</span>(<span class="ident">parent_style</span>), <span class="ident">default_style</span>, <span class="ident">inherit_all</span>)
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cascade_flags</span> <span class="op">=</span> <span class="ident">CascadeFlags</span>::<span class="ident">empty</span>();
+        <span class="kw">if</span> <span class="ident">inherit_all</span> {
+            <span class="ident">cascade_flags</span>.<span class="ident">insert</span>(<span class="ident">INHERIT_ALL</span>);
+        }
+        <span class="self">self</span>.<span class="ident">precomputed_values_for_pseudo</span>(<span class="kw-2">&amp;</span><span class="ident">pseudo</span>, <span class="prelude-val">Some</span>(<span class="ident">parent_style</span>), <span class="ident">cascade_flags</span>)
             .<span class="ident">values</span>.<span class="ident">unwrap</span>()
     }
 
@@ -1623,8 +1617,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">lazily_compute_pseudo_element_style</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
                                                   <span class="ident">element</span>: <span class="kw-2">&amp;</span><span class="ident">E</span>,
                                                   <span class="ident">pseudo</span>: <span class="kw-2">&amp;</span><span class="ident">PseudoElement</span>,
-                                                  <span class="ident">parent</span>: <span class="kw-2">&amp;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ComputedValues</span><span class="op">&gt;</span>,
-                                                  <span class="ident">default</span>: <span class="kw-2">&amp;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ComputedValues</span><span class="op">&gt;</span>)
+                                                  <span class="ident">parent</span>: <span class="kw-2">&amp;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ComputedValues</span><span class="op">&gt;</span>)
                                                   <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ComputedStyle</span><span class="op">&gt;</span>
         <span class="kw">where</span> <span class="ident">E</span>: <span class="ident">TElement</span> <span class="op">+</span>
                  <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="op">+</span>
@@ -1655,13 +1648,12 @@
         <span class="comment">// (tl;dr: It doesn&#39;t apply for replaced elements and such, but the</span>
         <span class="comment">// computed value is still &quot;contents&quot;).</span>
         <span class="kw">let</span> <span class="ident">computed</span> <span class="op">=</span>
-            <span class="ident">properties</span>::<span class="ident">cascade</span>(<span class="self">self</span>.<span class="ident">device</span>.<span class="ident">au_viewport_size</span>(),
+            <span class="ident">properties</span>::<span class="ident">cascade</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">device</span>,
                                 <span class="kw-2">&amp;</span><span class="ident">rule_node</span>,
                                 <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">parent</span>),
                                 <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">parent</span>),
-                                <span class="ident">default</span>,
                                 <span class="prelude-val">None</span>,
-                                <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">StdoutErrorReporter</span>),
+                                <span class="kw-2">&amp;</span><span class="ident">StdoutErrorReporter</span>,
                                 <span class="ident">CascadeFlags</span>::<span class="ident">empty</span>());
 
         <span class="comment">// Apply the selector flags. We should be in sequential mode already,</span>
