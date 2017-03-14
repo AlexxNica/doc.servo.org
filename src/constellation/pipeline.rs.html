@@ -676,6 +676,7 @@
 <span id="631">631</span>
 <span id="632">632</span>
 <span id="633">633</span>
+<span id="634">634</span>
 </pre><pre class="rust ">
 <span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -877,13 +878,15 @@
             }
         });
 
-        <span class="kw">let</span> (<span class="ident">script_chan</span>, <span class="ident">content_ports</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">state</span>.<span class="ident">event_loop</span> {
+        <span class="kw">let</span> <span class="ident">url</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">load_data</span>.<span class="ident">url</span>.<span class="ident">clone</span>();
+
+        <span class="kw">let</span> <span class="ident">script_chan</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">state</span>.<span class="ident">event_loop</span> {
             <span class="prelude-val">Some</span>(<span class="ident">script_chan</span>) <span class="op">=&gt;</span> {
                 <span class="kw">let</span> <span class="ident">new_layout_info</span> <span class="op">=</span> <span class="ident">NewLayoutInfo</span> {
                     <span class="ident">parent_info</span>: <span class="ident">state</span>.<span class="ident">parent_info</span>,
                     <span class="ident">new_pipeline_id</span>: <span class="ident">state</span>.<span class="ident">id</span>,
                     <span class="ident">frame_id</span>: <span class="ident">state</span>.<span class="ident">frame_id</span>,
-                    <span class="ident">load_data</span>: <span class="ident">state</span>.<span class="ident">load_data</span>.<span class="ident">clone</span>(),
+                    <span class="ident">load_data</span>: <span class="ident">state</span>.<span class="ident">load_data</span>,
                     <span class="ident">window_size</span>: <span class="ident">window_size</span>,
                     <span class="ident">pipeline_port</span>: <span class="ident">pipeline_port</span>,
                     <span class="ident">content_process_shutdown_chan</span>: <span class="prelude-val">Some</span>(<span class="ident">layout_content_process_shutdown_chan</span>.<span class="ident">clone</span>()),
@@ -893,75 +896,74 @@
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="ident">script_chan</span>.<span class="ident">send</span>(<span class="ident">ConstellationControlMsg</span>::<span class="ident">AttachLayout</span>(<span class="ident">new_layout_info</span>)) {
                     <span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;Sending to script during pipeline creation failed ({})&quot;</span>, <span class="ident">e</span>);
                 }
-                (<span class="ident">script_chan</span>, <span class="prelude-val">None</span>)
+                <span class="ident">script_chan</span>
             }
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
                 <span class="kw">let</span> (<span class="ident">script_chan</span>, <span class="ident">script_port</span>) <span class="op">=</span> <span class="ident">ipc</span>::<span class="ident">channel</span>().<span class="ident">expect</span>(<span class="string">&quot;Pipeline script chan&quot;</span>);
-                (<span class="ident">EventLoop</span>::<span class="ident">new</span>(<span class="ident">script_chan</span>), <span class="prelude-val">Some</span>((<span class="ident">script_port</span>, <span class="ident">pipeline_port</span>)))
+
+                <span class="comment">// Route messages coming from content to devtools as appropriate.</span>
+                <span class="kw">let</span> <span class="ident">script_to_devtools_chan</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">devtools_chan</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">devtools_chan</span><span class="op">|</span> {
+                    <span class="kw">let</span> (<span class="ident">script_to_devtools_chan</span>, <span class="ident">script_to_devtools_port</span>) <span class="op">=</span> <span class="ident">ipc</span>::<span class="ident">channel</span>()
+                        .<span class="ident">expect</span>(<span class="string">&quot;Pipeline script to devtools chan&quot;</span>);
+                    <span class="kw">let</span> <span class="ident">devtools_chan</span> <span class="op">=</span> (<span class="kw-2">*</span><span class="ident">devtools_chan</span>).<span class="ident">clone</span>();
+                    <span class="ident">ROUTER</span>.<span class="ident">add_route</span>(<span class="ident">script_to_devtools_port</span>.<span class="ident">to_opaque</span>(), <span class="kw">box</span> <span class="kw">move</span> <span class="op">|</span><span class="ident">message</span><span class="op">|</span> {
+                        <span class="kw">match</span> <span class="ident">message</span>.<span class="ident">to</span>::<span class="op">&lt;</span><span class="ident">ScriptToDevtoolsControlMsg</span><span class="op">&gt;</span>() {
+                            <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=&gt;</span> <span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;Cast to ScriptToDevtoolsControlMsg failed ({}).&quot;</span>, <span class="ident">e</span>),
+                            <span class="prelude-val">Ok</span>(<span class="ident">message</span>) <span class="op">=&gt;</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="ident">devtools_chan</span>.<span class="ident">send</span>(<span class="ident">DevtoolsControlMsg</span>::<span class="ident">FromScript</span>(<span class="ident">message</span>)) {
+                                <span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;Sending to devtools failed ({})&quot;</span>, <span class="ident">e</span>)
+                            },
+                        }
+                    });
+                    <span class="ident">script_to_devtools_chan</span>
+                });
+
+                <span class="kw">let</span> (<span class="ident">script_content_process_shutdown_chan</span>, <span class="ident">script_content_process_shutdown_port</span>) <span class="op">=</span>
+                    <span class="ident">ipc</span>::<span class="ident">channel</span>().<span class="ident">expect</span>(<span class="string">&quot;Pipeline script content process shutdown chan&quot;</span>);
+
+                <span class="kw">let</span> <span class="ident">unprivileged_pipeline_content</span> <span class="op">=</span> <span class="ident">UnprivilegedPipelineContent</span> {
+                    <span class="ident">id</span>: <span class="ident">state</span>.<span class="ident">id</span>,
+                    <span class="ident">frame_id</span>: <span class="ident">state</span>.<span class="ident">frame_id</span>,
+                    <span class="ident">top_level_frame_id</span>: <span class="ident">state</span>.<span class="ident">top_level_frame_id</span>,
+                    <span class="ident">parent_info</span>: <span class="ident">state</span>.<span class="ident">parent_info</span>,
+                    <span class="ident">constellation_chan</span>: <span class="ident">state</span>.<span class="ident">constellation_chan</span>,
+                    <span class="ident">scheduler_chan</span>: <span class="ident">state</span>.<span class="ident">scheduler_chan</span>,
+                    <span class="ident">devtools_chan</span>: <span class="ident">script_to_devtools_chan</span>,
+                    <span class="ident">bluetooth_thread</span>: <span class="ident">state</span>.<span class="ident">bluetooth_thread</span>,
+                    <span class="ident">swmanager_thread</span>: <span class="ident">state</span>.<span class="ident">swmanager_thread</span>,
+                    <span class="ident">image_cache_thread</span>: <span class="ident">state</span>.<span class="ident">image_cache_thread</span>,
+                    <span class="ident">font_cache_thread</span>: <span class="ident">state</span>.<span class="ident">font_cache_thread</span>,
+                    <span class="ident">resource_threads</span>: <span class="ident">state</span>.<span class="ident">resource_threads</span>,
+                    <span class="ident">time_profiler_chan</span>: <span class="ident">state</span>.<span class="ident">time_profiler_chan</span>,
+                    <span class="ident">mem_profiler_chan</span>: <span class="ident">state</span>.<span class="ident">mem_profiler_chan</span>,
+                    <span class="ident">window_size</span>: <span class="ident">window_size</span>,
+                    <span class="ident">layout_to_constellation_chan</span>: <span class="ident">state</span>.<span class="ident">layout_to_constellation_chan</span>,
+                    <span class="ident">script_chan</span>: <span class="ident">script_chan</span>.<span class="ident">clone</span>(),
+                    <span class="ident">load_data</span>: <span class="ident">state</span>.<span class="ident">load_data</span>,
+                    <span class="ident">script_port</span>: <span class="ident">script_port</span>,
+                    <span class="ident">opts</span>: (<span class="kw-2">*</span><span class="ident">opts</span>::<span class="ident">get</span>()).<span class="ident">clone</span>(),
+                    <span class="ident">prefs</span>: <span class="ident">PREFS</span>.<span class="ident">cloned</span>(),
+                    <span class="ident">pipeline_port</span>: <span class="ident">pipeline_port</span>,
+                    <span class="ident">pipeline_namespace_id</span>: <span class="ident">state</span>.<span class="ident">pipeline_namespace_id</span>,
+                    <span class="ident">layout_content_process_shutdown_chan</span>: <span class="ident">layout_content_process_shutdown_chan</span>,
+                    <span class="ident">layout_content_process_shutdown_port</span>: <span class="ident">layout_content_process_shutdown_port</span>,
+                    <span class="ident">script_content_process_shutdown_chan</span>: <span class="ident">script_content_process_shutdown_chan</span>,
+                    <span class="ident">script_content_process_shutdown_port</span>: <span class="ident">script_content_process_shutdown_port</span>,
+                    <span class="ident">webrender_api_sender</span>: <span class="ident">state</span>.<span class="ident">webrender_api_sender</span>,
+                    <span class="ident">webvr_thread</span>: <span class="ident">state</span>.<span class="ident">webvr_thread</span>,
+                };
+
+                <span class="comment">// Spawn the child process.</span>
+                <span class="comment">//</span>
+                <span class="comment">// Yes, that&#39;s all there is to it!</span>
+                <span class="kw">if</span> <span class="ident">opts</span>::<span class="ident">multiprocess</span>() {
+                    <span class="kw">let</span> _ <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">unprivileged_pipeline_content</span>.<span class="ident">spawn_multiprocess</span>());
+                } <span class="kw">else</span> {
+                    <span class="ident">unprivileged_pipeline_content</span>.<span class="ident">start_all</span>::<span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">LTF</span>, <span class="ident">STF</span><span class="op">&gt;</span>(<span class="bool-val">false</span>);
+                }
+
+                <span class="ident">EventLoop</span>::<span class="ident">new</span>(<span class="ident">script_chan</span>)
             }
         };
-
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">script_port</span>, <span class="ident">pipeline_port</span>)) <span class="op">=</span> <span class="ident">content_ports</span> {
-            <span class="comment">// Route messages coming from content to devtools as appropriate.</span>
-            <span class="kw">let</span> <span class="ident">script_to_devtools_chan</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">devtools_chan</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">devtools_chan</span><span class="op">|</span> {
-                <span class="kw">let</span> (<span class="ident">script_to_devtools_chan</span>, <span class="ident">script_to_devtools_port</span>) <span class="op">=</span> <span class="ident">ipc</span>::<span class="ident">channel</span>()
-                    .<span class="ident">expect</span>(<span class="string">&quot;Pipeline script to devtools chan&quot;</span>);
-                <span class="kw">let</span> <span class="ident">devtools_chan</span> <span class="op">=</span> (<span class="kw-2">*</span><span class="ident">devtools_chan</span>).<span class="ident">clone</span>();
-                <span class="ident">ROUTER</span>.<span class="ident">add_route</span>(<span class="ident">script_to_devtools_port</span>.<span class="ident">to_opaque</span>(), <span class="kw">box</span> <span class="kw">move</span> <span class="op">|</span><span class="ident">message</span><span class="op">|</span> {
-                    <span class="kw">match</span> <span class="ident">message</span>.<span class="ident">to</span>::<span class="op">&lt;</span><span class="ident">ScriptToDevtoolsControlMsg</span><span class="op">&gt;</span>() {
-                        <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=&gt;</span> <span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;Cast to ScriptToDevtoolsControlMsg failed ({}).&quot;</span>, <span class="ident">e</span>),
-                        <span class="prelude-val">Ok</span>(<span class="ident">message</span>) <span class="op">=&gt;</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="ident">devtools_chan</span>.<span class="ident">send</span>(<span class="ident">DevtoolsControlMsg</span>::<span class="ident">FromScript</span>(<span class="ident">message</span>)) {
-                            <span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;Sending to devtools failed ({})&quot;</span>, <span class="ident">e</span>)
-                        },
-                    }
-                });
-                <span class="ident">script_to_devtools_chan</span>
-            });
-
-            <span class="kw">let</span> (<span class="ident">script_content_process_shutdown_chan</span>, <span class="ident">script_content_process_shutdown_port</span>) <span class="op">=</span>
-                <span class="ident">ipc</span>::<span class="ident">channel</span>().<span class="ident">expect</span>(<span class="string">&quot;Pipeline script content process shutdown chan&quot;</span>);
-
-            <span class="kw">let</span> <span class="ident">unprivileged_pipeline_content</span> <span class="op">=</span> <span class="ident">UnprivilegedPipelineContent</span> {
-                <span class="ident">id</span>: <span class="ident">state</span>.<span class="ident">id</span>,
-                <span class="ident">frame_id</span>: <span class="ident">state</span>.<span class="ident">frame_id</span>,
-                <span class="ident">top_level_frame_id</span>: <span class="ident">state</span>.<span class="ident">top_level_frame_id</span>,
-                <span class="ident">parent_info</span>: <span class="ident">state</span>.<span class="ident">parent_info</span>,
-                <span class="ident">constellation_chan</span>: <span class="ident">state</span>.<span class="ident">constellation_chan</span>,
-                <span class="ident">scheduler_chan</span>: <span class="ident">state</span>.<span class="ident">scheduler_chan</span>,
-                <span class="ident">devtools_chan</span>: <span class="ident">script_to_devtools_chan</span>,
-                <span class="ident">bluetooth_thread</span>: <span class="ident">state</span>.<span class="ident">bluetooth_thread</span>,
-                <span class="ident">swmanager_thread</span>: <span class="ident">state</span>.<span class="ident">swmanager_thread</span>,
-                <span class="ident">image_cache_thread</span>: <span class="ident">state</span>.<span class="ident">image_cache_thread</span>,
-                <span class="ident">font_cache_thread</span>: <span class="ident">state</span>.<span class="ident">font_cache_thread</span>,
-                <span class="ident">resource_threads</span>: <span class="ident">state</span>.<span class="ident">resource_threads</span>,
-                <span class="ident">time_profiler_chan</span>: <span class="ident">state</span>.<span class="ident">time_profiler_chan</span>,
-                <span class="ident">mem_profiler_chan</span>: <span class="ident">state</span>.<span class="ident">mem_profiler_chan</span>,
-                <span class="ident">window_size</span>: <span class="ident">window_size</span>,
-                <span class="ident">layout_to_constellation_chan</span>: <span class="ident">state</span>.<span class="ident">layout_to_constellation_chan</span>,
-                <span class="ident">script_chan</span>: <span class="ident">script_chan</span>.<span class="ident">sender</span>(),
-                <span class="ident">load_data</span>: <span class="ident">state</span>.<span class="ident">load_data</span>.<span class="ident">clone</span>(),
-                <span class="ident">script_port</span>: <span class="ident">script_port</span>,
-                <span class="ident">opts</span>: (<span class="kw-2">*</span><span class="ident">opts</span>::<span class="ident">get</span>()).<span class="ident">clone</span>(),
-                <span class="ident">prefs</span>: <span class="ident">PREFS</span>.<span class="ident">cloned</span>(),
-                <span class="ident">pipeline_port</span>: <span class="ident">pipeline_port</span>,
-                <span class="ident">pipeline_namespace_id</span>: <span class="ident">state</span>.<span class="ident">pipeline_namespace_id</span>,
-                <span class="ident">layout_content_process_shutdown_chan</span>: <span class="ident">layout_content_process_shutdown_chan</span>,
-                <span class="ident">layout_content_process_shutdown_port</span>: <span class="ident">layout_content_process_shutdown_port</span>,
-                <span class="ident">script_content_process_shutdown_chan</span>: <span class="ident">script_content_process_shutdown_chan</span>,
-                <span class="ident">script_content_process_shutdown_port</span>: <span class="ident">script_content_process_shutdown_port</span>,
-                <span class="ident">webrender_api_sender</span>: <span class="ident">state</span>.<span class="ident">webrender_api_sender</span>,
-                <span class="ident">webvr_thread</span>: <span class="ident">state</span>.<span class="ident">webvr_thread</span>,
-            };
-
-            <span class="comment">// Spawn the child process.</span>
-            <span class="comment">//</span>
-            <span class="comment">// Yes, that&#39;s all there is to it!</span>
-            <span class="kw">if</span> <span class="ident">opts</span>::<span class="ident">multiprocess</span>() {
-                <span class="kw">let</span> _ <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">unprivileged_pipeline_content</span>.<span class="ident">spawn_multiprocess</span>());
-            } <span class="kw">else</span> {
-                <span class="ident">unprivileged_pipeline_content</span>.<span class="ident">start_all</span>::<span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">LTF</span>, <span class="ident">STF</span><span class="op">&gt;</span>(<span class="bool-val">false</span>);
-            }
-        }
 
         <span class="prelude-val">Ok</span>(<span class="ident">Pipeline</span>::<span class="ident">new</span>(<span class="ident">state</span>.<span class="ident">id</span>,
                          <span class="ident">state</span>.<span class="ident">frame_id</span>,
@@ -970,7 +972,7 @@
                          <span class="ident">pipeline_chan</span>,
                          <span class="ident">state</span>.<span class="ident">compositor_proxy</span>,
                          <span class="ident">state</span>.<span class="ident">is_private</span>,
-                         <span class="ident">state</span>.<span class="ident">load_data</span>.<span class="ident">url</span>,
+                         <span class="ident">url</span>,
                          <span class="ident">state</span>.<span class="ident">window_size</span>,
                          <span class="ident">state</span>.<span class="ident">prev_visibility</span>.<span class="ident">unwrap_or</span>(<span class="bool-val">true</span>)))
     }
