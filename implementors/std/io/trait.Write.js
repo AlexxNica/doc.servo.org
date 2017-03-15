@@ -34,6 +34,7 @@ implementors["servo"] = ["impl&lt;W&gt; <a class="trait" href="std/io/trait.Writ
 implementors["servo_config"] = ["impl&lt;T&gt; <a class="trait" href="std/io/trait.Write.html" title="trait std::io::Write">Write</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/term/terminfo/struct.TerminfoTerminal.html" title="struct term::terminfo::TerminfoTerminal">TerminfoTerminal</a>&lt;T&gt; <span class="where fmt-newline">where T: <a class="trait" href="std/io/trait.Write.html" title="trait std::io::Write">Write</a></span>",];
 implementors["servo_rand"] = [];
 implementors["servo_remutex"] = [];
+implementors["servo_url"] = [];
 implementors["shared_library"] = [];
 implementors["std"] = [];
 implementors["string_cache"] = [];

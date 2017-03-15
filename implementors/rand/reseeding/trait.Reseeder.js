@@ -30,6 +30,7 @@ implementors["servo"] = [];
 implementors["servo_config"] = [];
 implementors["servo_rand"] = ["impl <a class="trait" href="rand/reseeding/trait.Reseeder.html" title="trait rand::reseeding::Reseeder">Reseeder</a>&lt;<a class="struct" href="rand/isaac/struct.Isaac64Rng.html" title="struct rand::isaac::Isaac64Rng">IsaacWordRng</a>&gt; for <a class="struct" href="servo_rand/struct.ServoReseeder.html" title="struct servo_rand::ServoReseeder">ServoReseeder</a>",];
 implementors["servo_remutex"] = [];
+implementors["servo_url"] = [];
 implementors["shared_library"] = [];
 implementors["std"] = [];
 implementors["string_cache"] = [];

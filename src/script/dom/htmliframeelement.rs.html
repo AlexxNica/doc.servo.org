@@ -805,6 +805,8 @@
 <span id="760">760</span>
 <span id="761">761</span>
 <span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
 </pre><pre class="rust ">
 <span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1135,20 +1137,6 @@
             <span class="bool-val">false</span>
         }
     }
-
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_content_window</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Root</span><span class="op">&lt;</span><span class="ident">Window</span><span class="op">&gt;&gt;</span> {
-        <span class="self">self</span>.<span class="ident">pipeline_id</span>.<span class="ident">get</span>()
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">pipeline_id</span><span class="op">|</span> <span class="ident">ScriptThread</span>::<span class="ident">find_document</span>(<span class="ident">pipeline_id</span>))
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">document</span><span class="op">|</span> {
-                <span class="kw">let</span> <span class="ident">current_global</span> <span class="op">=</span> <span class="ident">GlobalScope</span>::<span class="ident">current</span>();
-                <span class="kw">let</span> <span class="ident">current_document</span> <span class="op">=</span> <span class="ident">current_global</span>.<span class="ident">as_window</span>().<span class="ident">Document</span>();
-                <span class="kw">if</span> <span class="ident">document</span>.<span class="ident">origin</span>().<span class="ident">same_origin</span>(<span class="ident">current_document</span>.<span class="ident">origin</span>()) {
-                    <span class="prelude-val">Some</span>(<span class="ident">Root</span>::<span class="ident">from_ref</span>(<span class="ident">document</span>.<span class="ident">window</span>()))
-                } <span class="kw">else</span> {
-                    <span class="prelude-val">None</span>
-                }
-            })
-    }
 }
 
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">HTMLIFrameElementLayoutMethods</span> {
@@ -1320,15 +1308,31 @@
 
     <span class="comment">// https://html.spec.whatwg.org/multipage/#dom-iframe-contentwindow</span>
     <span class="kw">fn</span> <span class="ident">GetContentWindow</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Root</span><span class="op">&lt;</span><span class="ident">BrowsingContext</span><span class="op">&gt;&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">get_content_window</span>() {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">window</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">window</span>.<span class="ident">browsing_context</span>()),
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>
-        }
+        <span class="self">self</span>.<span class="ident">pipeline_id</span>.<span class="ident">get</span>().<span class="ident">and_then</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">ScriptThread</span>::<span class="ident">find_browsing_context</span>(<span class="self">self</span>.<span class="ident">frame_id</span>))
     }
 
     <span class="comment">// https://html.spec.whatwg.org/multipage/#dom-iframe-contentdocument</span>
+    <span class="comment">// https://html.spec.whatwg.org/multipage/#concept-bcc-content-document</span>
     <span class="kw">fn</span> <span class="ident">GetContentDocument</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Root</span><span class="op">&lt;</span><span class="ident">Document</span><span class="op">&gt;&gt;</span> {
-        <span class="self">self</span>.<span class="ident">get_content_window</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">window</span><span class="op">|</span> <span class="ident">window</span>.<span class="ident">Document</span>())
+        <span class="comment">// Step 1.</span>
+        <span class="kw">let</span> <span class="ident">pipeline_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">pipeline_id</span>.<span class="ident">get</span>() {
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">pipeline_id</span>) <span class="op">=&gt;</span> <span class="ident">pipeline_id</span>,
+        };
+        <span class="comment">// Step 2-3.</span>
+        <span class="comment">// Note that this lookup will fail if the document is dissimilar-origin,</span>
+        <span class="comment">// so we should return None in that case.</span>
+        <span class="kw">let</span> <span class="ident">document</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">ScriptThread</span>::<span class="ident">find_document</span>(<span class="ident">pipeline_id</span>) {
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">document</span>) <span class="op">=&gt;</span> <span class="ident">document</span>,
+        };
+        <span class="comment">// Step 4.</span>
+        <span class="kw">let</span> <span class="ident">current</span> <span class="op">=</span> <span class="ident">GlobalScope</span>::<span class="ident">current</span>().<span class="ident">as_window</span>().<span class="ident">Document</span>();
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">current</span>.<span class="ident">origin</span>().<span class="ident">same_origin_domain</span>(<span class="ident">document</span>.<span class="ident">origin</span>()) {
+            <span class="kw">return</span> <span class="prelude-val">None</span>;
+        }
+        <span class="comment">// Step 5.</span>
+        <span class="prelude-val">Some</span>(<span class="ident">document</span>)
     }
 
     <span class="comment">// Experimental mozbrowser implementation is based on the webidl</span>

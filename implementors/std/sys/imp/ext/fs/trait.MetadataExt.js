@@ -29,6 +29,7 @@ implementors["servo"] = [];
 implementors["servo_config"] = [];
 implementors["servo_rand"] = [];
 implementors["servo_remutex"] = [];
+implementors["servo_url"] = [];
 implementors["shared_library"] = [];
 implementors["string_cache"] = [];
 implementors["style"] = [];

@@ -33,6 +33,7 @@ implementors["servo"] = ["impl <a class="trait" href="std/io/trait.Read.html" ti
 implementors["servo_config"] = [];
 implementors["servo_rand"] = [];
 implementors["servo_remutex"] = [];
+implementors["servo_url"] = [];
 implementors["shared_library"] = [];
 implementors["std"] = [];
 implementors["string_cache"] = [];

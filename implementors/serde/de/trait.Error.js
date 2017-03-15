@@ -12,6 +12,7 @@ implementors["serde"] = [];
 implementors["serde_json"] = ["impl <a class="trait" href="serde/de/trait.Error.html" title="trait serde::de::Error">Error</a> for <a class="struct" href="serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a>",];
 implementors["servo"] = ["impl <a class="trait" href="serde/de/trait.Error.html" title="trait serde::de::Error">Error</a> for <a class="struct" href="alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="enum" href="bincode/serde/enum.ErrorKind.html" title="enum bincode::serde::ErrorKind">ErrorKind</a>&gt;","impl <a class="trait" href="serde/de/trait.Error.html" title="trait serde::de::Error">Error</a> for <a class="struct" href="serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a>",];
 implementors["servo_config"] = [];
+implementors["servo_url"] = [];
 implementors["string_cache"] = [];
 implementors["style"] = [];
 implementors["webrender"] = ["impl <a class="trait" href="serde/de/trait.Error.html" title="trait serde::de::Error">Error</a> for <a class="struct" href="alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="enum" href="bincode/serde/enum.ErrorKind.html" title="enum bincode::serde::ErrorKind">ErrorKind</a>&gt;",];

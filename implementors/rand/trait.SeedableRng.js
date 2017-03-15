@@ -30,6 +30,7 @@ implementors["servo"] = ["impl&lt;'a&gt; <a class="trait" href="rand/trait.Seeda
 implementors["servo_config"] = [];
 implementors["servo_rand"] = [];
 implementors["servo_remutex"] = [];
+implementors["servo_url"] = [];
 implementors["shared_library"] = [];
 implementors["std"] = [];
 implementors["string_cache"] = [];

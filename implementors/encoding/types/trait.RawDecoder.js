@@ -7,6 +7,7 @@ implementors["net_traits"] = [];
 implementors["script"] = [];
 implementors["servo"] = [];
 implementors["servo_config"] = [];
+implementors["servo_url"] = [];
 implementors["style"] = [];
 implementors["tendril"] = [];
 implementors["url"] = [];

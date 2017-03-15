@@ -33,6 +33,7 @@ implementors["servo"] = ["impl&lt;'a&gt; <a class="trait" href="core/ops/trait.R
 implementors["servo_config"] = ["impl <a class="trait" href="core/ops/trait.Rem.html" title="trait core::ops::Rem">Rem</a>&lt;<a class="primitive" href="std/primitive.i32.html">i32</a>&gt; for <a class="struct" href="app_units/app_unit/struct.Au.html" title="struct app_units::app_unit::Au">Au</a>",];
 implementors["servo_rand"] = [];
 implementors["servo_remutex"] = [];
+implementors["servo_url"] = [];
 implementors["shared_library"] = [];
 implementors["std_unicode"] = [];
 implementors["string_cache"] = [];

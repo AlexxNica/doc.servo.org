@@ -465,6 +465,27 @@
 <span id="420">420</span>
 <span id="421">421</span>
 <span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
 </pre><pre class="rust ">
 <span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -500,6 +521,7 @@
 <span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">virtualmethods</span>::<span class="ident">VirtualMethods</span>;
 <span class="kw">use</span> <span class="ident">dom_struct</span>::<span class="ident">dom_struct</span>;
 <span class="kw">use</span> <span class="ident">html5ever_atoms</span>::<span class="ident">LocalName</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">default</span>::<span class="ident">Default</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>;
 <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">attr</span>::<span class="ident">AttrValue</span>;
 <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">element_state</span>::<span class="kw-2">*</span>;
@@ -529,6 +551,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">HTMLSelectElement</span> {
     <span class="ident">htmlelement</span>: <span class="ident">HTMLElement</span>,
     <span class="ident">options</span>: <span class="ident">MutNullableJS</span><span class="op">&lt;</span><span class="ident">HTMLOptionsCollection</span><span class="op">&gt;</span>,
+    <span class="ident">form_owner</span>: <span class="ident">MutNullableJS</span><span class="op">&lt;</span><span class="ident">HTMLFormElement</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">static</span> <span class="ident">DEFAULT_SELECT_SIZE</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
@@ -541,7 +564,8 @@
             <span class="ident">htmlelement</span>:
                 <span class="ident">HTMLElement</span>::<span class="ident">new_inherited_with_state</span>(<span class="ident">IN_ENABLED_STATE</span>,
                                                       <span class="ident">local_name</span>, <span class="ident">prefix</span>, <span class="ident">document</span>),
-                <span class="ident">options</span>: <span class="ident">Default</span>::<span class="ident">default</span>()
+                <span class="ident">options</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
+                <span class="ident">form_owner</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
         }
     }
 
@@ -812,19 +836,25 @@
 
     <span class="kw">fn</span> <span class="ident">attribute_mutated</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">attr</span>: <span class="kw-2">&amp;</span><span class="ident">Attr</span>, <span class="ident">mutation</span>: <span class="ident">AttributeMutation</span>) {
         <span class="self">self</span>.<span class="ident">super_type</span>().<span class="ident">unwrap</span>().<span class="ident">attribute_mutated</span>(<span class="ident">attr</span>, <span class="ident">mutation</span>);
-        <span class="kw">if</span> <span class="ident">attr</span>.<span class="ident">local_name</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="macro">local_name</span><span class="macro">!</span>(<span class="string">&quot;disabled&quot;</span>) {
-            <span class="kw">let</span> <span class="ident">el</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">upcast</span>::<span class="op">&lt;</span><span class="ident">Element</span><span class="op">&gt;</span>();
-            <span class="kw">match</span> <span class="ident">mutation</span> {
-                <span class="ident">AttributeMutation</span>::<span class="ident">Set</span>(_) <span class="op">=&gt;</span> {
-                    <span class="ident">el</span>.<span class="ident">set_disabled_state</span>(<span class="bool-val">true</span>);
-                    <span class="ident">el</span>.<span class="ident">set_enabled_state</span>(<span class="bool-val">false</span>);
-                },
-                <span class="ident">AttributeMutation</span>::<span class="ident">Removed</span> <span class="op">=&gt;</span> {
-                    <span class="ident">el</span>.<span class="ident">set_disabled_state</span>(<span class="bool-val">false</span>);
-                    <span class="ident">el</span>.<span class="ident">set_enabled_state</span>(<span class="bool-val">true</span>);
-                    <span class="ident">el</span>.<span class="ident">check_ancestors_disabled_state_for_form_control</span>();
+        <span class="kw">match</span> <span class="ident">attr</span>.<span class="ident">local_name</span>() {
+            <span class="kw-2">&amp;</span><span class="macro">local_name</span><span class="macro">!</span>(<span class="string">&quot;disabled&quot;</span>) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">el</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">upcast</span>::<span class="op">&lt;</span><span class="ident">Element</span><span class="op">&gt;</span>();
+                <span class="kw">match</span> <span class="ident">mutation</span> {
+                    <span class="ident">AttributeMutation</span>::<span class="ident">Set</span>(_) <span class="op">=&gt;</span> {
+                        <span class="ident">el</span>.<span class="ident">set_disabled_state</span>(<span class="bool-val">true</span>);
+                        <span class="ident">el</span>.<span class="ident">set_enabled_state</span>(<span class="bool-val">false</span>);
+                    },
+                    <span class="ident">AttributeMutation</span>::<span class="ident">Removed</span> <span class="op">=&gt;</span> {
+                        <span class="ident">el</span>.<span class="ident">set_disabled_state</span>(<span class="bool-val">false</span>);
+                        <span class="ident">el</span>.<span class="ident">set_enabled_state</span>(<span class="bool-val">true</span>);
+                        <span class="ident">el</span>.<span class="ident">check_ancestors_disabled_state_for_form_control</span>();
+                    }
                 }
-            }
+            },
+            <span class="kw-2">&amp;</span><span class="macro">local_name</span><span class="macro">!</span>(<span class="string">&quot;form&quot;</span>) <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">form_attribute_mutated</span>(<span class="ident">mutation</span>);
+            },
+            _ <span class="op">=&gt;</span> {},
         }
     }
 
@@ -856,7 +886,19 @@
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FormControl</span> <span class="kw">for</span> <span class="ident">HTMLSelectElement</span> {}
+<span class="kw">impl</span> <span class="ident">FormControl</span> <span class="kw">for</span> <span class="ident">HTMLSelectElement</span> {
+    <span class="kw">fn</span> <span class="ident">form_owner</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Root</span><span class="op">&lt;</span><span class="ident">HTMLFormElement</span><span class="op">&gt;&gt;</span> {
+        <span class="self">self</span>.<span class="ident">form_owner</span>.<span class="ident">get</span>()
+    }
+
+    <span class="kw">fn</span> <span class="ident">set_form_owner</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">form</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">HTMLFormElement</span><span class="op">&gt;</span>) {
+        <span class="self">self</span>.<span class="ident">form_owner</span>.<span class="ident">set</span>(<span class="ident">form</span>);
+    }
+
+    <span class="kw">fn</span> <span class="ident">to_element</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Element</span> {
+        <span class="self">self</span>.<span class="ident">upcast</span>::<span class="op">&lt;</span><span class="ident">Element</span><span class="op">&gt;</span>()
+    }
+}
 
 <span class="kw">impl</span> <span class="ident">Validatable</span> <span class="kw">for</span> <span class="ident">HTMLSelectElement</span> {
     <span class="kw">fn</span> <span class="ident">is_instance_validatable</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {

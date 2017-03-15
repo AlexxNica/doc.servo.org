@@ -484,6 +484,24 @@
 <span id="439">439</span>
 <span id="440">440</span>
 <span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
 </pre><pre class="rust ">
 <span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -496,7 +514,7 @@
 <span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">codegen</span>::<span class="ident">Bindings</span>::<span class="ident">HTMLTextAreaElementBinding</span>::<span class="ident">HTMLTextAreaElementMethods</span>;
 <span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">codegen</span>::<span class="ident">Bindings</span>::<span class="ident">NodeBinding</span>::<span class="ident">NodeMethods</span>;
 <span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">inheritance</span>::<span class="ident">Castable</span>;
-<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">js</span>::{<span class="ident">LayoutJS</span>, <span class="ident">Root</span>};
+<span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">js</span>::{<span class="ident">LayoutJS</span>, <span class="ident">MutNullableJS</span>, <span class="ident">Root</span>};
 <span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">bindings</span>::<span class="ident">str</span>::<span class="ident">DOMString</span>;
 <span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">document</span>::<span class="ident">Document</span>;
 <span class="kw">use</span> <span class="ident">dom</span>::<span class="ident">element</span>::{<span class="ident">AttributeMutation</span>, <span class="ident">Element</span>};
@@ -517,6 +535,7 @@
 <span class="kw">use</span> <span class="ident">ipc_channel</span>::<span class="ident">ipc</span>::<span class="ident">IpcSender</span>;
 <span class="kw">use</span> <span class="ident">script_traits</span>::<span class="ident">ScriptMsg</span> <span class="kw">as</span> <span class="ident">ConstellationMsg</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">Cell</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">default</span>::<span class="ident">Default</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Range</span>;
 <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">attr</span>::<span class="ident">AttrValue</span>;
 <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">element_state</span>::<span class="kw-2">*</span>;
@@ -530,6 +549,7 @@
     <span class="ident">placeholder</span>: <span class="ident">DOMRefCell</span><span class="op">&lt;</span><span class="ident">DOMString</span><span class="op">&gt;</span>,
     <span class="comment">// https://html.spec.whatwg.org/multipage/#concept-textarea-dirty</span>
     <span class="ident">value_changed</span>: <span class="ident">Cell</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="ident">form_owner</span>: <span class="ident">MutNullableJS</span><span class="op">&lt;</span><span class="ident">HTMLFormElement</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">LayoutHTMLTextAreaElementHelpers</span> {
@@ -603,6 +623,7 @@
             <span class="ident">textinput</span>: <span class="ident">DOMRefCell</span>::<span class="ident">new</span>(<span class="ident">TextInput</span>::<span class="ident">new</span>(
                     <span class="ident">Lines</span>::<span class="ident">Multiple</span>, <span class="ident">DOMString</span>::<span class="ident">new</span>(), <span class="ident">chan</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="ident">SelectionDirection</span>::<span class="prelude-val">None</span>)),
             <span class="ident">value_changed</span>: <span class="ident">Cell</span>::<span class="ident">new</span>(<span class="bool-val">false</span>),
+            <span class="ident">form_owner</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
         }
     }
 
@@ -829,7 +850,10 @@
                         <span class="ident">el</span>.<span class="ident">set_read_write_state</span>(<span class="op">!</span><span class="ident">el</span>.<span class="ident">disabled_state</span>());
                     }
                 }
-            }
+            },
+            <span class="macro">local_name</span><span class="macro">!</span>(<span class="string">&quot;form&quot;</span>) <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">form_attribute_mutated</span>(<span class="ident">mutation</span>);
+            },
             _ <span class="op">=&gt;</span> {},
         }
     }
@@ -922,7 +946,19 @@
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FormControl</span> <span class="kw">for</span> <span class="ident">HTMLTextAreaElement</span> {}
+<span class="kw">impl</span> <span class="ident">FormControl</span> <span class="kw">for</span> <span class="ident">HTMLTextAreaElement</span> {
+    <span class="kw">fn</span> <span class="ident">form_owner</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Root</span><span class="op">&lt;</span><span class="ident">HTMLFormElement</span><span class="op">&gt;&gt;</span> {
+        <span class="self">self</span>.<span class="ident">form_owner</span>.<span class="ident">get</span>()
+    }
+
+    <span class="kw">fn</span> <span class="ident">set_form_owner</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">form</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">HTMLFormElement</span><span class="op">&gt;</span>) {
+        <span class="self">self</span>.<span class="ident">form_owner</span>.<span class="ident">set</span>(<span class="ident">form</span>);
+    }
+
+    <span class="kw">fn</span> <span class="ident">to_element</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Element</span> {
+        <span class="self">self</span>.<span class="ident">upcast</span>::<span class="op">&lt;</span><span class="ident">Element</span><span class="op">&gt;</span>()
+    }
+}
 
 
 <span class="kw">impl</span> <span class="ident">Validatable</span> <span class="kw">for</span> <span class="ident">HTMLTextAreaElement</span> {}

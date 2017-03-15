@@ -10,6 +10,7 @@ implementors["script"] = [];
 implementors["servo"] = [];
 implementors["servo_config"] = [];
 implementors["servo_rand"] = [];
+implementors["servo_url"] = [];
 implementors["style"] = [];
 implementors["webrender"] = [];
 implementors["websocket"] = [];

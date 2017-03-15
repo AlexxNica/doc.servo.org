@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["origin",""]],"struct":[["ServoUrl",""]]});
+initSidebarItems({"enum":[["Host","The host name of an URL."]],"mod":[["origin",""]],"struct":[["ServoUrl",""]]});

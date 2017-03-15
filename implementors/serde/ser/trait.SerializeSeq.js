@@ -12,6 +12,7 @@ implementors["serde"] = [];
 implementors["serde_json"] = ["impl&lt;'a, W, F&gt; <a class="trait" href="serde/ser/trait.SerializeSeq.html" title="trait serde::ser::SerializeSeq">SerializeSeq</a> for <a class="struct" href="serde_json/ser/struct.Compound.html" title="struct serde_json::ser::Compound">Compound</a>&lt;'a, W, F&gt; <span class="where fmt-newline">where W: <a class="trait" href="std/io/trait.Write.html" title="trait std::io::Write">Write</a>, F: <a class="trait" href="serde_json/ser/trait.Formatter.html" title="trait serde_json::ser::Formatter">Formatter</a></span>","impl <a class="trait" href="serde/ser/trait.SerializeSeq.html" title="trait serde::ser::SerializeSeq">SerializeSeq</a> for <a class="struct" href="serde_json/value/struct.SerializeVec.html" title="struct serde_json::value::SerializeVec">SerializeVec</a>",];
 implementors["servo"] = [];
 implementors["servo_config"] = [];
+implementors["servo_url"] = [];
 implementors["string_cache"] = [];
 implementors["style"] = [];
 implementors["webrender"] = [];

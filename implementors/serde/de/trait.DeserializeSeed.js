@@ -10,6 +10,7 @@ implementors["script"] = [];
 implementors["serde"] = [];
 implementors["servo"] = [];
 implementors["servo_config"] = [];
+implementors["servo_url"] = [];
 implementors["string_cache"] = [];
 implementors["style"] = [];
 implementors["webrender"] = [];

@@ -29,6 +29,7 @@ implementors["servo"] = ["impl&lt;T&gt; <a class="trait" href="std/panic/trait.U
 implementors["servo_config"] = [];
 implementors["servo_rand"] = [];
 implementors["servo_remutex"] = [];
+implementors["servo_url"] = [];
 implementors["shared_library"] = [];
 implementors["std"] = [];
 implementors["string_cache"] = [];
