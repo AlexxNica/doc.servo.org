@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Token","Used to identify which `Evented` value is associated with an `Event` notification returned by `Poll`."]]});
+initSidebarItems({"struct":[["Token","Associates readiness notifications with [`Evented`] handles."]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["pipe","Default *nix awakener implementation"]]});
+initSidebarItems({"mod":[["pipe","Default awakener backed by a pipe"]]});

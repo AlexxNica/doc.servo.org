@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["ERROR",""],["HUP",""]],"struct":[["UnixReady","Unix specific extensions to `Ready`"]]});

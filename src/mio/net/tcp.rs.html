@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/registry/src/github.com-1ecc6299db9ec823/mio-0.6.4/src/net/tcp.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/servo/.cargo/registry/src/github.com-1ecc6299db9ec823/mio-0.6.5/src/net/tcp.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>tcp.rs.html -- source</title>
@@ -566,15 +566,87 @@
 <span id="521">521</span>
 <span id="522">522</span>
 <span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+<span id="582">582</span>
+<span id="583">583</span>
+<span id="584">584</span>
+<span id="585">585</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! Primitives for working with TCP</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The types provided in this module are non-blocking by default and are</span>
+<span class="doccomment">//! designed to be portable across all supported Mio platforms. As long as the</span>
+<span class="doccomment">//! [portability guidelines] are followed, the behavior should be identical no</span>
+<span class="doccomment">//! matter the target platform.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">/// [portability guidelines]: ../struct.Poll.html#portability</span>
+
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">Read</span>, <span class="ident">Write</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">net</span>::{<span class="self">self</span>, <span class="ident">SocketAddr</span>, <span class="ident">SocketAddrV4</span>, <span class="ident">SocketAddrV6</span>, <span class="ident">Ipv4Addr</span>, <span class="ident">Ipv6Addr</span>};
 
 <span class="kw">use</span> <span class="ident">net2</span>::<span class="ident">TcpBuilder</span>;
+<span class="kw">use</span> <span class="ident">iovec</span>::<span class="ident">IoVec</span>;
 
-<span class="kw">use</span> {<span class="ident">io</span>, <span class="ident">sys</span>, <span class="ident">Evented</span>, <span class="ident">Ready</span>, <span class="ident">Poll</span>, <span class="ident">PollOpt</span>, <span class="ident">Token</span>, <span class="ident">IoVec</span>};
+<span class="kw">use</span> {<span class="ident">io</span>, <span class="ident">sys</span>, <span class="ident">Ready</span>, <span class="ident">Poll</span>, <span class="ident">PollOpt</span>, <span class="ident">Token</span>};
+<span class="kw">use</span> <span class="ident">event</span>::<span class="ident">Evented</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">SelectorId</span>;
 
 <span class="comment">/*
@@ -583,6 +655,32 @@
  *
  */</span>
 
+<span class="doccomment">/// A non-blocking TCP stream between a local socket and a remote socket.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The socket will be closed when the value is dropped.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Examples</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">/// # use std::net::TcpListener;</span>
+<span class="doccomment">/// # let _listener = TcpListener::bind(&quot;127.0.0.1:3454&quot;).unwrap();</span>
+<span class="doccomment">/// use mio::{Events, Ready, Poll, PollOpt, Token};</span>
+<span class="doccomment">/// use mio::tcp::TcpStream;</span>
+<span class="doccomment">/// use std::time::Duration;</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// let stream = TcpStream::connect(&amp;&quot;127.0.0.1:34254&quot;.parse().unwrap()).unwrap();</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// let poll = Poll::new().unwrap();</span>
+<span class="doccomment">/// let mut events = Events::with_capacity(128);</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// // Register the socket with `Poll`</span>
+<span class="doccomment">/// poll.register(&amp;stream, Token(0), Ready::writable(),</span>
+<span class="doccomment">///               PollOpt::edge()).unwrap();</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// poll.poll(&amp;mut events, Some(Duration::from_millis(100))).unwrap();</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// // The socket might be ready at this point</span>
+<span class="doccomment">/// ```</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TcpStream</span> {
     <span class="ident">sys</span>: <span class="ident">sys</span>::<span class="ident">TcpStream</span>,
@@ -871,6 +969,28 @@
  *
  */</span>
 
+<span class="doccomment">/// A structure representing a socket server</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Examples</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">/// use mio::{Events, Ready, Poll, PollOpt, Token};</span>
+<span class="doccomment">/// use mio::tcp::TcpListener;</span>
+<span class="doccomment">/// use std::time::Duration;</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// let listener = TcpListener::bind(&amp;&quot;127.0.0.1:34254&quot;.parse().unwrap()).unwrap();</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// let poll = Poll::new().unwrap();</span>
+<span class="doccomment">/// let mut events = Events::with_capacity(128);</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// // Register the socket with `Poll`</span>
+<span class="doccomment">/// poll.register(&amp;listener, Token(0), Ready::writable(),</span>
+<span class="doccomment">///               PollOpt::edge()).unwrap();</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// poll.poll(&amp;mut events, Some(Duration::from_millis(100))).unwrap();</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// // There may be a socket ready to be accepted</span>
+<span class="doccomment">/// ```</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TcpListener</span> {
     <span class="ident">sys</span>: <span class="ident">sys</span>::<span class="ident">TcpListener</span>,
@@ -936,9 +1056,13 @@
 
     <span class="doccomment">/// Accepts a new `TcpStream`.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// Returns a `Ok(None)` when the socket `WOULDBLOCK`, this means the stream</span>
-    <span class="doccomment">/// will be ready at a later point. If an accepted stream is returned, the</span>
-    <span class="doccomment">/// address of the peer is returned along with it</span>
+    <span class="doccomment">/// This may return an `Err(e)` where `e.kind()` is</span>
+    <span class="doccomment">/// `io::ErrorKind::WouldBlock`. This means a stream may be ready at a later</span>
+    <span class="doccomment">/// point and one should wait for a notification before calling `accept`</span>
+    <span class="doccomment">/// again.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If an accepted stream is returned, the remote address of the peer is</span>
+    <span class="doccomment">/// returned along with it.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">accept</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">TcpStream</span>, <span class="ident">SocketAddr</span>)<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">sys</span>.<span class="ident">accept</span>().<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">s</span>, <span class="ident">a</span>)<span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">TcpStream</span> {

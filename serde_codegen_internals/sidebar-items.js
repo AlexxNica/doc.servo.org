@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["ast",""],["attr",""],["ctxt",""]],"struct":[["Ctxt",""]]});
+initSidebarItems({"mod":[["ast",""],["attr",""],["case",""],["ctxt",""]],"struct":[["Ctxt",""]]});

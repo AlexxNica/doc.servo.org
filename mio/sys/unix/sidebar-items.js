@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["cvt",""],["pipe",""]],"mod":[["awakener",""],["dlsym",""],["epoll",""],["eventedfd",""],["io",""],["iovec",""],["tcp",""],["udp",""],["uds",""]],"trait":[["IsMinusOne",""]]});
+initSidebarItems({"fn":[["cvt",""],["pipe",""]],"mod":[["awakener",""],["dlsym",""],["epoll",""],["eventedfd",""],["io",""],["ready",""],["tcp",""],["udp",""],["uds",""]],"struct":[["IoVec","A specialized byte slice type for performing vectored I/O operations."]],"trait":[["IsMinusOne",""]]});

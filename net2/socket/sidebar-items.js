@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["addr2raw",""]],"struct":[["Socket",""]]});
+initSidebarItems({"fn":[["addr2raw",""],["raw2addr",""]],"struct":[["Socket",""]]});

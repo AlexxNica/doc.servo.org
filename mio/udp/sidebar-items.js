@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["UdpSocket",""]]});
+initSidebarItems({"struct":[["UdpSocket","A User Datagram Protocol socket."]]});
