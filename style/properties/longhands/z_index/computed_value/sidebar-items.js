@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["T",""]]});
+initSidebarItems({});
