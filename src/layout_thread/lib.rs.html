@@ -1632,6 +1632,37 @@
 <span id="1587">1587</span>
 <span id="1588">1588</span>
 <span id="1589">1589</span>
+<span id="1590">1590</span>
+<span id="1591">1591</span>
+<span id="1592">1592</span>
+<span id="1593">1593</span>
+<span id="1594">1594</span>
+<span id="1595">1595</span>
+<span id="1596">1596</span>
+<span id="1597">1597</span>
+<span id="1598">1598</span>
+<span id="1599">1599</span>
+<span id="1600">1600</span>
+<span id="1601">1601</span>
+<span id="1602">1602</span>
+<span id="1603">1603</span>
+<span id="1604">1604</span>
+<span id="1605">1605</span>
+<span id="1606">1606</span>
+<span id="1607">1607</span>
+<span id="1608">1608</span>
+<span id="1609">1609</span>
+<span id="1610">1610</span>
+<span id="1611">1611</span>
+<span id="1612">1612</span>
+<span id="1613">1613</span>
+<span id="1614">1614</span>
+<span id="1615">1615</span>
+<span id="1616">1616</span>
+<span id="1617">1617</span>
+<span id="1618">1618</span>
+<span id="1619">1619</span>
+<span id="1620">1620</span>
 </pre><pre class="rust ">
 <span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -1749,7 +1780,9 @@
 <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">logical_geometry</span>::<span class="ident">LogicalPoint</span>;
 <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">media_queries</span>::{<span class="ident">Device</span>, <span class="ident">MediaType</span>};
 <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">parser</span>::<span class="ident">ParserContextExtraData</span>;
+<span class="kw">use</span> <span class="ident">style</span>::<span class="ident">servo</span>::<span class="ident">AUTHOR_SHARED_LOCK</span>;
 <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">servo</span>::<span class="ident">restyle_damage</span>::{<span class="ident">REFLOW</span>, <span class="ident">REFLOW_OUT_OF_FLOW</span>, <span class="ident">REPAINT</span>, <span class="ident">REPOSITION</span>, <span class="ident">STORE_OVERFLOW</span>};
+<span class="kw">use</span> <span class="ident">style</span>::<span class="ident">shared_lock</span>::{<span class="ident">SharedRwLock</span>, <span class="ident">SharedRwLockReadGuard</span>, <span class="ident">StylesheetGuards</span>};
 <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">stylesheets</span>::{<span class="ident">Origin</span>, <span class="ident">Stylesheet</span>, <span class="ident">UserAgentStylesheets</span>};
 <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">stylist</span>::<span class="ident">Stylist</span>;
 <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">thread_state</span>;
@@ -1849,7 +1882,7 @@
                                               <span class="ident">WebRenderImageInfo</span>,
                                               <span class="ident">BuildHasherDefault</span><span class="op">&lt;</span><span class="ident">FnvHasher</span><span class="op">&gt;&gt;</span><span class="op">&gt;&gt;</span>,
 
-    <span class="comment">// Webrender interface.</span>
+    <span class="doccomment">/// Webrender interface.</span>
     <span class="ident">webrender_api</span>: <span class="ident">webrender_traits</span>::<span class="ident">RenderApi</span>,
 
     <span class="doccomment">/// The timer object to control the timing of the animations. This should</span>
@@ -1979,13 +2012,14 @@
 }
 
 <span class="kw">fn</span> <span class="ident">add_font_face_rules</span>(<span class="ident">stylesheet</span>: <span class="kw-2">&amp;</span><span class="ident">Stylesheet</span>,
+                       <span class="ident">guard</span>: <span class="kw-2">&amp;</span><span class="ident">SharedRwLockReadGuard</span>,
                        <span class="ident">device</span>: <span class="kw-2">&amp;</span><span class="ident">Device</span>,
                        <span class="ident">font_cache_thread</span>: <span class="kw-2">&amp;</span><span class="ident">FontCacheThread</span>,
                        <span class="ident">font_cache_sender</span>: <span class="kw-2">&amp;</span><span class="ident">IpcSender</span><span class="op">&lt;</span>()<span class="op">&gt;</span>,
                        <span class="ident">outstanding_web_fonts_counter</span>: <span class="kw-2">&amp;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">AtomicUsize</span><span class="op">&gt;</span>) {
     <span class="kw">if</span> <span class="ident">opts</span>::<span class="ident">get</span>().<span class="ident">load_webfonts_synchronously</span> {
         <span class="kw">let</span> (<span class="ident">sender</span>, <span class="ident">receiver</span>) <span class="op">=</span> <span class="ident">ipc</span>::<span class="ident">channel</span>().<span class="ident">unwrap</span>();
-        <span class="ident">stylesheet</span>.<span class="ident">effective_font_face_rules</span>(<span class="kw-2">&amp;</span><span class="ident">device</span>, <span class="op">|</span><span class="ident">font_face</span><span class="op">|</span> {
+        <span class="ident">stylesheet</span>.<span class="ident">effective_font_face_rules</span>(<span class="kw-2">&amp;</span><span class="ident">device</span>, <span class="ident">guard</span>, <span class="op">|</span><span class="ident">font_face</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">effective_sources</span> <span class="op">=</span> <span class="ident">font_face</span>.<span class="ident">effective_sources</span>();
             <span class="ident">font_cache_thread</span>.<span class="ident">add_web_font</span>(<span class="ident">font_face</span>.<span class="ident">family</span>.<span class="ident">clone</span>(),
                                            <span class="ident">effective_sources</span>,
@@ -1993,7 +2027,7 @@
             <span class="ident">receiver</span>.<span class="ident">recv</span>().<span class="ident">unwrap</span>();
         })
     } <span class="kw">else</span> {
-        <span class="ident">stylesheet</span>.<span class="ident">effective_font_face_rules</span>(<span class="kw-2">&amp;</span><span class="ident">device</span>, <span class="op">|</span><span class="ident">font_face</span><span class="op">|</span> {
+        <span class="ident">stylesheet</span>.<span class="ident">effective_font_face_rules</span>(<span class="kw-2">&amp;</span><span class="ident">device</span>, <span class="ident">guard</span>, <span class="op">|</span><span class="ident">font_face</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">effective_sources</span> <span class="op">=</span> <span class="ident">font_face</span>.<span class="ident">effective_sources</span>();
             <span class="ident">outstanding_web_fonts_counter</span>.<span class="ident">fetch_add</span>(<span class="number">1</span>, <span class="ident">Ordering</span>::<span class="ident">SeqCst</span>);
             <span class="ident">font_cache_thread</span>.<span class="ident">add_web_font</span>(<span class="ident">font_face</span>.<span class="ident">family</span>.<span class="ident">clone</span>(),
@@ -2041,8 +2075,11 @@
 
         <span class="kw">let</span> <span class="ident">stylist</span> <span class="op">=</span> <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">Stylist</span>::<span class="ident">new</span>(<span class="ident">device</span>));
         <span class="kw">let</span> <span class="ident">outstanding_web_fonts_counter</span> <span class="op">=</span> <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">AtomicUsize</span>::<span class="ident">new</span>(<span class="number">0</span>));
-        <span class="kw">for</span> <span class="ident">stylesheet</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">UA_STYLESHEETS</span>.<span class="ident">user_or_user_agent_stylesheets</span> {
+        <span class="kw">let</span> <span class="ident">ua_stylesheets</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">UA_STYLESHEETS</span>;
+        <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">ua_stylesheets</span>.<span class="ident">shared_lock</span>.<span class="ident">read</span>();
+        <span class="kw">for</span> <span class="ident">stylesheet</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">ua_stylesheets</span>.<span class="ident">user_or_user_agent_stylesheets</span> {
             <span class="ident">add_font_face_rules</span>(<span class="ident">stylesheet</span>,
+                                <span class="kw-2">&amp;</span><span class="ident">guard</span>,
                                 <span class="kw-2">&amp;</span><span class="ident">stylist</span>.<span class="ident">device</span>,
                                 <span class="kw-2">&amp;</span><span class="ident">font_cache_thread</span>,
                                 <span class="kw-2">&amp;</span><span class="ident">ipc_font_cache_sender</span>,
@@ -2128,16 +2165,18 @@
     }
 
     <span class="comment">// Create a layout context for use in building display lists, hit testing, &amp;c.</span>
-    <span class="kw">fn</span> <span class="ident">build_layout_context</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
-                            <span class="ident">rw_data</span>: <span class="kw-2">&amp;</span><span class="ident">LayoutThreadData</span>,
-                            <span class="ident">request_images</span>: <span class="ident">bool</span>)
-                            <span class="op">-&gt;</span> <span class="ident">LayoutContext</span> {
+    <span class="kw">fn</span> <span class="ident">build_layout_context</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
+                                <span class="ident">guards</span>: <span class="ident">StylesheetGuards</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
+                                <span class="ident">rw_data</span>: <span class="kw-2">&amp;</span><span class="ident">LayoutThreadData</span>,
+                                <span class="ident">request_images</span>: <span class="ident">bool</span>)
+                                <span class="op">-&gt;</span> <span class="ident">LayoutContext</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">thread_local_style_context_creation_data</span> <span class="op">=</span>
             <span class="ident">ThreadLocalStyleContextCreationInfo</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">new_animations_sender</span>.<span class="ident">clone</span>());
 
         <span class="ident">LayoutContext</span> {
             <span class="ident">style_context</span>: <span class="ident">SharedStyleContext</span> {
                 <span class="ident">stylist</span>: <span class="ident">rw_data</span>.<span class="ident">stylist</span>.<span class="ident">clone</span>(),
+                <span class="ident">guards</span>: <span class="ident">guards</span>,
                 <span class="ident">running_animations</span>: <span class="self">self</span>.<span class="ident">running_animations</span>.<span class="ident">clone</span>(),
                 <span class="ident">expired_animations</span>: <span class="self">self</span>.<span class="ident">expired_animations</span>.<span class="ident">clone</span>(),
                 <span class="ident">error_reporter</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">error_reporter</span>.<span class="ident">clone</span>()),
@@ -2365,8 +2404,10 @@
         <span class="comment">// GWTODO: Need to handle unloading web fonts.</span>
 
         <span class="kw">let</span> <span class="ident">rw_data</span> <span class="op">=</span> <span class="ident">possibly_locked_rw_data</span>.<span class="ident">lock</span>();
-        <span class="kw">if</span> <span class="ident">stylesheet</span>.<span class="ident">is_effective_for_device</span>(<span class="kw-2">&amp;</span><span class="ident">rw_data</span>.<span class="ident">stylist</span>.<span class="ident">device</span>) {
+        <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">stylesheet</span>.<span class="ident">shared_lock</span>.<span class="ident">read</span>();
+        <span class="kw">if</span> <span class="ident">stylesheet</span>.<span class="ident">is_effective_for_device</span>(<span class="kw-2">&amp;</span><span class="ident">rw_data</span>.<span class="ident">stylist</span>.<span class="ident">device</span>, <span class="kw-2">&amp;</span><span class="ident">guard</span>) {
             <span class="ident">add_font_face_rules</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">stylesheet</span>,
+                                <span class="kw-2">&amp;</span><span class="ident">guard</span>,
                                 <span class="kw-2">&amp;</span><span class="ident">rw_data</span>.<span class="ident">stylist</span>.<span class="ident">device</span>,
                                 <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">font_cache_thread</span>,
                                 <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">font_cache_sender</span>,
@@ -2644,8 +2685,11 @@
                                               <span class="ident">Au</span>::<span class="ident">from_f32_px</span>(<span class="ident">initial_viewport</span>.<span class="ident">height</span>));
 
         <span class="comment">// Calculate the actual viewport as per DEVICE-ADAPT § 6</span>
+
+        <span class="kw">let</span> <span class="ident">author_guard</span> <span class="op">=</span> <span class="ident">document</span>.<span class="ident">style_shared_lock</span>().<span class="ident">read</span>();
         <span class="kw">let</span> <span class="ident">device</span> <span class="op">=</span> <span class="ident">Device</span>::<span class="ident">new</span>(<span class="ident">MediaType</span>::<span class="ident">Screen</span>, <span class="ident">initial_viewport</span>);
-        <span class="ident">Arc</span>::<span class="ident">get_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rw_data</span>.<span class="ident">stylist</span>).<span class="ident">unwrap</span>().<span class="ident">set_device</span>(<span class="ident">device</span>, <span class="kw-2">&amp;</span><span class="ident">data</span>.<span class="ident">document_stylesheets</span>);
+        <span class="ident">Arc</span>::<span class="ident">get_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rw_data</span>.<span class="ident">stylist</span>).<span class="ident">unwrap</span>()
+            .<span class="ident">set_device</span>(<span class="ident">device</span>, <span class="kw-2">&amp;</span><span class="ident">author_guard</span>, <span class="kw-2">&amp;</span><span class="ident">data</span>.<span class="ident">document_stylesheets</span>);
 
         <span class="self">self</span>.<span class="ident">viewport_size</span> <span class="op">=</span>
             <span class="ident">rw_data</span>.<span class="ident">stylist</span>.<span class="ident">viewport_constraints</span>().<span class="ident">map_or</span>(<span class="ident">current_screen_size</span>, <span class="op">|</span><span class="ident">constraints</span><span class="op">|</span> {
@@ -2689,9 +2733,17 @@
         }
 
         <span class="comment">// If the entire flow tree is invalid, then it will be reflowed anyhow.</span>
-        <span class="kw">let</span> <span class="ident">needs_dirtying</span> <span class="op">=</span> <span class="ident">Arc</span>::<span class="ident">get_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rw_data</span>.<span class="ident">stylist</span>).<span class="ident">unwrap</span>().<span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>.<span class="ident">document_stylesheets</span>,
-                                                                                 <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">UA_STYLESHEETS</span>),
-                                                                                 <span class="ident">data</span>.<span class="ident">stylesheets_changed</span>);
+        <span class="kw">let</span> <span class="ident">ua_stylesheets</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">UA_STYLESHEETS</span>;
+        <span class="kw">let</span> <span class="ident">ua_or_user_guard</span> <span class="op">=</span> <span class="ident">ua_stylesheets</span>.<span class="ident">shared_lock</span>.<span class="ident">read</span>();
+        <span class="kw">let</span> <span class="ident">guards</span> <span class="op">=</span> <span class="ident">StylesheetGuards</span> {
+            <span class="ident">author</span>: <span class="kw-2">&amp;</span><span class="ident">author_guard</span>,
+            <span class="ident">ua_or_user</span>: <span class="kw-2">&amp;</span><span class="ident">ua_or_user_guard</span>,
+        };
+        <span class="kw">let</span> <span class="ident">needs_dirtying</span> <span class="op">=</span> <span class="ident">Arc</span>::<span class="ident">get_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rw_data</span>.<span class="ident">stylist</span>).<span class="ident">unwrap</span>().<span class="ident">update</span>(
+            <span class="kw-2">&amp;</span><span class="ident">data</span>.<span class="ident">document_stylesheets</span>,
+            <span class="kw-2">&amp;</span><span class="ident">guards</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">ua_stylesheets</span>),
+            <span class="ident">data</span>.<span class="ident">stylesheets_changed</span>);
         <span class="kw">let</span> <span class="ident">needs_reflow</span> <span class="op">=</span> <span class="ident">viewport_size_changed</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">needs_dirtying</span>;
         <span class="kw">if</span> <span class="ident">needs_dirtying</span> {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">d</span>) <span class="op">=</span> <span class="ident">element</span>.<span class="ident">mutate_data</span>() {
@@ -2737,7 +2789,7 @@
         }
 
         <span class="comment">// Create a layout context for use throughout the following passes.</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">layout_context</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">build_layout_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">rw_data</span>, <span class="bool-val">true</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">layout_context</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">build_layout_context</span>(<span class="ident">guards</span>.<span class="ident">clone</span>(), <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">rw_data</span>, <span class="bool-val">true</span>);
 
         <span class="comment">// NB: Type inference falls apart here for some reason, so we need to be very verbose. :-(</span>
         <span class="kw">let</span> <span class="ident">traversal_driver</span> <span class="op">=</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">parallel_flag</span> <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">parallel_traversal</span>.<span class="ident">is_some</span>() {
@@ -2796,7 +2848,7 @@
         }
 
         <span class="kw">if</span> <span class="ident">opts</span>::<span class="ident">get</span>().<span class="ident">dump_rule_tree</span> {
-            <span class="ident">layout_context</span>.<span class="ident">style_context</span>.<span class="ident">stylist</span>.<span class="ident">rule_tree</span>.<span class="ident">dump_stdout</span>();
+            <span class="ident">layout_context</span>.<span class="ident">style_context</span>.<span class="ident">stylist</span>.<span class="ident">rule_tree</span>.<span class="ident">dump_stdout</span>(<span class="kw-2">&amp;</span><span class="ident">guards</span>);
         }
 
         <span class="comment">// GC the rule tree if some heuristics are met.</span>
@@ -2965,7 +3017,13 @@
             <span class="ident">page_clip_rect</span>: <span class="ident">max_rect</span>(),
         };
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">layout_context</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">build_layout_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">rw_data</span>, <span class="bool-val">false</span>);
+        <span class="kw">let</span> <span class="ident">author_guard</span> <span class="op">=</span> <span class="ident">AUTHOR_SHARED_LOCK</span>.<span class="ident">read</span>();
+        <span class="kw">let</span> <span class="ident">ua_or_user_guard</span> <span class="op">=</span> <span class="ident">UA_STYLESHEETS</span>.<span class="ident">shared_lock</span>.<span class="ident">read</span>();
+        <span class="kw">let</span> <span class="ident">guards</span> <span class="op">=</span> <span class="ident">StylesheetGuards</span> {
+            <span class="ident">author</span>: <span class="kw-2">&amp;</span><span class="ident">author_guard</span>,
+            <span class="ident">ua_or_user</span>: <span class="kw-2">&amp;</span><span class="ident">ua_or_user_guard</span>,
+        };
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">layout_context</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">build_layout_context</span>(<span class="ident">guards</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">rw_data</span>, <span class="bool-val">false</span>);
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">root_flow</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">root_flow</span>.<span class="ident">clone</span>() {
             <span class="comment">// Perform an abbreviated style recalc that operates without access to the DOM.</span>
@@ -3163,7 +3221,8 @@
 }
 
 <span class="kw">fn</span> <span class="ident">get_ua_stylesheets</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">UserAgentStylesheets</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">parse_ua_stylesheet</span>(<span class="ident">filename</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Stylesheet</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">parse_ua_stylesheet</span>(<span class="ident">shared_lock</span>: <span class="kw-2">&amp;</span><span class="ident">SharedRwLock</span>, <span class="ident">filename</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>)
+                           <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Stylesheet</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">read_resource_file</span>(<span class="ident">filename</span>).<span class="ident">map_err</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">filename</span>));
         <span class="prelude-val">Ok</span>(<span class="ident">Stylesheet</span>::<span class="ident">from_bytes</span>(
             <span class="kw-2">&amp;</span><span class="ident">res</span>,
@@ -3172,26 +3231,29 @@
             <span class="prelude-val">None</span>,
             <span class="ident">Origin</span>::<span class="ident">UserAgent</span>,
             <span class="ident">Default</span>::<span class="ident">default</span>(),
+            <span class="ident">shared_lock</span>.<span class="ident">clone</span>(),
             <span class="prelude-val">None</span>,
             <span class="kw-2">&amp;</span><span class="ident">StdoutErrorReporter</span>,
             <span class="ident">ParserContextExtraData</span>::<span class="ident">default</span>()))
     }
 
+    <span class="kw">let</span> <span class="ident">shared_lock</span> <span class="op">=</span> <span class="ident">SharedRwLock</span>::<span class="ident">new</span>();
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">user_or_user_agent_stylesheets</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>();
     <span class="comment">// FIXME: presentational-hints.css should be at author origin with zero specificity.</span>
     <span class="comment">//        (Does it make a difference?)</span>
     <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">filename</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>[<span class="string">&quot;user-agent.css&quot;</span>, <span class="string">&quot;servo.css&quot;</span>, <span class="string">&quot;presentational-hints.css&quot;</span>] {
-        <span class="ident">user_or_user_agent_stylesheets</span>.<span class="ident">push</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">parse_ua_stylesheet</span>(<span class="ident">filename</span>)));
+        <span class="ident">user_or_user_agent_stylesheets</span>.<span class="ident">push</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">parse_ua_stylesheet</span>(<span class="kw-2">&amp;</span><span class="ident">shared_lock</span>, <span class="ident">filename</span>)));
     }
     <span class="kw">for</span> <span class="kw-2">&amp;</span>(<span class="kw-2">ref</span> <span class="ident">contents</span>, <span class="kw-2">ref</span> <span class="ident">url</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">opts</span>::<span class="ident">get</span>().<span class="ident">user_stylesheets</span> {
         <span class="ident">user_or_user_agent_stylesheets</span>.<span class="ident">push</span>(<span class="ident">Stylesheet</span>::<span class="ident">from_bytes</span>(
             <span class="kw-2">&amp;</span><span class="ident">contents</span>, <span class="ident">url</span>.<span class="ident">clone</span>(), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="ident">Origin</span>::<span class="ident">User</span>, <span class="ident">Default</span>::<span class="ident">default</span>(),
-            <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="ident">StdoutErrorReporter</span>, <span class="ident">ParserContextExtraData</span>::<span class="ident">default</span>()));
+            <span class="ident">shared_lock</span>.<span class="ident">clone</span>(), <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="ident">StdoutErrorReporter</span>, <span class="ident">ParserContextExtraData</span>::<span class="ident">default</span>()));
     }
 
-    <span class="kw">let</span> <span class="ident">quirks_mode_stylesheet</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">parse_ua_stylesheet</span>(<span class="string">&quot;quirks-mode.css&quot;</span>));
+    <span class="kw">let</span> <span class="ident">quirks_mode_stylesheet</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">parse_ua_stylesheet</span>(<span class="kw-2">&amp;</span><span class="ident">shared_lock</span>, <span class="string">&quot;quirks-mode.css&quot;</span>));
 
     <span class="prelude-val">Ok</span>(<span class="ident">UserAgentStylesheets</span> {
+        <span class="ident">shared_lock</span>: <span class="ident">shared_lock</span>,
         <span class="ident">user_or_user_agent_stylesheets</span>: <span class="ident">user_or_user_agent_stylesheets</span>,
         <span class="ident">quirks_mode_stylesheet</span>: <span class="ident">quirks_mode_stylesheet</span>,
     })

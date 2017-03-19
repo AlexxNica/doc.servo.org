@@ -2135,6 +2135,7 @@
 <span id="2090">2090</span>
 <span id="2091">2091</span>
 <span id="2092">2092</span>
+<span id="2093">2093</span>
 </pre><pre class="rust ">
 <span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -2449,7 +2450,7 @@
 <span class="doccomment">/// An object that knows how to create flows.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FlowConstructor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">N</span>: <span class="ident">ThreadSafeLayoutNode</span><span class="op">&gt;</span> {
     <span class="doccomment">/// The layout context.</span>
-    <span class="kw">pub</span> <span class="ident">layout_context</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">LayoutContext</span>,
+    <span class="kw">pub</span> <span class="ident">layout_context</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">LayoutContext</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
     <span class="doccomment">/// Satisfy the compiler about the unused parameters, which we use to improve the ergonomics of</span>
     <span class="doccomment">/// the ensuing impl {} by removing the need to parameterize all the methods individually.</span>
     <span class="ident">phantom2</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">N</span><span class="op">&gt;</span>,
@@ -2458,7 +2459,7 @@
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">ConcreteThreadSafeLayoutNode</span>: <span class="ident">ThreadSafeLayoutNode</span><span class="op">&gt;</span>
   <span class="ident">FlowConstructor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">ConcreteThreadSafeLayoutNode</span><span class="op">&gt;</span> {
     <span class="doccomment">/// Creates a new flow constructor.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">layout_context</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">LayoutContext</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">layout_context</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">LayoutContext</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">FlowConstructor</span> {
             <span class="ident">layout_context</span>: <span class="ident">layout_context</span>,
             <span class="ident">phantom2</span>: <span class="ident">PhantomData</span>,
@@ -2798,10 +2799,9 @@
 
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">style</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">style</span>(<span class="self">self</span>.<span class="ident">style_context</span>());
             <span class="kw">if</span> <span class="ident">node_is_input_or_text_area</span> {
-                <span class="ident">style</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">style_context</span>()
-                            .<span class="ident">stylist</span>
-                            .<span class="ident">style_for_anonymous_box</span>(<span class="kw-2">&amp;</span><span class="ident">PseudoElement</span>::<span class="ident">ServoInputText</span>,
-                                                     <span class="kw-2">&amp;</span><span class="ident">style</span>)
+                <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">style_context</span>();
+                <span class="ident">style</span> <span class="op">=</span> <span class="ident">context</span>.<span class="ident">stylist</span>.<span class="ident">style_for_anonymous_box</span>(
+                    <span class="kw-2">&amp;</span><span class="ident">context</span>.<span class="ident">guards</span>, <span class="kw-2">&amp;</span><span class="ident">PseudoElement</span>::<span class="ident">ServoInputText</span>, <span class="kw-2">&amp;</span><span class="ident">style</span>)
             }
 
             <span class="self">self</span>.<span class="ident">create_fragments_for_node_text_content</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">initial_fragments</span>, <span class="ident">node</span>, <span class="kw-2">&amp;</span><span class="ident">style</span>)
@@ -3234,11 +3234,14 @@
                             <span class="op">-&gt;</span> <span class="ident">ConstructionResult</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">legalizer</span> <span class="op">=</span> <span class="ident">Legalizer</span>::<span class="ident">new</span>();
 
-        <span class="kw">let</span> <span class="ident">table_style</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">style</span>(<span class="self">self</span>.<span class="ident">style_context</span>());
-        <span class="kw">let</span> <span class="ident">wrapper_style</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">style_context</span>()
-                                .<span class="ident">stylist</span>
-                                .<span class="ident">style_for_anonymous_box</span>(<span class="kw-2">&amp;</span><span class="ident">PseudoElement</span>::<span class="ident">ServoTableWrapper</span>,
-                                                         <span class="kw-2">&amp;</span><span class="ident">table_style</span>);
+        <span class="kw">let</span> <span class="ident">table_style</span>;
+        <span class="kw">let</span> <span class="ident">wrapper_style</span>;
+        {
+            <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">style_context</span>();
+            <span class="ident">table_style</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">style</span>(<span class="ident">context</span>);
+            <span class="ident">wrapper_style</span> <span class="op">=</span> <span class="ident">context</span>.<span class="ident">stylist</span>.<span class="ident">style_for_anonymous_box</span>(
+                <span class="kw-2">&amp;</span><span class="ident">context</span>.<span class="ident">guards</span>, <span class="kw-2">&amp;</span><span class="ident">PseudoElement</span>::<span class="ident">ServoTableWrapper</span>, <span class="kw-2">&amp;</span><span class="ident">table_style</span>);
+        }
         <span class="kw">let</span> <span class="ident">wrapper_fragment</span> <span class="op">=</span>
             <span class="ident">Fragment</span>::<span class="ident">from_opaque_node_and_style</span>(<span class="ident">node</span>.<span class="ident">opaque</span>(),
                                                  <span class="ident">PseudoElementType</span>::<span class="ident">Normal</span>,
@@ -4218,8 +4221,7 @@
         <span class="kw">let</span> <span class="ident">reference_block</span> <span class="op">=</span> <span class="ident">reference</span>.<span class="ident">as_block</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new_style</span> <span class="op">=</span> <span class="ident">reference_block</span>.<span class="ident">fragment</span>.<span class="ident">style</span>.<span class="ident">clone</span>();
         <span class="kw">for</span> <span class="ident">pseudo</span> <span class="kw">in</span> <span class="ident">pseudos</span> {
-            <span class="ident">new_style</span> <span class="op">=</span> <span class="ident">context</span>.<span class="ident">stylist</span>.<span class="ident">style_for_anonymous_box</span>(<span class="ident">pseudo</span>,
-                                                                <span class="kw-2">&amp;</span><span class="ident">new_style</span>)
+            <span class="ident">new_style</span> <span class="op">=</span> <span class="ident">context</span>.<span class="ident">stylist</span>.<span class="ident">style_for_anonymous_box</span>(<span class="kw-2">&amp;</span><span class="ident">context</span>.<span class="ident">guards</span>, <span class="ident">pseudo</span>, <span class="kw-2">&amp;</span><span class="ident">new_style</span>)
         }
         <span class="kw">let</span> <span class="ident">fragment</span> <span class="op">=</span> <span class="ident">reference_block</span>.<span class="ident">fragment</span>
                                       .<span class="ident">create_similar_anonymous_fragment</span>(<span class="ident">new_style</span>,

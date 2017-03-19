@@ -910,16 +910,6 @@
 <span id="865">865</span>
 <span id="866">866</span>
 <span id="867">867</span>
-<span id="868">868</span>
-<span id="869">869</span>
-<span id="870">870</span>
-<span id="871">871</span>
-<span id="872">872</span>
-<span id="873">873</span>
-<span id="874">874</span>
-<span id="875">875</span>
-<span id="876">876</span>
-<span id="877">877</span>
 </pre><pre class="rust ">
 <span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -933,9 +923,8 @@
 <span class="kw">use</span> <span class="ident">arc_ptr_eq</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;servo&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">heapsize</span>::<span class="ident">HeapSizeOf</span>;
-<span class="kw">use</span> <span class="ident">owning_handle</span>::<span class="ident">OwningHandle</span>;
-<span class="kw">use</span> <span class="ident">parking_lot</span>::{<span class="ident">RwLock</span>, <span class="ident">RwLockReadGuard</span>};
 <span class="kw">use</span> <span class="ident">properties</span>::{<span class="ident">Importance</span>, <span class="ident">PropertyDeclarationBlock</span>};
+<span class="kw">use</span> <span class="ident">shared_lock</span>::{<span class="ident">Locked</span>, <span class="ident">StylesheetGuards</span>, <span class="ident">SharedRwLockReadGuard</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
@@ -975,33 +964,9 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">StyleSource</span> {
     <span class="doccomment">/// A style rule stable pointer.</span>
-    <span class="ident">Style</span>(<span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">StyleRule</span><span class="op">&gt;&gt;</span>),
+    <span class="ident">Style</span>(<span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Locked</span><span class="op">&lt;</span><span class="ident">StyleRule</span><span class="op">&gt;&gt;</span>),
     <span class="doccomment">/// A declaration block stable pointer.</span>
-    <span class="ident">Declarations</span>(<span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">PropertyDeclarationBlock</span><span class="op">&gt;&gt;</span>),
-}
-
-<span class="kw">type</span> <span class="ident">StyleSourceGuardHandle</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="op">=</span>
-    <span class="ident">OwningHandle</span><span class="op">&lt;</span>
-        <span class="ident">RwLockReadGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">StyleRule</span><span class="op">&gt;</span>,
-        <span class="ident">RwLockReadGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">PropertyDeclarationBlock</span><span class="op">&gt;&gt;</span>;
-
-<span class="doccomment">/// A guard for a given style source.</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">StyleSourceGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// A guard for a style rule.</span>
-    <span class="ident">Style</span>(<span class="ident">StyleSourceGuardHandle</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>),
-    <span class="doccomment">/// A guard for a declaration block.</span>
-    <span class="ident">Declarations</span>(<span class="ident">RwLockReadGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">PropertyDeclarationBlock</span><span class="op">&gt;</span>),
-}
-
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> ::<span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">StyleSourceGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">PropertyDeclarationBlock</span>;
-
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="self">Self</span>::<span class="ident">Target</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">StyleSourceGuard</span>::<span class="ident">Declarations</span>(<span class="kw-2">ref</span> <span class="ident">block</span>) <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">block</span>,
-            <span class="ident">StyleSourceGuard</span>::<span class="ident">Style</span>(<span class="kw-2">ref</span> <span class="ident">handle</span>) <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">handle</span>,
-        }
-    }
+    <span class="ident">Declarations</span>(<span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Locked</span><span class="op">&lt;</span><span class="ident">PropertyDeclarationBlock</span><span class="op">&gt;&gt;</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">StyleSource</span> {
@@ -1015,28 +980,26 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">dump</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) {
+    <span class="kw">fn</span> <span class="ident">dump</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">guard</span>: <span class="kw-2">&amp;</span><span class="ident">SharedRwLockReadGuard</span>, <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) {
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">StyleSource</span>::<span class="kw-2">*</span>;
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Style</span>(<span class="kw-2">ref</span> <span class="ident">rule</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="kw">let</span> _ <span class="op">=</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">writer</span>, <span class="string">&quot;{:?}&quot;</span>, <span class="ident">rule</span>.<span class="ident">read</span>().<span class="ident">selectors</span>);
+            <span class="kw">let</span> <span class="ident">rule</span> <span class="op">=</span> <span class="ident">rule</span>.<span class="ident">read_with</span>(<span class="ident">guard</span>);
+            <span class="kw">let</span> _ <span class="op">=</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">writer</span>, <span class="string">&quot;{:?}&quot;</span>, <span class="ident">rule</span>.<span class="ident">selectors</span>);
         }
 
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">writer</span>, <span class="string">&quot;  -&gt; {:?}&quot;</span>, <span class="self">self</span>.<span class="ident">read</span>().<span class="ident">declarations</span>());
+        <span class="kw">let</span> _ <span class="op">=</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">writer</span>, <span class="string">&quot;  -&gt; {:?}&quot;</span>, <span class="self">self</span>.<span class="ident">read</span>(<span class="ident">guard</span>).<span class="ident">declarations</span>());
     }
 
     <span class="doccomment">/// Read the style source guard, and obtain thus read access to the</span>
     <span class="doccomment">/// underlying property declaration block.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">read</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">StyleSourceGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-        <span class="kw">use</span> <span class="self">self</span>::<span class="ident">StyleSource</span>::<span class="kw-2">*</span>;
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">Style</span>(<span class="kw-2">ref</span> <span class="ident">rule</span>) <span class="op">=&gt;</span> {
-                <span class="kw">let</span> <span class="ident">owning_ref</span> <span class="op">=</span> <span class="ident">OwningHandle</span>::<span class="ident">new</span>(<span class="ident">rule</span>.<span class="ident">read</span>(), <span class="op">|</span><span class="ident">r</span><span class="op">|</span> <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">r</span> }.<span class="ident">block</span>.<span class="ident">read</span>());
-                <span class="ident">StyleSourceGuard</span>::<span class="ident">Style</span>(<span class="ident">owning_ref</span>)
-            }
-            <span class="ident">Declarations</span>(<span class="kw-2">ref</span> <span class="ident">block</span>) <span class="op">=&gt;</span> <span class="ident">StyleSourceGuard</span>::<span class="ident">Declarations</span>(<span class="ident">block</span>.<span class="ident">read</span>()),
-        }
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">read</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">guard</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">SharedRwLockReadGuard</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">PropertyDeclarationBlock</span> {
+        <span class="kw">let</span> <span class="ident">block</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">StyleSource</span>::<span class="ident">Style</span>(<span class="kw-2">ref</span> <span class="ident">rule</span>) <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="ident">rule</span>.<span class="ident">read_with</span>(<span class="ident">guard</span>).<span class="ident">block</span>,
+            <span class="ident">StyleSource</span>::<span class="ident">Declarations</span>(<span class="kw-2">ref</span> <span class="ident">block</span>) <span class="op">=&gt;</span> <span class="ident">block</span>,
+        };
+        <span class="ident">block</span>.<span class="ident">read_with</span>(<span class="ident">guard</span>)
     }
 }
 
@@ -1060,15 +1023,15 @@
         <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">clone</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">dump</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) {
+    <span class="kw">fn</span> <span class="ident">dump</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">guards</span>: <span class="kw-2">&amp;</span><span class="ident">StylesheetGuards</span>, <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) {
         <span class="kw">let</span> _ <span class="op">=</span> <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">writer</span>, <span class="string">&quot; + RuleTree&quot;</span>);
-        <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">get</span>().<span class="ident">dump</span>(<span class="ident">writer</span>, <span class="number">0</span>);
+        <span class="self">self</span>.<span class="ident">root</span>.<span class="ident">get</span>().<span class="ident">dump</span>(<span class="ident">guards</span>, <span class="ident">writer</span>, <span class="number">0</span>);
     }
 
     <span class="doccomment">/// Dump the rule tree to stdout.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">dump_stdout</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">dump_stdout</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">guards</span>: <span class="kw-2">&amp;</span><span class="ident">StylesheetGuards</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stdout</span> <span class="op">=</span> <span class="ident">io</span>::<span class="ident">stdout</span>();
-        <span class="self">self</span>.<span class="ident">dump</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">stdout</span>);
+        <span class="self">self</span>.<span class="ident">dump</span>(<span class="ident">guards</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">stdout</span>);
     }
 
     <span class="doccomment">/// Insert the given rules, that must be in proper order by specifity, and</span>
@@ -1110,8 +1073,9 @@
     <span class="doccomment">/// the old path is still valid.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update_rule_at_level</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
                                 <span class="ident">level</span>: <span class="ident">CascadeLevel</span>,
-                                <span class="ident">pdb</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">PropertyDeclarationBlock</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>,
-                                <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">StrongRuleNode</span>)
+                                <span class="ident">pdb</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Locked</span><span class="op">&lt;</span><span class="ident">PropertyDeclarationBlock</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>,
+                                <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">StrongRuleNode</span>,
+                                <span class="ident">guards</span>: <span class="kw-2">&amp;</span><span class="ident">StylesheetGuards</span>)
                                 <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StrongRuleNode</span><span class="op">&gt;</span> {
         <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">level</span>.<span class="ident">is_unique_per_element</span>());
         <span class="comment">// TODO(emilio): Being smarter with lifetimes we could avoid a bit of</span>
@@ -1170,13 +1134,13 @@
         <span class="comment">// pretty bad styling cases already.</span>
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">pdb</span>) <span class="op">=</span> <span class="ident">pdb</span> {
             <span class="kw">if</span> <span class="ident">level</span>.<span class="ident">is_important</span>() {
-                <span class="kw">if</span> <span class="ident">pdb</span>.<span class="ident">read</span>().<span class="ident">any_important</span>() {
+                <span class="kw">if</span> <span class="ident">pdb</span>.<span class="ident">read_with</span>(<span class="ident">level</span>.<span class="ident">guard</span>(<span class="ident">guards</span>)).<span class="ident">any_important</span>() {
                     <span class="ident">current</span> <span class="op">=</span> <span class="ident">current</span>.<span class="ident">ensure_child</span>(<span class="self">self</span>.<span class="ident">root</span>.<span class="ident">downgrade</span>(),
                                                    <span class="ident">StyleSource</span>::<span class="ident">Declarations</span>(<span class="ident">pdb</span>.<span class="ident">clone</span>()),
                                                    <span class="ident">level</span>);
                 }
             } <span class="kw">else</span> {
-                <span class="kw">if</span> <span class="ident">pdb</span>.<span class="ident">read</span>().<span class="ident">any_normal</span>() {
+                <span class="kw">if</span> <span class="ident">pdb</span>.<span class="ident">read_with</span>(<span class="ident">level</span>.<span class="ident">guard</span>(<span class="ident">guards</span>)).<span class="ident">any_normal</span>() {
                     <span class="ident">current</span> <span class="op">=</span> <span class="ident">current</span>.<span class="ident">ensure_child</span>(<span class="self">self</span>.<span class="ident">root</span>.<span class="ident">downgrade</span>(),
                                                    <span class="ident">StyleSource</span>::<span class="ident">Declarations</span>(<span class="ident">pdb</span>.<span class="ident">clone</span>()),
                                                    <span class="ident">level</span>);
@@ -1230,6 +1194,17 @@
 }
 
 <span class="kw">impl</span> <span class="ident">CascadeLevel</span> {
+    <span class="doccomment">/// Select a lock guard for this level</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">guard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">guards</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">StylesheetGuards</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">SharedRwLockReadGuard</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">CascadeLevel</span>::<span class="ident">UANormal</span> <span class="op">|</span>
+            <span class="ident">CascadeLevel</span>::<span class="ident">UserNormal</span> <span class="op">|</span>
+            <span class="ident">CascadeLevel</span>::<span class="ident">UserImportant</span> <span class="op">|</span>
+            <span class="ident">CascadeLevel</span>::<span class="ident">UAImportant</span> <span class="op">=&gt;</span> <span class="ident">guards</span>.<span class="ident">ua_or_user</span>,
+            _ <span class="op">=&gt;</span> <span class="ident">guards</span>.<span class="ident">author</span>,
+        }
+    }
+
     <span class="doccomment">/// Returns whether this cascade level is unique per element, in which case</span>
     <span class="doccomment">/// we can replace the path in the cascade without fear.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_unique_per_element</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
@@ -1373,7 +1348,7 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">dump</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>, <span class="ident">indent</span>: <span class="ident">usize</span>) {
+    <span class="kw">fn</span> <span class="ident">dump</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">guards</span>: <span class="kw-2">&amp;</span><span class="ident">StylesheetGuards</span>, <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>, <span class="ident">indent</span>: <span class="ident">usize</span>) {
         <span class="kw">const</span> <span class="ident">INDENT_INCREMENT</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">4</span>;
 
         <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">indent</span> {
@@ -1390,7 +1365,7 @@
 
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">source</span> {
             <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">source</span>) <span class="op">=&gt;</span> {
-                <span class="ident">source</span>.<span class="ident">dump</span>(<span class="ident">writer</span>);
+                <span class="ident">source</span>.<span class="ident">dump</span>(<span class="self">self</span>.<span class="ident">level</span>.<span class="ident">guard</span>(<span class="ident">guards</span>), <span class="ident">writer</span>);
             }
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
                 <span class="kw">if</span> <span class="ident">indent</span> <span class="op">!=</span> <span class="number">0</span> {
@@ -1402,7 +1377,7 @@
 
         <span class="kw">let</span> _ <span class="op">=</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">writer</span>, <span class="string">&quot;\n&quot;</span>);
         <span class="kw">for</span> <span class="ident">child</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">iter_children</span>() {
-            <span class="ident">child</span>.<span class="ident">get</span>().<span class="ident">dump</span>(<span class="ident">writer</span>, <span class="ident">indent</span> <span class="op">+</span> <span class="ident">INDENT_INCREMENT</span>);
+            <span class="ident">child</span>.<span class="ident">get</span>().<span class="ident">dump</span>(<span class="ident">guards</span>, <span class="ident">writer</span>, <span class="ident">indent</span> <span class="op">+</span> <span class="ident">INDENT_INCREMENT</span>);
         }
     }
 
@@ -1548,6 +1523,11 @@
     <span class="doccomment">/// rules.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">style_source</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">StyleSource</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">get</span>().<span class="ident">source</span>.<span class="ident">as_ref</span>()
+    }
+
+    <span class="doccomment">/// The cascade level for this node</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cascade_level</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">CascadeLevel</span> {
+        <span class="self">self</span>.<span class="ident">get</span>().<span class="ident">level</span>
     }
 
     <span class="doccomment">/// Get the importance that this rule node represents.</span>

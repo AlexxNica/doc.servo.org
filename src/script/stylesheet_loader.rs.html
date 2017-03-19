@@ -333,9 +333,6 @@
 <span id="288">288</span>
 <span id="289">289</span>
 <span id="290">290</span>
-<span id="291">291</span>
-<span id="292">292</span>
-<span id="293">293</span>
 </pre><pre class="rust ">
 <span class="comment">/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -361,13 +358,13 @@
 <span class="kw">use</span> <span class="ident">net_traits</span>::{<span class="ident">FetchResponseListener</span>, <span class="ident">FetchMetadata</span>, <span class="ident">FilteredMetadata</span>, <span class="ident">Metadata</span>, <span class="ident">NetworkError</span>, <span class="ident">ReferrerPolicy</span>};
 <span class="kw">use</span> <span class="ident">net_traits</span>::<span class="ident">request</span>::{<span class="ident">CorsSettings</span>, <span class="ident">CredentialsMode</span>, <span class="ident">Destination</span>, <span class="ident">RequestInit</span>, <span class="ident">RequestMode</span>, <span class="ident">Type</span> <span class="kw">as</span> <span class="ident">RequestType</span>};
 <span class="kw">use</span> <span class="ident">network_listener</span>::{<span class="ident">NetworkListener</span>, <span class="ident">PreInvoke</span>};
-<span class="kw">use</span> <span class="ident">parking_lot</span>::<span class="ident">RwLock</span>;
 <span class="kw">use</span> <span class="ident">script_layout_interface</span>::<span class="ident">message</span>::<span class="ident">Msg</span>;
 <span class="kw">use</span> <span class="ident">servo_url</span>::<span class="ident">ServoUrl</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::{<span class="ident">Arc</span>, <span class="ident">Mutex</span>};
 <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">media_queries</span>::<span class="ident">MediaList</span>;
 <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">parser</span>::<span class="ident">ParserContextExtraData</span>;
+<span class="kw">use</span> <span class="ident">style</span>::<span class="ident">shared_lock</span>::<span class="ident">Locked</span> <span class="kw">as</span> <span class="ident">StyleLocked</span>;
 <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">stylesheets</span>::{<span class="ident">ImportRule</span>, <span class="ident">Stylesheet</span>, <span class="ident">Origin</span>};
 <span class="kw">use</span> <span class="ident">style</span>::<span class="ident">stylesheets</span>::<span class="ident">StylesheetLoader</span> <span class="kw">as</span> <span class="ident">StyleStylesheetLoader</span>;
 
@@ -393,24 +390,8 @@
 
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">StylesheetContextSource</span> {
     <span class="comment">// NB: `media` is just an option so we avoid cloning it.</span>
-    <span class="ident">LinkElement</span> { <span class="ident">media</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MediaList</span><span class="op">&gt;</span>, <span class="ident">url</span>: <span class="ident">ServoUrl</span> },
-    <span class="ident">Import</span>(<span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">ImportRule</span><span class="op">&gt;&gt;</span>),
-}
-
-<span class="kw">impl</span> <span class="ident">StylesheetContextSource</span> {
-    <span class="kw">fn</span> <span class="ident">url</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ServoUrl</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">StylesheetContextSource</span>::<span class="ident">LinkElement</span> { <span class="kw-2">ref</span> <span class="ident">url</span>, .. } <span class="op">=&gt;</span> <span class="ident">url</span>.<span class="ident">clone</span>(),
-            <span class="ident">StylesheetContextSource</span>::<span class="ident">Import</span>(<span class="kw-2">ref</span> <span class="ident">import</span>) <span class="op">=&gt;</span> {
-                <span class="kw">let</span> <span class="ident">import</span> <span class="op">=</span> <span class="ident">import</span>.<span class="ident">read</span>();
-                <span class="comment">// Look at the parser in style::stylesheets, where we don&#39;t</span>
-                <span class="comment">// trigger a load if the url is invalid.</span>
-                <span class="ident">import</span>.<span class="ident">url</span>.<span class="ident">url</span>()
-                    .<span class="ident">expect</span>(<span class="string">&quot;Invalid urls shouldn&#39;t enter the loader&quot;</span>)
-                    .<span class="ident">clone</span>()
-            }
-        }
-    }
+    <span class="ident">LinkElement</span> { <span class="ident">media</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MediaList</span><span class="op">&gt;</span>, },
+    <span class="ident">Import</span>(<span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Stylesheet</span><span class="op">&gt;</span>),
 }
 
 <span class="doccomment">/// The context required for asynchronously loading an external stylesheet.</span>
@@ -418,6 +399,7 @@
     <span class="doccomment">/// The element that initiated the request.</span>
     <span class="ident">elem</span>: <span class="ident">Trusted</span><span class="op">&lt;</span><span class="ident">HTMLElement</span><span class="op">&gt;</span>,
     <span class="ident">source</span>: <span class="ident">StylesheetContextSource</span>,
+    <span class="ident">url</span>: <span class="ident">ServoUrl</span>,
     <span class="ident">metadata</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Metadata</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The response body received to date.</span>
     <span class="ident">data</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
@@ -484,19 +466,21 @@
 
             <span class="kw">let</span> <span class="ident">loader</span> <span class="op">=</span> <span class="ident">StylesheetLoader</span>::<span class="ident">for_element</span>(<span class="kw-2">&amp;</span><span class="ident">elem</span>);
             <span class="kw">match</span> <span class="self">self</span>.<span class="ident">source</span> {
-                <span class="ident">StylesheetContextSource</span>::<span class="ident">LinkElement</span> { <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">media</span>, .. } <span class="op">=&gt;</span> {
+                <span class="ident">StylesheetContextSource</span>::<span class="ident">LinkElement</span> { <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">media</span> } <span class="op">=&gt;</span> {
                     <span class="kw">let</span> <span class="ident">link</span> <span class="op">=</span> <span class="ident">elem</span>.<span class="ident">downcast</span>::<span class="op">&lt;</span><span class="ident">HTMLLinkElement</span><span class="op">&gt;</span>().<span class="ident">unwrap</span>();
                     <span class="comment">// We must first check whether the generations of the context and the element match up,</span>
                     <span class="comment">// else we risk applying the wrong stylesheet when responses come out-of-order.</span>
                     <span class="kw">let</span> <span class="ident">is_stylesheet_load_applicable</span> <span class="op">=</span>
                         <span class="self">self</span>.<span class="ident">request_generation_id</span>.<span class="ident">map_or</span>(<span class="bool-val">true</span>, <span class="op">|</span><span class="ident">gen</span><span class="op">|</span> <span class="ident">gen</span> <span class="op">==</span> <span class="ident">link</span>.<span class="ident">get_request_generation_id</span>());
                     <span class="kw">if</span> <span class="ident">is_stylesheet_load_applicable</span> {
+                        <span class="kw">let</span> <span class="ident">shared_lock</span> <span class="op">=</span> <span class="ident">document</span>.<span class="ident">style_shared_lock</span>().<span class="ident">clone</span>();
                         <span class="kw">let</span> <span class="ident">sheet</span> <span class="op">=</span>
                             <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">Stylesheet</span>::<span class="ident">from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>, <span class="ident">final_url</span>,
                                                             <span class="ident">protocol_encoding_label</span>,
                                                             <span class="prelude-val">Some</span>(<span class="ident">environment_encoding</span>),
                                                             <span class="ident">Origin</span>::<span class="ident">Author</span>,
                                                             <span class="ident">media</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>(),
+                                                            <span class="ident">shared_lock</span>,
                                                             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">loader</span>),
                                                             <span class="ident">win</span>.<span class="ident">css_error_reporter</span>(),
                                                             <span class="ident">ParserContextExtraData</span>::<span class="ident">default</span>()));
@@ -510,9 +494,8 @@
                         <span class="ident">win</span>.<span class="ident">layout_chan</span>().<span class="ident">send</span>(<span class="ident">Msg</span>::<span class="ident">AddStylesheet</span>(<span class="ident">sheet</span>)).<span class="ident">unwrap</span>();
                     }
                 }
-                <span class="ident">StylesheetContextSource</span>::<span class="ident">Import</span>(<span class="kw-2">ref</span> <span class="ident">import</span>) <span class="op">=&gt;</span> {
-                    <span class="kw">let</span> <span class="ident">import</span> <span class="op">=</span> <span class="ident">import</span>.<span class="ident">read</span>();
-                    <span class="ident">Stylesheet</span>::<span class="ident">update_from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">import</span>.<span class="ident">stylesheet</span>,
+                <span class="ident">StylesheetContextSource</span>::<span class="ident">Import</span>(<span class="kw-2">ref</span> <span class="ident">stylesheet</span>) <span class="op">=&gt;</span> {
+                    <span class="ident">Stylesheet</span>::<span class="ident">update_from_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">stylesheet</span>,
                                                   <span class="kw-2">&amp;</span><span class="ident">data</span>,
                                                   <span class="ident">protocol_encoding_label</span>,
                                                   <span class="prelude-val">Some</span>(<span class="ident">environment_encoding</span>),
@@ -536,8 +519,7 @@
             <span class="ident">document</span>.<span class="ident">decrement_script_blocking_stylesheet_count</span>();
         }
 
-        <span class="kw">let</span> <span class="ident">url</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">source</span>.<span class="ident">url</span>();
-        <span class="ident">document</span>.<span class="ident">finish_load</span>(<span class="ident">LoadType</span>::<span class="ident">Stylesheet</span>(<span class="ident">url</span>));
+        <span class="ident">document</span>.<span class="ident">finish_load</span>(<span class="ident">LoadType</span>::<span class="ident">Stylesheet</span>(<span class="self">self</span>.<span class="ident">url</span>.<span class="ident">clone</span>()));
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">any_failed</span>) <span class="op">=</span> <span class="ident">owner</span>.<span class="ident">load_finished</span>(<span class="ident">successful</span>) {
             <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">any_failed</span> { <span class="macro">atom</span><span class="macro">!</span>(<span class="string">&quot;error&quot;</span>) } <span class="kw">else</span> { <span class="macro">atom</span><span class="macro">!</span>(<span class="string">&quot;load&quot;</span>) };
@@ -559,15 +541,16 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">StylesheetLoader</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">load</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">source</span>: <span class="ident">StylesheetContextSource</span>, <span class="ident">cors_setting</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">CorsSettings</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">load</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">source</span>: <span class="ident">StylesheetContextSource</span>, <span class="ident">url</span>: <span class="ident">ServoUrl</span>,
+                <span class="ident">cors_setting</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">CorsSettings</span><span class="op">&gt;</span>,
                 <span class="ident">integrity_metadata</span>: <span class="ident">String</span>) {
-        <span class="kw">let</span> <span class="ident">url</span> <span class="op">=</span> <span class="ident">source</span>.<span class="ident">url</span>();
         <span class="kw">let</span> <span class="ident">document</span> <span class="op">=</span> <span class="ident">document_from_node</span>(<span class="self">self</span>.<span class="ident">elem</span>);
         <span class="kw">let</span> <span class="ident">gen</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">elem</span>.<span class="ident">downcast</span>::<span class="op">&lt;</span><span class="ident">HTMLLinkElement</span><span class="op">&gt;</span>()
                            .<span class="ident">map</span>(<span class="ident">HTMLLinkElement</span>::<span class="ident">get_request_generation_id</span>);
         <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">Mutex</span>::<span class="ident">new</span>(<span class="ident">StylesheetContext</span> {
             <span class="ident">elem</span>: <span class="ident">Trusted</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">elem</span>),
             <span class="ident">source</span>: <span class="ident">source</span>,
+            <span class="ident">url</span>: <span class="ident">url</span>.<span class="ident">clone</span>(),
             <span class="ident">metadata</span>: <span class="prelude-val">None</span>,
             <span class="ident">data</span>: <span class="macro">vec</span><span class="macro">!</span>[],
             <span class="ident">document</span>: <span class="ident">Trusted</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">document</span>),
@@ -624,10 +607,21 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">StyleStylesheetLoader</span> <span class="kw">for</span> <span class="ident">StylesheetLoader</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">request_stylesheet</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">import</span>: <span class="kw-2">&amp;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">ImportRule</span><span class="op">&gt;&gt;</span>) {
+    <span class="kw">fn</span> <span class="ident">request_stylesheet</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">media</span>: <span class="ident">MediaList</span>,
+        <span class="ident">make_import</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FnMut</span>(<span class="ident">MediaList</span>) <span class="op">-&gt;</span> <span class="ident">ImportRule</span>,
+        <span class="ident">make_arc</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FnMut</span>(<span class="ident">ImportRule</span>) <span class="op">-&gt;</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">StyleLocked</span><span class="op">&lt;</span><span class="ident">ImportRule</span><span class="op">&gt;&gt;</span>,
+    ) <span class="op">-&gt;</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">StyleLocked</span><span class="op">&lt;</span><span class="ident">ImportRule</span><span class="op">&gt;&gt;</span> {
+        <span class="kw">let</span> <span class="ident">import</span> <span class="op">=</span> <span class="ident">make_import</span>(<span class="ident">media</span>);
+        <span class="kw">let</span> <span class="ident">url</span> <span class="op">=</span> <span class="ident">import</span>.<span class="ident">url</span>.<span class="ident">url</span>().<span class="ident">expect</span>(<span class="string">&quot;Invalid urls shouldn&#39;t enter the loader&quot;</span>).<span class="ident">clone</span>();
+
         <span class="comment">//TODO (mrnayak) : Whether we should use the original loader&#39;s CORS setting?</span>
         <span class="comment">//Fix this when spec has more details.</span>
-        <span class="self">self</span>.<span class="ident">load</span>(<span class="ident">StylesheetContextSource</span>::<span class="ident">Import</span>(<span class="ident">import</span>.<span class="ident">clone</span>()), <span class="prelude-val">None</span>, <span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>())
+        <span class="kw">let</span> <span class="ident">source</span> <span class="op">=</span> <span class="ident">StylesheetContextSource</span>::<span class="ident">Import</span>(<span class="ident">import</span>.<span class="ident">stylesheet</span>.<span class="ident">clone</span>());
+        <span class="self">self</span>.<span class="ident">load</span>(<span class="ident">source</span>, <span class="ident">url</span>, <span class="prelude-val">None</span>, <span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>());
+
+        <span class="ident">make_arc</span>(<span class="ident">import</span>)
     }
 }
 </pre>
